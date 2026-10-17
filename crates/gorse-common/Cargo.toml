@@ -11,6 +11,9 @@ publish = false
 [dependencies]
 blake2.workspace = true
 gorse-protocol = { workspace = true }
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 
 [build-dependencies]
@@ -18,8 +21,7 @@ cc.workspace = true
 
 [dev-dependencies]
 hex.workspace = true
-serde.workspace = true
-serde_json.workspace = true
+prost.workspace = true
 sha2.workspace = true
 
 [lints]

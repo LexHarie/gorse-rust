@@ -300,6 +300,8 @@ dependencies = [
  "cc",
  "gorse-protocol",
  "hex",
+ "prost",
+ "regex",
  "serde",
  "serde_json",
  "sha2",

@@ -189,6 +189,51 @@ places users on workers (`contracts/grpc.md`); the golden data
   drives a load below zero. Load arithmetic wraps on overflow as Go's `int64`
   does.
 
+### Feedback type expressions
+
+`common/expression`, checked by `expression_golden.json`
+(`contracts/tools/exprgolden`).
+
+- **Q-46 `=` parses and matches every value.** The pattern accepts `=` and the
+  switch maps it to `None` (`expression.go:84-95`): `a=5` gives type `a`,
+  `None`, value 5, so `Match` ignores the value, `String` prints `a` and `ToPB`
+  still sends 5.
+- **Q-47 A value without an operator is parsed and then ignored.** `a.5` gives
+  type `a`, `None`, value 0.5; the type takes digits greedily, so `a1.5` gives
+  type `a1` and value 0.5, and `a1.` fails on the value `.`.
+- **Q-48 `FromString` is not atomic and keeps the old value.** The type and
+  operator are written before the value is parsed; a bad value then sets the
+  value to what `strconv.ParseFloat` returned (0 for `invalid syntax`, `+Inf`
+  for `value out of range`) and returns the error. Text without a value leaves
+  the previous value in place. With `encoding/json` decoding into the elements
+  already in a slice, this carries a stale value across a config override
+  (`["like"]` over a file value `star>=3` gives `{like, None, 3}`; only `ToPB`
+  shows it). `master.applyRecommendOverride` decodes `RECOMMEND_CONFIG` into
+  `cfg.Recommend` that way (for WP-1-15 and WP-4-3).
+- **Q-49 Values of 1e6 and more, or below 1e-4, do not survive a round trip.**
+  `String` formats the value with `%v`, which switches to exponent form outside
+  `[1e-4, 1e6)` (`read>=1e+06`), and the pattern has no exponent. A config
+  holding such a value marshals, but unmarshalling it back fails. `postConfig`
+  stores the marshalled `Recommend` in the meta store and
+  `applyRecommendOverride` reads it back on start (error logged,
+  `master.go:328`) and on reload (`master.go:183`, which then fails); inferred
+  from the call sites, for WP-4-3 to confirm.
+- **Q-50 `MarshalJSON` escapes `<`, `>` and `&`** (`"test\u003c16"`, asserted by
+  the Go test). The serde `Serialize` writes the plain string; matching Go's
+  bytes in a whole document needs a writer that escapes every string like Go,
+  which every go-restful response also needs (REST work packages).
+- **Q-51 `FromPB` keeps `ExprType` for an unknown enum number** (Go's `switch`
+  has no default).
+- **Q-52 `MarshalJSON` has a pointer receiver.** A value that is not addressable
+  (passed by value, a map value) encodes as the default struct
+  `{"FeedbackType":"read","ExprType":4,"Value":3}`; slice elements and pointers
+  use the string form. Every Gorse field is a slice, so the Rust `Serialize`
+  always writes the string form.
+- **Q-53 JSON `null` is an error inside a slice but fine for the slice.**
+  `UnmarshalJSON("null")` parses the empty string and fails; a `null` slice is
+  set to nil without calling it. serde's `Vec<T>` rejects `null`, so the config
+  types (WP-1-15) need `Option` or a default there.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -283,8 +328,26 @@ places users on workers (`contracts/grpc.md`); the golden data
 - **X-18 Ring keys and hosts are `&str`.** Go strings may hold invalid UTF-8;
   worker uuids are hex and user ids are UTF-8 in every Gorse store (X-8).
 
+- **X-19 `unmarshal_json` of text that is not JSON returns serde_json's
+  message**, not Go's scanner text. Go's decoders check the whole document
+  before calling `UnmarshalJSON`, so only direct calls can pass such input, and
+  none in Gorse does. Valid JSON (including lone `\u` surrogates and invalid
+  UTF-8, which Go turns into U+FFFD) is decoded like Go.
+- **X-20 serde errors for feedback type expressions carry serde_json's position
+  suffix** (` at line L column C` after Go's text). A string element with a lone
+  surrogate escape or invalid UTF-8 fails in serde_json before reaching the
+  visitor, with serde_json's message, where Go fails with
+  `invalid expression format`; both reject it.
+
 ## Open questions
 
 - **O-1** The Go CI's model tests read the datasets from `https://cdn.gorse.io`,
   which this environment's network policy blocks. Phase 3 metric parity needs
   them (`PORTING.md` status board).
+- **O-2 prost leaves `-0.0` out of proto3 `double` and `float` fields;
+  protobuf-go writes it** (its bits are not zero). A Rust sender therefore
+  delivers `+0` where a Go sender delivers `-0`, for every such field in
+  `gorse-protocol` (prost 0.14.4 encodes `{test, None, -0}` as `0a0474657374`).
+  `expression_to_pb_matches_go` asserts the exact difference on 15 cases so a
+  prost change is noticed. To be settled with the gRPC services (Phase 2/3):
+  a score of `-0` can arise (`logics/cf.go` negates a dot product).

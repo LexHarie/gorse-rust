@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-5, WP-1-13. WP-1-4, WP-1-6 to WP-1-9, WP-1-12 and WP-1-14 run in parallel threads (D-26); WP-1-10, WP-1-11 and WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-5, WP-1-7, WP-1-13. WP-1-4, WP-1-6, WP-1-8, WP-1-9, WP-1-11, WP-1-12, WP-1-14 and WP-1-19 run in parallel threads (D-26); WP-1-10 and WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
@@ -105,6 +105,23 @@ correction below states the evidence.
   WP-1-3's other Go tests, `floats_simd_test.go` (built only with
   `GOEXPERIMENT=simd`) and the riscv64 and loong64 test files, test kernels the
   port does not build (`PORTING_NOTES.md` X-9).
+
+- **C-12 `common/expression` is not expr-lang; the expr-lang parser gets its own
+  work package (WP-1-19).** Risk 3 and `porting/crate-selection.md` said Gorse
+  uses expr-lang only through `common/expression` and the recommend filters.
+  `common/expression` is the feedback type grammar
+  `<feedback_type>[<operator><value>]`, one regexp and a float compare
+  (`expression.go:28`), and imports no expr-lang. expr-lang (v1.17.8) is
+  imported by `config/config.go`, whose `item_expr` validator accepts a field
+  when `parser.Parse` does (`config.go:975`), and by
+  `logics/non_personalized.go`, `logics/item_to_item.go`,
+  `logics/user_to_user.go` and `cmd/gorse-bench`, which compile and run
+  expressions. WP-1-15 (config) therefore needs expr-lang's parser before
+  WP-3-6. New WP-1-19 ports the lexer and parser into a new crate
+  `gorse-expr`, with accept/reject parity against Go; WP-1-15 depends on it,
+  and WP-3-6 adds the checker, compiler and VM to the same crate instead of
+  `gorse-logics/src/expr/`. The crate-selection row is reworded. Found by the
+  WP-1-7 thread.
 
 ## Decision log
 
@@ -221,6 +238,23 @@ or accepts a metric gap outside the Go tests' own tolerances.
   `D-`, `Q-` and `X-` numbers to the entries the thread wrote in
   `porting/notes/<WP>.md` (provisional ids, so parallel threads never collide),
   and reruns the workspace checks after the merge.
+
+- **D-27 `common/expression` keeps the Go pattern (WP-1-7).** The `regex`
+  crate (1.13.1) shares RE2's syntax for this pattern, leftmost-first submatch
+  semantics, ASCII classes and `$` matching only at the end, so the port uses
+  Go's regular expression verbatim. A corpus of 902 parse cases (every
+  expression in the Go tests and configs, edge cases, random strings over the
+  pattern's alphabet, random well-formed values) agrees with Go on every split,
+  rejection and value bit.
+- **D-28 `serde` stands in for `MarshalJSON`/`UnmarshalJSON` inside larger
+  documents (WP-1-7).** The Go methods are also ported as `marshal_json`
+  (byte-exact, HTML-escaped like `json.Marshal`) and `unmarshal_json` (Go's
+  errors); `serde` and `serde_json` become dependencies of `gorse-common`.
+- **D-29 `ExprType` is a closed enum (WP-1-7).** Go's `ExprType` is an `int`, so
+  Go code could build other values, but no input does: `FromString` maps to the
+  five constants and `FromPB` keeps the field for unknown enum numbers
+  (`PORTING_NOTES.md` Q-51). Go's `Match` is `matches` (`match` is a Rust
+  keyword).
 
 ## Open questions for Ritchie
 

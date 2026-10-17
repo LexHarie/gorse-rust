@@ -9,5 +9,6 @@
 pub mod blas;
 pub mod consistent;
 pub mod encoding;
+pub mod expression;
 pub mod floats;
 pub mod heap;
