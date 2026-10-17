@@ -63,6 +63,44 @@ pub mod internal {
         set_default_goroot, zoneinfo_for_testing,
     };
     pub use super::{UNIX_TO_INTERNAL, days_in, time_from_parts, time_parts};
+
+    // The absolute calendar, for the port of abs_test.go.
+
+    /// Go's `absoluteYears`.
+    pub const ABSOLUTE_YEARS: u64 = super::ABSOLUTE_YEARS;
+    /// Go's `marchThruDecember`.
+    pub const MARCH_THRU_DECEMBER: i64 = super::MARCH_THRU_DECEMBER;
+
+    /// Go's `absDays.split`: century, year of century, March-based day of
+    /// year.
+    pub fn abs_days_split(days: u64) -> (u64, i64, i64) {
+        super::split_days(days)
+    }
+
+    /// Go's `absYday.split`: March-based month and 1-based day.
+    pub fn abs_yday_split(ayday: i64) -> (i64, i64) {
+        super::split_yday(ayday)
+    }
+
+    /// Go's `absDays.date`.
+    pub fn abs_days_date(days: u64) -> (i64, super::Month, i64) {
+        super::abs_date(days)
+    }
+
+    /// Go's `absDays.yearYday`.
+    pub fn abs_days_year_yday(days: u64) -> (i64, i64) {
+        super::abs_year_yday(days)
+    }
+
+    /// Go's `dateToAbsDays`.
+    pub fn date_to_abs_days(year: i64, month: super::Month, day: i64) -> u64 {
+        super::date_to_abs_days(year, month, day)
+    }
+
+    /// Go's `daysBefore`.
+    pub fn days_before(m: super::Month) -> i64 {
+        super::days_before(m)
+    }
 }
 
 /// A Go `time.Time`: an instant with nanosecond precision, an optional
