@@ -71,9 +71,13 @@ Deviations point to the decision in `PORTING.md` that approves them.
 - **Q-18 XLA and non-XLA CTR blobs share the `AFM`/`AFM2` header but differ in the
   parameter section**, so the two Go builds cannot read each other's blobs
   (`model/ctr/fm.go`, `fm_xla.go`).
-- **Q-19 `encoding.ReadBytes` of a zero-length value can fail with `EOF`** when it
-  is the last thing in the stream, because it calls `Read` on an empty buffer
-  (`common/encoding/encoding.go`). Only reachable with an empty last string.
+- **Q-19 `encoding.ReadBytes` of a zero-length value depends on the reader**
+  (`common/encoding/encoding.go`): it calls `Read` with an empty buffer, which
+  `bytes.Buffer` and `os.File` answer with `0, nil` and `bytes.Reader` at the end
+  of its data answers with `EOF` (observed with a probe test). Not reproduced:
+  no blob layout ends with a string (the CF blob ends with a slice, the CTR blob
+  with tensors), so it cannot change a result, and the Rust `read_bytes` always
+  returns the empty value.
 
 ### Storage
 
@@ -137,6 +141,22 @@ Deviations point to the decision in `PORTING.md` that approves them.
   same Gorse metrics plus `process_*` but no `go_*` series.
 - **X-6 `--help` layout.** Flags, defaults and behaviour match
   `contracts/cli/*.help.txt`; the help text is laid out by clap, not cobra.
+- **X-7 Corrupt lengths are errors** (`PORTING.md` D-23). Go's `ReadBytes` and
+  `ReadSlice` panic on a negative `i32` length (`make` with a negative size) and
+  allocate any positive length before reading the data; `WriteBytes` and
+  `WriteSlice` truncate a length above `i32::MAX` and write a corrupt stream; a
+  gob map count makes Go ask the runtime for a map of that size before reading
+  any entry. The Rust functions return an error for the first three and grow
+  buffers and maps only as data arrives. Well-formed input reads the same.
+- **X-8 gob values Gorse never writes** (`PORTING.md` D-23). Go's gob decoder
+  accepts any gob-registered type inside `model.Params` (`uint`, `[]string`, ...)
+  and any bytes in a string. The Rust decoder reads the types Gorse writes
+  (`contracts/model-blobs.md`) and returns `Unsupported` for the rest; strings,
+  including `ReadString` values such as user ids in the CF blob, must be UTF-8.
+  The two cases where Go returns a value and Rust does not are listed in
+  `crates/gorse-common/tests/gob_golden.rs` (`UNSUPPORTED`). Ids reach Gorse
+  through JSON, which Go decodes to UTF-8, and protobuf, which rejects other
+  strings.
 
 ## Open questions
 

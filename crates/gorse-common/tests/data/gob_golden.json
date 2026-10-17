@@ -1,0 +1,583 @@
+[
+  {
+    "name": "int64 0",
+    "kind": "int64",
+    "value": "0",
+    "hex": "0400000003040000",
+    "deterministic": true
+  },
+  {
+    "name": "int64 1",
+    "kind": "int64",
+    "value": "1",
+    "hex": "0400000003040002",
+    "deterministic": true
+  },
+  {
+    "name": "int64 -1",
+    "kind": "int64",
+    "value": "-1",
+    "hex": "0400000003040001",
+    "deterministic": true
+  },
+  {
+    "name": "int64 3",
+    "kind": "int64",
+    "value": "3",
+    "hex": "0400000003040006",
+    "deterministic": true
+  },
+  {
+    "name": "int64 63",
+    "kind": "int64",
+    "value": "63",
+    "hex": "040000000304007e",
+    "deterministic": true
+  },
+  {
+    "name": "int64 64",
+    "kind": "int64",
+    "value": "64",
+    "hex": "05000000040400ff80",
+    "deterministic": true
+  },
+  {
+    "name": "int64 -64",
+    "kind": "int64",
+    "value": "-64",
+    "hex": "040000000304007f",
+    "deterministic": true
+  },
+  {
+    "name": "int64 -65",
+    "kind": "int64",
+    "value": "-65",
+    "hex": "05000000040400ff81",
+    "deterministic": true
+  },
+  {
+    "name": "int64 127",
+    "kind": "int64",
+    "value": "127",
+    "hex": "05000000040400fffe",
+    "deterministic": true
+  },
+  {
+    "name": "int64 128",
+    "kind": "int64",
+    "value": "128",
+    "hex": "06000000050400fe0100",
+    "deterministic": true
+  },
+  {
+    "name": "int64 255",
+    "kind": "int64",
+    "value": "255",
+    "hex": "06000000050400fe01fe",
+    "deterministic": true
+  },
+  {
+    "name": "int64 256",
+    "kind": "int64",
+    "value": "256",
+    "hex": "06000000050400fe0200",
+    "deterministic": true
+  },
+  {
+    "name": "int64 1099511627776",
+    "kind": "int64",
+    "value": "1099511627776",
+    "hex": "0a000000090400fa020000000000",
+    "deterministic": true
+  },
+  {
+    "name": "int64 9223372036854775807",
+    "kind": "int64",
+    "value": "9223372036854775807",
+    "hex": "0c0000000b0400f8fffffffffffffffe",
+    "deterministic": true
+  },
+  {
+    "name": "int64 -9223372036854775808",
+    "kind": "int64",
+    "value": "-9223372036854775808",
+    "hex": "0c0000000b0400f8ffffffffffffffff",
+    "deterministic": true
+  },
+  {
+    "name": "int 0",
+    "kind": "int",
+    "value": "0",
+    "hex": "0400000003040000",
+    "deterministic": true
+  },
+  {
+    "name": "int 3",
+    "kind": "int",
+    "value": "3",
+    "hex": "0400000003040006",
+    "deterministic": true
+  },
+  {
+    "name": "int -1",
+    "kind": "int",
+    "value": "-1",
+    "hex": "0400000003040001",
+    "deterministic": true
+  },
+  {
+    "name": "int 1024",
+    "kind": "int",
+    "value": "1024",
+    "hex": "06000000050400fe0800",
+    "deterministic": true
+  },
+  {
+    "name": "int 9223372036854775807",
+    "kind": "int",
+    "value": "9223372036854775807",
+    "hex": "0c0000000b0400f8fffffffffffffffe",
+    "deterministic": true
+  },
+  {
+    "name": "int32 0",
+    "kind": "int32",
+    "value": "0",
+    "hex": "0400000003040000",
+    "deterministic": true
+  },
+  {
+    "name": "int32 7",
+    "kind": "int32",
+    "value": "7",
+    "hex": "040000000304000e",
+    "deterministic": true
+  },
+  {
+    "name": "int32 -7",
+    "kind": "int32",
+    "value": "-7",
+    "hex": "040000000304000d",
+    "deterministic": true
+  },
+  {
+    "name": "int32 2147483647",
+    "kind": "int32",
+    "value": "2147483647",
+    "hex": "08000000070400fcfffffffe",
+    "deterministic": true
+  },
+  {
+    "name": "int32 -2147483648",
+    "kind": "int32",
+    "value": "-2147483648",
+    "hex": "08000000070400fcffffffff",
+    "deterministic": true
+  },
+  {
+    "name": "bool true",
+    "kind": "bool",
+    "value": true,
+    "hex": "0400000003020001",
+    "deterministic": true
+  },
+  {
+    "name": "bool false",
+    "kind": "bool",
+    "value": false,
+    "hex": "0400000003020000",
+    "deterministic": true
+  },
+  {
+    "name": "float32 00000000",
+    "kind": "float32",
+    "value": "00000000",
+    "hex": "0400000003080000",
+    "deterministic": true
+  },
+  {
+    "name": "float32 3f000000",
+    "kind": "float32",
+    "value": "3f000000",
+    "hex": "06000000050800fee03f",
+    "deterministic": true
+  },
+  {
+    "name": "float32 bfa00000",
+    "kind": "float32",
+    "value": "bfa00000",
+    "hex": "06000000050800fef4bf",
+    "deterministic": true
+  },
+  {
+    "name": "float32 3f800000",
+    "kind": "float32",
+    "value": "3f800000",
+    "hex": "06000000050800fef03f",
+    "deterministic": true
+  },
+  {
+    "name": "float32 7f7fffff",
+    "kind": "float32",
+    "value": "7f7fffff",
+    "hex": "09000000080800fbe0ffffef47",
+    "deterministic": true
+  },
+  {
+    "name": "float32 00000001",
+    "kind": "float32",
+    "value": "00000001",
+    "hex": "06000000050800fea036",
+    "deterministic": true
+  },
+  {
+    "name": "float32 7f800000",
+    "kind": "float32",
+    "value": "7f800000",
+    "hex": "06000000050800fef07f",
+    "deterministic": true
+  },
+  {
+    "name": "float32 ff800000",
+    "kind": "float32",
+    "value": "ff800000",
+    "hex": "06000000050800fef0ff",
+    "deterministic": true
+  },
+  {
+    "name": "float32 3dcccccd",
+    "kind": "float32",
+    "value": "3dcccccd",
+    "hex": "09000000080800fba09999b93f",
+    "deterministic": true
+  },
+  {
+    "name": "float64 0000000000000000",
+    "kind": "float64",
+    "value": "0000000000000000",
+    "hex": "0400000003080000",
+    "deterministic": true
+  },
+  {
+    "name": "float64 3fc0000000000000",
+    "kind": "float64",
+    "value": "3fc0000000000000",
+    "hex": "06000000050800fec03f",
+    "deterministic": true
+  },
+  {
+    "name": "float64 c004000000000000",
+    "kind": "float64",
+    "value": "c004000000000000",
+    "hex": "06000000050800fe04c0",
+    "deterministic": true
+  },
+  {
+    "name": "float64 7e37e43c8800759c",
+    "kind": "float64",
+    "value": "7e37e43c8800759c",
+    "hex": "0c0000000b0800f89c7500883ce4377e",
+    "deterministic": true
+  },
+  {
+    "name": "float64 3fb999999999999a",
+    "kind": "float64",
+    "value": "3fb999999999999a",
+    "hex": "0c0000000b0800f89a9999999999b93f",
+    "deterministic": true
+  },
+  {
+    "name": "string \"\"",
+    "kind": "string",
+    "value": "",
+    "hex": "04000000030c0000",
+    "deterministic": true
+  },
+  {
+    "name": "string \"abc\"",
+    "kind": "string",
+    "value": "abc",
+    "hex": "07000000060c0003616263",
+    "deterministic": true
+  },
+  {
+    "name": "string \"héllo\"",
+    "kind": "string",
+    "value": "héllo",
+    "hex": "0a000000090c000668c3a96c6c6f",
+    "deterministic": true
+  },
+  {
+    "name": "string \"AFM2\"",
+    "kind": "string",
+    "value": "AFM2",
+    "hex": "08000000070c000441464d32",
+    "deterministic": true
+  },
+  {
+    "name": "[]int 0",
+    "kind": "[]int",
+    "value": null,
+    "hex": "110000000b7f020102ff80000104000004ff800000",
+    "deterministic": true
+  },
+  {
+    "name": "[]int 1",
+    "kind": "[]int",
+    "value": [
+      "1",
+      "2"
+    ],
+    "hex": "130000000b7f020102ff80000104000006ff8000020204",
+    "deterministic": true
+  },
+  {
+    "name": "[]int 2",
+    "kind": "[]int",
+    "value": [
+      "64",
+      "32"
+    ],
+    "hex": "140000000b7f020102ff80000104000007ff800002ff8040",
+    "deterministic": true
+  },
+  {
+    "name": "[]int 3",
+    "kind": "[]int",
+    "value": [
+      "-5",
+      "300",
+      "8589934592"
+    ],
+    "hex": "1b0000000b7f020102ff8000010400000eff80000309fe0258fb0400000000",
+    "deterministic": true
+  },
+  {
+    "name": "params empty",
+    "kind": "params",
+    "value": null,
+    "hex": "1b000000157f04010106506172616d7301ff8000010c0110000004ff800000",
+    "deterministic": true
+  },
+  {
+    "name": "params nil",
+    "kind": "params",
+    "value": null,
+    "hex": "1b000000157f04010106506172616d7301ff8000010c0110000004ff800000",
+    "deterministic": true
+  },
+  {
+    "name": "params float32",
+    "kind": "params",
+    "value": [
+      {
+        "key": "Lr",
+        "type": "float32",
+        "value": "3f000000"
+      }
+    ],
+    "hex": "2c000000157f04010106506172616d7301ff8000010c0110000015ff800001024c7207666c6f61743332080400fee03f",
+    "deterministic": true
+  },
+  {
+    "name": "params float64",
+    "kind": "params",
+    "value": [
+      {
+        "key": "Reg",
+        "type": "float64",
+        "value": "3fb999999999999a"
+      }
+    ],
+    "hex": "33000000157f04010106506172616d7301ff8000010c011000001cff8000010352656707666c6f61743634080a00f89a9999999999b93f",
+    "deterministic": true
+  },
+  {
+    "name": "params int",
+    "kind": "params",
+    "value": [
+      {
+        "key": "NEpochs",
+        "type": "int",
+        "value": "3"
+      }
+    ],
+    "hex": "2b000000157f04010106506172616d7301ff8000010c0110000014ff800001074e45706f63687303696e7404020006",
+    "deterministic": true
+  },
+  {
+    "name": "params int64",
+    "kind": "params",
+    "value": [
+      {
+        "key": "RandomState",
+        "type": "int64",
+        "value": "7"
+      }
+    ],
+    "hex": "31000000157f04010106506172616d7301ff8000010c011000001aff8000010b52616e646f6d537461746505696e7436340402000e",
+    "deterministic": true
+  },
+  {
+    "name": "params int32",
+    "kind": "params",
+    "value": [
+      {
+        "key": "BatchSize",
+        "type": "int32",
+        "value": "9"
+      }
+    ],
+    "hex": "2f000000157f04010106506172616d7301ff8000010c0110000018ff80000109426174636853697a6505696e74333204020012",
+    "deterministic": true
+  },
+  {
+    "name": "params bool",
+    "kind": "params",
+    "value": [
+      {
+        "key": "AutoScale",
+        "type": "bool",
+        "value": true
+      }
+    ],
+    "hex": "2e000000157f04010106506172616d7301ff8000010c0110000017ff800001094175746f5363616c6504626f6f6c02020001",
+    "deterministic": true
+  },
+  {
+    "name": "params string",
+    "kind": "params",
+    "value": [
+      {
+        "key": "Optimizer",
+        "type": "string",
+        "value": "adam"
+      }
+    ],
+    "hex": "34000000157f04010106506172616d7301ff8000010c011000001dff800001094f7074696d697a657206737472696e670c0600046164616d",
+    "deterministic": true
+  },
+  {
+    "name": "params []int",
+    "kind": "params",
+    "value": [
+      {
+        "key": "HiddenLayers",
+        "type": "[]int",
+        "value": [
+          "64",
+          "32"
+        ]
+      }
+    ],
+    "hex": "43000000157f04010106506172616d7301ff8000010c0110000023ff8000010c48696464656e4c6179657273055b5d696e74ff81020102ff82000104000008ff82050002ff8040",
+    "deterministic": true
+  },
+  {
+    "name": "params nil value",
+    "kind": "params",
+    "value": [
+      {
+        "key": "Similarity",
+        "type": "nil",
+        "value": null
+      }
+    ],
+    "hex": "27000000157f04010106506172616d7301ff8000010c0110000010ff8000010a53696d696c617269747900",
+    "deterministic": true
+  },
+  {
+    "name": "params zero int",
+    "kind": "params",
+    "value": [
+      {
+        "key": "NFactors",
+        "type": "int",
+        "value": "0"
+      }
+    ],
+    "hex": "2c000000157f04010106506172616d7301ff8000010c0110000015ff800001084e466163746f727303696e7404020000",
+    "deterministic": true
+  },
+  {
+    "name": "params all",
+    "kind": "params",
+    "value": [
+      {
+        "key": "AutoScale",
+        "type": "bool",
+        "value": false
+      },
+      {
+        "key": "HiddenLayers",
+        "type": "[]int",
+        "value": [
+          "8"
+        ]
+      },
+      {
+        "key": "InitStdDev",
+        "type": "float32",
+        "value": "3a83126f"
+      },
+      {
+        "key": "Lr",
+        "type": "float32",
+        "value": "3d4ccccd"
+      },
+      {
+        "key": "NEpochs",
+        "type": "int",
+        "value": "100"
+      },
+      {
+        "key": "NFactors",
+        "type": "int",
+        "value": "16"
+      },
+      {
+        "key": "Optimizer",
+        "type": "string",
+        "value": "sgd"
+      },
+      {
+        "key": "RandomState",
+        "type": "int64",
+        "value": "1"
+      },
+      {
+        "key": "Reg",
+        "type": "float64",
+        "value": "3f847ae147ae147b"
+      }
+    ],
+    "hex": "ed000000157f04010106506172616d7301ff8000010c0110000051ff8000090b52616e646f6d537461746505696e74363404020002094f7074696d697a657206737472696e670c0500037367640c48696464656e4c6179657273055b5d696e74ff81020102ff820001040000ff83ff82030001100a496e697453746444657607666c6f61743332080700fbe04d62503f074e45706f63687303696e74040300ffc8084e466163746f727303696e7404020020094175746f5363616c6504626f6f6c02020000024c7207666c6f61743332080700fba09999a93f0352656707666c6f61743634080a00f87b14ae47e17a843f",
+    "deterministic": false
+  },
+  {
+    "name": "slice float32",
+    "kind": "slice-f32",
+    "value": [
+      "3f800000",
+      "40000000",
+      "40400000",
+      "40800000"
+    ],
+    "hex": "040000000000803f000000400000404000008040",
+    "deterministic": true
+  },
+  {
+    "name": "string abc",
+    "kind": "raw-string",
+    "value": "abc",
+    "hex": "03000000616263",
+    "deterministic": true
+  },
+  {
+    "name": "bytes 0001ff",
+    "kind": "raw-bytes",
+    "value": "0001ff",
+    "hex": "030000000001ff",
+    "deterministic": true
+  }
+]

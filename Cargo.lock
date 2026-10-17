@@ -212,6 +212,10 @@ name = "gorse-common"
 version = "0.0.0"
 dependencies = [
  "gorse-protocol",
+ "hex",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

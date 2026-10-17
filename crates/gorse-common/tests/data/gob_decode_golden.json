@@ -1,0 +1,397 @@
+[
+  {
+    "name": "empty stream",
+    "target": "int64",
+    "hex": "",
+    "ok": false,
+    "error": "EOF",
+    "value": null
+  },
+  {
+    "name": "type definition only",
+    "target": "[]int",
+    "hex": "0b7f020102ff800001040000",
+    "ok": false,
+    "error": "unexpected EOF",
+    "value": null
+  },
+  {
+    "name": "trailing bytes",
+    "target": "int64",
+    "hex": "05040006aabb01cc",
+    "ok": true,
+    "error": "",
+    "value": "3"
+  },
+  {
+    "name": "truncated message",
+    "target": "int64",
+    "hex": "05040006",
+    "ok": false,
+    "error": "unexpected EOF",
+    "value": null
+  },
+  {
+    "name": "zero-length message",
+    "target": "int64",
+    "hex": "0003040006",
+    "ok": false,
+    "error": "EOF",
+    "value": null
+  },
+  {
+    "name": "message count too big",
+    "target": "int64",
+    "hex": "fb0200000000",
+    "ok": false,
+    "error": "invalid message length",
+    "value": null
+  },
+  {
+    "name": "nine-byte uint",
+    "target": "int64",
+    "hex": "f7010203040506070809",
+    "ok": false,
+    "error": "gob: encoded unsigned integer out of range",
+    "value": null
+  },
+  {
+    "name": "non-zero singleton delta",
+    "target": "int64",
+    "hex": "03040106",
+    "ok": false,
+    "error": "gob: decode: corrupted data: non-zero delta for singleton",
+    "value": null
+  },
+  {
+    "name": "int32 overflow",
+    "target": "int32",
+    "hex": "080400fb0100000000",
+    "ok": false,
+    "error": "value for \"*int32\" out of range",
+    "value": null
+  },
+  {
+    "name": "float32 overflow",
+    "target": "float32",
+    "hex": "0b0800f89c7500883ce4377e",
+    "ok": false,
+    "error": "value for \"*float32\" out of range",
+    "value": null
+  },
+  {
+    "name": "float32 infinity",
+    "target": "float32",
+    "hex": "050800fef07f",
+    "ok": true,
+    "error": "",
+    "value": "7f800000"
+  },
+  {
+    "name": "int into float64",
+    "target": "float64",
+    "hex": "03040006",
+    "ok": false,
+    "error": "gob: decoding into local type *float64, received remote type int",
+    "value": null
+  },
+  {
+    "name": "float into int64",
+    "target": "int64",
+    "hex": "050800fef07f",
+    "ok": false,
+    "error": "gob: decoding into local type *int64, received remote type float",
+    "value": null
+  },
+  {
+    "name": "bool from 2",
+    "target": "bool",
+    "hex": "03020002",
+    "ok": true,
+    "error": "",
+    "value": true
+  },
+  {
+    "name": "string into int64",
+    "target": "int64",
+    "hex": "060c0003616263",
+    "ok": false,
+    "error": "gob: decoding into local type *int64, received remote type string",
+    "value": null
+  },
+  {
+    "name": "invalid UTF-8 string",
+    "target": "string",
+    "hex": "050c0002fffe",
+    "ok": true,
+    "error": "",
+    "value": "fffe"
+  },
+  {
+    "name": "string longer than message",
+    "target": "string",
+    "hex": "040c000561",
+    "ok": false,
+    "error": "gob: bad string slice length: 0",
+    "value": null
+  },
+  {
+    "name": "[]int into params",
+    "target": "params",
+    "hex": "0b7f020102ff80000104000006ff8000020204",
+    "ok": false,
+    "error": "gob: decoding into local type *model.Params, received remote type ",
+    "value": null
+  },
+  {
+    "name": "[]int into int64",
+    "target": "int64",
+    "hex": "0b7f020102ff80000104000006ff8000020204",
+    "ok": false,
+    "error": "gob: decoding into local type *int64, received remote type ",
+    "value": null
+  },
+  {
+    "name": "params into []int",
+    "target": "[]int",
+    "hex": "157f04010106506172616d7301ff8000010c0110000004ff800000",
+    "ok": false,
+    "error": "gob: decoding into local type *[]int, received remote type Params",
+    "value": null
+  },
+  {
+    "name": "duplicate type definition",
+    "target": "[]int",
+    "hex": "0b7f020102ff8000010400000b7f020102ff80000104000004ff800000",
+    "ok": false,
+    "error": "gob: duplicate type received",
+    "value": null
+  },
+  {
+    "name": "type id below 64",
+    "target": "[]int",
+    "hex": "0b3f020102ff800001040000",
+    "ok": false,
+    "error": "gob: duplicate type received",
+    "value": null
+  },
+  {
+    "name": "extra data after top-level type",
+    "target": "[]int",
+    "hex": "0c7f020102ff8000010400000004ff800000",
+    "ok": false,
+    "error": "extra data in buffer",
+    "value": null
+  },
+  {
+    "name": "wire struct without terminator",
+    "target": "[]int",
+    "hex": "0a7f020102ff800001040006ff8000020204",
+    "ok": true,
+    "error": "",
+    "value": [
+      "1",
+      "2"
+    ]
+  },
+  {
+    "name": "wire field out of bounds",
+    "target": "[]int",
+    "hex": "027f08",
+    "ok": false,
+    "error": "gob: bad data: field numbers out of bounds",
+    "value": null
+  },
+  {
+    "name": "slice marked as GobEncoder",
+    "target": "[]int",
+    "hex": "127f020102ff8000010400030102ff8000000004ff800000",
+    "ok": false,
+    "error": "gob: decoding into local type *[]int, received remote type ",
+    "value": null
+  },
+  {
+    "name": "slice length exceeds data",
+    "target": "[]int",
+    "hex": "0b7f020102ff80000104000005ff80000302",
+    "ok": false,
+    "error": "gob: decoding int array or slice: length exceeds input size (3 elements)",
+    "value": null
+  },
+  {
+    "name": "slice too big",
+    "target": "[]int",
+    "hex": "0b7f020102ff80000104000008ff8000fc40000001",
+    "ok": false,
+    "error": "gob: int slice too big: 1073741825 elements of 8 bytes",
+    "value": null
+  },
+  {
+    "name": "defined but undescribed id",
+    "target": "[]int",
+    "hex": "04ff820000",
+    "ok": false,
+    "error": "gob: decoding into local type *[]int, received remote type unknown type",
+    "value": null
+  },
+  {
+    "name": "params with uint",
+    "target": "params",
+    "hex": "157f04010106506172616d7301ff8000010c011000000fff800001016b0475696e7406020001",
+    "ok": true,
+    "error": "",
+    "value": [
+      {
+        "key": "k",
+        "type": "uint",
+        "value": "1"
+      }
+    ]
+  },
+  {
+    "name": "params duplicate keys",
+    "target": "params",
+    "hex": "157f04010106506172616d7301ff8000010c0110000018ff800002016103696e7404020002016103696e7404020004",
+    "ok": true,
+    "error": "",
+    "value": [
+      {
+        "key": "a",
+        "type": "int",
+        "value": "2"
+      }
+    ]
+  },
+  {
+    "name": "params unregistered name",
+    "target": "params",
+    "hex": "157f04010106506172616d7301ff8000010c011000000aff800001016b03666f6f",
+    "ok": false,
+    "error": "gob: name not registered for interface: \"foo\"",
+    "value": null
+  },
+  {
+    "name": "params interface id mismatch",
+    "target": "params",
+    "hex": "157f04010106506172616d7301ff8000010c011000000eff800001016b03696e7408020006",
+    "ok": false,
+    "error": "gob: decoding into local type int, received remote type float",
+    "value": null
+  },
+  {
+    "name": "params count wraps negative",
+    "target": "params",
+    "hex": "157f04010106506172616d7301ff8000010c011000000cff8000f88000000000000000",
+    "ok": true,
+    "error": "",
+    "value": null
+  },
+  {
+    "name": "params entries past data",
+    "target": "params",
+    "hex": "157f04010106506172616d7301ff8000010c0110000004ff800002",
+    "ok": false,
+    "error": "EOF",
+    "value": null
+  },
+  {
+    "name": "params defined in separate messages",
+    "target": "params",
+    "hex": "157f04010106506172616d7301ff8000010c011000000cff81020102ff8200010400001fff8000010c48696464656e4c6179657273055b5d696e74ff82050002ff8040",
+    "ok": true,
+    "error": "",
+    "value": [
+      {
+        "key": "HiddenLayers",
+        "type": "[]int",
+        "value": [
+          "64",
+          "32"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "params after other types",
+    "target": "params",
+    "hex": "16ff8504010106506172616d7301ff8600010c0110000023ff8600010c48696464656e4c6179657273055b5d696e74ff87020102ff88000104000007ff880400020204",
+    "ok": true,
+    "error": "",
+    "value": [
+      {
+        "key": "HiddenLayers",
+        "type": "[]int",
+        "value": [
+          "1",
+          "2"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "rust encoder: params",
+    "target": "params",
+    "hex": "157f04010106506172616d7301ff8000010c011000004aff80000b094175746f5363616c6504626f6f6c0202000009426174636853697a6505696e743332040200110c48696464656e4c6179657273055b5d696e74ff81020102ff820001040000ffaaff82030001100a496e697453746444657607666c6f61743332080700fbe04d62503f024c7207666c6f61743332080700fba09999a93f074e45706f63687303696e74040300ffc8084e466163746f727303696e7404020020094f7074696d697a657206737472696e670c0500037367640b52616e646f6d537461746505696e743634040200020352656707666c6f61743634080a00f87b14ae47e17a843f0a53696d696c617269747900",
+    "ok": true,
+    "error": "",
+    "value": [
+      {
+        "key": "AutoScale",
+        "type": "bool",
+        "value": false
+      },
+      {
+        "key": "BatchSize",
+        "type": "int32",
+        "value": "-9"
+      },
+      {
+        "key": "HiddenLayers",
+        "type": "[]int",
+        "value": [
+          "8"
+        ]
+      },
+      {
+        "key": "InitStdDev",
+        "type": "float32",
+        "value": "3a83126f"
+      },
+      {
+        "key": "Lr",
+        "type": "float32",
+        "value": "3d4ccccd"
+      },
+      {
+        "key": "NEpochs",
+        "type": "int",
+        "value": "100"
+      },
+      {
+        "key": "NFactors",
+        "type": "int",
+        "value": "16"
+      },
+      {
+        "key": "Optimizer",
+        "type": "string",
+        "value": "sgd"
+      },
+      {
+        "key": "RandomState",
+        "type": "int64",
+        "value": "1"
+      },
+      {
+        "key": "Reg",
+        "type": "float64",
+        "value": "3f847ae147ae147b"
+      },
+      {
+        "key": "Similarity",
+        "type": "nil",
+        "value": null
+      }
+    ]
+  }
+]
