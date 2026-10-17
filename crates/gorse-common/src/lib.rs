@@ -7,5 +7,6 @@
 //! its header.
 
 pub mod encoding;
+pub mod gonet;
 pub mod gostrconv;
 pub mod gotime;

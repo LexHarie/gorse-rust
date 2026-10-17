@@ -1,4 +1,4 @@
-// Ports: $GOROOT/src/strconv/quote.go (Quote, AppendQuote, QuoteRune, IsPrint) @ go1.27.0 (the toolchain add21b5 builds with)
+// Ports: $GOROOT/src/strconv/quote.go (Quote, AppendQuote, QuoteRune, IsPrint), number.go (ParseUint, ParseInt, Atoi, NumError), $GOROOT/src/internal/strconv/atoi.go @ go1.27.0 (the toolchain add21b5 builds with)
 //
 // Derived from Go's strconv package: Copyright 2009 The Go Authors. All
 // rights reserved. Use of this source code is governed by a BSD-style license
@@ -6,12 +6,14 @@
 
 //! The parts of Go's `strconv` that error texts depend on: `%q` formats with
 //! [`quote`], so every Go error that quotes user input needs it to read the
-//! same.
+//! same; and the integer parsers with their [`NumError`] texts.
 //!
 //! Go strings are bytes, so [`quote`] takes bytes: a byte that does not start
 //! a valid UTF-8 sequence is written as `\xNN`, as Go writes it.
 
 mod tables;
+
+use thiserror::Error;
 
 const LOWER_HEX: &[u8; 16] = b"0123456789abcdef";
 
@@ -97,6 +99,302 @@ fn append_escaped_rune(buf: &mut Vec<u8>, r: char, quote: u8) {
             }
         }
     }
+}
+
+/// The reason inside a [`NumError`]: Go's `strconv.ErrSyntax`,
+/// `strconv.ErrRange`, and the "invalid base" and "invalid bit size" errors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+pub enum NumErrorKind {
+    /// `strconv.ErrSyntax`.
+    #[error("invalid syntax")]
+    Syntax,
+    /// `strconv.ErrRange`.
+    #[error("value out of range")]
+    Range,
+    /// A base outside 0 and 2 to 36.
+    #[error("invalid base {0}")]
+    Base(i64),
+    /// A bit size outside 0 to 64.
+    #[error("invalid bit size {0}")]
+    BitSize(i64),
+}
+
+/// Go's `*strconv.NumError`: `strconv.<Func>: parsing <quoted input>: <reason>`.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("strconv.{func}: parsing {}: {err}", quote(num))]
+pub struct NumError {
+    /// The failing function (`ParseInt`, `ParseUint`, `Atoi`).
+    pub func: &'static str,
+    /// The input.
+    pub num: Vec<u8>,
+    /// Why it failed.
+    pub err: NumErrorKind,
+}
+
+/// Go's `strconv.IntSize` on the 64-bit platforms Gorse ships for.
+pub const INT_SIZE: i64 = 64;
+
+/// `lower(c)` is a lower-case letter if and only if c is either that
+/// lower-case letter or the equivalent upper-case letter.
+const fn lower(c: u8) -> u8 {
+    c | (b'x' - b'X')
+}
+
+/// Go's `strconv.ParseUint`. Like Go it returns the value together with the
+/// error: on a range error that is the largest value of the bit size.
+pub fn parse_uint(s: impl AsRef<[u8]>, base: i64, bit_size: i64) -> (u64, Option<NumError>) {
+    let s = s.as_ref();
+    match parse_uint_internal(s, base, bit_size) {
+        Ok(n) => (n, None),
+        Err((n, err)) => (n, Some(num_error("ParseUint", s, err))),
+    }
+}
+
+/// Go's `strconv.ParseInt`. Like Go it returns the value together with the
+/// error: on a range error that is the extreme value of the bit size with
+/// the input's sign.
+pub fn parse_int(s: impl AsRef<[u8]>, base: i64, bit_size: i64) -> (i64, Option<NumError>) {
+    let s = s.as_ref();
+    match parse_int_internal(s, base, bit_size) {
+        Ok(n) => (n, None),
+        Err((n, err)) => (n, Some(num_error("ParseInt", s, err))),
+    }
+}
+
+/// Go's `strconv.Atoi`: `ParseInt(s, 10, 0)` with `Atoi` in the error.
+pub fn atoi(s: impl AsRef<[u8]>) -> (i64, Option<NumError>) {
+    let s = s.as_ref();
+    match atoi_internal(s) {
+        Ok(n) => (n, None),
+        Err((n, err)) => (n, Some(num_error("Atoi", s, err))),
+    }
+}
+
+fn num_error(func: &'static str, s: &[u8], err: NumErrorKind) -> NumError {
+    NumError {
+        func,
+        num: s.to_vec(),
+        err,
+    }
+}
+
+/// `internal/strconv.ParseUint`: the value Go returns with each error.
+fn parse_uint_internal(s: &[u8], base: i64, bit_size: i64) -> Result<u64, (u64, NumErrorKind)> {
+    if s.is_empty() {
+        return Err((0, NumErrorKind::Syntax));
+    }
+
+    let base0 = base == 0;
+
+    let s0 = s;
+    let mut s = s;
+    let base: u64 = match base {
+        // valid base; nothing to do
+        2..=36 => base as u64,
+        0 => {
+            // Look for octal, hex prefix.
+            if s[0] == b'0' {
+                if s.len() >= 3 && lower(s[1]) == b'b' {
+                    s = &s[2..];
+                    2
+                } else if s.len() >= 3 && lower(s[1]) == b'o' {
+                    s = &s[2..];
+                    8
+                } else if s.len() >= 3 && lower(s[1]) == b'x' {
+                    s = &s[2..];
+                    16
+                } else {
+                    s = &s[1..];
+                    8
+                }
+            } else {
+                10
+            }
+        }
+        _ => return Err((0, NumErrorKind::Base(base))),
+    };
+
+    let bit_size = if bit_size == 0 {
+        INT_SIZE
+    } else if !(0..=64).contains(&bit_size) {
+        return Err((0, NumErrorKind::BitSize(bit_size)));
+    } else {
+        bit_size
+    };
+
+    // Cutoff is the smallest number such that cutoff*base > maxUint64.
+    let cutoff = u64::MAX / base + 1;
+
+    // Go's uint64(1)<<64 is 0, so a bit size of 64 gives the all-ones mask.
+    let max_val = 1u64
+        .checked_shl(bit_size as u32)
+        .unwrap_or(0)
+        .wrapping_sub(1);
+
+    let mut underscores = false;
+    let mut n: u64 = 0;
+    for &c in s {
+        let d = if c == b'_' && base0 {
+            underscores = true;
+            continue;
+        } else if c.is_ascii_digit() {
+            c - b'0'
+        } else if lower(c).is_ascii_lowercase() {
+            lower(c) - b'a' + 10
+        } else {
+            return Err((0, NumErrorKind::Syntax));
+        };
+
+        if u64::from(d) >= base {
+            return Err((0, NumErrorKind::Syntax));
+        }
+
+        if n >= cutoff {
+            // n*base overflows
+            return Err((max_val, NumErrorKind::Range));
+        }
+        n *= base;
+
+        let n1 = n.wrapping_add(u64::from(d));
+        if n1 < n || n1 > max_val {
+            // n+d overflows
+            return Err((max_val, NumErrorKind::Range));
+        }
+        n = n1;
+    }
+
+    if underscores && !underscore_ok(s0) {
+        return Err((0, NumErrorKind::Syntax));
+    }
+
+    Ok(n)
+}
+
+/// `internal/strconv.ParseInt`.
+fn parse_int_internal(s: &[u8], base: i64, bit_size: i64) -> Result<i64, (i64, NumErrorKind)> {
+    if s.is_empty() {
+        return Err((0, NumErrorKind::Syntax));
+    }
+
+    // Pick off leading sign.
+    let mut s = s;
+    let mut neg = false;
+    match s[0] {
+        b'+' => s = &s[1..],
+        b'-' => {
+            s = &s[1..];
+            neg = true;
+        }
+        _ => {}
+    }
+
+    // Convert unsigned and check range.
+    let un = match parse_uint_internal(s, base, bit_size) {
+        Ok(un) | Err((un, NumErrorKind::Range)) => un,
+        Err((_, err)) => return Err((0, err)),
+    };
+
+    let bit_size = if bit_size == 0 { INT_SIZE } else { bit_size };
+
+    let cutoff = 1u64 << (bit_size - 1);
+    if !neg && un >= cutoff {
+        return Err(((cutoff - 1) as i64, NumErrorKind::Range));
+    }
+    if neg && un > cutoff {
+        return Err(((cutoff as i64).wrapping_neg(), NumErrorKind::Range));
+    }
+    // (Like Go, a range error from ParseUint that passes both checks is
+    // dropped; only a bit size of 1 can get here, e.g. "-2".)
+    let n = un as i64;
+    Ok(if neg { n.wrapping_neg() } else { n })
+}
+
+/// `internal/strconv.Atoi`.
+fn atoi_internal(s: &[u8]) -> Result<i64, (i64, NumErrorKind)> {
+    let s_len = s.len();
+    if 0 < s_len && s_len < 19 {
+        // Fast path for small integers that fit int type.
+        let s0 = s;
+        let mut s = s;
+        if s[0] == b'-' || s[0] == b'+' {
+            s = &s[1..];
+            if s.is_empty() {
+                return Err((0, NumErrorKind::Syntax));
+            }
+        }
+
+        let mut n: i64 = 0;
+        for &ch in s {
+            let ch = ch.wrapping_sub(b'0');
+            if ch > 9 {
+                return Err((0, NumErrorKind::Syntax));
+            }
+            n = n * 10 + i64::from(ch);
+        }
+        if s0[0] == b'-' {
+            n = -n;
+        }
+        return Ok(n);
+    }
+
+    // Slow path for invalid, big, or underscored integers.
+    parse_int_internal(s, 10, 0)
+}
+
+/// Reports whether the underscores in s are allowed. Underscore must appear
+/// only between digits or between a base prefix and a digit.
+fn underscore_ok(s: &[u8]) -> bool {
+    // saw tracks the last character (class) we saw:
+    // ^ for beginning of number,
+    // 0 for a digit or base prefix,
+    // _ for an underscore,
+    // ! for none of the above.
+    let mut saw = b'^';
+    let mut i = 0;
+
+    // Optional sign.
+    let mut s = s;
+    if !s.is_empty() && (s[0] == b'-' || s[0] == b'+') {
+        s = &s[1..];
+    }
+
+    // Optional base prefix.
+    let mut hex = false;
+    if s.len() >= 2
+        && s[0] == b'0'
+        && (lower(s[1]) == b'b' || lower(s[1]) == b'o' || lower(s[1]) == b'x')
+    {
+        i = 2;
+        saw = b'0'; // base prefix counts as a digit for "underscore as digit separator"
+        hex = lower(s[1]) == b'x';
+    }
+
+    // Number proper.
+    while i < s.len() {
+        // Digits are always okay.
+        if s[i].is_ascii_digit() || hex && (b'a'..=b'f').contains(&lower(s[i])) {
+            saw = b'0';
+            i += 1;
+            continue;
+        }
+        // Underscore must follow digit.
+        if s[i] == b'_' {
+            if saw != b'0' {
+                return false;
+            }
+            saw = b'_';
+            i += 1;
+            continue;
+        }
+        // Underscore must also be followed by digit.
+        if saw == b'_' {
+            return false;
+        }
+        // Saw non-digit, non-underscore.
+        saw = b'!';
+        i += 1;
+    }
+    saw != b'_'
 }
 
 #[cfg(test)]
