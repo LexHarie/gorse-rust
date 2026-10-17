@@ -46,6 +46,9 @@ go run ./contracts/tools/protogolden -out crates/gorse-protocol/tests/data/golde
 go run ./contracts/tools/gobgolden \
   -out crates/gorse-common/tests/data/gob_golden.json \
   -decode-out crates/gorse-common/tests/data/gob_decode_golden.json
+# common/floats at the AVX-512, AVX and scalar levels (gorse-common; needs an
+# x86-64 CPU with AVX-512F, FMA and AVX)
+go run ./contracts/tools/floatsgolden -out crates/gorse-common/tests/data/floats_golden.json
 ```
 
 Regenerating at the pinned commit must give no diff except in values the files

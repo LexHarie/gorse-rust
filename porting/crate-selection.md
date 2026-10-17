@@ -64,7 +64,8 @@ carries unused dependencies.
 | schollz/progressbar | `indicatif` | 0.18.6 | MIT | Playground import progress only | — |
 | samber/lo, golang-set, copier, sortutil, strutil | std | — | — | Small helpers; written inline | — |
 
-Test-only: `tempfile` 3.27.0. Storage tests use the real backends from
+Test-only: `tempfile` 3.27.0; `hex` 0.4.3 (MIT/Apache) for the golden files;
+`sha2` 0.11.1 (MIT/Apache) for the hashes in `floats_golden.json`. Storage tests use the real backends from
 `storage/docker-compose.yml`, never mocks.
 
 ## Not adopted from the plan's proposal

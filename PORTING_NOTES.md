@@ -118,6 +118,27 @@ Deviations point to the decision in `PORTING.md` that approves them.
   restart logs everyone out (`master/rest.go` `cookieHandler`). The Rust master
   does the same; no cross-implementation cookie compatibility is needed.
 
+### Numerics
+
+- **Q-32 `MM` adds the product into `c`, except `a·bᵀ`, which overwrites it**
+  (`floats_avx.c`, `floats_avx512.c`, `floats_neon.c` and `mm.go`: the
+  `!transA && transB` branch assigns `c[i*ldc+j] = dot(...)`, the others use
+  `+=`). `common/nn` (`tensor.go`, `matMul` and `batchMatMul`) always multiplies
+  into a fresh zeroed result, so there both read as plain products.
+- **Q-33 Results depend on the CPU and on `GODEBUG`.** `Dot`, `Euclidean`, `MM`,
+  `MulConstAdd` and `MulConstAddTo` round differently at the AVX-512, AVX and
+  scalar levels (the AVX-512 kernels use FMA and 16-wide partial sums, the AVX
+  kernels 8-wide sums); `crates/gorse-common/tests/data/floats_golden.json` has
+  the hashes per level. Two Go nodes on different CPUs disagree in the last bits.
+  The port picks the level Go picks on the same CPU and `GODEBUG`
+  (`cpu.avx512f=off`, `cpu.fma=off`, `cpu.avx=off`, `cpu.all=off`, read as
+  `golang.org/x/sys/cpu` reads them), so it computes what a Go node on that
+  machine computes.
+- **Q-34 Go's scalar `MM` needs equal leading dimensions** where the kernels do
+  not: `mm.go` cuts whole rows and combines them with `MulConstAdd` and `Dot`,
+  which panic with `floats: slice lengths do not match` unless `ldb == ldc`
+  (`lda == ldb` for `a·bᵀ`). The port panics the same way at the scalar level.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -157,6 +178,25 @@ Deviations point to the decision in `PORTING.md` that approves them.
   `crates/gorse-common/tests/gob_golden.rs` (`UNSUPPORTED`). Ids reach Gorse
   through JSON, which Go decodes to UTF-8, and protobuf, which rejects other
   strings.
+
+- **X-9 `common/floats` beyond the release builds' behaviour** (`PORTING.md`
+  D-23, D-25). Go's SIMD builds index `a[0]` before calling a kernel, so the
+  kernel operations panic on empty slices on amd64 and arm64; the port returns
+  what the scalar loops return (nothing written, `0` for `Dot` and
+  `Euclidean`). `floats_golden.json` records Go's panics and the test checks they
+  are exactly those. Go's kernels read and write outside the slices when `MM`'s
+  dimensions exceed them; the port asserts the extents first, and with `k = 0`
+  computes the kernels' result (`a·bᵀ` stores zeros, the rest leave `c` alone)
+  without handing them pointers into empty slices. A `Feature` naming features
+  the CPU lacks (an illegal instruction in Go) uses only those the CPU has. Not
+  ported, because no release build runs them: the MKL and OpenBLAS backends
+  (`mkl`/`openblas` build tags), Accelerate (cgo on macOS arm64; it also
+  overwrites `c` where the kernels add, Q-32), the `GOEXPERIMENT=simd` build, and
+  the riscv64 RVV, loong64 LASX and SVE2 kernels: on architectures other than
+  x86-64 and AArch64 the port runs the scalar loops. `GODEBUG` fields Go warns
+  about on stderr are ignored silently. `Feature::NONE.mm` runs its row
+  operations with the scalar loops, where Go's internal `Feature(0).mm` would
+  use the process's level; Go has no exported way to reach that.
 
 ## Open questions
 

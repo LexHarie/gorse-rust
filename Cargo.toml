@@ -29,12 +29,14 @@ gorse-cmd = { path = "crates/gorse-cmd" }
 
 # External crates, chosen in porting/crate-selection.md. A crate is listed here
 # only once a work package uses it.
+cc = "1.8.0"
 hex = "0.4.3"
 prost = "0.14.4"
 prost-types = "0.14.4"
 protox = "0.10.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+sha2 = "0.11.1"
 thiserror = "2.0.21"
 tonic = "0.14.6"
 tonic-prost = "0.14.6"
