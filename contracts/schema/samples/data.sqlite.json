@@ -1,0 +1,71 @@
+{
+  "_generated": "contracts/tools/schemadump from the Go implementation. update_at values are wall-clock and differ per run.",
+  "driver": "sqlite",
+  "tables": [
+    {
+      "columns": [
+        "feedback_type",
+        "user_id",
+        "item_id",
+        "value",
+        "time_stamp",
+        "updated",
+        "labels",
+        "comment"
+      ],
+      "rows": [
+        [
+          "like",
+          "u1",
+          "i1",
+          "1.5",
+          "2026-01-02T03:04:06.678901Z",
+          "2026-01-02T03:04:06.678901Z",
+          null,
+          "feedback comment"
+        ]
+      ],
+      "table": "feedback"
+    },
+    {
+      "columns": [
+        "update_at",
+        "item_id",
+        "is_hidden",
+        "categories",
+        "time_stamp",
+        "labels",
+        "comment"
+      ],
+      "rows": [
+        [
+          "2026-10-17T02:53:21.179065577Z",
+          "i1",
+          "1",
+          "[\"c1\",\"c2\"]",
+          "2026-01-02T03:04:05.678901Z",
+          "{\"embedding\":[0.25,0.5],\"title\":\"Hello\"}",
+          "item comment"
+        ]
+      ],
+      "table": "items"
+    },
+    {
+      "columns": [
+        "update_at",
+        "user_id",
+        "labels",
+        "comment"
+      ],
+      "rows": [
+        [
+          "2026-10-17T02:53:21.17818127Z",
+          "u1",
+          "{\"gender\":\"F\",\"tags\":[\"a\",\"b\"]}",
+          "user comment"
+        ]
+      ],
+      "table": "users"
+    }
+  ]
+}

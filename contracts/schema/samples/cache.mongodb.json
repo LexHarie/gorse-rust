@@ -1,0 +1,16 @@
+{
+  "_generated": "contracts/tools/schemadump from the Go implementation (canonical extended JSON). _id and update_at differ per run.",
+  "collections": {
+    "documents": [
+      {"_id":{"$oid":"6ad2e323f32d6d4ccae81599"},"collection":"recommend","id":"i1","subset":"u1","categories":["","c1"],"is_hidden":false,"score":{"$numberDouble":"0.5"},"timestamp":{"$date":{"$numberLong":"1767323045678"}}}
+    ],
+    "time_series_points": [
+      {"_id":{"$oid":"6ad2e323f32d6d4ccae8159b"},"name":"num_users","timestamp":{"$date":{"$numberLong":"1767323045678"}},"value":{"$numberDouble":"10.0"}}
+    ],
+    "values": [
+      {"_id":"global_meta/num_users","value":"10"},
+      {"_id":"last_modify_user_time/u1","value":"2026-01-02 03:04:05.678901 +0000 UTC"},
+      {"_id":"recommend_digest/u1","value":"0123456789abcdef0123456789abcdef"}
+    ]
+  }
+}

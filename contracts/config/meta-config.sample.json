@@ -1,0 +1,211 @@
+{
+  "Database": {
+    "DataStore": "mysql://gorse:gorse_pass@tcp(localhost:3306)/gorse",
+    "CacheStore": "redis://localhost:6379/0",
+    "VectorStore": "xvec://vectors",
+    "TablePrefix": "",
+    "DataTablePrefix": "",
+    "CacheTablePrefix": "",
+    "CacheClientName": "gorse_cache_client",
+    "VectorTablePrefix": "",
+    "MySQL": {
+      "IsolationLevel": "READ-UNCOMMITTED",
+      "MaxOpenConns": 0,
+      "MaxIdleConns": 0,
+      "ConnMaxLifetime": 0
+    },
+    "Postgres": {
+      "MaxOpenConns": 64,
+      "MaxIdleConns": 64,
+      "ConnMaxLifetime": 60000000000
+    },
+    "Redis": {
+      "MaxSearchResults": 10000
+    },
+    "Vector": {
+      "QuantizationType": "",
+      "QuantizationBits": 0
+    }
+  },
+  "Master": {
+    "Port": 8086,
+    "Host": "0.0.0.0",
+    "SSLMode": false,
+    "SSLCA": "",
+    "SSLCert": "",
+    "SSLKey": "",
+    "HttpPort": 8088,
+    "HttpHost": "0.0.0.0",
+    "HttpCorsDomains": [],
+    "HttpCorsMethods": [],
+    "NumJobs": 1,
+    "MetaTimeout": 10000000000,
+    "DashboardUserName": "",
+    "DashboardPassword": "",
+    "DashboardRedacted": false,
+    "AdminAPIKey": ""
+  },
+  "Server": {
+    "APIKey": "",
+    "DefaultN": 10,
+    "ClockError": 5000000000,
+    "AutoInsertUser": true,
+    "AutoInsertItem": true,
+    "CacheExpire": 10000000000
+  },
+  "Recommend": {
+    "CacheSize": 100,
+    "CacheExpire": 259200000000000,
+    "ContextSize": 100,
+    "ActiveUserTTL": 0,
+    "DataSource": {
+      "PositiveFeedbackTypes": [
+        "star",
+        "like",
+        "read\u003e=3"
+      ],
+      "NegativeFeedbackTypes": null,
+      "ReadFeedbackTypes": [
+        "read"
+      ],
+      "PositiveFeedbackTTL": 0,
+      "ItemTTL": 0
+    },
+    "Search": {
+      "Columns": [
+        "item.Comment"
+      ]
+    },
+    "NonPersonalized": [
+      {
+        "name": "most_starred_weekly",
+        "score": "count(feedback, .FeedbackType == 'star')",
+        "filter": "(now() - item.Timestamp).Hours() \u003c 168"
+      }
+    ],
+    "ItemToItem": [
+      {
+        "name": "neighbors",
+        "type": "embedding",
+        "column": "item.Labels.embedding"
+      }
+    ],
+    "UserToUser": [
+      {
+        "name": "neighbors",
+        "type": "items",
+        "column": ""
+      }
+    ],
+    "Collaborative": {
+      "Type": "mf",
+      "FitPeriod": 3600000000000,
+      "FitEpoch": 100,
+      "OptimizePeriod": 21600000000000,
+      "OptimizeTrials": 10,
+      "EarlyStopping": {
+        "Patience": 10
+      }
+    },
+    "External": [
+      {
+        "name": "trending",
+        "script": "const response = fetch(\"https://cdn.jsdelivr.net/gh/isboyjc/github-trending-api/data/daily/all.json\");\nif (!response.ok) {\n  throw new Error(`${response.status} ${response.body}`);\n}\nconst data = JSON.parse(response.body);\ndata[\"items\"].map((item) =\u003e {\n  return item[\"title\"].toLowerCase().replace(\"/\", \":\");\n})\n"
+      }
+    ],
+    "Replacement": {
+      "EnableReplacement": false,
+      "PositiveReplacementDecay": 0.8,
+      "ReadReplacementDecay": 0.6
+    },
+    "Ranker": {
+      "Type": "fm",
+      "Recommenders": [
+        "latest",
+        "collaborative",
+        "non-personalized/most_starred_weekly",
+        "item-to-item/neighbors",
+        "user-to-user/neighbors"
+      ],
+      "CacheExpire": 432000000000000,
+      "FitPeriod": 3600000000000,
+      "FitEpoch": 100,
+      "OptimizePeriod": 21600000000000,
+      "OptimizeTrials": 10,
+      "EarlyStopping": {
+        "Patience": 10
+      },
+      "RerankerAPI": {
+        "QueryTemplate": "You are a GitHub repository recommender system. Given a user is interested in the following repositories:\n{% for repo in feedback -%}\n- {{ repo.Comment }}\n{% endfor -%}\nPlease sort repositories by the user's interests.\n",
+        "DocumentTemplate": "{{ item.Comment | replace(\",\", \" \") | replace(\"\\n\", \" \") }}",
+        "AuthToken": "",
+        "Model": "qwen3-rerank",
+        "URL": "https://dashscope.aliyuncs.com/compatible-api/v1/reranks"
+      },
+      "DecisionAPI": {
+        "StateTemplate": "The user is interested in the following repositories:\n{% for repo in feedback -%}\n- {{ repo.Comment }}\n{% endfor -%}\n",
+        "InstructionsTemplate": "Would the user be interested in this repository? {{ item.Comment | replace(\",\", \" \") | replace(\"\\n\", \" \") }}",
+        "AuthToken": "",
+        "Model": "jev-latest",
+        "URL": "https://tokenra.io/v1/decisions"
+      }
+    },
+    "Fallback": {
+      "Recommenders": [
+        "item-to-item/neighbors",
+        "latest"
+      ]
+    }
+  },
+  "Tracing": {
+    "EnableTracing": false,
+    "Exporter": "otlp",
+    "CollectorEndpoint": "http://localhost:4317",
+    "Sampler": "always",
+    "Ratio": 1
+  },
+  "OIDC": {
+    "Enable": false,
+    "Issuer": "",
+    "ClientID": "",
+    "ClientSecret": "",
+    "RedirectURL": ""
+  },
+  "OpenAI": {
+    "BaseURL": "http://localhost:11434/v1",
+    "AuthToken": "ollama",
+    "ChatCompletionModel": "qwen2.5",
+    "ChatCompletionRPM": 15000,
+    "ChatCompletionTPM": 1200000,
+    "EmbeddingModel": "mxbai-embed-large",
+    "EmbeddingDimensions": 1024,
+    "EmbeddingRPM": 1800,
+    "EmbeddingTPM": 1200000,
+    "LogFile": "openai.log"
+  },
+  "Blob": {
+    "URI": "/var/lib/gorse/blob",
+    "S3": {
+      "Endpoint": "",
+      "AccessKeyID": "",
+      "SecretAccessKey": ""
+    },
+    "GCS": {
+      "CredentialsFile": ""
+    },
+    "Azure": {
+      "Endpoint": "",
+      "AccountName": "",
+      "AccountKey": "",
+      "ConnectionString": ""
+    }
+  },
+  "Quota": {
+    "MaxUsersCount": 0,
+    "MaxItemsCount": 0,
+    "MaxLabelsSize": 0,
+    "MaxCommentSize": 0,
+    "MaxCategoriesCount": 0,
+    "MaxCategoriesSize": 0
+  }
+}

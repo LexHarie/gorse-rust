@@ -1,0 +1,39 @@
+# Rust port of Gorse. The Go implementation in this repository (pinned in
+# PORTING.md) is the reference oracle; see PORTING.md before changing anything.
+[workspace]
+resolver = "3"
+members = ["crates/*", "conformance"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99.1"
+license = "Apache-2.0"
+repository = "https://github.com/LexHarie/gorse-rust"
+
+[workspace.dependencies]
+# Internal crates. External dependencies are added only after the crate
+# selection in porting/crate-selection.md is approved.
+gorse-protocol = { path = "crates/gorse-protocol" }
+gorse-common = { path = "crates/gorse-common" }
+gorse-storage-core = { path = "crates/gorse-storage-core" }
+gorse-config = { path = "crates/gorse-config" }
+gorse-model-core = { path = "crates/gorse-model-core" }
+gorse-storage = { path = "crates/gorse-storage" }
+gorse-dataset = { path = "crates/gorse-dataset" }
+gorse-model = { path = "crates/gorse-model" }
+gorse-logics = { path = "crates/gorse-logics" }
+gorse-worker = { path = "crates/gorse-worker" }
+gorse-server = { path = "crates/gorse-server" }
+gorse-master = { path = "crates/gorse-master" }
+gorse-cmd = { path = "crates/gorse-cmd" }
+
+[workspace.lints.rust]
+# `unsafe` is allowed only at FFI/SIMD boundaries, opted into per module with a
+# justification, and every block needs a `// SAFETY:` comment (clippy below).
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "deny"
+unwrap_used = "warn"

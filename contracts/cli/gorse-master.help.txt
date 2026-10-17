@@ -1,0 +1,16 @@
+The master node of gorse recommender system.
+
+Usage:
+  gorse-master [flags]
+
+Flags:
+      --access-log-path string   path of access log file for RESTful API
+      --cache-path string        path of cache folder (default "${HOME}/.gorse/var/lib/master")
+  -c, --config string            configuration file path
+      --debug                    use debug log mode
+  -h, --help                     help for gorse-master
+      --log-max-age int          maximum number of days to retain old log files
+      --log-max-backups int      maximum number of old log files to retain
+      --log-max-size int         maximum size in megabytes of the log file (default 100)
+      --log-path string          path of log file
+  -v, --version                  gorse version

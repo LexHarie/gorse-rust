@@ -1,0 +1,44 @@
+{
+  "_generated": "contracts/tools/schemadump from the Go implementation (RESP2).",
+  "keys": [
+    {
+      "key": "documents:recommend:u1:i1",
+      "type": "hash",
+      "value": {
+        "categories": "Xw;X2Mx",
+        "collection": "recommend",
+        "id": "i1",
+        "is_hidden": "0",
+        "score": "0.5",
+        "subset": "u1",
+        "timestamp": "1767323045678901"
+      }
+    },
+    {
+      "key": "global_meta/num_users",
+      "type": "string",
+      "value": "10"
+    },
+    {
+      "key": "last_modify_user_time/u1",
+      "type": "string",
+      "value": "2026-01-02 03:04:05.678901 +0000 UTC"
+    },
+    {
+      "key": "recommend_digest/u1",
+      "type": "string",
+      "value": "0123456789abcdef0123456789abcdef"
+    },
+    {
+      "info": "[totalSamples 1 memoryUsage 4480 firstTimestamp 1767323045678 lastTimestamp 1767323045678 retentionTime 0 chunkCount 1 chunkSize 4096 chunkType compressed duplicatePolicy last labels [] sourceKey \u003cnil\u003e rules [] ignoreMaxTimeDiff 0 ignoreMaxValDiff 0]",
+      "key": "time_series_points:num_users",
+      "type": "TSDB-TYPE",
+      "value": [
+        [
+          1767323045678,
+          "10"
+        ]
+      ]
+    }
+  ]
+}

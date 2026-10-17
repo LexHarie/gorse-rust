@@ -1,0 +1,176 @@
+# Model blobs and dump files
+
+Binary formats that cross a process boundary: the two model blobs the master
+writes to the blob store and workers read back, and the `/api/dump` file. All
+multi-byte integers and floats are **little-endian** unless stated.
+
+Blob bytes are not deterministic: the Go writers iterate Go maps, whose order is
+randomised per run. Two blobs of the same model can differ byte for byte. The
+conformance suite therefore compares decoded content, never raw bytes, and a Rust
+reader must accept any record order.
+
+## Primitives (`common/encoding/encoding.go`)
+
+| Name | Encoding |
+|---|---|
+| `Bytes` | `i32` length, then the bytes |
+| `String` | `Bytes` of the UTF-8 string |
+| `Slice<T>` | `i32` element count, then the elements as fixed-size little-endian values (`binary.Write`) |
+| `Gob<T>` | `Bytes` whose content is a complete, self-contained `encoding/gob` stream holding one value of type `T` (a fresh `gob.Encoder` per value, so each one repeats its type definitions) |
+
+`ReadBytes` of a zero-length value can fail with `EOF` when it is the last thing
+in the stream (it calls `Read` on an empty buffer); see `PORTING_NOTES.md`.
+
+### gob subset
+
+Only these Go types are ever gob-encoded in a blob that crosses a process
+boundary at the pinned commit (every `WriteGob` call site was listed):
+
+- top-level `int64`, `int`, `int32`, `bool`, `float32`, `[]int`;
+- `model.Params`, a `map[model.ParamName]any` where `ParamName` is a string type,
+  with interface values of the gob-registered names `int`, `int64`, `float32`,
+  `float64`, `bool`, `string` and `[]int`. Values decoded from the meta store's JSON
+  are `float64` even when the original was an `int` (`PORTING_NOTES.md`).
+
+Golden encodings produced by the Go code (`encoding.WriteGob`, so each line starts
+with the `i32` length prefix):
+
+| Value | Bytes (hex) |
+|---|---|
+| `int64(3)` | `04000000 03 04 00 06` |
+| `int(3)` | `04000000 03 04 00 06` |
+| `int(-1)` | `04000000 03 04 00 01` |
+| `int32(7)` | `04000000 03 04 00 0e` |
+| `true` | `04000000 03 02 00 01` |
+| `false` | `04000000 03 02 00 00` |
+| `float32(0.5)` | `06000000 05 08 00 fe e0 3f` |
+| `[]int{1, 2}` | `13000000 0b7f020102ff80000104000006ff8000020204` |
+| `[]int{}` | `11000000 0b7f020102ff80000104000004ff800000` |
+| `Params{}` and `Params(nil)` | `1c000000 16ff8104010106506172616d7301ff8200010c0110000004ff820000` |
+| `Params{"Lr": float32(0.5)}` | `2d000000 16ff8104010106506172616d7301ff8200010c0110000015ff820001024c7207666c6f61743332080400fee03f` |
+| `Params{"NEpochs": 3}` | `2c000000 16ff8104010106506172616d7301ff8200010c0110000014ff820001074e45706f63687303696e7404020006` |
+
+The map type definition carries the Go type name `Params`; `int`, `int32` and
+`int64` share gob type id 2; `float32` is sent as a gob float (byte-reversed
+`float64` bits).
+
+## Collaborative filtering blob
+
+Written by the master after CF training (`master/tasks.go`
+`trainCollaborativeFiltering`), read by workers (`worker/worker.go` `Pull`) and by
+the master at start. It is **not** the CF model: item embeddings go to the vector
+store collection `collaborative_filtering_<id>`, and the blob holds only user
+embeddings (`logics.MatrixFactorizationUsers`, `logics/cf.go`):
+
+```
+Gob<int64>   number of users N
+N times:
+  String     user id
+  Slice<f32> user embedding (NFactors values)
+```
+
+Users the model cannot predict (`IsUserPredictable` false) are left out. The
+order of users is Go map order.
+
+`cf.MarshalModel` (`model/cf/model.go`) has its own format but is only used by
+tests at the pinned commit; it is not a contract.
+
+## Click-through-rate blob
+
+Written by the master after CTR training, read by workers and by the master at
+start when `recommend.ranker.type` is `fm` (`ctr.MarshalModel`,
+`model/ctr/model.go`, and `AFM.Marshal`, `model/ctr/fm.go`):
+
+```
+String              header: "AFM" (auto_scale off) or "AFM2" (auto_scale on)
+Gob<Params>         hyper-parameters
+UnifiedIndex        feature index (below)
+Gob<int>            numFeatures
+Gob<int>            numDimension
+Gob<[]int>          embeddingDim, one entry per embedding feature
+if len(embeddingDim) > 0:
+  Index             embedding feature names
+if header == "AFM2":
+  Gob<int>          number of scalers S
+  S times:
+    Gob<int32>      feature index
+    AutoScaler      (below)
+Tensors             parameters, until end of stream (below)
+```
+
+`UnifiedIndex` (`dataset/unified_index.go`): a `u8` type tag, then
+
+| Tag | Type | Body |
+|---|---|---|
+| `0` | `UnifiedMapIndex` | five `Index` values in order: users, items, user labels, item labels, context labels |
+| `1` | `UnifiedDirectIndex` | `i32` N |
+| `2` | nil | nothing |
+
+`Index` (`dataset/index.go`): `i32` count, then that many `String` names; a name's
+position is its dense id. Reading rebuilds the map with `Add`, so a duplicated
+name keeps its first position.
+
+`AutoScaler` (`model/ctr/transformer.go`): `Gob<bool>` UseLog, `Gob<float32>` Min,
+`Gob<float32>` Max, and, only when UseLog is false, `Gob<float32>` Median, Q1, Q3,
+IQR.
+
+`Tensors` (`common/nn/layers.go` `Save` over `AFM.Parameters()`): a sequence of
+`protocol.Tensor` messages (`proto/encoding.proto`), each preceded by its length as
+a protobuf unsigned varint (`pbutil.WriteDelimited`), until end of input. `key` is
+the tensor's position in the parameter list as a one-element string list (`"0"`,
+`"1"`, ...); `shape` and `data` (row-major `float32`) follow. The list order is
+`B`, `V` parameters, `W` parameters, then for each embedding feature its
+attention layer's parameters and its linear layer's parameters
+(`AFM.Parameters`). The Go reader places each tensor by its key; a key past the
+end of the list panics (`reflect.Value.Index`), so a Rust reader rejects it with
+an error instead.
+
+### XLA variant
+
+Builds with `-tags xla` (only the `Dockerfile.cuda` images) use the same header
+and fields but replace `Tensors` with a `Gob<map[string]savedVariable>` of GoMLX
+variables (`model/ctr/fm_xla.go`). The two variants cannot read each other's
+blobs even in Go. The port implements the default (non-XLA) variant; see
+`PORTING.md` decision D-8.
+
+## `/api/dump` and `/api/restore`
+
+`GET /api/dump` on the master streams the data store (`master/rest.go` `dump`);
+`POST /api/restore` reads the same format (`Restore`). The body is:
+
+```
+i64 -1                     user stream marker
+  repeated: i64 length L > 0, then L bytes of protocol.User
+i64 -2                     item stream marker
+  repeated: i64 length, then protocol.Item
+i64 -3                     feedback stream marker
+  repeated: i64 length, then protocol.Feedback
+i64 0                      end marker
+JSON                       DumpStats, see below
+```
+
+- Records are plain `proto.Marshal` output (not varint-delimited), with `labels`
+  as JSON bytes. Users carry only `user_id`, `labels`, `comment`; items carry no
+  `update_at`; feedback carries no `updated`.
+- Feedback is dumped with an end time of `now` (`data.WithEndTime(*Config.Now())`),
+  so future-dated feedback is left out.
+- After the end marker the handler calls `server.Ok` with the stats, so the body
+  continues with the JSON `{"Users": n, "Items": n, "Feedback": n, "Duration":
+  <nanoseconds>}`, pretty-printed with one-space indentation. The response
+  `Content-Type` stays `application/octet-stream` because the header was already
+  sent. Observed on the running Go master (120-byte dump of one user):
+
+  ```
+  ffffffffffffffff 0e00000000000000 0a02753112055b2261225d1a0163
+  feffffffffffffff fdffffffffffffff 0000000000000000
+  7b0a202255736572732...  {"Users": 1, "Items": 0, "Feedback": 0, "Duration": 1860194}
+  ```
+
+- `Restore` stops at the end marker and ignores the trailing JSON. It re-inserts
+  users and items with `BatchInsertUsers`/`BatchInsertItems` and feedback with
+  `BatchInsertFeedback(insertUser=false, insertItem=false, overwrite=true)`, in
+  batches of 10 000. A record of length 0 or less ends its stream, and that value
+  is then taken as the next marker. Any marker other than `-1`, `-2`, `-3`, `0` fails
+  with `unknown flag <n>`.
+- After a successful restore the master cancels its running tasks and schedules a
+  new round.

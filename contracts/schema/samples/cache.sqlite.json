@@ -1,0 +1,65 @@
+{
+  "_generated": "contracts/tools/schemadump from the Go implementation. update_at values are wall-clock and differ per run.",
+  "driver": "sqlite",
+  "tables": [
+    {
+      "columns": [
+        "collection",
+        "subset",
+        "id",
+        "is_hidden",
+        "categories",
+        "score",
+        "timestamp"
+      ],
+      "rows": [
+        [
+          "recommend",
+          "u1",
+          "i1",
+          "0",
+          "[\"\",\"c1\"]",
+          "0.5",
+          "2026-01-02T03:04:05.678901Z"
+        ]
+      ],
+      "table": "documents"
+    },
+    {
+      "columns": [
+        "name",
+        "timestamp",
+        "value"
+      ],
+      "rows": [
+        [
+          "num_users",
+          "2026-01-02T03:04:05.678901Z",
+          "10"
+        ]
+      ],
+      "table": "time_series_points"
+    },
+    {
+      "columns": [
+        "name",
+        "value"
+      ],
+      "rows": [
+        [
+          "global_meta/num_users",
+          "10"
+        ],
+        [
+          "last_modify_user_time/u1",
+          "2026-01-02 03:04:05.678901 +0000 UTC"
+        ],
+        [
+          "recommend_digest/u1",
+          "0123456789abcdef0123456789abcdef"
+        ]
+      ],
+      "table": "values"
+    }
+  ]
+}

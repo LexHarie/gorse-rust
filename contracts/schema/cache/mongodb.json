@@ -1,0 +1,69 @@
+{
+  "_generated": "contracts/tools/schemadump from the Go implementation. Do not edit.",
+  "collections": [
+    {
+      "indexes": [
+        {
+          "key": {
+            "_id": 1
+          },
+          "name": "_id_"
+        },
+        {
+          "key": {
+            "categories": 1,
+            "collection": 1,
+            "is_hidden": 1,
+            "score": -1,
+            "subset": 1
+          },
+          "name": "collection_1_subset_1_categories_1_is_hidden_1_score_-1"
+        },
+        {
+          "key": {
+            "collection": 1,
+            "id": 1,
+            "subset": 1
+          },
+          "name": "collection_1_subset_1_id_1"
+        }
+      ],
+      "name": "documents",
+      "options": {},
+      "type": "collection"
+    },
+    {
+      "indexes": [
+        {
+          "key": {
+            "_id": 1
+          },
+          "name": "_id_"
+        },
+        {
+          "key": {
+            "name": 1,
+            "timestamp": 1
+          },
+          "name": "name_1_timestamp_1"
+        }
+      ],
+      "name": "time_series_points",
+      "options": {},
+      "type": "collection"
+    },
+    {
+      "indexes": [
+        {
+          "key": {
+            "_id": 1
+          },
+          "name": "_id_"
+        }
+      ],
+      "name": "values",
+      "options": {},
+      "type": "collection"
+    }
+  ]
+}

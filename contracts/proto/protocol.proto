@@ -1,0 +1,133 @@
+// Copyright 2020 gorse Project Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+option go_package = "github.com/gorse-io/gorse/protocol";
+
+package protocol;
+
+import "google/protobuf/timestamp.proto";
+
+message User {
+  string user_id = 1;
+  bytes labels = 2;
+  string comment = 3;
+  repeated string subscribe = 4;
+  google.protobuf.Timestamp update_at = 5;
+}
+
+message Item {
+  string namespace = 1;
+  string item_id = 2;
+  bool is_hidden = 3;
+  repeated string categories = 4;
+  google.protobuf.Timestamp timestamp = 5;
+  bytes labels = 6;
+  string comment = 7;
+  google.protobuf.Timestamp update_at = 8;
+}
+
+message Feedback {
+  string namespace = 1;
+  string feedback_type = 2;
+  string user_id = 3;
+  string item_id = 4;
+  double value = 5;
+  google.protobuf.Timestamp timestamp = 6;
+  string comment = 7;
+  google.protobuf.Timestamp updated = 8;
+  bytes labels = 9;
+}
+
+enum NodeType {
+  Server = 0;
+  Worker = 1;
+  Client = 2;
+}
+
+service Master {
+
+  /* meta distribute */
+  rpc GetMeta(NodeInfo) returns (Meta) {}
+  rpc PushProgress(PushProgressRequest) returns (PushProgressResponse) {}
+}
+
+message Meta {
+  string config = 1;
+  int64 collaborative_filtering_model_id = 3;
+  int64 click_through_rate_model_id = 4;
+  string me = 5;
+  repeated string servers = 6;
+  repeated string workers = 7;
+}
+
+message Fragment { bytes data = 1; }
+
+message NodeInfo {
+  NodeType node_type = 1;
+  string uuid = 2;
+  string binary_version = 4;
+  string hostname = 5;
+}
+
+message Progress {
+  string tracer = 1;
+  string name = 2;
+  string status = 3;
+  string error = 4;
+  int64 count = 5;
+  int64 total = 6;
+  int64 start_time = 7;
+  int64 finish_time = 8;
+}
+
+message PushProgressRequest { repeated Progress progress = 1; }
+
+message PushProgressResponse {}
+
+message PingRequest {}
+
+message PingResponse {}
+
+message UploadBlobRequest {
+  string name = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  bytes data = 3;
+}
+
+message UploadBlobResponse {}
+
+message DownloadBlobRequest { string name = 1; }
+
+message DownloadBlobResponse { bytes data = 1; }
+
+message ListBlobsRequest {}
+
+message ListBlobsResponse {
+  repeated string names = 1;
+}
+
+message RemoveBlobRequest {
+  string name = 1;
+}
+
+message RemoveBlobResponse {}
+
+service BlobStore {
+  rpc UploadBlob(stream UploadBlobRequest) returns (UploadBlobResponse) {}
+  rpc DownloadBlob(DownloadBlobRequest) returns (stream DownloadBlobResponse) {}
+  rpc ListBlobs(ListBlobsRequest) returns (ListBlobsResponse) {}
+  rpc RemoveBlob(RemoveBlobRequest) returns (RemoveBlobResponse) {}
+}

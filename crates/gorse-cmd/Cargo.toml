@@ -1,0 +1,18 @@
+[package]
+name = "gorse-cmd"
+description = "Rust port of the Gorse Go package `cmd`."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+gorse-config = { workspace = true }
+gorse-master = { workspace = true }
+gorse-server = { workspace = true }
+gorse-worker = { workspace = true }
+
+[lints]
+workspace = true

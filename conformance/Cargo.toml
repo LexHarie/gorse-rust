@@ -1,0 +1,14 @@
+[package]
+name = "gorse-conformance"
+description = "Differential tests that run the same inputs through the Go and Rust builds of Gorse."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true

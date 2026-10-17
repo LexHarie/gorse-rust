@@ -1,0 +1,5 @@
+# Latest stable Rust at the time of Phase 0 (released 2026-10-13).
+[toolchain]
+channel = "1.99.1"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

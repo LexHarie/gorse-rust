@@ -1,0 +1,14 @@
+{
+  "_generated": "contracts/tools/schemadump from the Go implementation (canonical extended JSON). _id and update_at differ per run.",
+  "collections": {
+    "feedback": [
+      {"_id":{"$oid":"6ad2e323f32d6d4ccae81571"},"feedbackkey":{"feedbacktype":"like","userid":"u1","itemid":"i1"},"comment":"feedback comment","labels":null,"timestamp":{"$date":{"$numberLong":"1767323046678"}},"updated":{"$date":{"$numberLong":"1767323046678"}},"value":{"$numberDouble":"1.5"}}
+    ],
+    "items": [
+      {"_id":{"$oid":"6ad2e323f32d6d4ccae8156d"},"itemid":"i1","categories":["c1","c2"],"comment":"item comment","ishidden":true,"labels":{"title":"Hello","embedding":[{"$numberDouble":"0.25"},{"$numberDouble":"0.5"}]},"timestamp":{"$date":{"$numberLong":"1767323045678"}},"updateat":{"$date":{"$numberLong":"1792205603366"}}}
+    ],
+    "users": [
+      {"_id":{"$oid":"6ad2e323f32d6d4ccae8156b"},"userid":"u1","comment":"user comment","labels":{"gender":"F","tags":["a","b"]},"updateat":{"$date":{"$numberLong":"1792205603365"}}}
+    ]
+  }
+}

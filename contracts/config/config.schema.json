@@ -1,0 +1,915 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gorse-io/gorse/config/config",
+  "$ref": "#/$defs/Config",
+  "$defs": {
+    "AzureBlobConfig": {
+      "properties": {
+        "endpoint": {
+          "type": "string"
+        },
+        "account_name": {
+          "type": "string"
+        },
+        "account_key": {
+          "type": "string"
+        },
+        "connection_string": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "endpoint",
+        "account_name",
+        "account_key",
+        "connection_string"
+      ]
+    },
+    "BlobConfig": {
+      "properties": {
+        "uri": {
+          "type": "string"
+        },
+        "s3": {
+          "$ref": "#/$defs/S3Config"
+        },
+        "gcs": {
+          "$ref": "#/$defs/GCSConfig"
+        },
+        "azure": {
+          "$ref": "#/$defs/AzureBlobConfig"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "uri",
+        "s3",
+        "gcs",
+        "azure"
+      ]
+    },
+    "CollaborativeConfig": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "fit_period": {
+          "type": "integer"
+        },
+        "fit_epoch": {
+          "type": "integer"
+        },
+        "optimize_period": {
+          "type": "integer"
+        },
+        "optimize_trials": {
+          "type": "integer"
+        },
+        "early_stopping": {
+          "$ref": "#/$defs/EarlyStoppingConfig"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type",
+        "fit_period",
+        "fit_epoch",
+        "optimize_period",
+        "optimize_trials",
+        "early_stopping"
+      ]
+    },
+    "Config": {
+      "properties": {
+        "database": {
+          "$ref": "#/$defs/DatabaseConfig"
+        },
+        "master": {
+          "$ref": "#/$defs/MasterConfig"
+        },
+        "server": {
+          "$ref": "#/$defs/ServerConfig"
+        },
+        "recommend": {
+          "$ref": "#/$defs/RecommendConfig"
+        },
+        "tracing": {
+          "$ref": "#/$defs/TracingConfig"
+        },
+        "oidc": {
+          "$ref": "#/$defs/OIDCConfig"
+        },
+        "openai": {
+          "$ref": "#/$defs/OpenAIConfig"
+        },
+        "blob": {
+          "$ref": "#/$defs/BlobConfig"
+        },
+        "quota": {
+          "$ref": "#/$defs/QuotaConfig"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "database",
+        "master",
+        "server",
+        "recommend",
+        "tracing",
+        "oidc",
+        "openai",
+        "blob",
+        "quota"
+      ]
+    },
+    "DataSourceConfig": {
+      "properties": {
+        "positive_feedback_types": {
+          "items": {
+            "$ref": "#/$defs/FeedbackTypeExpression"
+          },
+          "type": "array"
+        },
+        "negative_feedback_types": {
+          "items": {
+            "$ref": "#/$defs/FeedbackTypeExpression"
+          },
+          "type": "array"
+        },
+        "read_feedback_types": {
+          "items": {
+            "$ref": "#/$defs/FeedbackTypeExpression"
+          },
+          "type": "array"
+        },
+        "positive_feedback_ttl": {
+          "type": "integer"
+        },
+        "item_ttl": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "positive_feedback_types",
+        "negative_feedback_types",
+        "read_feedback_types",
+        "positive_feedback_ttl",
+        "item_ttl"
+      ]
+    },
+    "DatabaseConfig": {
+      "properties": {
+        "data_store": {
+          "type": "string"
+        },
+        "cache_store": {
+          "type": "string"
+        },
+        "vector_store": {
+          "type": "string"
+        },
+        "table_prefix": {
+          "type": "string"
+        },
+        "data_table_prefix": {
+          "type": "string"
+        },
+        "cache_table_prefix": {
+          "type": "string"
+        },
+        "cache_client_name": {
+          "type": "string"
+        },
+        "vector_table_prefix": {
+          "type": "string"
+        },
+        "mysql": {
+          "$ref": "#/$defs/MySQLConfig"
+        },
+        "postgres": {
+          "$ref": "#/$defs/SQLConfig"
+        },
+        "redis": {
+          "$ref": "#/$defs/RedisConfig"
+        },
+        "vector": {
+          "$ref": "#/$defs/VectorConfig"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "data_store",
+        "cache_store",
+        "vector_store",
+        "table_prefix",
+        "data_table_prefix",
+        "cache_table_prefix",
+        "cache_client_name",
+        "vector_table_prefix",
+        "mysql",
+        "postgres",
+        "redis",
+        "vector"
+      ]
+    },
+    "DecisionAPIConfig": {
+      "properties": {
+        "state_template": {
+          "type": "string"
+        },
+        "instructions_template": {
+          "type": "string"
+        },
+        "auth_token": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "state_template",
+        "instructions_template",
+        "auth_token",
+        "model",
+        "url"
+      ]
+    },
+    "EarlyStoppingConfig": {
+      "properties": {
+        "patience": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "patience"
+      ]
+    },
+    "ExternalConfig": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "script": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "script"
+      ]
+    },
+    "FallbackConfig": {
+      "properties": {
+        "recommenders": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "recommenders"
+      ]
+    },
+    "FeedbackTypeExpression": {
+      "properties": {
+        "FeedbackType": {
+          "type": "string"
+        },
+        "ExprType": {
+          "type": "integer"
+        },
+        "Value": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "FeedbackType",
+        "ExprType",
+        "Value"
+      ]
+    },
+    "GCSConfig": {
+      "properties": {
+        "credentials_file": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "credentials_file"
+      ]
+    },
+    "ItemToItemConfig": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "column": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "type",
+        "column"
+      ]
+    },
+    "MasterConfig": {
+      "properties": {
+        "port": {
+          "type": "integer"
+        },
+        "host": {
+          "type": "string"
+        },
+        "ssl_mode": {
+          "type": "boolean"
+        },
+        "ssl_ca": {
+          "type": "string"
+        },
+        "ssl_cert": {
+          "type": "string"
+        },
+        "ssl_key": {
+          "type": "string"
+        },
+        "http_port": {
+          "type": "integer"
+        },
+        "http_host": {
+          "type": "string"
+        },
+        "http_cors_domains": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "http_cors_methods": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "n_jobs": {
+          "type": "integer"
+        },
+        "meta_timeout": {
+          "type": "integer"
+        },
+        "dashboard_user_name": {
+          "type": "string"
+        },
+        "dashboard_password": {
+          "type": "string"
+        },
+        "dashboard_redacted": {
+          "type": "boolean"
+        },
+        "admin_api_key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "port",
+        "host",
+        "ssl_mode",
+        "ssl_ca",
+        "ssl_cert",
+        "ssl_key",
+        "http_port",
+        "http_host",
+        "http_cors_domains",
+        "http_cors_methods",
+        "n_jobs",
+        "meta_timeout",
+        "dashboard_user_name",
+        "dashboard_password",
+        "dashboard_redacted",
+        "admin_api_key"
+      ]
+    },
+    "MySQLConfig": {
+      "properties": {
+        "isolation_level": {
+          "type": "string"
+        },
+        "max_open_conns": {
+          "type": "integer"
+        },
+        "max_idle_conns": {
+          "type": "integer"
+        },
+        "conn_max_lifetime": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "isolation_level",
+        "max_open_conns",
+        "max_idle_conns",
+        "conn_max_lifetime"
+      ]
+    },
+    "NonPersonalizedConfig": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "score": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "score",
+        "filter"
+      ]
+    },
+    "OIDCConfig": {
+      "properties": {
+        "enable": {
+          "type": "boolean"
+        },
+        "issuer": {
+          "type": "string"
+        },
+        "client_id": {
+          "type": "string"
+        },
+        "client_secret": {
+          "type": "string"
+        },
+        "redirect_url": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "enable",
+        "issuer",
+        "client_id",
+        "client_secret",
+        "redirect_url"
+      ]
+    },
+    "OpenAIConfig": {
+      "properties": {
+        "base_url": {
+          "type": "string"
+        },
+        "auth_token": {
+          "type": "string"
+        },
+        "chat_completion_model": {
+          "type": "string"
+        },
+        "chat_completion_rpm": {
+          "type": "integer"
+        },
+        "chat_completion_tpm": {
+          "type": "integer"
+        },
+        "embedding_model": {
+          "type": "string"
+        },
+        "embedding_dimensions": {
+          "type": "integer"
+        },
+        "embedding_rpm": {
+          "type": "integer"
+        },
+        "embedding_tpm": {
+          "type": "integer"
+        },
+        "log_file": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "base_url",
+        "auth_token",
+        "chat_completion_model",
+        "chat_completion_rpm",
+        "chat_completion_tpm",
+        "embedding_model",
+        "embedding_dimensions",
+        "embedding_rpm",
+        "embedding_tpm",
+        "log_file"
+      ]
+    },
+    "QuotaConfig": {
+      "properties": {
+        "max_users_count": {
+          "type": "integer"
+        },
+        "max_items_count": {
+          "type": "integer"
+        },
+        "max_labels_size": {
+          "type": "integer"
+        },
+        "max_comment_size": {
+          "type": "integer"
+        },
+        "max_categories_count": {
+          "type": "integer"
+        },
+        "max_categories_size": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "max_users_count",
+        "max_items_count",
+        "max_labels_size",
+        "max_comment_size",
+        "max_categories_count",
+        "max_categories_size"
+      ]
+    },
+    "RankerConfig": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "recommenders": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "cache_expire": {
+          "type": "integer"
+        },
+        "fit_period": {
+          "type": "integer"
+        },
+        "fit_epoch": {
+          "type": "integer"
+        },
+        "optimize_period": {
+          "type": "integer"
+        },
+        "optimize_trials": {
+          "type": "integer"
+        },
+        "early_stopping": {
+          "$ref": "#/$defs/EarlyStoppingConfig"
+        },
+        "reranker_api": {
+          "$ref": "#/$defs/RerankerAPIConfig"
+        },
+        "decision_api": {
+          "$ref": "#/$defs/DecisionAPIConfig"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type",
+        "recommenders",
+        "cache_expire",
+        "fit_period",
+        "fit_epoch",
+        "optimize_period",
+        "optimize_trials",
+        "early_stopping",
+        "reranker_api",
+        "decision_api"
+      ]
+    },
+    "RecommendConfig": {
+      "properties": {
+        "cache_size": {
+          "type": "integer"
+        },
+        "cache_expire": {
+          "type": "integer"
+        },
+        "context_size": {
+          "type": "integer"
+        },
+        "active_user_ttl": {
+          "type": "integer"
+        },
+        "data_source": {
+          "$ref": "#/$defs/DataSourceConfig"
+        },
+        "search": {
+          "$ref": "#/$defs/SearchConfig"
+        },
+        "non-personalized": {
+          "items": {
+            "$ref": "#/$defs/NonPersonalizedConfig"
+          },
+          "type": "array"
+        },
+        "item-to-item": {
+          "items": {
+            "$ref": "#/$defs/ItemToItemConfig"
+          },
+          "type": "array"
+        },
+        "user-to-user": {
+          "items": {
+            "$ref": "#/$defs/UserToUserConfig"
+          },
+          "type": "array"
+        },
+        "collaborative": {
+          "$ref": "#/$defs/CollaborativeConfig"
+        },
+        "external": {
+          "items": {
+            "$ref": "#/$defs/ExternalConfig"
+          },
+          "type": "array"
+        },
+        "replacement": {
+          "$ref": "#/$defs/ReplacementConfig"
+        },
+        "ranker": {
+          "$ref": "#/$defs/RankerConfig"
+        },
+        "fallback": {
+          "$ref": "#/$defs/FallbackConfig"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "cache_size",
+        "cache_expire",
+        "context_size",
+        "active_user_ttl",
+        "data_source",
+        "search",
+        "non-personalized",
+        "item-to-item",
+        "user-to-user",
+        "collaborative",
+        "external",
+        "replacement",
+        "ranker",
+        "fallback"
+      ]
+    },
+    "RedisConfig": {
+      "properties": {
+        "max_search_results": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "max_search_results"
+      ]
+    },
+    "ReplacementConfig": {
+      "properties": {
+        "enable_replacement": {
+          "type": "boolean"
+        },
+        "positive_replacement_decay": {
+          "type": "number"
+        },
+        "read_replacement_decay": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "enable_replacement",
+        "positive_replacement_decay",
+        "read_replacement_decay"
+      ]
+    },
+    "RerankerAPIConfig": {
+      "properties": {
+        "query_template": {
+          "type": "string"
+        },
+        "document_template": {
+          "type": "string"
+        },
+        "auth_token": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "query_template",
+        "document_template",
+        "auth_token",
+        "model",
+        "url"
+      ]
+    },
+    "S3Config": {
+      "properties": {
+        "endpoint": {
+          "type": "string"
+        },
+        "access_key_id": {
+          "type": "string"
+        },
+        "secret_access_key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "endpoint",
+        "access_key_id",
+        "secret_access_key"
+      ]
+    },
+    "SQLConfig": {
+      "properties": {
+        "max_open_conns": {
+          "type": "integer"
+        },
+        "max_idle_conns": {
+          "type": "integer"
+        },
+        "conn_max_lifetime": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "max_open_conns",
+        "max_idle_conns",
+        "conn_max_lifetime"
+      ]
+    },
+    "SearchConfig": {
+      "properties": {
+        "columns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "columns"
+      ]
+    },
+    "ServerConfig": {
+      "properties": {
+        "api_key": {
+          "type": "string"
+        },
+        "default_n": {
+          "type": "integer"
+        },
+        "clock_error": {
+          "type": "integer"
+        },
+        "auto_insert_user": {
+          "type": "boolean"
+        },
+        "auto_insert_item": {
+          "type": "boolean"
+        },
+        "cache_expire": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "api_key",
+        "default_n",
+        "clock_error",
+        "auto_insert_user",
+        "auto_insert_item",
+        "cache_expire"
+      ]
+    },
+    "TracingConfig": {
+      "properties": {
+        "enable_tracing": {
+          "type": "boolean"
+        },
+        "exporter": {
+          "type": "string"
+        },
+        "collector_endpoint": {
+          "type": "string"
+        },
+        "sampler": {
+          "type": "string"
+        },
+        "ratio": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "enable_tracing",
+        "exporter",
+        "collector_endpoint",
+        "sampler",
+        "ratio"
+      ]
+    },
+    "UserToUserConfig": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "column": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "type",
+        "column"
+      ]
+    },
+    "VectorConfig": {
+      "properties": {
+        "quantization_type": {
+          "type": "string"
+        },
+        "quantization_bits": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "quantization_type",
+        "quantization_bits"
+      ]
+    }
+  }
+}

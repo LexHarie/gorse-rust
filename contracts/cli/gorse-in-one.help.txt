@@ -1,0 +1,17 @@
+The all in one distribution of gorse recommender system.
+
+Usage:
+  gorse-in-one [flags]
+
+Flags:
+      --access-log-path string          path of access log file for RESTful API
+      --cache-path string               path of cache folder (default "${HOME}/.gorse/var/lib/master")
+  -c, --config string                   configuration file path
+      --debug                           use debug log mode
+  -h, --help                            help for gorse-in-one
+      --log-max-age int                 maximum number of days to retain old log files
+      --log-max-backups int             maximum number of old log files to retain
+      --log-max-size int                maximum size in megabytes of the log file (default 100)
+      --log-path string                 path of log file
+      --playground string[="default"]   playground mode (setup a recommender system for GitHub repositories)
+  -v, --version                         gorse version

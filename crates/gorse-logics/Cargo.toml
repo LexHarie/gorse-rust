@@ -1,0 +1,19 @@
+[package]
+name = "gorse-logics"
+description = "Rust port of the Gorse Go package `logics`."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+gorse-common = { workspace = true }
+gorse-config = { workspace = true }
+gorse-dataset = { workspace = true }
+gorse-storage-core = { workspace = true }
+gorse-storage = { workspace = true }
+
+[lints]
+workspace = true

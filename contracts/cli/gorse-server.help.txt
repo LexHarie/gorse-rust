@@ -1,0 +1,22 @@
+The server node of gorse recommender system.
+
+Usage:
+  gorse-server [flags]
+
+Flags:
+      --access-log-path string   path of access log file for RESTful API
+      --cache-path string        path of cache file (default "server_cache.data")
+      --debug                    use debug log mode
+  -h, --help                     help for gorse-server
+      --http-host string         port for RESTful APIs and Prometheus metrics export (default "127.0.0.1")
+      --http-port int            host for RESTful APIs and Prometheus metrics export (default 8087)
+      --log-max-age int          maximum number of days to retain old log files
+      --log-max-backups int      maximum number of old log files to retain
+      --log-max-size int         maximum size in megabytes of the log file (default 100)
+      --log-path string          path of log file
+      --master-host string       host of master node (default "127.0.0.1")
+      --master-port int          port of master node (default 8086)
+      --ssl-ca string            path of SSL CA
+      --ssl-cert string          path of SSL certificate
+      --ssl-key string           path of SSL key
+  -v, --version                  gorse version

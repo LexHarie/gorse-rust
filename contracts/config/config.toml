@@ -1,0 +1,484 @@
+[database]
+
+# The database for caching, support Redis, MySQL, Postgres and MongoDB:
+#   redis://<user>:<password>@<host>:<port>/<db_number>
+#   rediss://<user>:<password>@<host>:<port>/<db_number>
+#   redis+cluster://<user>:<password>@<host>:<port>[?addr=<host2>:<port2>&addr=<host3>:<port3>]
+#   rediss+cluster://<user>:<password>@<host>:<port>[?addr=<host2>:<port2>&addr=<host3>:<port3>]
+#   mysql://[username[:password]@][protocol[(address)]]/dbname[?param1=value1&...&paramN=valueN]
+#   postgres://bob:secret@1.2.3.4:5432/mydb?sslmode=verify-full
+#   postgresql://bob:secret@1.2.3.4:5432/mydb?sslmode=verify-full
+#   mongodb://[username:password@]host1[:port1][,...hostN[:portN]][/[defaultauthdb][?options]]
+#   mongodb+srv://[username:password@]host1[:port1][,...hostN[:portN]][/[defaultauthdb][?options]]
+#   sqlite://<path>
+cache_store = "redis://localhost:6379/0"
+
+# The database for persist data, support MySQL, Postgres and MongoDB:
+#   mysql://[username[:password]@][protocol[(address)]]/dbname[?param1=value1&...&paramN=valueN]
+#   postgres://bob:secret@1.2.3.4:5432/mydb?sslmode=verify-full
+#   postgresql://bob:secret@1.2.3.4:5432/mydb?sslmode=verify-full
+#   mongodb://[username:password@]host1[:port1][,...hostN[:portN]][/[defaultauthdb][?options]]
+#   mongodb+srv://[username:password@]host1[:port1][,...hostN[:portN]][/[defaultauthdb][?options]]
+#   sqlite://<path>
+data_store = "mysql://gorse:gorse_pass@tcp(localhost:3306)/gorse"
+
+# The database for vector indices, support xvec, Qdrant, Weaviate and Milvus:
+#   xvec://<path>
+#   qdrant://<host>:<port>
+#   weaviate://<host>:<port>
+#   weaviates://<host>:<port>
+#   milvus://<host>:<port>
+vector_store = "xvec://vectors"
+
+# The naming prefix for tables (collections, keys) in databases. The default value is empty.
+table_prefix = ""
+
+# The naming prefix for tables (collections, keys) in cache storage databases. The default value is `table_prefix`.
+cache_table_prefix = ""
+
+# Name shown by Redis/Valkey CLIENT LIST for cache connections.
+cache_client_name = "gorse_cache_client"
+
+# The naming prefix for tables (collections, keys) in data storage databases. The default value is `table_prefix`.
+data_table_prefix = ""
+
+[database.mysql]
+
+# Transaction isolation level. The default value is "READ-UNCOMMITTED".
+isolation_level = "READ-UNCOMMITTED"
+
+# Maximum number of open connections to the database. Set to 0 to keep the driver default.
+max_open_conns = 0
+
+# Maximum number of idle connections to the database. Set to 0 to keep the driver default.
+max_idle_conns = 0
+
+# Maximum amount of time a connection may be reused. Set to "0s" to keep the driver default.
+conn_max_lifetime = "0s"
+
+[database.postgres]
+
+# Maximum number of open connections to the database. The default value is 64.
+max_open_conns = 64
+
+# Maximum number of idle connections to the database. The default value is 64.
+max_idle_conns = 64
+
+# Maximum amount of time a connection may be reused. The default value is "1m".
+conn_max_lifetime = "1m"
+
+[database.redis]
+
+# The maximum number of results to be returned by the FT.SEARCH command if LIMIT is used
+max_search_results = 10000
+
+[database.vector]
+
+# Quantization type for vector collections: "", sq, pq, rq.
+# The rq type maps to RaBitQ, Rotational Quantization, or TurboQuant depending on the vector database.
+quantization_type = ""
+
+# Quantization bits. Set to 0 to use the vector database default.
+quantization_bits = 0
+
+[master]
+
+# GRPC port of the master node. The default value is 8086.
+port = 8086
+
+# gRPC host of the master node. The default values is "0.0.0.0".
+host = "0.0.0.0"
+
+# Enable SSL for the gRPC communication. The default value is false.
+ssl_mode = false
+
+# SSL certification authority for the gRPC communication.
+ssl_ca = ""
+
+# SSL certification for the gRPC communication.
+ssl_cert = ""
+
+# SSL certification key for the gRPC communication.
+ssl_key = ""
+
+# HTTP port of the master node. The default values is 8088.
+http_port = 8088
+
+# HTTP host of the master node. The default values is "0.0.0.0".
+http_host = "0.0.0.0"
+
+# AllowedDomains is a list of allowed values for Http Origin.
+# The list may contain the special wildcard string ".*" ; all is allowed
+# If empty all are allowed.
+http_cors_domains = []
+
+# AllowedMethods is either empty or has a list of http methods names. Checking is case-insensitive.
+http_cors_methods = []
+
+# Number of working jobs in the master node. The default value is 1.
+n_jobs = 1
+
+# Meta information timeout. The default value is 10s.
+meta_timeout = "10s"
+
+# Username for the master node dashboard.
+dashboard_user_name = ""
+
+# Password for the master node dashboard.
+dashboard_password = ""
+
+# Secret key for admin APIs (SSL required).
+admin_api_key = ""
+
+[server]
+
+# Default number of returned items. The default value is 10.
+default_n = 10
+
+# Secret key for RESTful APIs (SSL required).
+api_key = ""
+
+# Clock error in the cluster. The default value is 5s.
+clock_error = "5s"
+
+# Insert new users while inserting feedback. The default value is true.
+auto_insert_user = true
+
+# Insert new items while inserting feedback. The default value is true.
+auto_insert_item = true
+
+# Server-side cache expire time. The default value is 10s.
+cache_expire = "10s"
+
+[recommend]
+
+# The cache size for recommended/popular/latest items. The default value is 10.
+cache_size = 100
+
+# Recommended cache expire time. The default value is 72h.
+cache_expire = "72h"
+
+# The context size for online recommendations. Online recommendations can't use all user feedbacks to generate
+# recommendations for efficiency consideration. Instead, only the latest `context_size` feedbacks are used.
+# The default value is 100.
+context_size = 100
+
+# The time-to-live (days) of active users, 0 means disabled. Recommendation won't be cached for inactive users. The default value is 0.
+active_user_ttl = 0
+
+[recommend.search]
+
+# Item fields to index for search. Values use expr syntax.
+columns = ["item.Comment"]
+
+[recommend.data_source]
+
+# The feedback types for positive events.
+positive_feedback_types = ["star","like","read>=3"]
+
+# The feedback types for read events.
+read_feedback_types = ["read"]
+
+# The time-to-live (days) of positive feedback, 0 means disabled. The default value is 0.
+positive_feedback_ttl = 0
+
+# The time-to-live (days) of items, 0 means disabled. The default value is 0.
+item_ttl = 0
+
+[[recommend.non-personalized]]
+
+# The name of the leaderboard.
+name = "most_starred_weekly"
+
+# The score function for items in the leaderboard.
+score = "count(feedback, .FeedbackType == 'star')"
+
+# The filter for items in the leaderboard.
+filter = "(now() - item.Timestamp).Hours() < 168"
+
+[[recommend.item-to-item]]
+
+# The name of the item-to-item recommender.
+name = "neighbors"
+
+# The type of the item-to-item recommender. There are three types:
+#   embedding: recommend by Euclidean distance of embeddings.
+#   tags: recommend by number of common tags.
+#   users: recommend by number of common users.
+type = "embedding"
+
+# The column of the item embeddings. Leave blank if type is "users".
+column = "item.Labels.embedding"
+
+[[recommend.user-to-user]]
+
+# The name of the user-to-user recommender.
+name = "neighbors"
+
+# The type of the user-to-user recommender. There are three types:
+#   embedding: recommend by Euclidean distance of embeddings.
+#   tags: recommend by number of common tags.
+#   items: recommend by number of common items.
+type = "items"
+
+[[recommend.external]]
+
+# The name of the external recommender.
+name = "trending"
+
+# The script to fetch external recommended items. The script should return a list of item IDs.
+script = """
+const response = fetch("https://cdn.jsdelivr.net/gh/isboyjc/github-trending-api/data/daily/all.json");
+if (!response.ok) {
+  throw new Error(`${response.status} ${response.body}`);
+}
+const data = JSON.parse(response.body);
+data["items"].map((item) => {
+  return item["title"].toLowerCase().replace("/", ":");
+})
+"""
+
+[recommend.collaborative]
+
+# The type of collaborative filtering. Supported values:
+#   none: disable collaborative filtering.
+#   mf: matrix factorization.
+type = "mf"
+
+# The time period for model fitting. The default value is "60m".
+fit_period = "60m"
+
+# The number of epochs for model fitting. The default value is 100.
+fit_epoch = 100
+
+# The time period for hyperparameter optimization, set to 0 to disable. The default value is "0".
+optimize_period = "360m"
+
+# The number of trials for hyperparameter optimization. The default value is 10.
+optimize_trials = 10
+
+[recommend.collaborative.early_stopping]
+
+# Number of epochs to wait if no improvement and then stop the training. The default value is 10.
+patience = 10
+
+[recommend.replacement]
+
+# Replace historical items back to recommendations. The default value is false.
+enable_replacement = false
+
+# Decay the weights of replaced items from positive feedbacks. The default value is 0.8.
+positive_replacement_decay = 0.8
+
+# Decay the weights of replaced items from read feedbacks. The default value is 0.6.
+read_replacement_decay = 0.6
+
+[recommend.ranker]
+
+# The type of the ranker:
+#   none: no ranking (default).
+#   fm: factorization machines.
+#   reranker: reranker API (uses reranker_api).
+#   decision: Decision API noul-based ranking (uses decision_api).
+type = "fm"
+
+# The time period to refresh recommendation for inactive users. The default values is 120h.
+cache_expire = "120h"
+
+# The recommenders used to fetch candidate items before ranking. The default values is all recommenders.
+recommenders = ["latest", "collaborative", "non-personalized/most_starred_weekly", "item-to-item/neighbors", "user-to-user/neighbors"]
+
+# The time period for model fitting. The default value is "60m".
+fit_period = "60m"
+
+# The number of epochs for model fitting. The default value is 100.
+fit_epoch = 100
+
+# The time period for hyperparameter optimization, set to 0 to disable. The default value is "0".
+optimize_period = "360m"
+
+# The number of trials for hyperparameter optimization. The default value is 10.
+optimize_trials = 10
+
+[recommend.ranker.early_stopping]
+
+# Number of epochs to wait if no improvement and then stop the training. The default value is 10.
+patience = 10
+
+[recommend.ranker.reranker_api]
+
+# Auth token for the reranker API.
+auth_token = ""
+
+# The reranker model.
+model = "qwen3-rerank"
+
+# URL for the reranker API, supports Jina style.
+url = "https://dashscope.aliyuncs.com/compatible-api/v1/reranks"
+
+# The prompt template for query.
+query_template = """
+You are a GitHub repository recommender system. Given a user is interested in the following repositories:
+{% for repo in feedback -%}
+- {{ repo.Comment }}
+{% endfor -%}
+Please sort repositories by the user's interests.
+"""
+
+# The prompt template for documents.
+document_template = '{{ item.Comment | replace(",", " ") | replace("\n", " ") }}'
+
+[recommend.ranker.decision_api]
+
+# Auth token for the Decision API.
+auth_token = ""
+
+# The Decision API model.
+model = "jev-latest"
+
+# Full URL for the Decision API endpoint.
+url = "https://tokenra.io/v1/decisions"
+
+# The state template, with access to user and feedback.
+state_template = """
+The user is interested in the following repositories:
+{% for repo in feedback -%}
+- {{ repo.Comment }}
+{% endfor -%}
+"""
+
+# The instructions template, rendered separately for each candidate item.
+instructions_template = 'Would the user be interested in this repository? {{ item.Comment | replace(",", " ") | replace("\n", " ") }}'
+
+[recommend.fallback]
+
+# The fallback recommenders are used when cached recommendation drained out. The default values is ["latest"].
+recommenders = ["item-to-item/neighbors", "latest"]
+
+[tracing]
+
+# Enable tracing for REST APIs. The default value is false.
+enable_tracing = false
+
+# The type of tracing exporters should be one of "zipkin", "otlp" and "otlphttp". The default value is "otlp".
+exporter = "otlp"
+
+# The endpoint of tracing collector.
+collector_endpoint = "http://localhost:4317"
+
+# The type of tracing sampler should be one of "always", "never" and "ratio". The default value is "always".
+sampler = "always"
+
+# The ratio of ratio based sampler. The default value is 1.
+ratio = 1
+
+[oidc]
+
+# Enable OpenID Connect (OIDC) authentication. The default value is false.
+enable = false
+
+# The issuer of the OAuth provider.
+issuer = ""
+
+# Public identifier of the OAuth application.
+client_id = ""
+
+# Token access to the OAuth application.
+client_secret = ""
+
+# URL used by the OAuth provider to redirect users after they are successfully authenticated
+# (also referred to as the callback URL). You should set this to the concatenation of the
+# Gorse dashboard URL and "/callback/oauth2". For example, if the Gorse dashboard URL is
+# http://localhost:8088, the redirect URL should be: http://localhost:8088/callback/oauth2
+redirect_url = ""
+
+[blob]
+
+# Blob storage URI.
+#   - S3: s3://bucket/path
+#   - GCS: gs://my-bucket/my-database
+#   - Azure Blob: az://container/path
+#   - Local: /path/without/prefix
+uri = "/var/lib/gorse/blob"
+
+[blob.s3]
+
+# S3 endpoint.
+endpoint = ""
+
+# S3 access key ID.
+access_key_id = ""
+
+# S3 secret access key.
+secret_access_key = ""
+
+[blob.gcs]
+
+# GCS credentials file.
+credentials_file = ""
+
+[blob.azure]
+
+# Azure Blob endpoint. Leave empty to use https://<account_name>.blob.core.windows.net/.
+endpoint = ""
+
+# Azure storage account name.
+account_name = ""
+
+# Azure storage account key.
+account_key = ""
+
+# Azure storage connection string (takes precedence over account_name/account_key).
+connection_string = ""
+
+[openai]
+
+# Base URL of OpenAI API.
+base_url = "http://localhost:11434/v1"
+
+# API key of OpenAI API.
+auth_token = "ollama"
+
+# Name of chat completion model.
+chat_completion_model = "qwen2.5"
+
+# Maximum requests per minute for chat completion.
+chat_completion_rpm = 15000
+
+# Maximum tokens per minute for chat completion.
+chat_completion_tpm = 1200000
+
+# Name of embedding model.
+embedding_model = "mxbai-embed-large"
+
+# Dimensions of embedding vectors.
+embedding_dimensions = 1024
+
+# Maximum requests per minute for embedding.
+embedding_rpm = 1800
+
+# Maximum tokens per minute for embedding.
+embedding_tpm = 1200000
+
+# Log file for OpenAI API.
+log_file = "openai.log"
+
+[quota]
+
+# Maximum total number of Users. 0 means no limit.
+max_users_count = 0
+
+# Maximum total number of Items. 0 means no limit.
+max_items_count = 0
+
+# Maximum size of Labels in bytes. Multi-byte UTF-8 characters count by bytes. 0 means no limit.
+max_labels_size = 0
+
+# Maximum size of Comment in bytes. Multi-byte UTF-8 characters count by bytes. 0 means no limit.
+max_comment_size = 0
+
+# Maximum number of Categories per item. 0 means no limit.
+max_categories_count = 0
+
+# Maximum size of Categories JSON in bytes. Multi-byte UTF-8 characters count by bytes. 0 means no limit.
+max_categories_size = 0

@@ -1,0 +1,3 @@
+# Tests may unwrap; library code must propagate errors (see PORTING.md, definition of done).
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

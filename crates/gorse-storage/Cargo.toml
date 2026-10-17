@@ -1,0 +1,19 @@
+[package]
+name = "gorse-storage"
+description = "Rust port of the Gorse Go package `storage/{data,cache,vectors,blob,meta}`."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+gorse-common = { workspace = true }
+gorse-protocol = { workspace = true }
+gorse-storage-core = { workspace = true }
+gorse-config = { workspace = true }
+gorse-model-core = { workspace = true }
+
+[lints]
+workspace = true
