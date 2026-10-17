@@ -9,6 +9,7 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+blake2.workspace = true
 gorse-protocol = { workspace = true }
 thiserror.workspace = true
 

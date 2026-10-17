@@ -51,6 +51,8 @@ go run ./contracts/tools/gobgolden \
 go run ./contracts/tools/floatsgolden -out crates/gorse-common/tests/data/floats_golden.json
 # common/heap (gorse-common)
 go run ./contracts/tools/heapgolden -out crates/gorse-common/tests/data/heap_golden.json
+# lafikl/consistent, the worker ring (gorse-common)
+go run ./contracts/tools/consistentgolden -out crates/gorse-common/tests/data/consistent_golden.json
 ```
 
 Regenerating at the pinned commit must give no diff except in values the files

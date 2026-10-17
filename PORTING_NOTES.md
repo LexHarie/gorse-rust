@@ -161,6 +161,34 @@ Deviations point to the decision in `PORTING.md` that approves them.
 - **Q-39 `PriorityQueue.Pop`'s doc comment says an empty queue returns an
   error; it panics** (index out of range in `container/heap.Pop`). See X-10.
 
+### Consistent hashing
+
+These are in `lafikl/consistent` (`v0.0.0-20220512074542-bdd3606bfc3e`), which
+places users on workers (`contracts/grpc.md`); the golden data
+(`consistent_golden.json`, `contracts/tools/consistentgolden`) checks each one.
+
+- **Q-40 A 64-bit hash collision leaves a point without a host.** `Add`
+  overwrites the colliding point's host (last added wins) while the sorted set
+  keeps both copies; removing either host deletes the shared map entry and one
+  copy. `Get` landing on the orphaned point returns `""` and `GetLeast` panics
+  (a nil pointer dereference in `loadOK`). Checked against Go on states written
+  straight into the ring's fields (golden `injected`), since the real hash
+  cannot be made to collide.
+- **Q-41 `GetLeast` wraps at the number of distinct points** (`len(c.hosts)`),
+  not the length of the sorted set; they differ only after a collision, when
+  the last point is skipped.
+- **Q-42 Reads that write the total load.** `MaxLoad` turns a total load of 0
+  into 1, and `loadOK` (inside `GetLeast`) turns a negative total into 0, both
+  under Go's read lock (a data race in Go). `max_load` and `get_least` take
+  `&mut self`; the random sequences check the total after every call.
+- **Q-43 `Remove` keeps the removed host's load in the total** and always
+  returns `true`, also for a host that was never added.
+- **Q-44 `MaxLoad` on an empty ring panics** (integer divide by zero), after
+  setting the total to 1.
+- **Q-45 `Inc`, `Done` and `UpdateLoad` ignore unknown hosts**, and `Done`
+  drives a load below zero. Load arithmetic wraps on overflow as Go's `int64`
+  does.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -237,6 +265,23 @@ Deviations point to the decision in `PORTING.md` that approves them.
   and `Swap` on both types, and `Pop() any` on `TopKFilter` (which removes the
   last array element, not the top), are exported in Go but no Gorse code calls
   them.
+
+- **X-14 The consistent-hash ring has no internal lock.** Go's `Consistent`
+  embeds a `sync.RWMutex` (so `Lock`/`RLock` are part of its exported API) and
+  locks inside every method. The Rust ring takes `&mut self` to change, and a
+  caller that shares one wraps it in a lock. Gorse builds a fresh ring for each
+  `pullUsers` call and uses it from one goroutine.
+- **X-15 The ring's exported `Host` struct is not a public type.** Loads are
+  kept as host name to `i64`; `get_loads` returns the same map Go's `GetLoads`
+  does. No Gorse code uses `Host`.
+- **X-16 Ring panic texts differ.** Where Go panics with a runtime error
+  (`integer divide by zero`, `nil pointer dereference`), Rust panics with its
+  own text; the golden tests check that both panic at the same call.
+- **X-17 `MaxLoad` above `i64::MAX`.** It converts `ceil(total / hosts * 1.25)`
+  to `int64`; above `i64::MAX` (a total load over about 7.4e18) Go gives
+  `i64::MIN` on amd64 and saturates on arm64. Rust saturates, as Go on arm64.
+- **X-18 Ring keys and hosts are `&str`.** Go strings may hold invalid UTF-8;
+  worker uuids are hex and user ids are UTF-8 in every Gorse store (X-8).
 
 ## Open questions
 

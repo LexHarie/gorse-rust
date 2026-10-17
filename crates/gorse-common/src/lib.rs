@@ -7,6 +7,7 @@
 //! its header.
 
 pub mod blas;
+pub mod consistent;
 pub mod encoding;
 pub mod floats;
 pub mod heap;
