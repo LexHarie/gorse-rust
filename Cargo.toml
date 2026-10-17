@@ -12,8 +12,7 @@ license = "Apache-2.0"
 repository = "https://github.com/LexHarie/gorse-rust"
 
 [workspace.dependencies]
-# Internal crates. External dependencies are added only after the crate
-# selection in porting/crate-selection.md is approved.
+# Internal crates.
 gorse-protocol = { path = "crates/gorse-protocol" }
 gorse-common = { path = "crates/gorse-common" }
 gorse-storage-core = { path = "crates/gorse-storage-core" }
@@ -27,6 +26,18 @@ gorse-worker = { path = "crates/gorse-worker" }
 gorse-server = { path = "crates/gorse-server" }
 gorse-master = { path = "crates/gorse-master" }
 gorse-cmd = { path = "crates/gorse-cmd" }
+
+# External crates, chosen in porting/crate-selection.md. A crate is listed here
+# only once a work package uses it.
+hex = "0.4.3"
+prost = "0.14.4"
+prost-types = "0.14.4"
+protox = "0.10.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tonic = "0.14.6"
+tonic-prost = "0.14.6"
+tonic-prost-build = "0.14.6"
 
 [workspace.lints.rust]
 # `unsafe` is allowed only at FFI/SIMD boundaries, opted into per module with a
