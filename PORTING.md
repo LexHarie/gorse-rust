@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3. WP-1-4 to WP-1-9 and WP-1-12 to WP-1-14 run in parallel threads (D-26); WP-1-10, WP-1-11 and WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-5. WP-1-4, WP-1-6 to WP-1-9 and WP-1-12 to WP-1-14 run in parallel threads (D-26); WP-1-10, WP-1-11 and WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |

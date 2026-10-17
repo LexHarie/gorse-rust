@@ -139,6 +139,28 @@ Deviations point to the decision in `PORTING.md` that approves them.
   which panic with `floats: slice lengths do not match` unless `ldb == ldc`
   (`lda == ldb` for `a·bᵀ`). The port panics the same way at the scalar level.
 
+### Collections
+
+- **Q-35 `PriorityQueue.Pop` keeps the value in the lookup set.** `Push`
+  ignores any value pushed before, so a value popped from a queue can never be
+  pushed into it again (`common/heap/pq.go:81-93`; `Pop` at `pq.go:96-99`
+  never touches `lookup`). Covered by `popped_values_are_not_pushed_again` and
+  the golden `bounded at 10` cases (the `ann.Bruteforce` push-then-pop pattern).
+- **Q-36 `PriorityQueue.Clone` does not copy the lookup set.** The copy starts
+  with an empty set (`pq.go:117-122`), so pushing a value it already holds adds
+  a second element with that value. `HNSW.searchLayer` clones its enter points
+  this way. Covered by `clone_queue` and the golden cases.
+- **Q-37 `PriorityQueue.Unmarshal` trusts its input.** Any non-zero order byte
+  means descending (Go's `binary.Read` into a `bool` is `b != 0`); the heap
+  array is taken as written, without checking heap order or NaN weights;
+  duplicate values stay in the array while the lookup set holds each once.
+- **Q-38 `TopKFilter` accepts NaN weights.** Only `PriorityQueue.Push` rejects
+  NaN. Weights compare with Go's `<` and `>`, false for NaN, so where a NaN ends
+  up depends on the push order; the port compares with the same operators, not
+  `total_cmp`.
+- **Q-39 `PriorityQueue.Pop`'s doc comment says an empty queue returns an
+  error; it panics** (index out of range in `container/heap.Pop`). See X-10.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -197,6 +219,24 @@ Deviations point to the decision in `PORTING.md` that approves them.
   about on stderr are ignored silently. `Feature::NONE.mm` runs its row
   operations with the scalar loops, where Go's internal `Feature(0).mm` would
   use the process's level; Go has no exported way to reach that.
+
+- **X-10 `pop` and `peek` on an empty `PriorityQueue` return `None`** where Go
+  panics (`PORTING.md` D-23). Every Go caller checks `Len()` first
+  (`common/ann/hnsw.go`, `common/ann/bruteforce.go`) or holds a queue that
+  cannot be empty there. Pushing a NaN weight still panics with Go's message,
+  as does `reverse` of a queue holding one.
+- **X-11 `PriorityQueue::unmarshal` returns a new queue.** Go's `Unmarshal`
+  fills an existing queue and on an error leaves it half-written; its only
+  caller, `HNSW.Unmarshal`, creates a fresh queue for each call and discards
+  everything on an error. A negative element count is an error where Go panics
+  in `makeslice` (as X-7).
+- **X-12 `TopKFilter::new` takes `usize`.** Go takes an `int`; a negative `k`
+  keeps nothing, exactly as `k = 0` (golden `k=-1` cases, replayed with
+  `k = 0`). Callers holding a signed value pass `usize::try_from(k).unwrap_or(0)`.
+- **X-13 Methods promoted from Go's unexported `_heap` are not ported.** `Less`
+  and `Swap` on both types, and `Pop() any` on `TopKFilter` (which removes the
+  last array element, not the top), are exported in Go but no Gorse code calls
+  them.
 
 ## Open questions
 

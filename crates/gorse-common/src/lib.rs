@@ -9,3 +9,4 @@
 pub mod blas;
 pub mod encoding;
 pub mod floats;
+pub mod heap;
