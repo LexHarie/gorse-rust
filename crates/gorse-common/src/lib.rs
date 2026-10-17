@@ -7,3 +7,4 @@
 //! its header.
 
 pub mod encoding;
+pub mod gotime;

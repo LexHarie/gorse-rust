@@ -22,8 +22,10 @@
 //     code point by this Go toolchain.
 //   - -errno: Rust source with the text of every syscall.Errno.
 //   - -zoneinfo: a directory with the TZif files of the zones the tests use,
-//     copied from $GOROOT/lib/time/zoneinfo.zip, plus zoneinfo.zip, a stored
-//     zip of three of them for the zip reader.
+//     copied from $GOROOT/lib/time/zoneinfo.zip.
+//   - -goroot: a stand-in GOROOT whose lib/time/zoneinfo.zip is a stored zip
+//     of the same zones, which the Rust ports of Go's tests load the way Go's
+//     tests load their GOROOT's zip.
 //   - -time-out: Format, String, Parse, ParseInLocation, Date, Unix,
 //     Duration.String, ParseDuration and JSON results (gotime_golden.json).
 //   - -dateparse-out: ParseAny, ParseIn, ParseLocal, ParseStrict and
@@ -42,6 +44,7 @@
 //	  -tables crates/gorse-common/src/dateparse/tables.rs \
 //	  -errno crates/gorse-common/src/gotime/errno.rs \
 //	  -zoneinfo crates/gorse-common/tests/data/zoneinfo \
+//	  -goroot crates/gorse-common/tests/data/goroot \
 //	  -time-out crates/gorse-common/tests/data/gotime_golden.json \
 //	  -dateparse-out crates/gorse-common/tests/data/dateparse_golden.json
 package main
@@ -86,12 +89,14 @@ var zones = []string{
 	"Asia/Tokyo",
 	"Asia/Jerusalem",
 	"Asia/Gaza",
+	"Australia/Brisbane",
 	"Australia/Lord_Howe",
 	"Australia/Sydney",
 	"Europe/Berlin",
 	"Europe/Dublin",
 	"Europe/London",
 	"Europe/Moscow",
+	"Europe/Zurich",
 	"Pacific/Chatham",
 	"Pacific/Fakaofo",
 	"Africa/Casablanca",
@@ -101,15 +106,13 @@ var zones = []string{
 	"UTC",
 }
 
-// zipZones go into the small zip used to test the zip reader.
-var zipZones = []string{"Asia/Jerusalem", "Australia/Sydney", "Europe/Berlin"}
-
 var tzdata = map[string][]byte{}
 
 func main() {
 	tables := flag.String("tables", "", "write the dateparse Unicode tables (Rust) here")
 	errno := flag.String("errno", "", "write the syscall.Errno texts (Rust) here")
-	zoneinfo := flag.String("zoneinfo", "", "write the TZif files and zoneinfo.zip into this directory")
+	zoneinfo := flag.String("zoneinfo", "", "write the TZif files into this directory")
+	goroot := flag.String("goroot", "", "write lib/time/zoneinfo.zip under this directory")
 	timeOut := flag.String("time-out", "", "write the time package golden JSON here")
 	dateparseOut := flag.String("dateparse-out", "", "write the dateparse golden JSON here")
 	flag.Parse()
@@ -125,6 +128,9 @@ func main() {
 	}
 	if *zoneinfo != "" {
 		must(writeZoneinfo(*zoneinfo))
+	}
+	if *goroot != "" {
+		must(writeZoneinfoZip(*goroot))
 	}
 	if *timeOut != "" {
 		must(writeJSON(*timeOut, timeGolden()))
@@ -240,11 +246,19 @@ func writeZoneinfo(dir string) error {
 			return err
 		}
 	}
-	// The zip reader in Go only reads stored entries, like the
-	// zoneinfo.zip Go ships.
+	return nil
+}
+
+// writeZoneinfoZip writes goroot/lib/time/zoneinfo.zip with every zone. Go's
+// zip reader only reads stored entries, like the zoneinfo.zip Go ships.
+func writeZoneinfoZip(goroot string) error {
+	dir := filepath.Join(goroot, "lib", "time")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
 	var buf bytes.Buffer
 	w := zip.NewWriter(&buf)
-	for _, z := range zipZones {
+	for _, z := range zones {
 		hdr := &zip.FileHeader{Name: z, Method: zip.Store}
 		hdr.Modified = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 		f, err := w.CreateHeader(hdr)
@@ -1199,15 +1213,19 @@ func dateparseGolden() DateparseGolden {
 	corpus = append(corpus, extraInputs...)
 
 	// Cache time values written by Go nodes in various local zones
-	// (cache.Time stores t.String(); time.Now carries a monotonic reading).
+	// (cache.Time stores t.String(); a time.Now value carries a monotonic
+	// reading, which String appends as " m=±<seconds>"). A fixed instant
+	// stands in for time.Now so that the golden is reproducible; Go's API
+	// cannot set a monotonic reading, so the two suffixes are appended in the
+	// form Time.String writes them.
 	for _, l := range []string{"UTC", "America/Los_Angeles", "Asia/Shanghai", "Asia/Kolkata",
 		"Asia/Kathmandu", "Asia/Manila", "Asia/Singapore", "America/Sao_Paulo",
 		"Australia/Lord_Howe", "Pacific/Chatham", "Europe/Dublin", "Europe/Moscow"} {
 		setLocal(l)
-		now := time.Now()
+		now := time.Date(2026, 10, 17, 8, 1, 18, 567105868, time.UTC).In(time.Local)
 		corpus = append(corpus,
-			now.String(),
-			now.Add(-90*24*time.Hour).String(),
+			now.String()+" m=+0.054329743",
+			now.Add(-90*24*time.Hour).String()+" m=-7775999.945670257",
 			time.Date(2026, 1, 2, 3, 4, 5, 678901000, time.Local).String(),
 			time.Date(2026, 7, 2, 3, 4, 5, 0, time.Local).String(),
 			time.Date(1996, 4, 8, 0, 0, 0, 0, time.UTC).In(time.Local).String(),
