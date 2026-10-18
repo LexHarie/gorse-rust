@@ -37,6 +37,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -45,6 +46,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gorse-io/gorse/common/expression"
 	"github.com/gorse-io/gorse/common/log"
@@ -79,8 +81,10 @@ type LoadCase struct {
 	Name string `json:"name"`
 	// File is the file name in the case directory; empty means LoadConfig("").
 	File string `json:"file,omitempty"`
-	// Text is the file's contents, written unless Missing or Dir.
+	// Text is the file's contents, written unless Missing or Dir; TextHex
+	// holds them instead when they are not UTF-8.
 	Text    string            `json:"text,omitempty"`
+	TextHex string            `json:"text_hex,omitempty"`
 	Missing bool              `json:"missing,omitempty"`
 	Dir     bool              `json:"dir,omitempty"`
 	Env     map[string]string `json:"env,omitempty"`
@@ -484,7 +488,72 @@ func loadCases(envs []Binding) []LoadCase {
 		toml("search columns", "[recommend.search]\ncolumns = [\"item.Labels.description\", \"\"]\n"),
 		toml("search bad column", "[recommend.search]\ncolumns = [\"item.Labels.\"]\n"),
 		toml("data store prefixes", "[database]\ndata_store = \"mongodb+srv://h/db\"\ncache_store = \"rediss+cluster://h\"\nvector_store = \"weaviates://h\"\n"),
+		toml("three decode errors", "[master]\nport = \"a\"\nhttp_port = \"b\"\n[server]\ndefault_n = \"c\"\n"),
+		toml("decode errors in a slice", "[master]\nhttp_cors_domains = [[1], {a = 1}, \"ok\", [2]]\n"),
+		toml("decode and hook errors", "[master]\nmeta_timeout = \"x\"\nport = \"y\"\n[recommend.data_source]\npositive_feedback_types = [\"!\", \"ok\", 1]\n"),
+		toml("toml 1.1 inline table newline", "master = {\n  port = 1\n}\n"),
+		toml("toml 1.1 inline table trailing comma", "master = { port = 1, }\n"),
+		toml("toml 1.1 escape e", "[master]\nhost = \"\\e\"\n"),
+		toml("toml 1.1 escape x", "[master]\nhost = \"\\x41\"\n"),
+		toml("toml 1.1 time without seconds", "[master]\nhost = 07:32\n"),
+		toml("toml literal and multi-line strings", "[master]\nhost = '''\nline\\n'''\nhttp_host = \"\"\"\n  a \\\n  b\"\"\"\nssl_ca = 'C:\\x'\n"),
+		toml("toml local date-time", "[master]\nhost = 1979-05-27T07:32:00\n"),
+		toml("toml array of tables then table", "[[recommend.external]]\nname = \"a\"\nscript = \"s\"\n[[recommend.external]]\nname = \"b\"\n[recommend.ranker]\ntype = \"fm\"\nrecommenders = [\"external/a\", \"external/b\"]\n"),
+		toml("toml comments and whitespace", "# c\n[ master ] # c\n  port=1 # c\n\n\t[ \"server\" ]\ndefault_n=2\n"),
+		toml("toml integer with underscores and sign", "[master]\nport = +1_0\nn_jobs = 0x_1\n"),
+		toml("toml bad underscore", "[master]\nport = 1__0\n"),
+		toml("toml leading zero", "[master]\nport = 010\n"),
+		toml("toml float forms", "[recommend.replacement]\npositive_replacement_decay = 5e-1\nread_replacement_decay = 1_0.0_1\n[tracing]\nratio = +0.1\n"),
+		toml("toml utf-8 bom", "\ufeff[master]\nport = 1\n"),
+		toml("toml crlf", "[master]\r\nport = 1\r\n"),
+		toml("toml invalid utf-8", "[master]\nhost = \"\xff\"\n"),
+		toml("toml empty key", "[master]\n\"\" = 1\n"),
+		toml("toml nested inline tables", "recommend = { ranker = { type = \"fm\", recommenders = [\"latest\"] }, cache_size = 5 }\n"),
+		toml("toml dotted table header", "[recommend.ranker.reranker_api]\nmodel = \"m\"\n[recommend.ranker]\ntype = \"reranker\"\n"),
+		toml("toml table redefined", "[master]\nport = 1\n[master]\nhost = \"h\"\n"),
+		toml("toml super-table after sub-table", "[recommend.ranker]\ntype = \"fm\"\n[recommend]\ncache_size = 3\n"),
+		LoadCase{Name: "json duplicate keys", File: "config.json", Text: "{\"master\": {\"port\": 1, \"port\": 2}}"},
+		LoadCase{Name: "json top-level null", File: "config.json", Text: "null"},
+		LoadCase{Name: "json empty file", File: "config.json", Text: ""},
+		LoadCase{Name: "json huge number", File: "config.json", Text: "{\"master\": {\"port\": 1e400}}"},
+		LoadCase{Name: "json negative zero", File: "config.json", Text: "{\"tracing\": {\"ratio\": -0}, \"master\": {\"port\": -0.0}}"},
+		LoadCase{Name: "json lone surrogate", File: "config.json", Text: "{\"master\": {\"host\": \"\\ud800x\"}}"},
+		LoadCase{Name: "json invalid utf-8", File: "config.json", Text: "{\"master\": {\"host\": \"\xff\"}}"},
+		LoadCase{Name: "json bom", File: "config.json", Text: "\ufeff{}"},
+		LoadCase{Name: "json trailing data", File: "config.json", Text: "{} {}"},
+		LoadCase{Name: "json bool and array", File: "config.json", Text: "{\"master\": {\"ssl_mode\": \"true\", \"http_cors_methods\": \"GET\"}, \"server\": {\"auto_insert_user\": 0}}"},
+		LoadCase{Name: "json duration number", File: "config.json", Text: "{\"master\": {\"meta_timeout\": 1500000000.7}}"},
+		LoadCase{Name: "yaml multi-document", File: "config.yaml", Text: "master:\n  port: 1\n---\nmaster:\n  port: 2\n"},
+		LoadCase{Name: "yaml merge key", File: "config.yaml", Text: "base: &b\n  port: 5\n  host: b\nmaster:\n  <<: *b\n  host: m\n"},
+		LoadCase{Name: "yaml flow mapping", File: "config.yaml", Text: "master: {port: 7, http_cors_domains: [a, b]}\n"},
+		LoadCase{Name: "yaml block scalars", File: "config.yaml", Text: "master:\n  host: |\n    a\n    b\n  http_host: >-\n    c\n    d\n"},
+		LoadCase{Name: "yaml duplicate key", File: "config.yaml", Text: "master:\n  port: 1\n  port: 2\n"},
+		LoadCase{Name: "yaml non-string key", File: "config.yaml", Text: "1: a\nmaster:\n  port: 3\n"},
+		LoadCase{Name: "yaml bool key", File: "config.yaml", Text: "true: a\nmaster:\n  port: 3\n"},
+		LoadCase{Name: "yaml null key", File: "config.yaml", Text: "~: a\nmaster:\n  port: 3\n"},
+		LoadCase{Name: "yaml empty file", File: "config.yaml", Text: ""},
+		LoadCase{Name: "yaml comments only", File: "config.yaml", Text: "# nothing\n"},
+		LoadCase{Name: "yaml bom", File: "config.yaml", Text: "\ufeffmaster:\n  port: 4\n"},
+		LoadCase{Name: "yaml sequence of maps", File: "config.yaml", Text: "recommend:\n  non-personalized:\n    - name: a\n      score: \"1\"\n    - name: b\n      score: \"2\"\n"},
+		LoadCase{Name: "yaml explicit document", File: "config.yaml", Text: "%YAML 1.1\n---\nmaster:\n  port: 9\n...\n"},
+		LoadCase{Name: "dotenv forms", File: "config.env", Text: "export master.host=h1\nmaster.http_host = \"h 2\"\nserver.api_key='k#1'\nmaster.ssl_ca=a # comment\nmaster.ssl_cert=\"a\\nb\"\nmaster.ssl_key=$HOME/k\nmaster.dashboard_user_name=${master.host}x\nmaster.dashboard_password=\n"},
+		LoadCase{Name: "dotenv bad line", File: "config.env", Text: "master.port\n"},
+		LoadCase{Name: "dotenv colon", File: "config.env", Text: "master.port: 3\n"},
+		LoadCase{Name: "dotenv upper-case and underscores", File: "config.env", Text: "MASTER_PORT=3\nMASTER.N_JOBS=4\n"},
+		LoadCase{Name: "dotenv crlf", File: "config.env", Text: "master.port=5\r\n"},
+		LoadCase{Name: "dotenv single-quoted no expansion", File: "config.env", Text: "master.host='$HOME'\n"},
+		LoadCase{Name: "dotenv unterminated quote", File: "config.env", Text: "master.host=\"abc\n"},
 	)
+	for _, v := range []string{`~`, `null`, `Null`, `NULL`, `nULL`, `true`, `True`, `TRUE`, `tRUE`, `false`, `yes`, `no`, `on`,
+		`off`, `y`, `n`, `0x1F`, `0X1F`, `0o17`, `017`, `09`, `0b101`, `+12`, `-12`, `1_000`, `.inf`, `-.Inf`, `+.INF`, `.nan`,
+		`.NaN`, `1e3`, `1.5e+3`, `1.`, `.5`, `-0`, `-0.0`, `0.1`, `1e400`, `18446744073709551615`, `18446744073709551616`,
+		`9223372036854775808`, `-9223372036854775809`, `2001-12-14t21:59:43.10-05:00`, `2002-12-14`, `'123'`, `"1\t2"`,
+		`!!str 123`, `!!int "5"`, `!!float 1`, `!!bool "true"`, `!!binary aGVsbG8=`, `!!timestamp 2002-12-14`, `!!null x`,
+		`[1, 2]`, `{a: 1}`, `""`, `''`, `"\u00e9"`, `a: b`, `- x`, `&a 5`, `!custom 5`, `0.0.1`, `1:20`, `=`, `<<`} {
+		cases = append(cases,
+			LoadCase{Name: "yaml master.host: " + v, File: "config.yaml", Text: "master:\n  host: " + v + "\n"},
+			LoadCase{Name: "yaml master.port: " + v, File: "config.yaml", Text: "master:\n  port: " + v + "\n"})
+	}
 	for _, c := range []struct{ table, key, value string }{
 		{"database", "data_store", `""`}, {"database", "data_store", `"redis://h"`}, {"database", "data_store", `"MYSQL://h"`},
 		{"database", "data_store", `"postgresql://h"`}, {"database", "data_store", `"mongodb://h"`},
@@ -678,7 +747,11 @@ func main() {
 	}
 	golden := Golden{Bindings: envs, Default: clean(string(defaults))}
 	for _, c := range loadCases(envs) {
-		golden.Load = append(golden.Load, load(c, envs))
+		c = load(c, envs)
+		if !utf8.ValidString(c.Text) {
+			c.TextHex, c.Text = hex.EncodeToString([]byte(c.Text)), ""
+		}
+		golden.Load = append(golden.Load, c)
 	}
 	for _, c := range validateCases() {
 		golden.Validate = append(golden.Validate, validate(c))
