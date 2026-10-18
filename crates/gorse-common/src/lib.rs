@@ -13,6 +13,7 @@ pub mod dateparse;
 pub mod encoding;
 pub mod expression;
 pub mod floats;
+pub mod gonet;
 pub mod gostrconv;
 pub mod gotime;
 pub mod heap;
