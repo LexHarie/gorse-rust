@@ -165,7 +165,7 @@ ID:            WP-1-15
 Go sources:    config/config.go, config/config.toml
 Go tests:      config/config_test.go
 Rust target:   crates/gorse-config
-Depends on:    WP-1-4, WP-1-7, WP-1-8, WP-1-14
+Depends on:    WP-1-4, WP-1-7, WP-1-8, WP-1-14, WP-1-19
 Acceptance:    cargo test -p gorse-config
 Contracts touched: none (must parse contracts/config/config.toml and produce contracts/config/meta-config.*.json)
 ```
@@ -200,7 +200,17 @@ Acceptance:    cargo test -p gorse-dataset
 Contracts touched: none (Index/UnifiedIndex formats from contracts/model-blobs.md)
 ```
 
-Exit gate: `cargo test -p gorse-protocol -p gorse-common -p gorse-storage-core -p gorse-config -p gorse-model-core -p gorse-dataset` passes with every listed Go test ported.
+```
+ID:            WP-1-19
+Go sources:    github.com/expr-lang/expr v1.17.8: file/, ast/, parser/ (lexer, operator tables, parser) and what the parser reads from builtin/ and conf/
+Go tests:      expr-lang's parser and lexer tests, plus accept/reject verdicts (and the AST, printed) from Go for every item_expr value in Gorse's tests, docs and configs and for generated strings
+Rust target:   crates/gorse-expr (new crate; WP-3-6 adds the checker, compiler and VM)
+Depends on:    —
+Acceptance:    cargo test -p gorse-expr parser
+Contracts touched: none (config validation: `item_expr` fields accept what parser.Parse accepts, PORTING.md C-12)
+```
+
+Exit gate: `cargo test -p gorse-protocol -p gorse-common -p gorse-storage-core -p gorse-config -p gorse-model-core -p gorse-dataset -p gorse-expr` passes with every listed Go test ported.
 
 ## Phase 2: storage
 
@@ -394,8 +404,8 @@ Contracts touched: none
 ID:            WP-3-6
 Go sources:    logics/non_personalized.go (expr-lang filters and scores), logics/external.go (quickjs), logics/reranker.go (gonja)
 Go tests:      logics/non_personalized_test.go, external_test.go, reranker_test.go, plus an expression corpus collected from the Go tests and docs
-Rust target:   crates/gorse-logics/src/{non_personalized,external,reranker}.rs, crates/gorse-logics/src/expr/
-Depends on:    WP-2-4, WP-1-12
+Rust target:   crates/gorse-logics/src/{non_personalized,external,reranker}.rs, crates/gorse-expr (checker, compiler, VM on WP-1-19's parser)
+Depends on:    WP-2-4, WP-1-12, WP-1-19
 Acceptance:    cargo test -p gorse-logics non_personalized external reranker expr
 Contracts touched: none
 ```

@@ -46,6 +46,17 @@ go run ./contracts/tools/protogolden -out crates/gorse-protocol/tests/data/golde
 go run ./contracts/tools/gobgolden \
   -out crates/gorse-common/tests/data/gob_golden.json \
   -decode-out crates/gorse-common/tests/data/gob_decode_golden.json
+# common/floats at the AVX-512, AVX and scalar levels (gorse-common; needs an
+# x86-64 CPU with AVX-512F, FMA and AVX)
+go run ./contracts/tools/floatsgolden -out crates/gorse-common/tests/data/floats_golden.json
+# common/heap (gorse-common)
+go run ./contracts/tools/heapgolden -out crates/gorse-common/tests/data/heap_golden.json
+# common/expression, feedback type expressions (gorse-common)
+go run ./contracts/tools/exprgolden -out crates/gorse-common/tests/data/expression_golden.json
+# lafikl/consistent, the worker ring (gorse-common)
+go run ./contracts/tools/consistentgolden -out crates/gorse-common/tests/data/consistent_golden.json
+# config.LoadConfig, Config.Validate and the recommender hashes (gorse-config)
+go run ./contracts/tools/configgolden -out crates/gorse-config/tests/data/config_golden.json
 ```
 
 Regenerating at the pinned commit must give no diff except in values the files

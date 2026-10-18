@@ -118,6 +118,122 @@ Deviations point to the decision in `PORTING.md` that approves them.
   restart logs everyone out (`master/rest.go` `cookieHandler`). The Rust master
   does the same; no cross-implementation cookie compatibility is needed.
 
+### Numerics
+
+- **Q-32 `MM` adds the product into `c`, except `a·bᵀ`, which overwrites it**
+  (`floats_avx.c`, `floats_avx512.c`, `floats_neon.c` and `mm.go`: the
+  `!transA && transB` branch assigns `c[i*ldc+j] = dot(...)`, the others use
+  `+=`). `common/nn` (`tensor.go`, `matMul` and `batchMatMul`) always multiplies
+  into a fresh zeroed result, so there both read as plain products.
+- **Q-33 Results depend on the CPU and on `GODEBUG`.** `Dot`, `Euclidean`, `MM`,
+  `MulConstAdd` and `MulConstAddTo` round differently at the AVX-512, AVX and
+  scalar levels (the AVX-512 kernels use FMA and 16-wide partial sums, the AVX
+  kernels 8-wide sums); `crates/gorse-common/tests/data/floats_golden.json` has
+  the hashes per level. Two Go nodes on different CPUs disagree in the last bits.
+  The port picks the level Go picks on the same CPU and `GODEBUG`
+  (`cpu.avx512f=off`, `cpu.fma=off`, `cpu.avx=off`, `cpu.all=off`, read as
+  `golang.org/x/sys/cpu` reads them), so it computes what a Go node on that
+  machine computes.
+- **Q-34 Go's scalar `MM` needs equal leading dimensions** where the kernels do
+  not: `mm.go` cuts whole rows and combines them with `MulConstAdd` and `Dot`,
+  which panic with `floats: slice lengths do not match` unless `ldb == ldc`
+  (`lda == ldb` for `a·bᵀ`). The port panics the same way at the scalar level.
+
+### Collections
+
+- **Q-35 `PriorityQueue.Pop` keeps the value in the lookup set.** `Push`
+  ignores any value pushed before, so a value popped from a queue can never be
+  pushed into it again (`common/heap/pq.go:81-93`; `Pop` at `pq.go:96-99`
+  never touches `lookup`). Covered by `popped_values_are_not_pushed_again` and
+  the golden `bounded at 10` cases (the `ann.Bruteforce` push-then-pop pattern).
+- **Q-36 `PriorityQueue.Clone` does not copy the lookup set.** The copy starts
+  with an empty set (`pq.go:117-122`), so pushing a value it already holds adds
+  a second element with that value. `HNSW.searchLayer` clones its enter points
+  this way. Covered by `clone_queue` and the golden cases.
+- **Q-37 `PriorityQueue.Unmarshal` trusts its input.** Any non-zero order byte
+  means descending (Go's `binary.Read` into a `bool` is `b != 0`); the heap
+  array is taken as written, without checking heap order or NaN weights;
+  duplicate values stay in the array while the lookup set holds each once.
+- **Q-38 `TopKFilter` accepts NaN weights.** Only `PriorityQueue.Push` rejects
+  NaN. Weights compare with Go's `<` and `>`, false for NaN, so where a NaN ends
+  up depends on the push order; the port compares with the same operators, not
+  `total_cmp`.
+- **Q-39 `PriorityQueue.Pop`'s doc comment says an empty queue returns an
+  error; it panics** (index out of range in `container/heap.Pop`). See X-10.
+
+### Consistent hashing
+
+These are in `lafikl/consistent` (`v0.0.0-20220512074542-bdd3606bfc3e`), which
+places users on workers (`contracts/grpc.md`); the golden data
+(`consistent_golden.json`, `contracts/tools/consistentgolden`) checks each one.
+
+- **Q-40 A 64-bit hash collision leaves a point without a host.** `Add`
+  overwrites the colliding point's host (last added wins) while the sorted set
+  keeps both copies; removing either host deletes the shared map entry and one
+  copy. `Get` landing on the orphaned point returns `""` and `GetLeast` panics
+  (a nil pointer dereference in `loadOK`). Checked against Go on states written
+  straight into the ring's fields (golden `injected`), since the real hash
+  cannot be made to collide.
+- **Q-41 `GetLeast` wraps at the number of distinct points** (`len(c.hosts)`),
+  not the length of the sorted set; they differ only after a collision, when
+  the last point is skipped.
+- **Q-42 Reads that write the total load.** `MaxLoad` turns a total load of 0
+  into 1, and `loadOK` (inside `GetLeast`) turns a negative total into 0, both
+  under Go's read lock (a data race in Go). `max_load` and `get_least` take
+  `&mut self`; the random sequences check the total after every call.
+- **Q-43 `Remove` keeps the removed host's load in the total** and always
+  returns `true`, also for a host that was never added.
+- **Q-44 `MaxLoad` on an empty ring panics** (integer divide by zero), after
+  setting the total to 1.
+- **Q-45 `Inc`, `Done` and `UpdateLoad` ignore unknown hosts**, and `Done`
+  drives a load below zero. Load arithmetic wraps on overflow as Go's `int64`
+  does.
+
+### Feedback type expressions
+
+`common/expression`, checked by `expression_golden.json`
+(`contracts/tools/exprgolden`).
+
+- **Q-46 `=` parses and matches every value.** The pattern accepts `=` and the
+  switch maps it to `None` (`expression.go:84-95`): `a=5` gives type `a`,
+  `None`, value 5, so `Match` ignores the value, `String` prints `a` and `ToPB`
+  still sends 5.
+- **Q-47 A value without an operator is parsed and then ignored.** `a.5` gives
+  type `a`, `None`, value 0.5; the type takes digits greedily, so `a1.5` gives
+  type `a1` and value 0.5, and `a1.` fails on the value `.`.
+- **Q-48 `FromString` is not atomic and keeps the old value.** The type and
+  operator are written before the value is parsed; a bad value then sets the
+  value to what `strconv.ParseFloat` returned (0 for `invalid syntax`, `+Inf`
+  for `value out of range`) and returns the error. Text without a value leaves
+  the previous value in place. With `encoding/json` decoding into the elements
+  already in a slice, this carries a stale value across a config override
+  (`["like"]` over a file value `star>=3` gives `{like, None, 3}`; only `ToPB`
+  shows it). `master.applyRecommendOverride` decodes `RECOMMEND_CONFIG` into
+  `cfg.Recommend` that way (for WP-1-15 and WP-4-3).
+- **Q-49 Values of 1e6 and more, or below 1e-4, do not survive a round trip.**
+  `String` formats the value with `%v`, which switches to exponent form outside
+  `[1e-4, 1e6)` (`read>=1e+06`), and the pattern has no exponent. A config
+  holding such a value marshals, but unmarshalling it back fails. `postConfig`
+  stores the marshalled `Recommend` in the meta store and
+  `applyRecommendOverride` reads it back on start (error logged,
+  `master.go:328`) and on reload (`master.go:183`, which then fails); inferred
+  from the call sites, for WP-4-3 to confirm.
+- **Q-50 `MarshalJSON` escapes `<`, `>` and `&`** (`"test\u003c16"`, asserted by
+  the Go test). The serde `Serialize` writes the plain string; matching Go's
+  bytes in a whole document needs a writer that escapes every string like Go,
+  which every go-restful response also needs (REST work packages).
+- **Q-51 `FromPB` keeps `ExprType` for an unknown enum number** (Go's `switch`
+  has no default).
+- **Q-52 `MarshalJSON` has a pointer receiver.** A value that is not addressable
+  (passed by value, a map value) encodes as the default struct
+  `{"FeedbackType":"read","ExprType":4,"Value":3}`; slice elements and pointers
+  use the string form. Every Gorse field is a slice, so the Rust `Serialize`
+  always writes the string form.
+- **Q-53 JSON `null` is an error inside a slice but fine for the slice.**
+  `UnmarshalJSON("null")` parses the empty string and fails; a `null` slice is
+  set to nil without calling it. serde's `Vec<T>` rejects `null`, so the config
+  types (WP-1-15) need `Option` or a default there.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -158,8 +274,80 @@ Deviations point to the decision in `PORTING.md` that approves them.
   through JSON, which Go decodes to UTF-8, and protobuf, which rejects other
   strings.
 
+- **X-9 `common/floats` beyond the release builds' behaviour** (`PORTING.md`
+  D-23, D-25). Go's SIMD builds index `a[0]` before calling a kernel, so the
+  kernel operations panic on empty slices on amd64 and arm64; the port returns
+  what the scalar loops return (nothing written, `0` for `Dot` and
+  `Euclidean`). `floats_golden.json` records Go's panics and the test checks they
+  are exactly those. Go's kernels read and write outside the slices when `MM`'s
+  dimensions exceed them; the port asserts the extents first, and with `k = 0`
+  computes the kernels' result (`a·bᵀ` stores zeros, the rest leave `c` alone)
+  without handing them pointers into empty slices. A `Feature` naming features
+  the CPU lacks (an illegal instruction in Go) uses only those the CPU has. Not
+  ported, because no release build runs them: the MKL and OpenBLAS backends
+  (`mkl`/`openblas` build tags), Accelerate (cgo on macOS arm64; it also
+  overwrites `c` where the kernels add, Q-32), the `GOEXPERIMENT=simd` build, and
+  the riscv64 RVV, loong64 LASX and SVE2 kernels: on architectures other than
+  x86-64 and AArch64 the port runs the scalar loops. `GODEBUG` fields Go warns
+  about on stderr are ignored silently. `Feature::NONE.mm` runs its row
+  operations with the scalar loops, where Go's internal `Feature(0).mm` would
+  use the process's level; Go has no exported way to reach that.
+
+- **X-10 `pop` and `peek` on an empty `PriorityQueue` return `None`** where Go
+  panics (`PORTING.md` D-23). Every Go caller checks `Len()` first
+  (`common/ann/hnsw.go`, `common/ann/bruteforce.go`) or holds a queue that
+  cannot be empty there. Pushing a NaN weight still panics with Go's message,
+  as does `reverse` of a queue holding one.
+- **X-11 `PriorityQueue::unmarshal` returns a new queue.** Go's `Unmarshal`
+  fills an existing queue and on an error leaves it half-written; its only
+  caller, `HNSW.Unmarshal`, creates a fresh queue for each call and discards
+  everything on an error. A negative element count is an error where Go panics
+  in `makeslice` (as X-7).
+- **X-12 `TopKFilter::new` takes `usize`.** Go takes an `int`; a negative `k`
+  keeps nothing, exactly as `k = 0` (golden `k=-1` cases, replayed with
+  `k = 0`). Callers holding a signed value pass `usize::try_from(k).unwrap_or(0)`.
+- **X-13 Methods promoted from Go's unexported `_heap` are not ported.** `Less`
+  and `Swap` on both types, and `Pop() any` on `TopKFilter` (which removes the
+  last array element, not the top), are exported in Go but no Gorse code calls
+  them.
+
+- **X-14 The consistent-hash ring has no internal lock.** Go's `Consistent`
+  embeds a `sync.RWMutex` (so `Lock`/`RLock` are part of its exported API) and
+  locks inside every method. The Rust ring takes `&mut self` to change, and a
+  caller that shares one wraps it in a lock. Gorse builds a fresh ring for each
+  `pullUsers` call and uses it from one goroutine.
+- **X-15 The ring's exported `Host` struct is not a public type.** Loads are
+  kept as host name to `i64`; `get_loads` returns the same map Go's `GetLoads`
+  does. No Gorse code uses `Host`.
+- **X-16 Ring panic texts differ.** Where Go panics with a runtime error
+  (`integer divide by zero`, `nil pointer dereference`), Rust panics with its
+  own text; the golden tests check that both panic at the same call.
+- **X-17 `MaxLoad` above `i64::MAX`.** It converts `ceil(total / hosts * 1.25)`
+  to `int64`; above `i64::MAX` (a total load over about 7.4e18) Go gives
+  `i64::MIN` on amd64 and saturates on arm64. Rust saturates, as Go on arm64.
+- **X-18 Ring keys and hosts are `&str`.** Go strings may hold invalid UTF-8;
+  worker uuids are hex and user ids are UTF-8 in every Gorse store (X-8).
+
+- **X-19 `unmarshal_json` of text that is not JSON returns serde_json's
+  message**, not Go's scanner text. Go's decoders check the whole document
+  before calling `UnmarshalJSON`, so only direct calls can pass such input, and
+  none in Gorse does. Valid JSON (including lone `\u` surrogates and invalid
+  UTF-8, which Go turns into U+FFFD) is decoded like Go.
+- **X-20 serde errors for feedback type expressions carry serde_json's position
+  suffix** (` at line L column C` after Go's text). A string element with a lone
+  surrogate escape or invalid UTF-8 fails in serde_json before reaching the
+  visitor, with serde_json's message, where Go fails with
+  `invalid expression format`; both reject it.
+
 ## Open questions
 
 - **O-1** The Go CI's model tests read the datasets from `https://cdn.gorse.io`,
   which this environment's network policy blocks. Phase 3 metric parity needs
   them (`PORTING.md` status board).
+- **O-2 prost leaves `-0.0` out of proto3 `double` and `float` fields;
+  protobuf-go writes it** (its bits are not zero). A Rust sender therefore
+  delivers `+0` where a Go sender delivers `-0`, for every such field in
+  `gorse-protocol` (prost 0.14.4 encodes `{test, None, -0}` as `0a0474657374`).
+  `expression_to_pb_matches_go` asserts the exact difference on 15 cases so a
+  prost change is noticed. To be settled with the gRPC services (Phase 2/3):
+  a score of `-0` can arise (`logics/cf.go` negates a dot product).
