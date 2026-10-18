@@ -12,3 +12,4 @@ pub mod encoding;
 pub mod expression;
 pub mod floats;
 pub mod heap;
+pub mod math32;
