@@ -60,7 +60,7 @@ carries unused dependencies.
 | compress/gzip | `flate2` | 1.1.10 | MIT/Apache | — | — |
 | JSON | `serde`, `serde_json` | 1.0.229, 1.0.154 | MIT/Apache | — | — |
 | regexp (RE2) | `regex` | 1.13.1 | MIT/Apache | Same leftmost-first semantics and anchoring as RE2 for the patterns Gorse uses, so `common/expression` keeps the Go pattern verbatim; checked against a Go corpus (WP-1-7) | a hand-written matcher (equivalent here, but no longer the Go pattern) |
-| time | `chrono` | 0.4.45 | MIT/Apache | Time zones and formatting; Go layouts are implemented by hand on top | `time` |
+| time | none: hand port of Go's `time` (`gorse_common::gotime`) | n/a | n/a | Go's exact layouts, parse errors, `Time.String()` with the monotonic suffix, `ParseDuration` and the TZif reader; `chrono` would contribute nothing (`PORTING.md` C-13) | `time` |
 | errors | `thiserror` | 2.0.21 | MIT/Apache | Typed errors so callers can match kinds like Go's `errors.Is` | — |
 | base64 | `base64` | 0.23.1 | MIT/Apache | Redis category encoding | — |
 | schollz/progressbar | `indicatif` | 0.18.6 | MIT | Playground import progress only | — |

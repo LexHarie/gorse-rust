@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-5, WP-1-7, WP-1-13. WP-1-4, WP-1-6, WP-1-8, WP-1-9, WP-1-11, WP-1-12, WP-1-14 and WP-1-19 run in parallel threads (D-26); WP-1-10 and WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-5, WP-1-7, WP-1-9, WP-1-13. WP-1-4, WP-1-6, WP-1-8, WP-1-11, WP-1-12, WP-1-14 and WP-1-19 run in parallel threads (D-26); WP-1-10 and WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
@@ -122,6 +122,21 @@ correction below states the evidence.
   and WP-3-6 adds the checker, compiler and VM to the same crate instead of
   `gorse-logics/src/expr/`. The crate-selection row is reworded. Found by the
   WP-1-7 thread.
+- **C-13 `time` is a hand port of Go's `time` package, not `chrono` (WP-1-9).**
+  `porting/crate-selection.md` picked `chrono` 0.4.45 with Go layouts written
+  on top. What Gorse needs from `time` is Go's exact text: `Time.String()` with
+  the monotonic suffix `m=+…` (the cache stores it, `PORTING_NOTES.md` Q-1), Go
+  layouts in both directions with Go's `ParseError` texts (dateparse builds a
+  layout and calls `time.Parse`), `Duration.String` and `ParseDuration`
+  (configs), `MarshalJSON`/`UnmarshalJSON`, and `LoadLocation`'s search order,
+  TZif reader and errors. With those ported, `chrono` contributes nothing (it
+  has no monotonic reading and reads zones differently), so it is not a
+  dependency; the crate-selection row now says so. Found by the WP-1-9 thread.
+- **C-14 dateparse needs `strconv.Quote` (WP-1-9).** Its errors quote the input
+  with `%q`, so the new module `gorse_common::gostrconv` ports `Quote`,
+  `AppendQuote`, `QuoteRune` and `IsPrint` (with Go's print table, generated).
+  WP-1-14 extends it with `ParseInt`, `ParseUint` and `Atoi`; later ports that
+  quote Go strings use it.
 
 ## Decision log
 
@@ -255,6 +270,40 @@ or accepts a metric gap outside the Go tests' own tolerances.
   five constants and `FromPB` keeps the field for unknown enum numbers
   (`PORTING_NOTES.md` Q-51). Go's `Match` is `matches` (`match` is a Rust
   keyword).
+- **D-31 Go strings are bytes in `gotime` and `dateparse` (WP-1-9).** Parsers
+  take `impl AsRef<[u8]>` and accept any bytes, as Go does; results Go can
+  return as invalid UTF-8 are `Vec<u8>` (`dateparse::parse_format`). Errors keep
+  Go's exact bytes behind accessors (`dateparse::Error::error_bytes`,
+  `gotime::ParseError::value` and friends); their `Display` replaces invalid
+  UTF-8 with U+FFFD.
+- **D-32 `gotime` keeps Go's shape (WP-1-9).** Go's `int` is `i64`, Go's
+  wrapping arithmetic wraps, `time.Date`/`time.Unix`/`time.Now` are free
+  functions (`date`, `unix`, `now`), the mutable `time.Local` is
+  `local()`/`set_local()`. `Location` is an `Arc`; `==` on `Location` and on
+  `Time` compares like Go's `==` (pointer identity of the location),
+  `Time::equal` compares instants and `Location::deep_equal` stands in for
+  `reflect.DeepEqual`.
+- **D-33 Tables Go computes are generated from Go (WP-1-9)**, not derived from
+  Rust's Unicode data: `dateparse/tables.rs` (`unicode.IsLetter`, `IsDigit`,
+  `ToLower` over every code point, Unicode 17.0.0), `gostrconv/tables.rs`
+  (`strconv.IsPrint`) and `gotime/errno.rs` (the `syscall.Errno` texts
+  `LoadLocation` reports), all written by `contracts/tools/timegolden`.
+- **D-34 Hermetic zone data for tests (WP-1-9).** The tool writes the TZif files
+  of the zones the tests use to `crates/gorse-common/tests/data/zoneinfo/` and a
+  stand-in GOROOT zip (`tests/data/goroot/lib/time/zoneinfo.zip`, Go's
+  uncompressed format) from go1.27.0's own `lib/time/zoneinfo.zip`. The tests
+  turn the system zone directories off (`internal::disable_platform_sources`)
+  and point the GOROOT fallback at the stand-in, so results do not depend on
+  the machine's tzdata.
+- **D-35 Time golden corpus (WP-1-9).** `gotime_golden.json`: 400 `Format` cases
+  over 38 layouts and 19 `Local` zones, 2061 `Parse`/`ParseInLocation` cases,
+  351 `Date` normalizations, 26 `Duration.String`, 77 `ParseDuration`, 60
+  `UnmarshalJSON`/`UnmarshalText`. `dateparse_golden.json`: 17615 cases of
+  `ParseAny`, `ParseIn`, `ParseLocal`, `ParseStrict` and `ParseFormat` over
+  dateparse's own test inputs, edge cases, the values Go nodes write to the
+  cache and a seeded corpus of mutations, in several `Local` zones and with
+  each option. Every case must match exactly (instant, location name and
+  offset, or error text, or layout).
 
 ## Open questions for Ritchie
 

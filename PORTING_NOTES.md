@@ -234,6 +234,78 @@ places users on workers (`contracts/grpc.md`); the golden data
   set to nil without calling it. serde's `Vec<T>` rejects `null`, so the config
   types (WP-1-15) need `Option` or a default there.
 
+### Time and dates
+
+Go's `time` (go1.27.0) as `gorse_common::gotime` and `araddon/dateparse`
+(6b43995a97de) as `gorse_common::dateparse`, checked by `gotime_golden.json` and
+`dateparse_golden.json` (`contracts/tools/timegolden`, `PORTING.md` D-35).
+gotime is a line-by-line port; these are the Go behaviours Gorse can observe.
+
+- **Q-63 `Time.String()` ends in ` m=±<seconds>` for times from `now()`** (Q-1).
+  The reading counts from the process clock start; `Round(0)`, `In`, `Local`
+  and `UTC` drop it, as in Go.
+- **Q-64 Malformed zone data under `$ZONEINFO` is not reported.**
+  `LoadLocation` assigns the read's nil error, not the parse's, to `firstErr`
+  (`time/zoneinfo.go`), so a corrupt file there falls through to the system
+  sources and the final error is theirs.
+- **Q-65 `$ZONEINFO` is read once per process**, at the first `LoadLocation`;
+  `Local` is read once from `$TZ` (else `/etc/localtime`, else UTC named
+  "UTC").
+
+dateparse (each is covered by the golden corpus or the ported tests unless
+marked):
+
+- **Q-66 Indices are byte positions**; after a multi-byte character the index
+  sits on its last byte. The time-state loop reads raw bytes as characters, so
+  byte 0xC3 counts as the letter `Ã`; the digit-slash check reads the byte after
+  the slash the same way (not covered by the corpus).
+- **Q-67 Restarts drop the options.** `"Mon "`, `"Tue "` and the other weekday
+  prefixes restart the parse without the caller's options (not covered by the
+  corpus); st/nd/rd/th suffixes are removed by a restart; a comma in the time
+  becomes a period by a restart; a colon before milliseconds is rewritten to a
+  period in the input itself; `"jan."` becomes `"jan"` only when the period is
+  at index 4.
+- **Q-68 Lowercasing is Go's `unicode.ToLower`:** `İ` lowers to `i` and the
+  Kelvin sign to `k`, so `"AprİL 8, 2009"` yields the layout `"JanuaryL…"` and
+  fails.
+- **Q-69 Each `parse()` re-applies the full month name and the weekday skip** to
+  the layout.
+- **Q-70 `RetryAmbiguousDateWithSwap`** runs on whichever parser came back
+  (including one from a restart without options), re-parses the final input in
+  `Local`, replaces the parser even with nil while keeping the original error,
+  and looks for "month out of range" anywhere in the error text.
+- **Q-71 An "AM" suffix is written into the layout as "PM".**
+- **Q-72 All-digit inputs:** 13- and 16-digit timestamps wrap on overflow;
+  lengths 14, 8 and 4 become fixed layouts whatever the digits; under 4 digits
+  gives "too short" with the raw bytes.
+- **Q-73 `ParseFormat` can return invalid UTF-8.**
+- **Q-74 "TZ offset not recognized"** fires for offsets of 0, 1, 2 or 4
+  characters and quotes the local copy of the input.
+- **Q-75 An unknown period-month** returns a non-nil parser together with the
+  error.
+
+The Go tests are ported case for case: `time/format_test.go` →
+`tests/gotime_go_format.rs`, `time_test.go` and `mono_test.go` →
+`tests/gotime_go_time.rs`, `zoneinfo_test.go`, `zoneinfo_unix_test.go` and
+`abs_test.go` → `tests/gotime_go_zoneinfo.rs`, the 39 `example_test.go` examples
+with an `// Output:` comment → `tests/gotime_go_example.rs` (the 7 without one
+are not run by `go test` either), dateparse's `parseany_test.go` →
+`tests/dateparse_go.rs`, plus `storage/cache/database_test.go` lines 92-99.
+Not ported: `TestCountMallocs` and `TestUnmarshalTextAllocations` (allocation
+counts need an `unsafe` counting allocator, and Rust's allocations are not Go's
+escape analysis), the timer and ticker tests (gotime has no timers; Gorse uses
+tokio's), `TestLinkname` (linkname shims), `TestEmbeddedTZData` (X-27) and the
+android and windows files. Harness differences: tests that set environment
+variables run as child processes (`set_var` is `unsafe` in Rust 2024), one
+child per `$TZ` value in `TestEnvTZUsage`; `ForceUSPacificForTesting` and the
+dateparse tests load zones from the stand-in GOROOT zip (D-34); `testing/quick`
+becomes a fixed-seed splitmix64 with Go's counts; `TestFormatAndParse` adds an
+explicit `f(0)` because Go's property only ever checks `sec == 0`;
+`TestTimeGob` round-trips `MarshalBinary`/`UnmarshalBinary` without gob framing;
+dateparse's `TestPreferMonthFirst` and `TestRetryAmbiguousDateWithSwap` run in
+America/Denver, which `TestInLocation` leaves behind when Go runs the file in
+order.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -338,6 +410,34 @@ places users on workers (`contracts/grpc.md`); the golden data
   surrogate escape or invalid UTF-8 fails in serde_json before reaching the
   visitor, with serde_json's message, where Go fails with
   `invalid expression format`; both reject it.
+- **X-25 The monotonic clock starts at first use**, not at process start: Go
+  takes `startNano` at package init, Rust has none.
+  `gotime::init_process_clock()` starts it; nodes call it first thing in
+  `main` (WP-4-*). The `m=+` values differ between any two processes anyway.
+- **X-26 No build-time GOROOT.** Go's `runtime.GOROOT()` falls back to the GOROOT
+  baked into the binary, so a Go node finds `lib/time/zoneinfo.zip` on a
+  machine with the toolchain. A Rust binary has none: the zip fallback applies
+  only with `$GOROOT` set or after `internal::set_default_goroot`. The system
+  zone directories and `$ZONEINFO` work as in Go. Gorse's release images are
+  `FROM scratch` with no toolchain and no tzdata (`cmd/*/Dockerfile`), so there
+  only UTC and fixed zones load, in Go and in Rust alike.
+- **X-27 `time/tzdata` (the embedded zone database) is not ported**: Gorse does
+  not import it.
+- **X-28 A truncated zip central directory** is reported as `corrupt zip file`;
+  Go slices without a length check and panics (`PORTING.md` D-23).
+- **X-29 `serde::Deserialize` for `Time`** receives the unescaped string, where
+  Go's `UnmarshalJSON` sees the raw JSON bytes. `Time::unmarshal_json` takes
+  raw bytes and is exact; serde errors carry serde_json's position suffix.
+- **X-30 Errors are `Result`s.** Go returns `(zero Time, err)`; the ported Go
+  tests map an error back to `Time::default()` where Go asserts the zero time.
+- **X-31 dateparse API shapes:** `parse_in` takes `&Location` (Go's
+  `ParseIn(s, nil)` is `parse_any`); `ParserOption` is an enum, not a function
+  value; unused Go constants (two date states, two time states, `offsetlen`)
+  are left out. Behaviour is the same.
+- **X-32 Time panics.** Where Go panics (index out of range, nil parser), the
+  port panics at the same inputs with Rust's message; Go's deferred retry while
+  panicking is not emulated (the outcome is still a panic). The golden test
+  requires a panic exactly where Go panics.
 
 ## Open questions
 

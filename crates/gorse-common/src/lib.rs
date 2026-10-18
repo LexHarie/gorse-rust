@@ -8,8 +8,11 @@
 
 pub mod blas;
 pub mod consistent;
+pub mod dateparse;
 pub mod encoding;
 pub mod expression;
 pub mod floats;
+pub mod gostrconv;
+pub mod gotime;
 pub mod heap;
 pub mod math32;

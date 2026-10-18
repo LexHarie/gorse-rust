@@ -57,6 +57,16 @@ go run ./contracts/tools/exprgolden -out crates/gorse-common/tests/data/expressi
 go run ./contracts/tools/consistentgolden -out crates/gorse-common/tests/data/consistent_golden.json
 # config.LoadConfig, Config.Validate and the recommender hashes (gorse-config)
 go run ./contracts/tools/configgolden -out crates/gorse-config/tests/data/config_golden.json
+# Go's time package and araddon/dateparse: Unicode, IsPrint and errno tables,
+# TZif files, a stand-in GOROOT zip and the goldens (gorse-common)
+go run ./contracts/tools/timegolden \
+  -tables crates/gorse-common/src/dateparse/tables.rs \
+  -strconv-tables crates/gorse-common/src/gostrconv/tables.rs \
+  -errno crates/gorse-common/src/gotime/errno.rs \
+  -zoneinfo crates/gorse-common/tests/data/zoneinfo \
+  -goroot crates/gorse-common/tests/data/goroot \
+  -time-out crates/gorse-common/tests/data/gotime_golden.json \
+  -dateparse-out crates/gorse-common/tests/data/dateparse_golden.json
 ```
 
 Regenerating at the pinned commit must give no diff except in values the files
