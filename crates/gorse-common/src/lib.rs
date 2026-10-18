@@ -14,5 +14,6 @@ pub mod expression;
 pub mod floats;
 pub mod gonet;
 pub mod gostrconv;
+pub mod gostrings;
 pub mod gotime;
 pub mod heap;
