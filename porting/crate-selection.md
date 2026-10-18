@@ -48,6 +48,7 @@ carries unused dependencies.
 | lafikl/consistent + blake2b-simd | hand port + `blake2` | 0.11.0 | MIT/Apache | Worker user partitioning must match Go bit for bit (`contracts/grpc.md`) | `hashring` crates (different hashing) |
 | araddon/dateparse | hand port of `ParseAny` and the helpers Gorse calls | — | — | Risk 7: every loose format must parse identically; `dateparser` 0.3.1 accepts a different set | `dateparser` |
 | encoding/gob | hand-written subset codec in `gorse-common` | — | — | Only the types in `contracts/model-blobs.md` are needed; `gob` 0.1.0 is a 2018 prototype | `gob` 0.1.0 |
+| chewxy/math32 | hand port in `gorse-common::math32` of the functions Gorse calls, with amd64's assembly `Exp`, `Log` and `Sqrt` reproduced (WP-1-11) | — | — | Model, ANN and optimizer numbers depend on math32's exact bits, which differ from correctly rounded results (its amd64 `Exp` has a coefficient bug); checked against Go on all 2^32 inputs | `f32::exp`/`f32::ln` (platform libm) and the `libm` crate: near correctly rounded, so they cannot give math32's bits |
 | math/rand | hand port of Go's `math/rand` source (the only RNG package Gorse imports) | — | — | Risk 2: tests depend on exact sequences | `rand` 0.10.3 (different streams) |
 | goptuna TPE | hand port of the sampler Gorse calls | — | — | Plan says manual port | — |
 | gomlx / go-xla (`fm_xla.go`) | not ported; `fm.go` + `common/nn` ported by hand | — | — | Default Go builds use `fm.go`; see decision D-8 | `candle` 0.11.0, `burn` 0.22.0 |
