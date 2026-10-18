@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-5, WP-1-7, WP-1-9, WP-1-13. WP-1-4, WP-1-6, WP-1-8, WP-1-11, WP-1-12, WP-1-14 and WP-1-19 run in parallel threads (D-26); WP-1-10 and WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-5, WP-1-7, WP-1-9, WP-1-13. WP-1-11 part 1 (math32) merged. WP-1-4, WP-1-6, WP-1-8, WP-1-11, WP-1-12, WP-1-14 and WP-1-19 run in parallel threads (D-26); WP-1-10 and WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
@@ -137,6 +137,14 @@ correction below states the evidence.
   `AppendQuote`, `QuoteRune` and `IsPrint` (with Go's print table, generated).
   WP-1-14 extends it with `ParseInt`, `ParseUint` and `Atoi`; later ports that
   quote Go strings use it.
+- **C-15 `chewxy/math32` is a dependency to port (WP-1-11).**
+  `porting/work-packages.md` and `porting/crate-selection.md` did not list it,
+  though `common/nn`, `common/ann`, `dataset` and both model packages call it
+  and their results depend on its exact bits. Rust's `f32::exp` and `f32::ln`
+  call the platform libm, whose results differ. It is a hand port in
+  `gorse_common::math32` (v1.11.2, the version `go.mod` pins), owned by
+  WP-1-11 and pushed ahead of `common/nn` because WP-1-10 needs `Log` and
+  `Floor`; `crate-selection.md` gains its row. Found by the WP-1-11 thread.
 
 ## Decision log
 

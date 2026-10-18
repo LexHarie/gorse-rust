@@ -67,6 +67,9 @@ go run ./contracts/tools/timegolden \
   -goroot crates/gorse-common/tests/data/goroot \
   -time-out crates/gorse-common/tests/data/gotime_golden.json \
   -dateparse-out crates/gorse-common/tests/data/dateparse_golden.json
+# chewxy/math32 with and without its amd64 assembly, including digests over all
+# 2^32 inputs (gorse-common; linux/amd64 only, several minutes)
+go run ./contracts/tools/math32golden -out crates/gorse-common/tests/data/math32_golden.json
 ```
 
 Regenerating at the pinned commit must give no diff except in values the files

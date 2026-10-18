@@ -306,6 +306,58 @@ dateparse's `TestPreferMonthFirst` and `TestRetryAmbiguousDateWithSwap` run in
 America/Denver, which `TestInLocation` leaves behind when Go runs the file in
 order.
 
+### Float32 math
+
+`github.com/chewxy/math32` v1.11.2 as `gorse_common::math32`, checked by
+`math32_golden.json` (`contracts/tools/math32golden`): 13 functions over 21 862
+inputs, each recorded from the default amd64 build (`asm`, where math32's `Exp`,
+`Log` and `Sqrt` are assembly) and from a `-tags noasm` build (`noasm`, the Go
+code), plus FNV-1a digests of 10 unary functions and the two conversions over
+all 2^32 inputs per column, recomputed by the ignored test
+`math32_exhaustive`. Only what Gorse calls is ported (X-34).
+
+- **Q-76 amd64 `Exp` adds the exponent into its polynomial.** `exp_amd64.s` has
+  `ADDSS $T4, X1` where it means to load `T4` into `X1`, which still holds
+  `float32(k)`. Results are off by a few ulps, by more as `|x|` grows.
+- **Q-77 amd64 `Exp` range.** `k` is `x·log2(e)` rounded half to even
+  (`CVTSS2SL`), and the result is assembled as `2^k` times the polynomial
+  without the Go code's range checks. So `Exp` is `+Inf` from `x = 88.37627` on
+  (the true value is finite up to 88.72; the Go code gives `3.3259769e38` at
+  88.7), subnormal only from -87.33655 to -87.68312 and 0 from `x = -87.68313`
+  down (the Go code has subnormals to about -104), and 0 for every finite `x`
+  with `|x·log2(e)| >= 2^31` (from about `±1.49e9`), where the conversion gives
+  `MinInt32`: `Exp(1e9)` is `+Inf` but `Exp(2e9)` is 0, while `Exp(+Inf)` is
+  `+Inf`. Asserted in `math32_amd64_differs_from_go_code`.
+- **Q-78 amd64 `Log` takes the exponent bits raw.** `k = e - 126` with no
+  normalisation, so subnormal inputs give wrong results (`Log(1e-40)` is
+  `-88.02122`, the Go code gives `-92.10341`).
+- **Q-79 amd64 `Log` halves when `f1 <= √2/2`** (`CMPSS X2, X0, 5` computes
+  `!(HSqrt2 < f1)`), where the Go code halves when `f1 < Sqrt2/2`. They take
+  different paths for mantissa `0x3504F3`, and the results differ at some
+  exponents: `Log(0.70710677)` is `0xBEB17218` from the assembly and
+  `0xBEB17219` from the Go code. The golden covers that mantissa and its
+  neighbours at every exponent.
+- **Q-80 amd64 `Log` of any negative input**, a negative NaN included, returns
+  math32's NaN `0x7FE00000`; a positive NaN comes back unchanged.
+- **Q-81 NaN bits.** math32's `NaN()` is `0x7FE00000`, not Rust's `0x7FC00000`.
+  `Sqrt` on amd64 is `SQRTSS`: `0xFFC00000` for a negative input and the input
+  quieted for a NaN; the Go code returns `0x7FE00000`. The bits feed `Pow` and
+  `Tanh`, and any NaN a caller stores.
+- **Q-82 `Pow` and `Tanh` call `Exp`, `Log` and `Sqrt`**, so on amd64 they
+  inherit Q-76 to Q-81. `Pow`'s `isOddInt` and its loop over the bits of `y`
+  convert with `int32(x)`, so they get amd64's out-of-range result (Q-84).
+- **Q-83 `Sin` and `Cos` above 2^29.** math32's `trigReduce` adapts the float64
+  Payne–Hanek code with 32-bit shift counts over the 64-bit digits of 4/π, takes
+  the octant as `hi >> 29` of a 64-bit value and masks it to 0..7 only when it
+  is odd. `Sin` and `Cos` then pick the polynomial and sign from that unmasked
+  octant, so results for `|x| >= 2^29` are not the true sine. Reproduced line by
+  line; the exhaustive digests cover every such input.
+- **Q-84 Go's float-to-integer conversions.** `int32(x)` and `int(x)` truncate
+  toward zero; for NaN and out-of-range values amd64 gives `MinInt32` and
+  `MinInt64` (`CVTTSS2SL`, `CVTTSS2SQ`), where Rust's `as` saturates and maps
+  NaN to 0. `math32::go_f32_to_i32` and `go_f32_to_i64` reproduce amd64; the
+  exhaustive digests check them on every float32.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -438,6 +490,17 @@ order.
   port panics at the same inputs with Rust's message; Go's deferred retry while
   panicking is not emulated (the outcome is still a panic). The golden test
   requires a panic exactly where Go panics.
+- **X-33 math32 on arm64 is not bit-exact.** There math32's `Exp` and `Log` run
+  the Go code (`stubs_arm64.s`), which the port selects, but Go compiles every
+  pure-Go function on arm64 with fused multiply-adds and Rust does not fuse.
+  Results on arm64 can differ in the last bit. `PORTING.md` D-25 makes
+  linux/amd64 the reference; no arm64 machine was available to measure.
+- **X-34 Only the math32 functions Gorse calls are ported:** `Abs`, `Copysign`,
+  `Cos`, `Exp`, `Floor`, `Frexp`, `Inf`, `IsInf`, `IsNaN`, `Ldexp`, `Log`,
+  `Modf`, `NaN`, `Pow`, `Sin`, `Sqrt`, `Tanh` and the constants `Pi`, `Sqrt2`,
+  `Ln10`, `MaxFloat32`. `Log1p` and `Log2` follow (O-3).
+- **X-35 `Sqrt` on targets other than x86-64 and aarch64** uses the Go code. Go
+  has assembly for more architectures; Gorse ships amd64 and arm64.
 
 ## Open questions
 
@@ -451,3 +514,8 @@ order.
   `expression_to_pb_matches_go` asserts the exact difference on 15 cases so a
   prost change is noticed. To be settled with the gRPC services (Phase 2/3):
   a score of `-0` can arise (`logics/cf.go` negates a dot product).
+- **O-3 math32's `Log1p` and `Log2`** (`model/cf` and `model/ctr`) are
+  `float32(math.Log1p(float64(x)))` and `float32(math.Log2(float64(x)))`, so
+  they need Go's float64 `math.Log` (assembly on amd64) and `math.Log1p`
+  ported. `common/nn` needs Go's float64 `math.Exp` (assembly with an FMA path)
+  for the same reason. They come with the nn part of WP-1-11.
