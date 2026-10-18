@@ -234,6 +234,46 @@ places users on workers (`contracts/grpc.md`); the golden data
   set to nil without calling it. serde's `Vec<T>` rejects `null`, so the config
   types (WP-1-15) need `Option` or a default there.
 
+### Vector indexes
+
+- **Q-54 `Bruteforce.Add` returns the new length; `HNSW.Add` returns the new
+  vector's index** (`bruteforce.go:36`, `hnsw.go:70`). Only the HNSW's value is
+  used (`logics.MatrixFactorizationItems.Add` stores the item id there).
+- **Q-55 `HNSW.SearchIndex` finds the query vector itself; `Bruteforce` leaves
+  it out.** With a distance that is zero for equal vectors the HNSW's first
+  result is the query (unless `prune0` drops it); with Gorse's `-dot` distance
+  it lands wherever its own score puts it.
+- **Q-56 An HNSW grows by at most one layer per insert.** A vector drawn at
+  level `l` above the top layer is linked into the existing layers and then
+  becomes the only member, and enter point, of one new layer, however large
+  `l` is (`hnsw.go:188-193`).
+- **Q-57 Layer-0 neighbour lists are cut to `maxConnection` (48), not
+  `maxConnection0` (96).** The check uses 96 at layer 0, but the shrink keeps
+  48 (`hnsw.go:177-180`, against its own comment), so a list that reaches 97
+  falls back to the 48 nearest.
+- **Q-58 Layers come from Go's global `math/rand`.** The level is
+  `int(math32.Floor(-math32.Log(rand.Float32()) * levelFactor))`, drawn after
+  the enter point's distance is computed; the first insert into a fresh index
+  draws nothing. The global source is randomly seeded, so Go builds a different
+  graph on every run and no stream is reproduced; `Hnsw::with_uniform` takes
+  the draws, which the golden tests replay from Go. A draw of exactly 0 gives
+  `int(+Inf)`, which is `MinInt64` on amd64, and the insert panics with
+  `index out of range [-2]` (checked against Go with the draw stubbed to 0).
+- **Q-59 `Unmarshal` takes the level factor, `maxConnection`,
+  `maxConnection0`, `ef` and `efConstruction` from the blob**, not from
+  `NewHNSW`; an `ef` above zero then sets the search breadth (`efSearchValue`).
+- **Q-60 Go writes each upper layer's entries in `sync.Map` order**, which
+  changes from run to run, so two Go blobs of the same graph differ in bytes.
+  The Rust `marshal` writes them by vector index, one of Go's orders; the
+  goldens compare Go's blob with its entries sorted.
+- **Q-61 Searching an empty HNSW panics** (`index out of range [0] with length
+  0`: there is no enter point); an empty `Bruteforce` returns nothing, and
+  `SearchIndex` on either returns `index out of range: q`.
+- **Q-62 `Unmarshal` accepts layers it cannot search.** A negative entry count
+  reads as no entries; a vector stored twice in a layer keeps the later queue
+  and can leave another vector missing, so a search reaching it dereferences
+  nil; an enter point outside the vectors panics on the first search. Rust
+  reads the same and panics in the same searches.
 ### Time and dates
 
 Go's `time` (go1.27.0) as `gorse_common::gotime` and `araddon/dateparse`
@@ -462,6 +502,26 @@ all 2^32 inputs per column, recomputed by the ignored test
   surrogate escape or invalid UTF-8 fails in serde_json before reaching the
   visitor, with serde_json's message, where Go fails with
   `invalid expression format`; both reject it.
+- **X-21 `Hnsw::add` takes `&mut self`.** Go's HNSW lets goroutines insert and
+  search at once behind its own mutexes, so the graph depends on scheduling.
+  Here inserts are serialized by the caller (a `Mutex`, as the ported
+  `test_multithread` does) and searches take `&self`; the graph then depends
+  only on the insert order and the draws.
+- **X-22 `Hnsw::unmarshal` is atomic and never panics on counts.** Go replaces
+  fields as it reads, so a failed `Unmarshal` leaves a half-replaced index, and
+  it allocates from the counts, panicking with `makeslice: len out of range`
+  on a negative or huge one. Rust returns `NegativeCount` for a negative count,
+  grows its vectors as the data arrives (a huge count ends at the end of the
+  input with an error), and changes nothing on an error (D-23).
+- **X-23 An insert into an unmarshalled empty index.** Go deadlocks: the index
+  is no longer fresh, so the first vector becomes its own enter point and the
+  insert read-locks the vector whose write lock it holds (the golden generator
+  detects it from the child process's deadlock report). Rust has no such lock;
+  the vector is linked to itself.
+- **X-24 Narrower argument types.** `q` and `k` are `usize`: Go's negative `q`
+  is an error and a negative `k` returns nothing, and no Gorse caller passes
+  either. The distance is a `fn` pointer, where Go takes any function value;
+  Gorse passes only top-level functions (`logics/cf.go:32`).
 - **X-25 The monotonic clock starts at first use**, not at process start: Go
   takes `startNano` at package init, Rust has none.
   `gotime::init_process_clock()` starts it; nodes call it first thing in

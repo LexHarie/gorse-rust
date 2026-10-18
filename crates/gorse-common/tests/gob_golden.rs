@@ -47,6 +47,14 @@ fn ints(v: &Json) -> Vec<i64> {
     }
 }
 
+fn floats(v: &Json) -> Vec<f32> {
+    v.as_array().expect("list").iter().map(f32_bits).collect()
+}
+
+fn bits(v: &[f32]) -> Vec<u32> {
+    v.iter().map(|x| x.to_bits()).collect()
+}
+
 fn params(v: &Json) -> Params {
     let mut map = BTreeMap::new();
     for entry in v.as_array().into_iter().flatten() {
@@ -98,7 +106,7 @@ where
 #[test]
 fn encodings_match_go() {
     let cases = load("gob_golden.json");
-    assert_eq!(cases.len(), 65);
+    assert_eq!(cases.len(), 68);
     for case in &cases {
         let name = str_of(&case["name"]);
         let value = &case["value"];
@@ -121,14 +129,18 @@ fn encodings_match_go() {
             "float64" => check_gob(name, &bytes, &f64_bits(value), deterministic),
             "string" => check_gob(name, &bytes, &str_of(value).to_owned(), deterministic),
             "[]int" => check_gob(name, &bytes, &ints(value), deterministic),
+            "[]float32" => {
+                // Compared by bits: one case holds a NaN.
+                let expected = floats(value);
+                let decoded: Vec<f32> = read_gob(&mut bytes.as_slice()).expect("decode");
+                assert_eq!(bits(&decoded), bits(&expected), "{name}");
+                let mut encoded = Vec::new();
+                write_gob(&mut encoded, &expected).expect("encode");
+                assert_eq!(hex::encode(&encoded), hex::encode(&bytes), "{name}");
+            }
             "params" => check_gob(name, &bytes, &params(value), deterministic),
             "slice-f32" => {
-                let expected: Vec<f32> = value
-                    .as_array()
-                    .expect("list")
-                    .iter()
-                    .map(f32_bits)
-                    .collect();
+                let expected = floats(value);
                 let decoded: Vec<f32> =
                     encoding::read_slice(&mut bytes.as_slice()).expect("decode");
                 assert_eq!(decoded, expected, "{name}");
@@ -178,6 +190,12 @@ fn decode_as(target: &str, data: &[u8]) -> Result<Json, gob::Error> {
                 .map(|x| Json::String(x.to_string()))
                 .collect(),
         ),
+        "[]float32" => Json::Array(
+            gob::decode::<Vec<f32>>(data)?
+                .iter()
+                .map(|x| Json::String(format!("{:08x}", x.to_bits())))
+                .collect(),
+        ),
         "params" => {
             return Err(gob::Error::Invalid(
                 "params are compared separately".to_owned(),
@@ -190,7 +208,7 @@ fn decode_as(target: &str, data: &[u8]) -> Result<Json, gob::Error> {
 #[test]
 fn decoder_verdicts_match_go() {
     let cases = load("gob_decode_golden.json");
-    assert!(cases.len() >= 37);
+    assert!(cases.len() >= 46);
     for case in &cases {
         let name = str_of(&case["name"]);
         let target = str_of(&case["target"]);

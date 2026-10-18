@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-5, WP-1-7, WP-1-9, WP-1-13. WP-1-11 part 1 (math32) merged. WP-1-4, WP-1-6, WP-1-8, WP-1-11, WP-1-12, WP-1-14 and WP-1-19 run in parallel threads (D-26); WP-1-10 and WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-5, WP-1-7, WP-1-9, WP-1-10, WP-1-13. WP-1-11 part 1 (math32) merged. WP-1-4, WP-1-6, WP-1-8, WP-1-11, WP-1-12, WP-1-14 and WP-1-19 run in parallel threads (D-26); WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
@@ -278,6 +278,14 @@ or accepts a metric gap outside the Go tests' own tolerances.
   five constants and `FromPB` keeps the field for unknown enum numbers
   (`PORTING_NOTES.md` Q-51). Go's `Match` is `matches` (`match` is a Rust
   keyword).
+- **D-30 The gob subset gains `[]float32` (WP-1-10).** `ann.HNSW.Marshal`
+  writes each vector with `WriteGob`, so a `logics.MatrixFactorizationItems`
+  blob holds top-level `[]float32` values. Only `logics/cf_test.go` creates
+  one, so no Gorse process reads one written by another; the codec covers the
+  type so that HNSW blobs read Go's bytes and write them back unchanged.
+  Evidence: three `[]float32` encodings and nine decodes (errors included) in
+  `crates/gorse-common/tests/data/gob_golden.json` and
+  `gob_decode_golden.json`, and the HNSW blobs of `ann_golden.json`.
 - **D-31 Go strings are bytes in `gotime` and `dateparse` (WP-1-9).** Parsers
   take `impl AsRef<[u8]>` and accept any bytes, as Go does; results Go can
   return as invalid UTF-8 are `Vec<u8>` (`dateparse::parse_format`). Errors keep

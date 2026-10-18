@@ -55,6 +55,8 @@ go run ./contracts/tools/heapgolden -out crates/gorse-common/tests/data/heap_gol
 go run ./contracts/tools/exprgolden -out crates/gorse-common/tests/data/expression_golden.json
 # lafikl/consistent, the worker ring (gorse-common)
 go run ./contracts/tools/consistentgolden -out crates/gorse-common/tests/data/consistent_golden.json
+# common/ann, brute force and HNSW (gorse-common)
+go run ./contracts/tools/anngolden -out crates/gorse-common/tests/data/ann_golden.json
 # config.LoadConfig, Config.Validate and the recommender hashes (gorse-config)
 go run ./contracts/tools/configgolden -out crates/gorse-config/tests/data/config_golden.json
 # Go's time package and araddon/dateparse: Unicode, IsPrint and errno tables,
@@ -73,6 +75,8 @@ go run ./contracts/tools/math32golden -out crates/gorse-common/tests/data/math32
 ```
 
 Regenerating at the pinned commit must give no diff except in values the files
-mark as run-dependent (wall-clock `update_at` columns, Mongo `_id`s, and the order
+mark as run-dependent (wall-clock `update_at` columns, Mongo `_id`s, the order
 of `required` arrays in the OpenAPI files, which go-restful-openapi emits in
-nondeterministic order).
+nondeterministic order, and the raw `blob` of the `hnsw small` case in
+`ann_golden.json`, whose upper-layer entries Go writes in `sync.Map` order; its
+sorted form, `blob_sha256`, does not change).

@@ -14,6 +14,7 @@
 //! | `float64` | [`f64`] |
 //! | `string` | [`String`] |
 //! | `[]int` | `Vec<i64>` |
+//! | `[]float32` | `Vec<f32>` (vectors in `common/ann` HNSW indexes) |
 //! | `model.Params` (`map[ParamName]any`) | [`Params`] |
 //!
 //! The decoder follows Go's decoder step by step: message framing, type
@@ -663,9 +664,18 @@ impl<'a> Decoder<'a> {
 
     /// Whether `wire_id` is a slice whose elements are gob ints.
     fn is_int_slice(&self, wire_id: i32) -> bool {
+        self.is_slice_of(wire_id, T_INT)
+    }
+
+    /// Whether `wire_id` is a slice of floats (`[]float32` or `[]float64`).
+    fn is_float_slice(&self, wire_id: i32) -> bool {
+        self.is_slice_of(wire_id, T_FLOAT)
+    }
+
+    fn is_slice_of(&self, wire_id: i32, elem: i32) -> bool {
         // The predefined slice types (ids below 64) hold gob structs.
         self.wire_types.get(&wire_id).is_some_and(|w| {
-            !w.has_external_encoding() && w.slice.as_ref().is_some_and(|s| s.elem == T_INT)
+            !w.has_external_encoding() && w.slice.as_ref().is_some_and(|s| s.elem == elem)
         })
     }
 
@@ -689,6 +699,22 @@ impl<'a> Decoder<'a> {
                 )));
             }
             v.push(self.decode_int()?);
+        }
+        Ok(v)
+    }
+
+    /// `decFloat32Slice`; `local` names the slice for the overflow error.
+    fn decode_float32_slice(&mut self, local: &str) -> Result<Vec<f32>> {
+        let n = self.decode_slice_len("float32", 4)?;
+        let what = format!("element of {local}");
+        let mut v = Vec::new();
+        for _ in 0..n {
+            if self.buf.is_empty() {
+                return Err(invalid(format_args!(
+                    "decoding float32 array or slice: length exceeds input size ({n} elements)"
+                )));
+            }
+            v.push(self.decode_float32(&what)?);
         }
         Ok(v)
     }
@@ -908,6 +934,17 @@ fn encode_int_slice(b: &mut Vec<u8>, v: &[i64]) {
     }
 }
 
+/// `wireType{SliceT: &sliceType{CommonType{Id: id}, Elem: elem}}`.
+fn encode_slice_type(b: &mut Vec<u8>, id: i32, elem: i32) {
+    encode_uint(b, 2);
+    encode_uint(b, 1);
+    encode_common_type(b, "", id);
+    encode_uint(b, 1);
+    encode_int(b, i64::from(elem));
+    encode_uint(b, 0);
+    encode_uint(b, 0);
+}
+
 /// `CommonType` of a definition: `Name` when not empty, then `Id`.
 fn encode_common_type(b: &mut Vec<u8>, name: &str, id: i32) {
     if name.is_empty() {
@@ -933,6 +970,7 @@ mod sealed {
     impl Sealed for f64 {}
     impl Sealed for String {}
     impl Sealed for Vec<i64> {}
+    impl Sealed for Vec<f32> {}
     impl Sealed for super::Params {}
 }
 
@@ -1068,16 +1106,7 @@ impl GobValue for String {
 impl GobValue for Vec<i64> {
     const GO_TYPE: &'static str = "[]int";
     fn send_type(enc: &mut Encoder, b: &mut Vec<u8>) -> Result<i32> {
-        enc.define(b, Self::GO_TYPE, |b, id| {
-            // wireType{SliceT: &sliceType{CommonType{Id: id}, Elem: tInt}}
-            encode_uint(b, 2);
-            encode_uint(b, 1);
-            encode_common_type(b, "", id);
-            encode_uint(b, 1);
-            encode_int(b, i64::from(T_INT));
-            encode_uint(b, 0);
-            encode_uint(b, 0);
-        })
+        enc.define(b, Self::GO_TYPE, |b, id| encode_slice_type(b, id, T_INT))
     }
     fn encode_body(&self, _: &mut Encoder, b: &mut Vec<u8>) -> Result<()> {
         encode_int_slice(b, self);
@@ -1088,6 +1117,26 @@ impl GobValue for Vec<i64> {
     }
     fn decode_body(dec: &mut Decoder<'_>, _: &str) -> Result<Self> {
         dec.decode_int_slice()
+    }
+}
+
+impl GobValue for Vec<f32> {
+    const GO_TYPE: &'static str = "[]float32";
+    fn send_type(enc: &mut Encoder, b: &mut Vec<u8>) -> Result<i32> {
+        enc.define(b, Self::GO_TYPE, |b, id| encode_slice_type(b, id, T_FLOAT))
+    }
+    fn encode_body(&self, _: &mut Encoder, b: &mut Vec<u8>) -> Result<()> {
+        encode_uint(b, self.len() as u64);
+        for &x in self {
+            encode_float(b, f64::from(x));
+        }
+        Ok(())
+    }
+    fn compatible(dec: &Decoder<'_>, wire_id: i32) -> bool {
+        dec.is_float_slice(wire_id)
+    }
+    fn decode_body(dec: &mut Decoder<'_>, local: &str) -> Result<Self> {
+        dec.decode_float32_slice(local)
     }
 }
 

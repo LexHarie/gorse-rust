@@ -235,6 +235,82 @@
     "value": null
   },
   {
+    "name": "[]float32 into []int",
+    "target": "[]int",
+    "hex": "0b7f020102ff80000108000007ff800001fef03f",
+    "ok": false,
+    "error": "gob: decoding into local type *[]int, received remote type ",
+    "value": null
+  },
+  {
+    "name": "[]int into []float32",
+    "target": "[]float32",
+    "hex": "0b7f020102ff80000104000006ff8000020204",
+    "ok": false,
+    "error": "gob: decoding into local type *[]float32, received remote type ",
+    "value": null
+  },
+  {
+    "name": "[]float32 into float32",
+    "target": "float32",
+    "hex": "0b7f020102ff80000108000007ff800001fef03f",
+    "ok": false,
+    "error": "gob: decoding into local type *float32, received remote type ",
+    "value": null
+  },
+  {
+    "name": "[]float32 element overflow",
+    "target": "[]float32",
+    "hex": "0b7f020102ff8000010800000dff800001f89c7500883ce4377e",
+    "ok": false,
+    "error": "value for \"element of *[]float32\" out of range",
+    "value": null
+  },
+  {
+    "name": "[]float32 length exceeds data",
+    "target": "[]float32",
+    "hex": "0b7f020102ff80000108000007ff800003fef03f",
+    "ok": false,
+    "error": "gob: decoding float32 array or slice: length exceeds input size (3 elements)",
+    "value": null
+  },
+  {
+    "name": "[]float32 too big",
+    "target": "[]float32",
+    "hex": "0b7f020102ff80000108000008ff8000fc80000001",
+    "ok": false,
+    "error": "gob: float32 slice too big: 2147483649 elements of 4 bytes",
+    "value": null
+  },
+  {
+    "name": "[]float32 empty",
+    "target": "[]float32",
+    "hex": "0b7f020102ff80000108000004ff800000",
+    "ok": true,
+    "error": "",
+    "value": []
+  },
+  {
+    "name": "[]float32 with id 65",
+    "target": "[]float32",
+    "hex": "0cff81020102ff82000108000007ff820001fef03f",
+    "ok": true,
+    "error": "",
+    "value": [
+      "3f800000"
+    ]
+  },
+  {
+    "name": "[]float64 stream",
+    "target": "[]float32",
+    "hex": "0b7f020102ff8000010800000dff800001f89a9999999999b93f",
+    "ok": true,
+    "error": "",
+    "value": [
+      "3dcccccd"
+    ]
+  },
+  {
     "name": "params with uint",
     "target": "params",
     "hex": "157f04010106506172616d7301ff8000010c011000000fff800001016b0475696e7406020001",
