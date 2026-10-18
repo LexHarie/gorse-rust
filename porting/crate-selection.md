@@ -37,7 +37,7 @@ carries unused dependencies.
 | prometheus client_golang | `prometheus` (`process`) | 0.14.0 | Apache-2.0 | Same exposition format and metric model | `metrics` + exporter |
 | fsnotify | `notify` | 8.2.0 | CC0-1.0 | Standard file watcher | polling |
 | statik (dashboard bundle) | `zip` + `rust-embed` | 9.0.4, 8.13.0 | MIT | The dashboard is a zip inside the Go module `gorse-io/dashboard`; the build extracts that exact zip and embeds it | committing the bundle (generated artefact, forbidden) |
-| expr-lang/expr | hand-written evaluator for the expression subset Gorse accepts | — | — | Gorse uses expr-lang only through `common/expression` and the recommend filters; parity is tested against a corpus from the Go tests (risk 3). `expr-lang` 2.1.0 is a separate re-implementation whose behaviour on that corpus is unverified; WP-3-6 evaluates it first and keeps it only if it passes the corpus | `expr-lang` 2.1.0, `evalexpr` (AGPL, forbidden), `rhai` (different language) |
+| expr-lang/expr | hand port of expr-lang v1.17.8 in `gorse-expr`: lexer and parser (WP-1-19), checker, compiler and VM (WP-3-6) | — | — | Gorse uses expr-lang to validate the `item_expr` config fields (`parser.Parse`) and to run the recommend filters and scores in `logics`; `common/expression` is unrelated (`PORTING.md` C-12). Parity is tested against verdicts and results from Go (risk 3). `expr-lang` 2.1.0 is a separate re-implementation whose behaviour is unverified; WP-3-6 evaluates it first and keeps it only if it passes the corpus | `expr-lang` 2.1.0, `evalexpr` (AGPL, forbidden), `rhai` (different language) |
 | gonja | `minijinja` | 3.0.1 | Apache-2.0 | Jinja2-compatible, mature; parity corpus from Go tests | `tera` (not Jinja-compatible) |
 | modernc quickjs | `rquickjs` | 0.14.0 | MIT | Same QuickJS engine, so script semantics match | `boa` (different engine) |
 | go-openai | `reqwest` + serde structs mirroring the go-openai types Gorse uses | — | — | The master decodes into go-openai's typed request and re-encodes it, dropping unknown fields; mirroring those structs reproduces that exactly | `async-openai` 0.42.2 (different field set) |
@@ -58,13 +58,15 @@ carries unused dependencies.
 | bits-and-blooms/bitset | `fixedbitset` | 0.5.7 | MIT/Apache | Small, dependency-free | `bitvec` 1.1.1 |
 | compress/gzip | `flate2` | 1.1.10 | MIT/Apache | — | — |
 | JSON | `serde`, `serde_json` | 1.0.229, 1.0.154 | MIT/Apache | — | — |
+| regexp (RE2) | `regex` | 1.13.1 | MIT/Apache | Same leftmost-first semantics and anchoring as RE2 for the patterns Gorse uses, so `common/expression` keeps the Go pattern verbatim; checked against a Go corpus (WP-1-7) | a hand-written matcher (equivalent here, but no longer the Go pattern) |
 | time | `chrono` | 0.4.45 | MIT/Apache | Time zones and formatting; Go layouts are implemented by hand on top | `time` |
 | errors | `thiserror` | 2.0.21 | MIT/Apache | Typed errors so callers can match kinds like Go's `errors.Is` | — |
 | base64 | `base64` | 0.23.1 | MIT/Apache | Redis category encoding | — |
 | schollz/progressbar | `indicatif` | 0.18.6 | MIT | Playground import progress only | — |
 | samber/lo, golang-set, copier, sortutil, strutil | std | — | — | Small helpers; written inline | — |
 
-Test-only: `tempfile` 3.27.0. Storage tests use the real backends from
+Test-only: `tempfile` 3.27.0; `hex` 0.4.3 (MIT/Apache) for the golden files;
+`sha2` 0.11.1 (MIT/Apache) for the hashes in `floats_golden.json`. Storage tests use the real backends from
 `storage/docker-compose.yml`, never mocks.
 
 ## Not adopted from the plan's proposal
