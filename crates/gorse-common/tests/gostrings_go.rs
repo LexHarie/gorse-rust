@@ -13,7 +13,10 @@ mod gostrings {
     use gorse_common::gostrings::Replacer;
 
     fn new_replacer(oldnew: &[&[u8]]) -> Replacer {
-        assert!(oldnew.len() % 2 == 0, "strings.NewReplacer: odd argument count");
+        assert!(
+            oldnew.len().is_multiple_of(2),
+            "strings.NewReplacer: odd argument count"
+        );
         let pairs: Vec<(&[u8], &[u8])> = oldnew.chunks(2).map(|p| (p[0], p[1])).collect();
         Replacer::new(&pairs)
     }
@@ -77,7 +80,11 @@ mod gostrings {
         test_cases.push(tc(&inc, b"brad", b"csbe"));
         test_cases.push(tc(&inc, b"\x00\xff", b"\x01\x00"));
         test_cases.push(tc(&inc, b"", b""));
-        test_cases.push(tc(&new_replacer(&[b"a", b"1", b"a", b"2"]), b"brad", b"br1d"));
+        test_cases.push(tc(
+            &new_replacer(&[b"a", b"1", b"a", b"2"]),
+            b"brad",
+            b"br1d",
+        ));
 
         // repeat maps "a"->"a", "b"->"bb", "c"->"ccc", ...
         let mut s: Vec<Vec<u8>> = Vec::new();
@@ -101,7 +108,11 @@ mod gostrings {
         test_cases.push(tc(&repeat_r, b"brad", b"bbrrrrrrrrrrrrrrrrrradddd"));
         test_cases.push(tc(&repeat_r, b"abba", b"abbbba"));
         test_cases.push(tc(&repeat_r, b"", b""));
-        test_cases.push(tc(&new_replacer(&[b"a", b"11", b"a", b"22"]), b"brad", b"br11d"));
+        test_cases.push(tc(
+            &new_replacer(&[b"a", b"11", b"a", b"22"]),
+            b"brad",
+            b"br11d",
+        ));
 
         // The remaining test cases have variable length old strings.
         let unesc = html_unescaper();
@@ -165,9 +176,7 @@ mod gostrings {
         test_cases.push(tc(&gen1, b"", b""));
 
         // gen2 has multiple old strings with no pairwise common prefix.
-        let gen2 = new_replacer(&[
-            b"roses", b"red", b"violets", b"blue", b"sugar", b"sweet",
-        ]);
+        let gen2 = new_replacer(&[b"roses", b"red", b"violets", b"blue", b"sugar", b"sweet"]);
         test_cases.push(tc(
             &gen2,
             b"roses are red, violets are blue...",
@@ -188,11 +197,7 @@ mod gostrings {
             b"abraham",
             b"isaac",
         ]);
-        test_cases.push(tc(
-            &gen3,
-            b"abracadabrakazam abraham",
-            b"poofkazam lincoln",
-        ));
+        test_cases.push(tc(&gen3, b"abracadabrakazam abraham", b"poofkazam lincoln"));
         test_cases.push(tc(&gen3, b"abrasion abracad", b"scrape abracad"));
         test_cases.push(tc(&gen3, b"abba abram abrasive", b"abba abram abrasive"));
         test_cases.push(tc(&gen3, b"", b""));
@@ -328,7 +333,10 @@ mod gostrings {
         vec![
             (capital_letters(), "*strings.byteReplacer"),
             (html_escaper(), "*strings.byteStringReplacer"),
-            (new_replacer(&[b"12", b"123"]), "*strings.singleStringReplacer"),
+            (
+                new_replacer(&[b"12", b"123"]),
+                "*strings.singleStringReplacer",
+            ),
             (new_replacer(&[b"1", b"12"]), "*strings.byteStringReplacer"),
             (new_replacer(&[b"", b"X"]), "*strings.genericReplacer"),
             (
@@ -366,7 +374,10 @@ mod gostrings {
         for (i, (r, _)) in algorithm_test_cases().iter().enumerate() {
             let (n, err) = r.write_string(&mut ErrWriter, b"abc");
             let ok = n == 0 && err.as_ref().is_err_and(|e| e.to_string() == "unwritable");
-            assert!(ok, "{i}. WriteStringError = {n}, {err:?}, want 0, unwritable");
+            assert!(
+                ok,
+                "{i}. WriteStringError = {n}, {err:?}, want 0, unwritable"
+            );
         }
     }
 
@@ -439,7 +450,9 @@ mod gostrings {
                 args[i * 2] = key.as_bytes();
             }
 
-            let got = new_replacer(&args).print_trie().expect("a generic replacer");
+            let got = new_replacer(&args)
+                .print_trie()
+                .expect("a generic replacer");
             // Remove tabs from tc.out
             let want: String = out.chars().filter(|&c| c != '\t').collect();
 

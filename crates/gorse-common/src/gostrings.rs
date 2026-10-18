@@ -35,9 +35,7 @@ impl Replacer {
             .iter()
             .map(|(o, n)| (o.as_ref(), n.as_ref()))
             .collect();
-        Replacer {
-            r: build(&oldnew),
-        }
+        Replacer { r: build(&oldnew) }
     }
 
     /// Go's `Replace`: a copy of s with all replacements performed.
@@ -58,7 +56,11 @@ impl Replacer {
     /// Go's `WriteString`: writes s to w with all replacements performed and
     /// returns the bytes written. On an error, the count is what was written
     /// before it.
-    pub fn write_string<W: Write>(&self, w: &mut W, s: impl AsRef<[u8]>) -> (usize, io::Result<()>) {
+    pub fn write_string<W: Write>(
+        &self,
+        w: &mut W,
+        s: impl AsRef<[u8]>,
+    ) -> (usize, io::Result<()>) {
         let s = s.as_ref();
         match &self.r {
             Algorithm::Generic(r) => r.write_string(w, s),
@@ -380,7 +382,8 @@ struct SingleStringReplacer {
 
 impl SingleStringReplacer {
     fn find(&self, s: &[u8]) -> Option<usize> {
-        s.windows(self.pattern.len()).position(|w| w == self.pattern)
+        s.windows(self.pattern.len())
+            .position(|w| w == self.pattern)
     }
 
     fn write_string<W: Write>(&self, w: &mut W, s: &[u8]) -> (usize, io::Result<()>) {
