@@ -16,4 +16,5 @@ pub mod gonet;
 pub mod gostrconv;
 pub mod gostrings;
 pub mod gotime;
+pub mod gourl;
 pub mod heap;
