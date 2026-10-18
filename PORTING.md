@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-5, WP-1-7, WP-1-9, WP-1-10, WP-1-13. WP-1-11 part 1 (math32) merged. WP-1-4, WP-1-6, WP-1-8, WP-1-11, WP-1-12, WP-1-14 and WP-1-19 run in parallel threads (D-26); WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-5, WP-1-7, WP-1-9, WP-1-10, WP-1-13, WP-1-19. WP-1-11 part 1 (math32) merged. WP-1-4, WP-1-6, WP-1-8, WP-1-11, WP-1-12 and WP-1-14 run in parallel threads (D-26); WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
@@ -320,6 +320,71 @@ or accepts a metric gap outside the Go tests' own tolerances.
   cache and a seeded corpus of mutations, in several `Local` zones and with
   each option. Every case must match exactly (instant, location name and
   offset, or error text, or layout).
+- **D-36 The input is `&str` (WP-1-19).** A Go string may hold any bytes; Gorse's
+  `item_expr` values come from TOML (UTF-8 by its spec) and the
+  `RECOMMEND_CONFIG` JSON override in the meta store (`master.go:164`, decoded
+  to UTF-8); no environment binding sets one (`config.go:742-797`). So text is
+  enough. The corpus inputs that are not UTF-8 cannot be passed and are counted per source
+  in the golden files (two: one row of `TestLex`, one string literal of
+  another expr-lang test).
+- **D-37 Token values and `StringNode` values are bytes (`Vec<u8>`) (WP-1-19).**
+  Go strings are bytes, and an escape can make a string literal's value
+  invalid UTF-8 (`PORTING_NOTES.md` Q-85). `Token::value_str` gives the text where it is
+  UTF-8; identifiers and operators always are.
+- **D-38 `parse` returns `Result<Tree, Error>` (WP-1-19).** Go returns the
+  half-built tree together with the error; every caller (Gorse's validator,
+  `expr.Compile`, `expr.Eval`) drops it, so here the error is all there is.
+  The parser keeps Go's control flow after an error exactly (it decides which
+  error is reported, Q-86); a `None` child always comes with an error,
+  so no node with a missing child is ever built.
+- **D-39 Shared subtrees are cloned (WP-1-19).** Go points the condition and the
+  first branch of `a ?: b` at one node, and neighbouring comparisons of a
+  chain `a < b < c` at one middle node (`PORTING_NOTES.md` Q-95). A Rust tree owns its
+  nodes, so these are equal copies. For WP-3-6: Go's checker and patchers
+  visit such a node twice through the same pointer; with copies each is
+  visited once, which gives the same result as long as visiting is
+  deterministic.
+- **D-40 Any depth, like Go (WP-1-19).** Go's stacks grow to 1 GB, and a config
+  may turn the node budget off (`MaxNodes: 0`), so depth is unbounded. The
+  recursive functions (parser, printer, dump, walk, clone, compare, debug)
+  run under `stacker::maybe_grow` (`stacker` 0.1.25, recorded in
+  `porting/crate-selection.md`), and dropping a tree iterates.
+  `tests/parser_deep.rs` parses, prints, walks, clones and compares trees
+  100,000 levels deep on a 256 KiB thread; the synthetic goldens include
+  200,000 nested parentheses and node chains on both sides of the budget.
+- **D-41 What waits for WP-3-6 (WP-1-19).** `ConstantNode` (only the optimizer
+  makes it; `TestPrint_ConstantNode` is not ported), the `nature`/type of each
+  node and the `Node` interface's type methods, the rest of `conf.Config`
+  (environment types, function values, builtins table, optimizer and VM
+  switches), `file.Error.Prev` and the JSON tags of `file.Error`. The parser
+  needs of `conf.Config` only `MaxNodes`, `Disabled`, `DisableIfOperator` and
+  `IsOverridden`; the Rust `Config` holds the names of the functions and of
+  the environment's entries as sets. Go's `IsOverridden` asks
+  `Env.Get(name)` of the environment's nature; WP-3-6 derives the set from
+  the environment's type.
+- **D-42 The API is `parser::parse`, `parser::parse_with_config`,
+  `parser::lexer::lex` and `Lexer::new(&Source)` (WP-1-19).** Go's reusable `Parser`
+  (with a `Parse` method) and `Lexer.Reset` are not ported (`PORTING_NOTES.md` Q-93); one
+  lexer per source.
+- **D-43 Character classes come from Go's tables (WP-1-19).** `unicode.IsLetter`,
+  `IsDigit`, `IsSpace` and `strconv.IsPrint` are generated from Go 1.27.0
+  (Unicode 17.0.0) into `unicode_tables.rs`, so the lexer and the quoting of
+  error messages follow Go's Unicode version rather than Rust's. A unit test
+  compares all four with Go for every code point.
+- **D-44 The Go test tables are read from the Go source (WP-1-19).**
+  `exprparsegolden` (tables.go) turns the tables of `TestParse`,
+  `TestParse_error`, `TestParse_optional_chaining`, `TestNodeBudget`,
+  `TestLex` and `TestPrint` into `parser_go_tests.json` (expected trees as
+  JSON, unset fields left to Go's zero values), and
+  `tests/parser_go_tests.rs` runs them with Go's assertions (`Dump(want) ==
+  Dump(actual)`, the error text, `compareTokens`, `Node.String()`).
+  Hand-ported: `TestParse_pipe_operator`, `TestNodeBudgetDisabled`,
+  `TestLex_location`, `TestLex_error` (its table is a constant, split as Go
+  splits it), `TestPrint_MemberNode`, `ast` `TestWalk`, `TestWalk_patch`,
+  `TestFind`, and `file` `TestStringSource_Snippet*`.
+- **D-45 Licence (WP-1-19).** The crate ports MIT-licensed code: `license =
+  "Apache-2.0 AND MIT"`, with expr-lang's licence in
+  `crates/gorse-expr/LICENSE-expr-lang`.
 
 ## Open questions for Ritchie
 

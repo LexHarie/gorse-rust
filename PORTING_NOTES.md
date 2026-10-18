@@ -398,6 +398,77 @@ all 2^32 inputs per column, recomputed by the ignored test
   NaN to 0. `math32::go_f32_to_i32` and `go_f32_to_i64` reproduce amd64; the
   exhaustive digests check them on every float32.
 
+### expr-lang parser
+
+`github.com/expr-lang/expr` v1.17.8's lexer and parser as `gorse_expr`, checked by
+`parser_golden.json`, `parser_bulk_golden.json` and `parser_go_tests.json`
+(`contracts/tools/exprparsegolden`; Unicode tables from
+`contracts/tools/exprunicode`). Gorse calls only `parser.Parse`
+(`config/config.go:975`), whose error decides `item_expr` validity. Each quirk is
+in the golden data (`quirks` source of `parser_golden.json` unless said
+otherwise). Decisions D-36 to D-45 are in `PORTING.md`.
+
+Each is in the golden data (`quirks` source of `parser_golden.json` unless
+said otherwise), so the Rust result is Go's.
+
+- **Q-85 `\U` escapes wrap Go's 32-bit runes.** The unescaper shifts
+  eight hex digits into an `int32`; from `\U80000000` up the value is
+  negative, passes the `> MaxRune` check and is written as its low byte:
+  `"\UFFFFFFFF"` is the one byte `0xFF` (printed `"\xff"`), `"\U80000041"` is
+  `"A"`. `\U7FFFFFFF` and `\U00110000` fail ("unable to unescape string").
+  Surrogates (`"\uD800"`, `"\u{D800}"`) become U+FFFD.
+- **Q-86 A lexer error replaces an earlier parser error.** The lexer
+  runs lazily, one token ahead of the parser; the parser's own errors are
+  first-wins, but a lexer error met while the parser keeps reading after its
+  error overwrites it. `count(, 1)` fails with `unexpected token
+  Operator(",") (1:7)`, `count(,"\q")` with `invalid char escape (1:10)`.
+- **Q-87 The `if` form's node is not counted and has no location.**
+  `parseConditionalIf` builds the `ConditionalNode` directly instead of
+  through `createNode`: it is outside the node budget and its location is
+  `0:0` (`if a { 1 } else { 2 }` walks to `ConditionalNode 0:0`).
+- **Q-88 `true`, `false`, `nil` and numbers take no postfix.** They
+  return before `parsePostfixExpression`: `true.foo` is `unexpected token
+  Operator(".")`, `nil[0]` likewise, and `1.foo` is `bad number syntax:
+  "1.f"` (the lexer reads `1.` as a number).
+- **Q-89 Map pairs are at the `{`.** Every `PairNode` takes the
+  location of the map's opening brace, not of its key.
+- **Q-90 A ternary is at the token after it.** The `?:`
+  `ConditionalNode` takes the location of the current token after its second
+  branch (for `a ? b : c`, the end of input, `8:9`).
+- **Q-91 `not` before an operator is matched by value and located at the
+  operator.** After `not` the parser checks only the next token's value, so a
+  string `"in"` works as the operator: `a not "in" b` is `not (a in b)`. The
+  `UnaryNode` takes the location of the `in` token, not of `not`.
+- **Q-92 The lexer and the unescaper disagree on escapes.** The lexer
+  rejects `\?`, `` \` `` and an escaped quote of the other kind (`'\"'`:
+  `invalid char escape`), which the unescaper would accept; it accepts octal
+  escapes from `\4` to `\7`, which the unescaper rejects (`"\400"`:
+  `unable to unescape string`).
+- **Q-93 Go's `Lexer.Reset` keeps the previous positions.** Reusing a
+  lexer (or a `parser.Parser`) for a second source starts reading at the
+  first one's end. `parser.Parse` and `ParseWithConfig` make a new parser each
+  time, so Gorse never sees it; the port has no reuse API (`PORTING.md` D-42).
+- **Q-94 Newlines.** A quoted string cannot hold a line feed (`literal
+  not terminated`), but a lone carriage return in it becomes a line feed;
+  backquoted strings keep `\r` as is.
+- **Q-95 Comparison chains and `?:` share operands.** `a < b < c <= d`
+  is `a < b && b < c && c <= d`; `a ?: b` is `a ? a : b` (`PORTING.md` D-39).
+- **Q-96 An error on an empty line has no position.** `file.Error`
+  leaves the snippet empty when the error's line is empty, and then prints
+  only the message: `a +\n\n` fails with just `unexpected token EOF`.
+- **Q-97 Numbers.** Underscores are removed anywhere before parsing
+  (`0x_1` is 1, `1_0` is 10); decimal literals may have leading zeros (`08`
+  is 8); the most negative integer cannot be written (`-9223372036854775808`
+  is unary minus on an out-of-range literal); a float that overflows is
+  `invalid float literal: ... value out of range`, one that underflows is 0.
+  The parser's `float literal is too large` and `integer literal is too
+  large` checks cannot fire on 64-bit Go.
+- **Q-98 Disabling a builtin does not touch the predicate builtins.**
+  `Disabled` applies to the builtins table only; `all`, `count`, `map`,
+  `filter` and the other predicate functions are still parsed as builtins
+  (golden config 7). Functions and environment names override both
+  (configs 8 and 9).
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the

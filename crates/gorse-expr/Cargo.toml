@@ -1,0 +1,21 @@
+[package]
+name = "gorse-expr"
+description = "Rust port of github.com/expr-lang/expr v1.17.8, the expression language of Gorse's item expressions."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+# A port of expr-lang (MIT, see LICENSE-expr-lang) inside the Apache-2.0 workspace.
+license = "Apache-2.0 AND MIT"
+repository.workspace = true
+publish = false
+
+[dependencies]
+stacker.workspace = true
+
+[dev-dependencies]
+hex.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[lints]
+workspace = true

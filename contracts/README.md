@@ -72,6 +72,10 @@ go run ./contracts/tools/timegolden \
 # chewxy/math32 with and without its amd64 assembly, including digests over all
 # 2^32 inputs (gorse-common; linux/amd64 only, several minutes)
 go run ./contracts/tools/math32golden -out crates/gorse-common/tests/data/math32_golden.json
+# expr-lang v1.17.8's parser and lexer: curated, config, quoting and bulk
+# verdicts and the Go test tables (gorse-expr), and its Unicode tables
+go run ./contracts/tools/exprparsegolden -out-dir crates/gorse-expr/tests/data
+go run ./contracts/tools/exprunicode -out crates/gorse-expr/src/unicode_tables.rs
 ```
 
 Regenerating at the pinned commit must give no diff except in values the files

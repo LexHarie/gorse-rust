@@ -15,6 +15,7 @@ repository = "https://github.com/LexHarie/gorse-rust"
 # Internal crates.
 gorse-protocol = { path = "crates/gorse-protocol" }
 gorse-common = { path = "crates/gorse-common" }
+gorse-expr = { path = "crates/gorse-expr" }
 gorse-storage-core = { path = "crates/gorse-storage-core" }
 gorse-config = { path = "crates/gorse-config" }
 gorse-model-core = { path = "crates/gorse-model-core" }
@@ -39,6 +40,7 @@ regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sha2 = "0.11.1"
+stacker = "0.1.25"
 thiserror = "2.0.21"
 tonic = "0.14.6"
 tonic-prost = "0.14.6"
