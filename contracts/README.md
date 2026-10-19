@@ -76,6 +76,15 @@ go run ./contracts/tools/math32golden -out crates/gorse-common/tests/data/math32
 # verdicts and the Go test tables (gorse-expr), and its Unicode tables
 go run ./contracts/tools/exprparsegolden -out-dir crates/gorse-expr/tests/data
 go run ./contracts/tools/exprunicode -out crates/gorse-expr/src/unicode_tables.rs
+# common/util (WP-1-4): Go's math/rand streams and tables, util and strconv
+# parsers, and the TLS credential cases (gorse-common)
+go run ./contracts/tools/randgolden \
+  -tables-out crates/gorse-common/src/util/rand/tables.rs \
+  -out crates/gorse-common/tests/data/rand_golden.json
+go run ./contracts/tools/utilgolden -out crates/gorse-common/tests/data/util_golden.json
+go run ./contracts/tools/tlsgolden \
+  -dir crates/gorse-common/tests/data/tls \
+  -out crates/gorse-common/tests/data/tls_golden.json
 ```
 
 Regenerating at the pinned commit must give no diff except in values the files
@@ -83,4 +92,11 @@ mark as run-dependent (wall-clock `update_at` columns, Mongo `_id`s, the order
 of `required` arrays in the OpenAPI files, which go-restful-openapi emits in
 nondeterministic order, and the raw `blob` of the `hnsw small` case in
 `ann_golden.json`, whose upper-layer entries Go writes in `sync.Map` order; its
-sorted form, `blob_sha256`, does not change).
+sorted form, `blob_sha256`, does not change). `tlsgolden` makes new keys and
+certificates on every run; its verdicts must not change. The live TLS check
+between Go and Rust peers is not part of `cargo test`:
+
+```
+cargo build --release -p gorse-common --example tls_peer
+go run ./contracts/tools/tlsgolden -interop target/release/examples/tls_peer
+```
