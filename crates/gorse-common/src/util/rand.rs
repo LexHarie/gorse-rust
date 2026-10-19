@@ -1,4 +1,8 @@
 // Ports: math/rand rng.go, rand.go (Rand, Source, Source64), normal.go, exp.go @ go1.27.0
+//
+// Derived from Go's math/rand package: Copyright 2009 The Go Authors. All
+// rights reserved. Use of this source code is governed by a BSD-style license
+// that can be found in crates/gorse-common/licenses/GO-LICENSE.
 
 //! Go's `math/rand` generator, so that seeded code produces the same numbers
 //! as the Go build (`PORTING.md` D-9, risk 2).
