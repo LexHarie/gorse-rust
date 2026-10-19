@@ -469,6 +469,35 @@ said otherwise), so the Rust result is Go's.
   (golden config 7). Functions and environment names override both
   (configs 8 and 9).
 
+### Util, math/rand and TLS
+
+- **Q-99 `Sample` and `SampleInt32` count excluded values outside the
+  interval.** The "take everything" branch triggers when `n >= high - low -
+  |exclude|`, with every excluded value counted, and then returns every
+  allowed value, which can be more than `n`: `Sample(5, 50, 41, {6, 7, 100,
+  -1})` returns 43 values (`common/util/random.go`). Covered by Go goldens
+  either side of the threshold.
+- **Q-100 `NormFloat64`, `ExpFloat64` and Go's `math.Exp` follow the CPU.** On
+  amd64 Go's `math.Exp` uses FMA when the CPU has it and gives different bits
+  without it; the Rust port detects FMA at run time the same way and has both
+  paths checked against Go (`GODEBUG=cpu.fma=off` for the plain one). The
+  ziggurat samplers only reach `Exp` and `Log` in their rare rejection
+  branches. Go's amd64 `math.Log` does not normalise subnormal inputs; nor
+  does the port.
+- **Q-101 Go's `NaN` bits.** `ParseFloat("nan")` returns Go's `math.NaN()`,
+  bits `0x7FF8000000000001`, not Rust's `f64::NAN`.
+- **Q-102 No host name is checked on either side of a TLS connection**
+  (`advancedtls.CertVerification`): a certificate for another host is
+  accepted.
+- **Q-103 `h2` is offered as ALPN on both sides and enforced on neither.**
+- **Q-104 A CA limited to server authentication** works in a client's CA file
+  and makes a server reject every client: the server checks client
+  certificates for client authentication all the way up to the CA.
+- **Q-105 `ParseInt` with bit size 1 drops a range error**
+  (`ParseInt("-2", 10, 1)` is `-1, nil` in go1.27.0). Gorse never uses bit
+  size 1; `gostrconv::parse_int` has the same logic (by reading the code; its
+  tests do not exercise that case).
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -632,6 +661,13 @@ said otherwise), so the Rust result is Go's.
   `Ln10`, `MaxFloat32`. `Log1p` and `Log2` follow (O-3).
 - **X-35 `Sqrt` on targets other than x86-64 and aarch64** uses the Go code. Go
   has assembly for more architectures; Gorse ships amd64 and arm64.
+- **X-36 A TLS client whose chain does not reach the server's CA (WP-1-4).**
+  The Go client sends no certificate (none matches the server's CA hints) and
+  the Go server reports `client didn't provide a certificate`; a Rust client
+  sends its certificate anyway and the server rejects the chain. The verdict,
+  rejected by the server, is the same, and that is what the tests compare.
+- **X-37 TLS handshake error texts are rustls's, not Go's (WP-1-4,
+  `PORTING.md` D-47).** Credential errors at start-up keep Go's texts.
 
 ## Open questions
 
@@ -650,3 +686,10 @@ said otherwise), so the Rust result is Go's.
   they need Go's float64 `math.Log` (assembly on amd64) and `math.Log1p`
   ported. `common/nn` needs Go's float64 `math.Exp` (assembly with an FMA path)
   for the same reason. They come with the nn part of WP-1-11.
+- **O-4 `common/expression` has its own `ParseFloat`** for the strings its
+  pattern admits (`crates/gorse-common/src/expression.rs`); it could call
+  `gostrconv::parse_float` once WP-1-14's conversion lands (`PORTING.md` D-52).
+- **O-5 `rustls`'s own unit tests do not build from the published package**
+  (its test data is left out); the patch in `third_party/rustls` is covered by
+  `util_tls_server_ignores_a_host_and_port_server_name` and the interop check
+  instead (`third_party/rustls/GORSE.md`).
