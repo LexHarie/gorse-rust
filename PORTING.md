@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-5, WP-1-7, WP-1-9, WP-1-10, WP-1-13, WP-1-19. WP-1-11 part 1 (math32) merged. WP-1-4, WP-1-6, WP-1-8, WP-1-11, WP-1-12 and WP-1-14 run in parallel threads (D-26); WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-7, WP-1-9, WP-1-10, WP-1-13, WP-1-19. WP-1-11 part 1 (math32) merged. WP-1-6, WP-1-8, WP-1-11, WP-1-12 and WP-1-14 run in parallel threads (D-26); WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
@@ -145,6 +145,24 @@ correction below states the evidence.
   `gorse_common::math32` (v1.11.2, the version `go.mod` pins), owned by
   WP-1-11 and pushed ahead of `common/nn` because WP-1-10 needs `Log` and
   `Floor`; `crate-selection.md` gains its row. Found by the WP-1-11 thread.
+- **C-16 TLS needs a patched `rustls` (WP-1-4).** Go workers and servers dial
+  the master with `util.NewClientCreds`, built on grpc's `advancedtls`, whose
+  `ClientHandshake` uses the dial target `host:port` as the TLS server name
+  (it does not strip the port), and Go's `crypto/tls` sends it as is. Stock
+  `rustls` 0.23.46 aborts the handshake on such a name
+  (`ServerNameMustContainOneHostName`), so a Rust master would refuse every Go
+  client: unpatched, 34 of the 62 interop cases differ, every one that reaches
+  a handshake. Ritchie chose the patch on 2026-10-18 (decision card "How should
+  a Rust master accept Go workers' TLS connections?"): `third_party/rustls` is
+  the published 0.23.46 with one change in `src/server/hs.rs`, so the server
+  ignores a server name that is not a DNS name, as it already did for an IP
+  address. It is wired in with `[patch.crates-io]` and kept out of the
+  workspace with `exclude`; `third_party/rustls/GORSE.md` says how to upgrade.
+  `third_party/`, not `vendor/`, because the Go toolchain gives a `vendor/`
+  directory next to `go.mod` its own meaning. `porting/crate-selection.md`
+  gains a TLS row.
+- **C-17 `aws-lc-rs`, not `ring` (WP-1-4).** The certificates Gorse's own
+  TestSSL makes (`madflojo/testcerts`) are P-521, which `ring` cannot verify.
 
 ## Decision log
 
@@ -385,6 +403,58 @@ or accepts a metric gap outside the Go tests' own tolerances.
 - **D-45 Licence (WP-1-19).** The crate ports MIT-licensed code: `license =
   "Apache-2.0 AND MIT"`, with expr-lang's licence in
   `crates/gorse-expr/LICENSE-expr-lang`.
+- **D-46 Go's checks on the CA certificate (WP-1-4).** `advancedtls` in
+  `CertVerification` mode runs `x509.Verify` with the purpose's extended key
+  usage and no host name. `webpki` keeps only the name and key of a trust
+  anchor, so `util/tls.rs` runs Go's other checks in `webpki`'s path callback,
+  on every chain `webpki` builds (a rejected chain makes it try the next, as Go
+  tries other chains): the CA must be valid now, its extended key usage (if
+  any) must include the purpose or `anyExtendedKeyUsage`, the number of
+  intermediates must respect its `MaxPathLen`, and every issuer, the CA
+  included, must pass Go's `CheckSignatureFrom` constraints (a v3 certificate
+  needs `BasicConstraints` with `cA`, and a `KeyUsage` with any bit set must
+  include `keyCertSign`). A custom `ExtendedKeyUsageValidator` accepts
+  `anyExtendedKeyUsage` on the leaf, as Go does and `webpki` does not.
+  `x509-parser` reads the fields.
+- **D-47 Verdicts, not error texts, for TLS handshakes (WP-1-4).**
+  `tls_golden.json` records Go's error texts for reading; the tests compare
+  whether each side built its credentials, whether the handshake and a
+  ping/pong went through, which side rejected the other, and the ALPN
+  protocol (`PORTING_NOTES.md` X-37). Credential errors that Gorse surfaces at
+  start-up match Go's text: `open <path>: <os error>`, `failed to append
+  certificate`, `tls: failed to find any PEM data in certificate input` /
+  `key input`, and `tls: ...` for a key that does not match its certificate.
+- **D-48 Number parsing lives in `gostrconv` (WP-1-4).** WP-1-4 first ported
+  `Atoi`, `ParseInt`, `ParseUint` and `ParseFloat` under `util::strconv`, then
+  dropped its integer copies for WP-1-14's and added only `ParseFloat` as
+  `gostrconv/atof.rs`, in the same shape (0 with a syntax error, the signed
+  infinity with a range error). `util_golden.json` also checks `gostrconv`'s
+  `atoi`, `parse_int` and `parse_uint` with bit size 0, including the value
+  Go returns next to an error, and `quote` and `is_print` at every edge of
+  Go's print table: all match. WP-1-14 takes over `atof.rs` (D-52).
+- **D-49 `util::parse_float`, `parse_int` and `parse_uint` return a `Result`
+  (WP-1-4).** Go's `util.ParseFloat[T]` and friends also return a value next to
+  an error; every Gorse caller (`common/datautil/datautil.go`,
+  `storage/cache/redis.go`, `dataset/dataset.go`) returns the error without
+  reading it. Inputs are bytes (`impl AsRef<[u8]>`), as in `gostrconv`.
+- **D-50 The rand tables come from Go (WP-1-4).** `util/rand/tables.rs`
+  (`rngCooked`, the ziggurat tables of `normal.go` and `exp.go`) is written by
+  `randgolden` from Go's own values. The decimal constants of Go's amd64
+  `math.Exp` and `math.Log` are kept as Go's text, and a test checks the bits
+  Go's assembler gives them.
+- **D-51 Go's top-level `rand` functions are not ported (WP-1-4).** Since Go
+  1.20 they draw from a randomly seeded runtime source and `rand.Seed` is a
+  no-op, so nothing about them is reproducible.
+- **D-52 One owner for `ParseFloat` (integrator, 2026-10-19).** WP-1-4's
+  `atof.rs` ports Go's syntax (`special`, `readFloat`, `atofHex`) and hands the
+  decimal digits to Rust's correctly rounded parser. go1.27 rounds correctly
+  too, except where its slow path keeps only 800 digits (`decimal.set`), which
+  WP-1-14's golden reaches: `"9007199254740993" + "0"*790 + "1e-791"` is
+  `41cad7f29abcaf49` in Go and `4340000000000001` with the Rust parser. WP-1-14
+  owns `atof.rs` from here and replaces it with its structural port of go1.27
+  (`atof64exact`, `atof32exact`, `uscale.go`, `decimal.go` with the 800-digit
+  cap), checked against WP-1-4's golden, its own and the 800-digit cases, and
+  adds `ParseBool` (`atob.go`).
 
 ## Open questions for Ritchie
 

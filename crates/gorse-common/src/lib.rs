@@ -18,3 +18,4 @@ pub mod gostrconv;
 pub mod gotime;
 pub mod heap;
 pub mod math32;
+pub mod util;
