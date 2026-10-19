@@ -1,0 +1,1307 @@
+{
+  "go_version": "go1.27.0",
+  "cases": [
+    {
+      "name": "TestSSL/success",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "TestSSL/insecure",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "",
+        "cert": "",
+        "key": ""
+      },
+      "client_mode": "plaintext",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "server",
+      "alpn": "",
+      "server_error": "tls: first record does not look like a TLS handshake",
+      "client_error": "EOF"
+    },
+    {
+      "name": "TestSSL/certificate mismatch",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca2.pem",
+        "cert": "node2.pem",
+        "key": "node2.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "client",
+      "alpn": "",
+      "server_error": "remote error: tls: bad certificate",
+      "client_error": "x509: certificate signed by unknown authority (possibly because of \"x509: ECDSA verification failure\" while trying to verify candidate authority certificate \"Never Use this Certificate in Production Inc.\")"
+    },
+    {
+      "name": "server key pair/p256-sec1",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "p256-sec1.pem",
+        "key": "p256-sec1.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client key pair/p256-sec1",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "p256-sec1.pem",
+        "key": "p256-sec1.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server key pair/p384",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "p384.pem",
+        "key": "p384.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client key pair/p384",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "p384.pem",
+        "key": "p384.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server key pair/rsa-pkcs1",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "rsa-pkcs1.pem",
+        "key": "rsa-pkcs1.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client key pair/rsa-pkcs1",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "rsa-pkcs1.pem",
+        "key": "rsa-pkcs1.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server key pair/rsa-pkcs8",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "rsa-pkcs8.pem",
+        "key": "rsa-pkcs8.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client key pair/rsa-pkcs8",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "rsa-pkcs8.pem",
+        "key": "rsa-pkcs8.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server key pair/ed25519",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "ed25519.pem",
+        "key": "ed25519.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client key pair/ed25519",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "ed25519.pem",
+        "key": "ed25519.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server key pair/expired",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "expired.pem",
+        "key": "expired.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "client",
+      "alpn": "",
+      "server_error": "remote error: tls: bad certificate",
+      "client_error": "x509: certificate has expired or is not yet valid: current time 2026-10-17T22:51:45Z is after 2001-01-01T00:00:00Z"
+    },
+    {
+      "name": "client key pair/expired",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "expired.pem",
+        "key": "expired.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "server",
+      "alpn": "",
+      "server_error": "x509: certificate has expired or is not yet valid: current time 2026-10-17T22:51:45Z is after 2001-01-01T00:00:00Z",
+      "client_error": "remote error: tls: bad certificate"
+    },
+    {
+      "name": "server key pair/future",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "future.pem",
+        "key": "future.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "client",
+      "alpn": "",
+      "server_error": "remote error: tls: bad certificate",
+      "client_error": "x509: certificate has expired or is not yet valid: current time 2026-10-17T22:51:45Z is before 9000-01-01T00:00:00Z"
+    },
+    {
+      "name": "client key pair/future",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "future.pem",
+        "key": "future.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "server",
+      "alpn": "",
+      "server_error": "x509: certificate has expired or is not yet valid: current time 2026-10-17T22:51:45Z is before 9000-01-01T00:00:00Z",
+      "client_error": "remote error: tls: bad certificate"
+    },
+    {
+      "name": "server key pair/server-auth",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "server-auth.pem",
+        "key": "server-auth.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client key pair/server-auth",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "server-auth.pem",
+        "key": "server-auth.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "server",
+      "alpn": "",
+      "server_error": "x509: certificate specifies an incompatible key usage",
+      "client_error": "remote error: tls: bad certificate"
+    },
+    {
+      "name": "server key pair/client-auth",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "client-auth.pem",
+        "key": "client-auth.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "client",
+      "alpn": "",
+      "server_error": "remote error: tls: bad certificate",
+      "client_error": "x509: certificate specifies an incompatible key usage"
+    },
+    {
+      "name": "client key pair/client-auth",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "client-auth.pem",
+        "key": "client-auth.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server key pair/no-eku",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "no-eku.pem",
+        "key": "no-eku.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client key pair/no-eku",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "no-eku.pem",
+        "key": "no-eku.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server key pair/any-eku",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "any-eku.pem",
+        "key": "any-eku.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client key pair/any-eku",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "any-eku.pem",
+        "key": "any-eku.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server key pair/other-host",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "other-host.pem",
+        "key": "other-host.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client key pair/other-host",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "other-host.pem",
+        "key": "other-host.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server key pair/chain",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "chain.pem",
+        "key": "chain.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client key pair/chain",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "chain.pem",
+        "key": "chain.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server key pair/chain-missing",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "chain-missing.pem",
+        "key": "chain-missing.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "client",
+      "alpn": "",
+      "server_error": "remote error: tls: bad certificate",
+      "client_error": "x509: certificate signed by unknown authority"
+    },
+    {
+      "name": "client key pair/chain-missing",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "chain-missing.pem",
+        "key": "chain-missing.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "server",
+      "alpn": "",
+      "server_error": "tls: client didn't provide a certificate",
+      "client_error": "remote error: tls: certificate required"
+    },
+    {
+      "name": "server key pair/chain-no-certsign",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "chain-no-certsign.pem",
+        "key": "chain-no-certsign.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "client",
+      "alpn": "",
+      "server_error": "remote error: tls: bad certificate",
+      "client_error": "x509: certificate signed by unknown authority (possibly because of \"x509: invalid signature: parent certificate cannot sign this kind of certificate\" while trying to verify candidate authority certificate \"intermediate without certSign\")"
+    },
+    {
+      "name": "client key pair/chain-no-certsign",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "chain-no-certsign.pem",
+        "key": "chain-no-certsign.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "server",
+      "alpn": "",
+      "server_error": "x509: certificate signed by unknown authority (possibly because of \"x509: invalid signature: parent certificate cannot sign this kind of certificate\" while trying to verify candidate authority certificate \"intermediate without certSign\")",
+      "client_error": "remote error: tls: bad certificate"
+    },
+    {
+      "name": "server key pair/self-signed",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "self-signed.pem",
+        "key": "self-signed.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "client",
+      "alpn": "",
+      "server_error": "remote error: tls: bad certificate",
+      "client_error": "x509: certificate signed by unknown authority (possibly because of \"x509: ECDSA verification failure\" while trying to verify candidate authority certificate \"Never Use this Certificate in Production Inc.\")"
+    },
+    {
+      "name": "client key pair/self-signed",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "self-signed.pem",
+        "key": "self-signed.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "server",
+      "alpn": "",
+      "server_error": "x509: certificate signed by unknown authority (possibly because of \"x509: ECDSA verification failure\" while trying to verify candidate authority certificate \"Never Use this Certificate in Production Inc.\")",
+      "client_error": "remote error: tls: bad certificate"
+    },
+    {
+      "name": "server CA/expired",
+      "server": {
+        "ca": "ca-expired.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "by-expired-ca.pem",
+        "key": "by-expired-ca.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "server",
+      "alpn": "",
+      "server_error": "x509: certificate has expired or is not yet valid: current time 2026-10-17T22:51:45Z is after 2001-01-01T00:00:00Z",
+      "client_error": "remote error: tls: bad certificate"
+    },
+    {
+      "name": "client CA/expired",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "by-expired-ca.pem",
+        "key": "by-expired-ca.key"
+      },
+      "client": {
+        "ca": "ca-expired.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "client",
+      "alpn": "",
+      "server_error": "remote error: tls: bad certificate",
+      "client_error": "x509: certificate has expired or is not yet valid: current time 2026-10-17T22:51:45Z is after 2001-01-01T00:00:00Z"
+    },
+    {
+      "name": "server CA/future",
+      "server": {
+        "ca": "ca-future.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "by-future-ca.pem",
+        "key": "by-future-ca.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "server",
+      "alpn": "",
+      "server_error": "x509: certificate has expired or is not yet valid: current time 2026-10-17T22:51:45Z is before 9000-01-01T00:00:00Z",
+      "client_error": "remote error: tls: bad certificate"
+    },
+    {
+      "name": "client CA/future",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "by-future-ca.pem",
+        "key": "by-future-ca.key"
+      },
+      "client": {
+        "ca": "ca-future.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "client",
+      "alpn": "",
+      "server_error": "remote error: tls: bad certificate",
+      "client_error": "x509: certificate has expired or is not yet valid: current time 2026-10-17T22:51:45Z is before 9000-01-01T00:00:00Z"
+    },
+    {
+      "name": "server CA/server-auth",
+      "server": {
+        "ca": "ca-server-auth.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "by-server-auth-ca.pem",
+        "key": "by-server-auth-ca.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "server",
+      "alpn": "",
+      "server_error": "x509: certificate specifies an incompatible key usage",
+      "client_error": "remote error: tls: bad certificate"
+    },
+    {
+      "name": "client CA/server-auth",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "by-server-auth-ca.pem",
+        "key": "by-server-auth-ca.key"
+      },
+      "client": {
+        "ca": "ca-server-auth.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server CA/pathlen0",
+      "server": {
+        "ca": "ca-pathlen0.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "by-pathlen0-ca.pem",
+        "key": "by-pathlen0-ca.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "server",
+      "alpn": "",
+      "server_error": "x509: too many intermediates for path length constraint",
+      "client_error": "remote error: tls: bad certificate"
+    },
+    {
+      "name": "client CA/pathlen0",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "by-pathlen0-ca.pem",
+        "key": "by-pathlen0-ca.key"
+      },
+      "client": {
+        "ca": "ca-pathlen0.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "client",
+      "alpn": "",
+      "server_error": "remote error: tls: bad certificate",
+      "client_error": "x509: too many intermediates for path length constraint"
+    },
+    {
+      "name": "server CA/bundle",
+      "server": {
+        "ca": "ca-bundle.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node2.pem",
+        "key": "node2.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client CA/bundle",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node2.pem",
+        "key": "node2.key"
+      },
+      "client": {
+        "ca": "ca-bundle.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": true,
+      "rejected_by": "",
+      "alpn": "h2",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server files/CA file missing",
+      "server": {
+        "ca": "missing.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "open crates/gorse-common/tests/data/tls/missing.pem: no such file or directory",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client files/CA file missing",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "missing.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "open crates/gorse-common/tests/data/tls/missing.pem: no such file or directory",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server files/CA file without certificates",
+      "server": {
+        "ca": "ca-none.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "failed to append certificate",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client files/CA file without certificates",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca-none.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "failed to append certificate",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server files/CA file corrupt",
+      "server": {
+        "ca": "ca-corrupt.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "failed to append certificate",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client files/CA file corrupt",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca-corrupt.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "failed to append certificate",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server files/certificate file missing",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "missing.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "open crates/gorse-common/tests/data/tls/missing.pem: no such file or directory",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client files/certificate file missing",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "missing.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "open crates/gorse-common/tests/data/tls/missing.pem: no such file or directory",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server files/key file missing",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "missing.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "open crates/gorse-common/tests/data/tls/missing.key: no such file or directory",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client files/key file missing",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "missing.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "open crates/gorse-common/tests/data/tls/missing.key: no such file or directory",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server files/certificate file without certificates",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "cert-none.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "tls: failed to find certificate PEM data in certificate input, but did find a private key; PEM inputs may have been switched",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client files/certificate file without certificates",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "cert-none.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "tls: failed to find certificate PEM data in certificate input, but did find a private key; PEM inputs may have been switched",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server files/key file without keys",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "key-none.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "tls: found a certificate rather than a key in the PEM for the private key",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client files/key file without keys",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "key-none.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "tls: found a certificate rather than a key in the PEM for the private key",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "server files/key not matching certificate",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "p256-sec1.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "tls: private key does not match public key",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client files/key not matching certificate",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "p256-sec1.key"
+      },
+      "client_mode": "creds",
+      "server_config_error": "",
+      "client_config_error": "tls: private key does not match public key",
+      "established": false,
+      "rejected_by": "",
+      "alpn": "",
+      "server_error": "",
+      "client_error": ""
+    },
+    {
+      "name": "client without certificate",
+      "server": {
+        "ca": "ca.pem",
+        "cert": "node.pem",
+        "key": "node.key"
+      },
+      "client": {
+        "ca": "ca.pem",
+        "cert": "",
+        "key": ""
+      },
+      "client_mode": "no-cert",
+      "server_config_error": "",
+      "client_config_error": "",
+      "established": false,
+      "rejected_by": "server",
+      "alpn": "",
+      "server_error": "tls: client didn't provide a certificate",
+      "client_error": "remote error: tls: certificate required"
+    }
+  ]
+}

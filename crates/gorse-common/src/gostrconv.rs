@@ -6,12 +6,16 @@
 
 //! The parts of Go's `strconv` that error texts depend on: `%q` formats with
 //! [`quote`], so every Go error that quotes user input needs it to read the
-//! same; and the integer parsers with their [`NumError`] texts.
+//! same; and the integer parsers and [`parse_float`] with their [`NumError`]
+//! texts.
 //!
 //! Go strings are bytes, so [`quote`] takes bytes: a byte that does not start
 //! a valid UTF-8 sequence is written as `\xNN`, as Go writes it.
 
+mod atof;
 mod tables;
+
+pub use atof::parse_float;
 
 use thiserror::Error;
 
@@ -123,7 +127,7 @@ pub enum NumErrorKind {
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("strconv.{func}: parsing {}: {err}", quote(num))]
 pub struct NumError {
-    /// The failing function (`ParseInt`, `ParseUint`, `Atoi`).
+    /// The failing function (`ParseInt`, `ParseUint`, `Atoi`, `ParseFloat`).
     pub func: &'static str,
     /// The input.
     pub num: Vec<u8>,
