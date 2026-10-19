@@ -1,4 +1,4 @@
-// Ports: the parts of Go's strconv and fmt the parser formats and parses with (go1.27.0: strconv/quote.go appendQuotedWith, appendEscapedRune, IsPrint; strconv/atoi.go ParseUint, ParseInt; strconv/atof.go ParseFloat; fmt %v of a float64 and %#U)
+// Ports: the parts of Go's strconv and fmt the parser formats and parses with (go1.27.0: strconv/quote.go appendQuotedWith, appendEscapedRune, IsPrint; strconv/atoi.go ParseUint, ParseInt; strconv/atof.go ParseFloat; fmt %#U; fmt %v of a float64 is gorse_common::gostrconv::format_float)
 
 //! Go's quoting, number parsing and number formatting, as the expr-lang parser
 //! and AST printer use them.
@@ -98,64 +98,11 @@ pub(crate) fn format_unicode_sharp(c: char) -> String {
     out
 }
 
-/// `%v` of a float64, which is `strconv.FormatFloat(v, 'g', -1, 64)` with at
-/// least two exponent digits: the shortest digits that read back as `v`, in
-/// `%e` form when the decimal exponent is below -4 or at least 6.
+/// `%v` of a float64, which is `strconv.FormatFloat(v, 'g', -1, 64)`: the
+/// shortest digits that read back as `v`, in `%e` form when the decimal
+/// exponent is below -4 or at least 6.
 pub(crate) fn format_float_v(v: f64) -> String {
-    if v.is_nan() {
-        return "NaN".to_owned();
-    }
-    if v.is_infinite() {
-        return if v > 0.0 { "+Inf" } else { "-Inf" }.to_owned();
-    }
-    let sign = if v.is_sign_negative() { "-" } else { "" };
-    if v == 0.0 {
-        return format!("{sign}0");
-    }
-    // Rust's `{:e}` writes the shortest round-trip digits too, as
-    // `d[.ddd]e<exp>`; only the layout differs from Go's.
-    let sci = format!("{:e}", v.abs());
-    let Some((mantissa, exp)) = sci.split_once('e') else {
-        unreachable!("`{{:e}}` writes an exponent: {sci}")
-    };
-    let Ok(exp) = exp.parse::<i32>() else {
-        unreachable!("`{{:e}}` writes a decimal exponent: {sci}")
-    };
-    let digits: Vec<u8> = mantissa.bytes().filter(|&b| b != b'.').collect();
-    let mut out = String::from(sign);
-    // Go: `exp < -4 || exp >= eprec`, with `eprec` 6 for shortest output.
-    if !(-4..6).contains(&exp) {
-        out.push(char::from(digits[0]));
-        if digits.len() > 1 {
-            out.push('.');
-            out.extend(digits[1..].iter().map(|&b| char::from(b)));
-        }
-        out.push('e');
-        out.push(if exp < 0 { '-' } else { '+' });
-        let _ = write!(out, "{:02}", exp.unsigned_abs());
-    } else {
-        // Digit `i` of the number, counting from the first significant one
-        // at position `dp - 1` before the point.
-        let dp = i64::from(exp) + 1;
-        let nd = i64::try_from(digits.len()).unwrap_or(i64::MAX);
-        let digit = |i: i64| {
-            usize::try_from(i)
-                .ok()
-                .and_then(|i| digits.get(i))
-                .map_or('0', |&b| char::from(b))
-        };
-        if dp > 0 {
-            out.extend((0..dp).map(digit));
-        } else {
-            out.push('0');
-        }
-        let decimals = (nd - dp).max(0);
-        if decimals > 0 {
-            out.push('.');
-            out.extend((dp..dp + decimals).map(digit));
-        }
-    }
-    out
+    gorse_common::gostrconv::format_float(v, b'g', -1, 64)
 }
 
 /// Why a strconv parse failed.
@@ -350,5 +297,7 @@ mod tests {
         assert_eq!(format_float_v(0.0001), "0.0001");
         assert_eq!(format_float_v(0.00001), "1e-05");
         assert_eq!(format_float_v(1e100), "1e+100");
+        // Two shortest forms are equally close; Go takes the even one.
+        assert_eq!(format_float_v(2f64.powi(-25)), "2.9802322387695312e-08");
     }
 }

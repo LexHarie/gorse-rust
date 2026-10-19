@@ -57,6 +57,8 @@ go run ./contracts/tools/exprgolden -out crates/gorse-common/tests/data/expressi
 go run ./contracts/tools/consistentgolden -out crates/gorse-common/tests/data/consistent_golden.json
 # common/ann, brute force and HNSW (gorse-common)
 go run ./contracts/tools/anngolden -out crates/gorse-common/tests/data/ann_golden.json
+# strconv.FormatFloat, FormatInt and FormatUint (gorse-common)
+go run ./contracts/tools/ftoagolden -out crates/gorse-common/tests/data/ftoa_golden.json
 # config.LoadConfig, Config.Validate and the recommender hashes (gorse-config)
 go run ./contracts/tools/configgolden -out crates/gorse-config/tests/data/config_golden.json
 # Go's time package and araddon/dateparse: Unicode, IsPrint and errno tables,
