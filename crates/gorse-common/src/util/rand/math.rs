@@ -1,4 +1,20 @@
 // Ports: math/exp_amd64.s, math/exp_amd64.go, math/log_amd64.s @ go1.27.0
+//
+// Derived from Go's math package: Copyright 2010 The Go Authors. All rights
+// reserved. Use of this source code is governed by a BSD-style license that
+// can be found in crates/gorse-common/licenses/GO-LICENSE.
+//
+// The Log constants are from FreeBSD's /usr/src/lib/msun/src/e_log.c by way
+// of Go's math/log.go, which came with this notice:
+//
+// ====================================================
+// Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+//
+// Developed at SunPro, a Sun Microsystems, Inc. business.
+// Permission to use, copy, modify, and distribute this
+// software is freely granted, provided that this notice
+// is preserved.
+// ====================================================
 
 //! `math.Exp` and `math.Log` exactly as Go computes them on amd64, where both
 //! are assembly routines rather than the portable `exp.go`/`log.go`. The
