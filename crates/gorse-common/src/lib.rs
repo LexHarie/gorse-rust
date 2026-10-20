@@ -16,6 +16,7 @@ pub mod floats;
 pub mod gonet;
 pub mod gostrconv;
 pub mod gotime;
+pub mod gounicode;
 pub mod heap;
 pub mod math32;
 pub mod util;

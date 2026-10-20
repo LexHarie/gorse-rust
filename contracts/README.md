@@ -59,6 +59,11 @@ go run ./contracts/tools/consistentgolden -out crates/gorse-common/tests/data/co
 go run ./contracts/tools/anngolden -out crates/gorse-common/tests/data/ann_golden.json
 # strconv.FormatFloat, FormatInt and FormatUint (gorse-common)
 go run ./contracts/tools/ftoagolden -out crates/gorse-common/tests/data/ftoa_golden.json
+# unicode.ToLower, unicode.SimpleFold, strings.ToLower and strings.EqualFold:
+# tables and golden (gorse-common)
+go run ./contracts/tools/casegolden \
+  -tables crates/gorse-common/src/gounicode/tables.rs \
+  -out crates/gorse-common/tests/data/case_golden.json
 # config.LoadConfig, Config.Validate and the recommender hashes (gorse-config)
 go run ./contracts/tools/configgolden -out crates/gorse-config/tests/data/config_golden.json
 # Go's time package and araddon/dateparse: Unicode, IsPrint and errno tables,
