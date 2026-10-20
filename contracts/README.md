@@ -85,6 +85,18 @@ go run ./contracts/tools/utilgolden -out crates/gorse-common/tests/data/util_gol
 go run ./contracts/tools/tlsgolden \
   -dir crates/gorse-common/tests/data/tls \
   -out crates/gorse-common/tests/data/tls_golden.json
+# storage/errors.go, options.go, scheme.go (WP-1-14): options, table prefixes,
+# gorm names, json_contains through modernc's SQLite, AppendURLParams and the
+# MySQL DSN code (gorse-storage-core), and encoding/json decoding (gorse-common)
+go run ./contracts/tools/storagegolden \
+  -out crates/gorse-storage-core/tests/data/storage_golden.json \
+  -gojson-out crates/gorse-common/tests/data/gojson_golden.json
+# net/url and net/netip (gorse-common)
+go run ./contracts/tools/urlgolden -out crates/gorse-common/tests/data/gourl_golden.json
+# strconv.ParseFloat and ParseBool, and the pow10 table (gorse-common)
+go run ./contracts/tools/strconvgolden \
+  -pow10tab crates/gorse-common/src/gostrconv/pow10tab.rs \
+  -out crates/gorse-common/tests/data/strconv_golden.json
 ```
 
 Regenerating at the pinned commit must give no diff except in values the files

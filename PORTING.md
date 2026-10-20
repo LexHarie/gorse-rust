@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-7, WP-1-9, WP-1-10, WP-1-13, WP-1-19. WP-1-11 part 1 (math32) merged. WP-1-6, WP-1-8, WP-1-11, WP-1-12 and WP-1-14 run in parallel threads (D-26); WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-7, WP-1-9, WP-1-10, WP-1-13, WP-1-14, WP-1-19. WP-1-11 part 1 (math32) merged. WP-1-6, WP-1-8, WP-1-11 and WP-1-12 run in parallel threads (D-26); WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
@@ -163,6 +163,58 @@ correction below states the evidence.
   gains a TLS row.
 - **C-17 `aws-lc-rs`, not `ring` (WP-1-4).** The certificates Gorse's own
   TestSSL makes (`madflojo/testcerts`) are P-521, which `ring` cannot verify.
+- **C-18 WP-1-14 depends on WP-1-9 (WP-1-14).** `work-packages.md` lists no
+  dependency. However, `Options.ConnMaxLifetime` is a `time.Duration`, and
+  the MySQL DSN's `loc` parameter goes through `time.LoadLocation`, its
+  timeouts through `time.ParseDuration`. The port uses `gorse_common::gotime`.
+- **C-19 `scheme.go` needs Go standard library ports that the plan does
+  not list (WP-1-14).** Gorse's results and errors depend on their exact behaviour:
+  - `net/url` (`AppendURLParams`, and every store that parses a URL). This
+    is `gourl`, with `ParseRequestURI`, `Values`, the escape functions, and
+    the `urlstrictcolons` and `urlmaxqueryparams` GODEBUG settings, which it
+    reads as Go does.
+  - `strings.Replacer` (gorm's names, and later the Redis and xvec stores).
+    This is `gostrings`.
+  - `encoding/json` into `any`, `[]any` or `map[string]any`
+    (`json_contains`, labels, viper's config codec for WP-1-15). This is
+    `gojson`.
+  - `unicode/utf8`. This is `goutf8`.
+
+  They live in `gorse-common` so that later packages share them. Each has a
+  `Ports:` header that names the go1.27.0 files.
+- **C-20 `scheme.go` needs parts of two third-party libraries (WP-1-14).**
+  - `AppendMySQLParams` round-trips the DSN through go-sql-driver/mysql
+    v1.9.3's `ParseDSN` and `FormatDSN`. That is `mysql_dsn.rs` (MPL-2.0, a
+    file-level licence; the licence text is in
+    `crates/gorse-storage-core/licenses/`).
+  - `NewGORMConfig`'s `NamingStrategy` decides every table, column, index
+    and constraint name that a Go node creates. That is gorm v1.31.1's
+    `schema/naming.go` in `gorm_naming.rs` (MIT, licence alongside).
+  - `crypto/sha1` (gorm's `formatName`) adds a dependency, `sha1` 0.11.0,
+    with a row in `porting/crate-selection.md`.
+- **C-21 Go 1.27's `encoding/json` is the v2 decoder (WP-1-14).** In go1.27,
+  `GOEXPERIMENT=jsonv2` is on by default, so `json.Unmarshal` is v1's API
+  over v2's implementation. The order of operations changes, and so do some
+  texts:
+  - The whole input is checked for syntax first; then the top-level kind
+    ("json: cannot unmarshal array into Go value of type
+    map[string]interface {}"); then the value is decoded.
+  - A float overflow names its path ("json: cannot unmarshal number 1e400
+    into Go struct field .master.port of type float64").
+  - A duplicate name replaces the earlier value whole: `{"a":{"b":1},"a":{"c":2}}`
+    decodes to `{a:{c:2}}`.
+
+  `serde_json` differs on each of these points, so `gojson` is a hand port,
+  with objects in an `IndexMap` (`indexmap` 2.14.2, new row in
+  `crate-selection.md`).
+- **C-22 The driver glue is Phase 2 work (WP-1-14).** Two pieces need a live
+  connection, which WP-1-14 has none of:
+  - registering `json_contains` on SQLite connections (the `rusqlite` choice,
+    D-18);
+  - `ProbeMySQLIsolationVariableName`'s query.
+
+  WP-1-14 ports the logic. The SQL stores (WP-2-2, WP-2-6 and, for SQLite,
+  WP-2-11) wire it up, with the obligations in O-6.
 
 ## Decision log
 
@@ -455,6 +507,43 @@ or accepts a metric gap outside the Go tests' own tolerances.
   (`atof64exact`, `atof32exact`, `uscale.go`, `decimal.go` with the 800-digit
   cap), checked against WP-1-4's golden, its own and the 800-digit cases, and
   adds `ParseBool` (`atob.go`).
+- **D-53 A `json_contains` element that Go cannot hash is an error, not a
+  panic (WP-1-14).** In Go, an array or object element panics inside the `map[any]`
+  insert or lookup, and the panic leaves the connection locked. Here it is
+  `json_contains::Error::Unhashable`, carrying the text Go's panic prints
+  (Q-107).
+- **D-54 `gojson` objects keep document order (WP-1-14).** Go's maps have no order,
+  so any order matches Go. Document order makes iteration deterministic. A
+  duplicate name keeps its first position and takes its last value.
+- **D-55 Only `gojson`'s error texts are ported (WP-1-14).** Go also returns a
+  partial value along with an error, and the error carries byte offsets.
+  Neither is ported, because only the texts reach Gorse.
+- **D-56 Go strings are bytes (WP-1-14).** URLs, DSNs, query keys and values, table
+  names and gorm names are `Vec<u8>` / `impl AsRef<[u8]>`. Gorm's mixed
+  byte and rune indexing can produce invalid UTF-8 exactly where Go's does.
+  `DsnError`'s `Display` shows U+FFFD, and `DsnError::error_bytes` gives
+  Go's bytes.
+- **D-57 A non-UTF-8 MySQL `loc` name (WP-1-14).** `LoadLocation` takes a `&str`.
+  A name with `..`, a leading `/` or a leading `\` is `InvalidName`, as in
+  Go. Any other non-UTF-8 name is `UnknownTimeZone`: zone files have ASCII
+  names, so Go finds none, and the golden cases confirm it.
+- **D-58 `probe_mysql_isolation_variable_name` takes the query as a
+  closure (WP-1-14).** Go opens a connection with the driver. Here the caller passes a
+  function that runs the query on the parsed `Config`. The DSN is parsed
+  first, as Go's `sql.Open` (`OpenConnector`) does, so a DSN error comes
+  before any connection.
+- **D-59 Only gorm's singular names are ported (WP-1-14).** `NewGORMConfig` always
+  sets `SingularTable: true`, so `jinzhu/inflection`'s plurals are not
+  ported, and neither are `SchemaName` or `RelationshipFKName` (Gorse has no
+  relationships). `GormConfig` has no logger: Go sets a silent one.
+- **D-60 Only the DSN side of go-sql-driver/mysql is ported (WP-1-14).** The
+  connection side (`Logger`, `DialFunc`, `BeforeConnect`, `Config.Apply`) is
+  not. A failed `parse_dsn` returns no partial `Config`. A `strict`
+  parameter panics with Go's message, as in v1.9.3.
+- **D-61 `Opt` is a boxed `Fn(&mut Options)` (WP-1-14)** (Go's `func(*Options)`).
+  The counts are `i64`, because Go's `int` is 64 bits on every platform
+  Gorse ships for. `apply_sql_pool` takes a `SqlPool` trait standing in for
+  `*sql.DB`.
 
 ## Open questions for Ritchie
 

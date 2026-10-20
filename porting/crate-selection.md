@@ -61,6 +61,8 @@ carries unused dependencies.
 | bits-and-blooms/bitset | `fixedbitset` | 0.5.7 | MIT/Apache | Small, dependency-free | `bitvec` 1.1.1 |
 | compress/gzip | `flate2` | 1.1.10 | MIT/Apache | — | — |
 | JSON | `serde`, `serde_json` | 1.0.229, 1.0.154 | MIT/Apache | — | — |
+| encoding/json where Go's decoding is observable (`json.Unmarshal` into `any`, `[]any`, `map[string]any`) | hand port `gorse_common::gojson`, objects in `indexmap` | 2.14.2 | MIT/Apache | Go 1.27 runs v1 `Unmarshal` on the v2 decoder; its error texts, duplicate names, invalid UTF-8, nesting limit and float overflow reach users through `json_contains` and config errors, and `serde_json` differs on each. `indexmap` keeps object names in document order (WP-1-14, WP-1-15) | `serde_json` with `preserve_order` (other errors and rules) |
+| crypto/sha1 (gorm's `formatName`) | `sha1` | 0.11.0 | MIT/Apache | gorm cuts long index and constraint names and appends SHA-1 hex digits (WP-1-14) | — |
 | regexp (RE2) | `regex` | 1.13.1 | MIT/Apache | Same leftmost-first semantics and anchoring as RE2 for the patterns Gorse uses, so `common/expression` keeps the Go pattern verbatim; checked against a Go corpus (WP-1-7) | a hand-written matcher (equivalent here, but no longer the Go pattern) |
 | time | none: hand port of Go's `time` (`gorse_common::gotime`) | n/a | n/a | Go's exact layouts, parse errors, `Time.String()` with the monotonic suffix, `ParseDuration` and the TZif reader; `chrono` would contribute nothing (`PORTING.md` C-13) | `time` |
 | errors | `thiserror` | 2.0.21 | MIT/Apache | Typed errors so callers can match kinds like Go's `errors.Is` | — |

@@ -498,6 +498,49 @@ said otherwise), so the Rust result is Go's.
   size 1; `gostrconv::parse_int` has the same logic (by reading the code; its
   tests do not exercise that case).
 
+### Storage core and Go library ports (WP-1-14)
+
+- **Q-106 go1.27 `ParseFloat` past 800 digits.** `decimal.set` keeps 800
+  digits, but it takes the decimal point from the capped count. A mantissa
+  longer than that with a nonzero tail therefore parses wrongly. The bits of
+  `ParseFloat(s, 64)`, matched by the port at both `SetOptimize` settings:
+
+  | s | Go bits |
+  |---|---|
+  | `"9007199254740993" + "0"*790 + "1e-791"` | `41cad7f29abcaf49` (9.007199254740993e+08) |
+  | `"9007199254740993" + "0"*900 + "1e-901"` | `2af42c7ff0054685` (9.007199254740992e-102) |
+  | `"9007199254740993" + "0"*700 + "1e-701"` | `4340000000000001` |
+  | `"0." + "0"*900 + "1e-901"` | `0` |
+
+  A correctly rounding parser gives `4340000000000001` for the first three.
+  `gojson` reaches this through any JSON number that long.
+- **Q-107 Unhashable `json_contains` elements have two texts.**
+  - Inserting into a map, or looking up in a non-empty one, goes through
+    `typehash`: `runtime error: hash of unhashable type []interface {}` (or
+    `map[string]interface {}`).
+  - A lookup in an empty map goes through `mapKeyError`: `hash of unhashable
+    type: []interface {}`.
+
+  `-0` and `0` are the same key.
+- **Q-108 modernc's SQLite boundary.** This is what Go sees, and the Rust
+  SQLite glue must reproduce it:
+  - A `TEXT` argument arrives through `libc.GoString`, so it ends at its
+    first NUL (`modernc_text`). A `BLOB` keeps every byte, `INTEGER` is
+    `int64` and `REAL` is `float64` (both are "unsupported type").
+  - A function error passes through `libc.CString`, so it is cut at a NUL,
+    and is reported as `SQL logic error: <msg> (1)`, or `SQL logic error
+    (1)` when the message is SQLite's own (`modernc_error_text`).
+  - A `bool` result is integer 1 or 0.
+  - A nil `[]byte` binds as `NULL`.
+- **Q-109 `AppendURLParams` re-encodes the whole query.** The keys come
+  out sorted (`Values.Encode`), and an existing pair that does not parse is
+  dropped silently. A Windows path parses as a URL with scheme `c`, and the
+  ported Go test pins it.
+- **Q-110 Raw bytes in MySQL DSN errors.** Some error texts carry the
+  DSN's bytes unchanged, invalid UTF-8 included: an unknown network's default
+  address, the TLS config and server public key names, bool values, time
+  zones, `timeTruncate`, and a reserved TLS key.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -693,3 +736,15 @@ said otherwise), so the Rust result is Go's.
   (its test data is left out); the patch in `third_party/rustls` is covered by
   `util_tls_server_ignores_a_host_and_port_server_name` and the interop check
   instead (`third_party/rustls/GORSE.md`).
+- **O-6** The SQLite stores register `json_contains` as deterministic,
+  with two arguments, on every connection (Q-25). The glue must:
+  - map SQLite values to `json_contains::Arg`, `TEXT` through
+    `modernc_text`;
+  - return `NULL` for `None` and an integer for the bool;
+  - report errors with `modernc_error_text`;
+  - bind an absent blob as `NULL`.
+
+  How to surface `Error::Unhashable`, where Go locks the connection, is that
+  WP's call: a query error is the natural one.
+- **O-7** The MySQL stores call `probe_mysql_isolation_variable_name`
+  with their driver, and `apply_sql_pool` on their pool.
