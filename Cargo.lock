@@ -467,6 +467,8 @@ version = "0.0.0"
 dependencies = [
  "gorse-common",
  "gorse-storage-core",
+ "serde_json",
+ "stacker",
 ]
 
 [[package]]
