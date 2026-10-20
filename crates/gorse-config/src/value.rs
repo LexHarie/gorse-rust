@@ -3,7 +3,7 @@
 //! Go values of static type `any`, as viper holds them: what the format
 //! decoders leave in a `map[string]any`, the typed defaults of `SetDefault`
 //! and the strings of environment variables. mapstructure's messages name the
-//! Go type or kind of a value ([`Value::type_name`], [`Value::kind_name`]), so
+//! Go type or kind of a value ([`Value::type_name`], [`Value::kind`]), so
 //! the variants keep Go's types apart even where the numbers are the same
 //! (`int` from YAML, `int64` from TOML).
 
