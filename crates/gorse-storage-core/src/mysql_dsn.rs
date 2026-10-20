@@ -11,9 +11,9 @@
 //! and the normalization between them, which `storage.AppendMySQLParams`
 //! uses to add parameters to a MySQL DSN.
 //!
-//! Go strings are bytes, so the DSN and every text field are bytes; error
-//! texts show invalid UTF-8 replaced by U+FFFD and keep Go's bytes in their
-//! fields.
+//! Go strings are bytes, so the DSN and every text field are bytes. Error
+//! texts show invalid UTF-8 replaced by U+FFFD; [`DsnError::error_bytes`]
+//! gives Go's bytes.
 //!
 //! Only the DSN side of the driver is here. The connection side (`Logger`,
 //! `DialFunc`, `BeforeConnect` and the functional options applied with
@@ -38,7 +38,8 @@ pub const DEFAULT_MAX_ALLOWED_PACKET: i64 = 64 << 20;
 ///
 /// Where Go's text embeds a value, the variant keeps its bytes; the text
 /// shows them with invalid UTF-8 replaced by U+FFFD, where Go writes them
-/// raw. Variants that wrap with `%w` in Go report the wrapped error as their
+/// raw, and [`DsnError::error_bytes`] writes them raw. Variants that wrap
+/// with `%w` in Go report the wrapped error as their
 /// [`std::error::Error::source`]; those that format it with `%v` do not.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum DsnError {
@@ -85,6 +86,10 @@ pub enum DsnError {
     /// `time.LoadLocation` cannot load the `loc` value.
     #[error(transparent)]
     Location(LocationError),
+    /// A `loc` value that is not UTF-8, which names no zone: Go's
+    /// `time.LoadLocation` reports it unknown (zone files have ASCII names).
+    #[error("unknown time zone {}", lossy(.0))]
+    UnknownTimeZone(Vec<u8>),
     /// The `timeTruncate` value is not a duration (Go's
     /// `fmt.Errorf("invalid timeTruncate value: %v, error: %w", value, err)`).
     #[error("invalid timeTruncate value: {}, error: {source}", lossy(.value))]
@@ -118,6 +123,37 @@ pub enum DsnError {
 
 fn lossy(b: &[u8]) -> String {
     String::from_utf8_lossy(b).into_owned()
+}
+
+impl DsnError {
+    /// Go's `err.Error()`: the text with the bytes of the value it embeds
+    /// as they are, so not always UTF-8.
+    pub fn error_bytes(&self) -> Vec<u8> {
+        let raw = |before: &str, value: &[u8], after: &str| {
+            [before.as_bytes(), value, after.as_bytes()].concat()
+        };
+        match self {
+            DsnError::UnknownDefaultAddr(net) => {
+                raw("default addr for network '", net, "' unknown")
+            }
+            DsnError::UnknownTlsConfig(name) => {
+                raw("invalid value / unknown config name: ", name, "")
+            }
+            DsnError::UnknownServerPubKey(name) => {
+                raw("invalid value / unknown server pub key name: ", name, "")
+            }
+            DsnError::InvalidBool(value) => raw("invalid bool value: ", value, ""),
+            DsnError::UnknownTimeZone(name) => raw("unknown time zone ", name, ""),
+            DsnError::InvalidTimeTruncate { value, source } => raw(
+                "invalid timeTruncate value: ",
+                value,
+                &format!(", error: {source}"),
+            ),
+            DsnError::ReservedTlsKey(key) => raw("key '", key, "' is reserved"),
+            // The other texts quote what they embed, so they are UTF-8.
+            e => e.to_string().into_bytes(),
+        }
+    }
 }
 
 /// The part of Go's `*tls.Config` that the DSN handling sets and reads.
@@ -850,10 +886,21 @@ fn parse_dsn_params(cfg: &mut Config, params: &[u8]) -> Result<(), DsnError> {
             // Time Location
             b"loc" => {
                 let name = query_unescape(value).map_err(DsnError::Escape)?;
-                // A zone name is text; a name that is not UTF-8 is looked
-                // up with its invalid bytes replaced.
-                cfg.loc =
-                    load_location(&String::from_utf8_lossy(&name)).map_err(DsnError::Location)?;
+                cfg.loc = match std::str::from_utf8(&name) {
+                    Ok(name) => load_location(name).map_err(DsnError::Location)?,
+                    // Not UTF-8: Go's LoadLocation rejects the name as it
+                    // rejects any name with ".." or a leading slash or
+                    // backslash, and otherwise finds no zone by it (zone
+                    // files have ASCII names).
+                    Err(_)
+                        if name.windows(2).any(|w| w == b"..")
+                            || name.starts_with(b"/")
+                            || name.starts_with(b"\\") =>
+                    {
+                        return Err(DsnError::Location(LocationError::InvalidName));
+                    }
+                    Err(_) => return Err(DsnError::UnknownTimeZone(name)),
+                };
             }
 
             // multiple statements in one query

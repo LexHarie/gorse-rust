@@ -6,11 +6,12 @@
 //! This is a separate crate because `config` imports it while `storage/data`
 //! and `storage/blob` import `config`; see `porting/crate-selection.md`.
 //!
-//! `storage/scheme.go` leans on three libraries whose behaviour the stores
-//! depend on, so their parts are ported here too: go-sql-driver/mysql's DSN
-//! parser ([`mysql_dsn`], for `AppendMySQLParams`), gorm's naming strategy
-//! ([`gorm_naming`], for `NewGORMConfig`) and the `encoding/json` decoding
-//! behind the SQLite `json_contains` function ([`json_contains`]).
+//! `storage/scheme.go` leans on libraries whose behaviour the stores depend
+//! on, so their parts are ported here too: go-sql-driver/mysql's DSN parser
+//! ([`mysql_dsn`], for `AppendMySQLParams`) and gorm's naming strategy
+//! ([`gorm_naming`], for `NewGORMConfig`). The SQLite `json_contains`
+//! function ([`json_contains`]) decodes with `gorse_common::gojson`, the port
+//! of Go's `encoding/json`.
 
 pub mod errors;
 pub mod gorm_naming;
