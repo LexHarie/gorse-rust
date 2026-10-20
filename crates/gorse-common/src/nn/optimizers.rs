@@ -40,7 +40,11 @@ struct Base {
 
 impl Base {
     fn new(params: Vec<Tensor>) -> Base {
-        Base { params, wd: 0.0, jobs: 0 }
+        Base {
+            params,
+            wd: 0.0,
+            jobs: 0,
+        }
     }
 
     /// The size of the buffers: the largest parameter.
@@ -134,7 +138,10 @@ impl Optimizer for SGD {
             }
             let grad = p.grad().unwrap_or_else(|| nil_dereference());
             p.update_from(&grad, |p, g| {
-                let jobs = split(&parts, p).into_iter().zip(slices(&parts, g)).zip(split(&parts, b));
+                let jobs = split(&parts, p)
+                    .into_iter()
+                    .zip(slices(&parts, g))
+                    .zip(split(&parts, b));
                 run_parts(jobs.collect(), |((p, g), b)| {
                     floats::mul_const_add_to(p, wd, g, b);
                     floats::mul_const_add(b, -lr, p);

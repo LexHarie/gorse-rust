@@ -324,5 +324,47 @@ func opCases() []testCase {
 				lit([]float32{1, -1, 1, -1, 1}, 5), lit([]float32{100, -100, 0, 1e-30, nan}, 5))
 		}},
 	}...)
+
+	// NaNs of distinct payloads, quiet and signaling, meet in each operation,
+	// so that which operand's NaN a result carries is checked.
+	nx := func() *nn.Tensor {
+		return lit([]float32{bits(0x7fc00011), bits(0x7fc00012), 1, bits(0x7f800013), bits(0xffc00014), 2}, 2, 3)
+	}
+	ny := func() *nn.Tensor {
+		return lit([]float32{bits(0x7fc00021), 3, bits(0x7fc00022), bits(0xffc00023), bits(0x7f800024), bits(0x7fc00025)}, 2, 3)
+	}
+	nz := func() *nn.Tensor { return lit([]float32{bits(0x7fc00031)}) }
+	for _, c := range []struct {
+		name string
+		f    func([]*nn.Tensor) *nn.Tensor
+	}{
+		{"add", add}, {"sub", sub}, {"mul", mul}, {"div", div}, {"pow", pow},
+		{"mse", binop(nn.MeanSquareError)},
+		{"matmul", func(in []*nn.Tensor) *nn.Tensor { return nn.MatMul(in[0], in[1], false, true, 0) }},
+		{"maximum_relu", func(in []*nn.Tensor) *nn.Tensor { return nn.ReLu(nn.Add(in[0], in[1])) }},
+	} {
+		cs = append(cs, testCase{"op/nan/" + c.name, func(r *rec) { opCase(r, c.f, nx(), ny()) }})
+	}
+	for _, c := range []struct {
+		name string
+		f    func([]*nn.Tensor) *nn.Tensor
+	}{
+		{"add_scalar", add}, {"sub_scalar", sub}, {"mul_scalar", mul}, {"div_scalar", div}, {"pow_scalar", pow},
+	} {
+		cs = append(cs, testCase{"op/nan/" + c.name, func(r *rec) { opCase(r, c.f, nx(), nz()) }})
+	}
+	for _, c := range []struct {
+		name string
+		f    func(*nn.Tensor) *nn.Tensor
+	}{
+		{"sum", func(x *nn.Tensor) *nn.Tensor { return nn.Sum(x) }},
+		{"sum_along0", func(x *nn.Tensor) *nn.Tensor { return nn.Sum(x, 0) }},
+		{"mean", nn.Mean},
+		{"square", nn.Square},
+		{"softmax", func(x *nn.Tensor) *nn.Tensor { return nn.Softmax(x, 1) }},
+		{"sigmoid", nn.Sigmoid},
+	} {
+		cs = append(cs, testCase{"op/nan/" + c.name, func(r *rec) { opCase(r, unary(c.f), nx()) }})
+	}
 	return cs
 }

@@ -4,6 +4,11 @@
 
 //! The operators of the computation graph, their gradients, and the
 //! backward pass.
+//!
+//! Where two elements meet in `+` or `*`, they go through
+//! [`floats::add_first`] and [`floats::mul_first`] in the order of the
+//! instructions Go compiles (read with `go tool objdump`), which decides
+//! which NaN a result carries.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Weak};
@@ -13,7 +18,8 @@ use crate::math32;
 
 use super::golang;
 use super::tensor::{
-    Inner, Tensor, go_index, inference_mode, modulo, new_scalar, new_tensor, nil_dereference, ones, zeros,
+    Inner, Tensor, go_index, inference_mode, modulo, new_scalar, new_tensor, nil_dereference, ones,
+    zeros,
 };
 
 /// An operator, with what its forward and backward passes need besides its
@@ -32,17 +38,33 @@ pub(crate) enum Op {
     Log,
     Abs,
     Sum,
-    PartialSum { along: i64 },
+    PartialSum {
+        along: i64,
+    },
     Mean,
-    MatMul { transpose1: bool, transpose2: bool, jobs: usize },
-    BatchMatMul { transpose1: bool, transpose2: bool, jobs: usize },
-    Broadcast { shape: Vec<usize> },
+    MatMul {
+        transpose1: bool,
+        transpose2: bool,
+        jobs: usize,
+    },
+    BatchMatMul {
+        transpose1: bool,
+        transpose2: bool,
+        jobs: usize,
+    },
+    Broadcast {
+        shape: Vec<usize>,
+    },
     Flatten,
-    Reshape { shape: Vec<usize> },
+    Reshape {
+        shape: Vec<usize>,
+    },
     Embedding,
     Sigmoid,
     ReLU,
-    Softmax { axis: isize },
+    Softmax {
+        axis: isize,
+    },
     SoftmaxCrossEntropy,
 }
 
@@ -97,7 +119,12 @@ pub(crate) fn apply(op: Op, inputs: Vec<Tensor>) -> Tensor {
     } else {
         let generation = inputs.iter().map(Tensor::generation).max().unwrap_or(0) + 1;
         let output = Arc::downgrade(&y.0);
-        y.set_op(Some(Arc::new(Node { op, inputs, output, generation })));
+        y.set_op(Some(Arc::new(Node {
+            op,
+            inputs,
+            output,
+            generation,
+        })));
     }
     y
 }
@@ -162,7 +189,10 @@ fn forward(op: &Op, inputs: &[Tensor]) -> Tensor {
             });
             y
         }
-        Op::Sum => new_tensor(vec![x.read(|d| d.iter().fold(0.0, |s, &v| s + v))], &[]),
+        Op::Sum => new_tensor(
+            vec![x.read(|d| d.iter().fold(0.0, |s, &v| floats::add_first(s, v)))],
+            &[],
+        ),
         Op::PartialSum { along } => {
             let shape = x.shape();
             let (s1, s2, s3) = squash(&shape, *along);
@@ -177,7 +207,8 @@ fn forward(op: &Op, inputs: &[Tensor]) -> Tensor {
                 for i in 0..s1 {
                     for j in 0..s2 {
                         for k in 0..s3 {
-                            data[i * s3 + k] += d[i * s2 * s3 + j * s3 + k];
+                            data[i * s3 + k] =
+                                floats::add_first(data[i * s3 + k], d[i * s2 * s3 + j * s3 + k]);
                         }
                     }
                 }
@@ -185,13 +216,20 @@ fn forward(op: &Op, inputs: &[Tensor]) -> Tensor {
             new_tensor(data, &out_shape)
         }
         Op::Mean => {
-            let (sum, n) = x.read(|d| (d.iter().fold(0.0, |s, &v| s + v), d.len()));
+            let (sum, n) =
+                x.read(|d| (d.iter().fold(0.0, |s, &v| floats::add_first(s, v)), d.len()));
             new_tensor(vec![sum / n as f32], &[])
         }
-        Op::MatMul { transpose1, transpose2, jobs } => x.mat_mul(&inputs[1], *transpose1, *transpose2, *jobs),
-        Op::BatchMatMul { transpose1, transpose2, jobs } => {
-            x.batch_mat_mul(&inputs[1], *transpose1, *transpose2, *jobs)
-        }
+        Op::MatMul {
+            transpose1,
+            transpose2,
+            jobs,
+        } => x.mat_mul(&inputs[1], *transpose1, *transpose2, *jobs),
+        Op::BatchMatMul {
+            transpose1,
+            transpose2,
+            jobs,
+        } => x.batch_mat_mul(&inputs[1], *transpose1, *transpose2, *jobs),
         Op::Broadcast { shape } => {
             let mut out_shape = x.shape();
             out_shape.extend_from_slice(shape);
@@ -275,7 +313,9 @@ fn forward(op: &Op, inputs: &[Tensor]) -> Tensor {
 
 impl Node {
     fn output(&self) -> Tensor {
-        self.output.upgrade().map_or_else(|| nil_dereference(), Tensor::from_inner)
+        self.output
+            .upgrade()
+            .map_or_else(|| nil_dereference(), Tensor::from_inner)
     }
 
     /// The gradients of the inputs, from the gradient `dy` of the output.
@@ -296,7 +336,7 @@ impl Node {
                         if sub {
                             g[j] -= d;
                         } else {
-                            g[j] += d;
+                            g[j] = floats::add_first(g[j], d);
                         }
                     }
                 });
@@ -310,7 +350,11 @@ impl Node {
                 let (dy, x0) = (dy.data(), x.data());
                 gx1.write(|g| {
                     for (i, &d) in dy.iter().enumerate() {
-                        g[modulo(i, w_size)] += d * x0[go_index(i, x0.len())];
+                        let j = modulo(i, w_size);
+                        g[j] = floats::add_first(
+                            g[j],
+                            floats::mul_first(d, x0[go_index(i, x0.len())]),
+                        );
                     }
                 });
                 vec![gx0, gx1]
@@ -329,7 +373,8 @@ impl Node {
                     for (i, &d) in dy.iter().enumerate() {
                         let j = modulo(i, w_size);
                         let x1j = x1[go_index(j, x1.len())];
-                        g[go_index(j, g.len())] -= d * x0[go_index(i, x0.len())] / x1j / x1j;
+                        g[go_index(j, g.len())] -=
+                            floats::mul_first(d, x0[go_index(i, x0.len())]) / x1j / x1j;
                     }
                 });
                 vec![gx0, gx1]
@@ -359,7 +404,11 @@ impl Node {
                 dx1.write(|g| {
                     for (i, &d) in dy.iter().enumerate() {
                         let j = go_index(modulo(i, w_size), g.len());
-                        g[j] += d * y[go_index(i, y.len())] * math32::log(x0[go_index(i, x0.len())]);
+                        // `g + log * (dy * y)` with the NaN of each left
+                        // operand first, as Go's compiled code.
+                        let dy_y = floats::mul_first(d, y[go_index(i, y.len())]);
+                        let log = math32::log(x0[go_index(i, x0.len())]);
+                        g[j] = floats::add_first(g[j], floats::mul_first(log, dy_y));
                     }
                 });
                 vec![dx0, dx1]
@@ -382,7 +431,11 @@ impl Node {
                 let dx = zeros(&x.shape());
                 let d0 = dy.read(|d| d[go_index(0, d.len())]);
                 dx.write(|d| {
-                    let v = if matches!(self.op, Op::Mean) { d0 / d.len() as f32 } else { d0 };
+                    let v = if matches!(self.op, Op::Mean) {
+                        d0 / d.len() as f32
+                    } else {
+                        d0
+                    };
                     d.fill(v);
                 });
                 vec![dx]
@@ -402,21 +455,41 @@ impl Node {
                 });
                 vec![dx]
             }
-            Op::MatMul { transpose1, transpose2, jobs } => {
+            Op::MatMul {
+                transpose1,
+                transpose2,
+                jobs,
+            } => {
                 let (x0, x1, jobs) = (x, &inputs[1], *jobs);
                 let (dx0, dx1) = match (transpose1, transpose2) {
                     // y = x0 * x1: dx0 = dy * x1^T, dx1 = x0^T * dy
-                    (false, false) => (dy.mat_mul(x1, false, true, jobs), x0.mat_mul(dy, true, false, jobs)),
+                    (false, false) => (
+                        dy.mat_mul(x1, false, true, jobs),
+                        x0.mat_mul(dy, true, false, jobs),
+                    ),
                     // y = x0^T * x1: dx0 = x1 * dy^T, dx1 = x0 * dy
-                    (true, false) => (x1.mat_mul(dy, false, true, jobs), x0.mat_mul(dy, false, false, jobs)),
+                    (true, false) => (
+                        x1.mat_mul(dy, false, true, jobs),
+                        x0.mat_mul(dy, false, false, jobs),
+                    ),
                     // y = x0 * x1^T: dx0 = dy * x1, dx1 = dy^T * x0
-                    (false, true) => (dy.mat_mul(x1, false, false, jobs), dy.mat_mul(x0, true, false, jobs)),
+                    (false, true) => (
+                        dy.mat_mul(x1, false, false, jobs),
+                        dy.mat_mul(x0, true, false, jobs),
+                    ),
                     // y = x0^T * x1^T: dx0 = x1^T * dy^T, dx1 = dy^T * x0^T
-                    (true, true) => (x1.mat_mul(dy, true, true, jobs), dy.mat_mul(x0, true, true, jobs)),
+                    (true, true) => (
+                        x1.mat_mul(dy, true, true, jobs),
+                        dy.mat_mul(x0, true, true, jobs),
+                    ),
                 };
                 vec![dx0, dx1]
             }
-            Op::BatchMatMul { transpose1, transpose2, jobs } => {
+            Op::BatchMatMul {
+                transpose1,
+                transpose2,
+                jobs,
+            } => {
                 let (x0, x1, jobs) = (x, &inputs[1], *jobs);
                 let (dx0, dx1) = match (transpose1, transpose2) {
                     (false, false) => (
@@ -445,7 +518,7 @@ impl Node {
                 gx.write(|g| {
                     for (i, v) in g.iter_mut().enumerate() {
                         for &d in &dy[i * w_size..(i + 1) * w_size] {
-                            *v += d;
+                            *v = floats::add_first(*v, d);
                         }
                     }
                 });
@@ -464,7 +537,8 @@ impl Node {
                         let index = index_of(v).wrapping_mul(dim_go);
                         for j in 0..dim {
                             let k = index.wrapping_add(golang::int(j));
-                            g[golang::index(k, g.len())] += dy[go_index(i * dim + j, dy.len())];
+                            let k = golang::index(k, g.len());
+                            g[k] = floats::add_first(g[k], dy[go_index(i * dim + j, dy.len())]);
                         }
                     }
                 });
@@ -495,7 +569,9 @@ impl Node {
                 let t = &inputs[1];
                 let labels = t.data();
                 // gy *= 1/N
-                let gy = dy.clone_tensor().mul(&new_scalar(1.0 / labels.len() as f32));
+                let gy = dy
+                    .clone_tensor()
+                    .mul(&new_scalar(1.0 / labels.len() as f32));
                 // y = softmax(x)
                 let y = x.clone_tensor();
                 y.b_sub(&x.max(1, true));
@@ -507,7 +583,9 @@ impl Node {
                 let cols = golang::int(shape[1]);
                 one_hot.write(|d| {
                     for (i, &label) in labels.iter().enumerate() {
-                        let k = golang::int(i).wrapping_mul(cols).wrapping_add(index_of(label));
+                        let k = golang::int(i)
+                            .wrapping_mul(cols)
+                            .wrapping_add(index_of(label));
                         d[golang::index(k, d.len())] = 1.0;
                     }
                 });
@@ -626,4 +704,3 @@ pub(crate) fn backward(t: &Tensor) {
         output.set_grad(None);
     }
 }
-

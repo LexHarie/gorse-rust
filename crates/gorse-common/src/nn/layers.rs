@@ -110,7 +110,9 @@ pub struct EmbeddingLayer {
 pub fn new_embedding(n: usize, shape: &[usize]) -> EmbeddingLayer {
     let mut w_shape = vec![n];
     w_shape.extend_from_slice(shape);
-    EmbeddingLayer { w: normal(0.0, 0.01, &w_shape) }
+    EmbeddingLayer {
+        w: normal(0.0, 0.01, &w_shape),
+    }
 }
 
 impl Layer for EmbeddingLayer {
@@ -245,7 +247,13 @@ impl Layer for Attention {
     }
 
     fn forward(&self, x: &Tensor) -> Tensor {
-        mul(&softmax(&mat_mul(&relu(&self.w.forward(x)), &self.h, false, false, self.jobs), 1), x)
+        mul(
+            &softmax(
+                &mat_mul(&relu(&self.w.forward(x)), &self.h, false, false, self.jobs),
+                1,
+            ),
+            x,
+        )
     }
 
     /// Sets the threads of `W`, and its own, at least 1.
@@ -296,7 +304,10 @@ pub struct Field {
 impl Field {
     /// An exported field.
     pub fn exported(name: &'static str, value: Reflected) -> Field {
-        Field { name, value: Some(value) }
+        Field {
+            name,
+            value: Some(value),
+        }
     }
 
     /// An unexported field.
@@ -373,7 +384,11 @@ pub enum Error {
 
 /// The text of Go's `strconv.ErrRange` or `strconv.ErrSyntax`.
 fn atoi_reason(out_of_range: &bool) -> &'static str {
-    if *out_of_range { "value out of range" } else { "invalid syntax" }
+    if *out_of_range {
+        "value out of range"
+    } else {
+        "invalid syntax"
+    }
 }
 
 /// Writes every tensor of `o` as a length-delimited `protocol.Tensor` keyed
@@ -438,7 +453,10 @@ pub fn save(o: &(impl Reflect + ?Sized), w: &mut impl Write) -> Result<(), Error
 /// range.
 pub fn load(o: &(impl Reflect + ?Sized), r: &mut impl Read) -> Result<(), Error> {
     fn place(v: Reflected, key: &[String], m: &Message) -> Result<(), Error> {
-        let first = || key.first().ok_or_else(|| Error::Panic(golang::index_panic(0, 0)));
+        let first = || {
+            key.first()
+                .ok_or_else(|| Error::Panic(golang::index_panic(0, 0)))
+        };
         match v {
             Reflected::Tensor(t) => {
                 let shape = m

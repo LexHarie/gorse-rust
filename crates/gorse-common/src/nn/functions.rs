@@ -74,7 +74,9 @@ pub fn sub(x0: &Tensor, x1: &Tensor) -> Tensor {
         );
     }
     if !is_suffix(&s0, &s1) {
-        panic!("the shape of the second tensor must be a suffix sequence of the shape of the first tensor");
+        panic!(
+            "the shape of the second tensor must be a suffix sequence of the shape of the first tensor"
+        );
     }
     apply(Op::Sub, vec![x0.clone(), x1.clone()])
 }
@@ -117,7 +119,9 @@ pub fn div(x0: &Tensor, x1: &Tensor) -> Tensor {
         );
     }
     if !is_suffix(&s0, &s1) {
-        panic!("the shape of the second tensor must be a suffix sequence of the shape of the first tensor");
+        panic!(
+            "the shape of the second tensor must be a suffix sequence of the shape of the first tensor"
+        );
     }
     apply(Op::Div, vec![x0.clone(), x1.clone()])
 }
@@ -138,12 +142,16 @@ pub fn square(x: &Tensor) -> Tensor {
 pub fn pow(x: &Tensor, n: &Tensor) -> Tensor {
     let (sx, sn) = (x.shape(), n.shape());
     if sx.len() < sn.len() {
-        panic!("the shape of the second tensor must be a suffix sequence of the shape of the first tensor");
+        panic!(
+            "the shape of the second tensor must be a suffix sequence of the shape of the first tensor"
+        );
     }
     let offset = golang::int(sn.len()) - golang::int(sx.len());
     for i in 0..sn.len() {
         if dim(&sn, offset + golang::int(i)) != sx[i] {
-            panic!("the shape of the second tensor must be a suffix sequence of the shape of the first tensor");
+            panic!(
+                "the shape of the second tensor must be a suffix sequence of the shape of the first tensor"
+            );
         }
     }
     apply(Op::Pow, vec![x.clone(), n.clone()])
@@ -184,7 +192,12 @@ pub fn abs(x: &Tensor) -> Tensor {
 pub fn sum(x: &Tensor, along: &[isize]) -> Tensor {
     match along {
         [] => apply(Op::Sum, vec![x.clone()]),
-        &[along] => apply(Op::PartialSum { along: along as i64 }, vec![x.clone()]),
+        &[along] => apply(
+            Op::PartialSum {
+                along: along as i64,
+            },
+            vec![x.clone()],
+        ),
         _ => panic!("only one along is allowed"),
     }
 }
@@ -201,7 +214,14 @@ pub fn mean(x: &Tensor) -> Tensor {
 ///
 /// With Go's messages for tensors that are not 2-D or do not match.
 pub fn mat_mul(x: &Tensor, y: &Tensor, transpose1: bool, transpose2: bool, jobs: usize) -> Tensor {
-    apply(Op::MatMul { transpose1, transpose2, jobs }, vec![x.clone(), y.clone()])
+    apply(
+        Op::MatMul {
+            transpose1,
+            transpose2,
+            jobs,
+        },
+        vec![x.clone(), y.clone()],
+    )
 }
 
 /// The matrix products of the matrices of 3-D tensors, either transposed,
@@ -211,13 +231,25 @@ pub fn mat_mul(x: &Tensor, y: &Tensor, transpose1: bool, transpose2: bool, jobs:
 ///
 /// With Go's messages for tensors that are not 3-D or do not match.
 pub fn bmm(x: &Tensor, y: &Tensor, transpose1: bool, transpose2: bool, jobs: usize) -> Tensor {
-    apply(Op::BatchMatMul { transpose1, transpose2, jobs }, vec![x.clone(), y.clone()])
+    apply(
+        Op::BatchMatMul {
+            transpose1,
+            transpose2,
+            jobs,
+        },
+        vec![x.clone(), y.clone()],
+    )
 }
 
 /// Each element of `x` repeated over the dimensions `shape` appended to its
 /// shape (Go `Broadcast`).
 pub fn broadcast(x: &Tensor, shape: &[usize]) -> Tensor {
-    apply(Op::Broadcast { shape: shape.to_vec() }, vec![x.clone()])
+    apply(
+        Op::Broadcast {
+            shape: shape.to_vec(),
+        },
+        vec![x.clone()],
+    )
 }
 
 /// The tensor as one dimension, sharing its data (Go `Flatten`).
@@ -237,7 +269,12 @@ pub fn reshape(x: &Tensor, shape: &[usize]) -> Tensor {
     if size1 != size2 {
         panic!("the size of the tensor must be equal to the size of the new shape");
     }
-    apply(Op::Reshape { shape: shape.to_vec() }, vec![x.clone()])
+    apply(
+        Op::Reshape {
+            shape: shape.to_vec(),
+        },
+        vec![x.clone()],
+    )
 }
 
 /// The rows of `w` at the indices in `x`, converted to integers as Go does

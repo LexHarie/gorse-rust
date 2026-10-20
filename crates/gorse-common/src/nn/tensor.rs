@@ -140,7 +140,10 @@ impl Tensor {
     /// With Go's message when the data does not have the shape's size.
     pub(crate) fn share(view: View, shape: &[usize]) -> Tensor {
         check_size(view.len, shape);
-        Tensor::from_view(View { shape: shape.to_vec(), ..view })
+        Tensor::from_view(View {
+            shape: shape.to_vec(),
+            ..view
+        })
     }
 
     /// Go `fromPB`: new data and shape, not checked against each other.
@@ -212,7 +215,11 @@ impl Tensor {
     /// capacity, read, as Go slices `other.data[i:j]` for `j` up to the
     /// length of this one. Where both share a buffer, `other` is read before
     /// the write.
-    pub(crate) fn update_from<R>(&self, other: &Tensor, f: impl FnOnce(&mut [f32], &[f32]) -> R) -> R {
+    pub(crate) fn update_from<R>(
+        &self,
+        other: &Tensor,
+        f: impl FnOnce(&mut [f32], &[f32]) -> R,
+    ) -> R {
         let (va, vb) = (self.view(), other.view());
         let (ra, rb) = (va.offset..va.offset + va.len, vb.offset..vb.offset + vb.cap);
         if Arc::ptr_eq(&va.buf, &vb.buf) {
@@ -246,7 +253,12 @@ impl Tensor {
     /// order, as Go's loops run, with Go's message for an index past
     /// `other`. Where both share a buffer, each element of `other` is read as
     /// the loop reaches it, so earlier writes show through as in Go.
-    pub(crate) fn combine(&self, other: &Tensor, index: impl Fn(usize) -> usize, f: impl Fn(f32, f32) -> f32) {
+    pub(crate) fn combine(
+        &self,
+        other: &Tensor,
+        index: impl Fn(usize) -> usize,
+        f: impl Fn(f32, f32) -> f32,
+    ) {
         let (va, vb) = (self.view(), other.view());
         if Arc::ptr_eq(&va.buf, &vb.buf) {
             let mut g = write(&va.buf);
@@ -300,6 +312,12 @@ impl Tensor {
         self.view().shape
     }
 
+    /// The capacity of the data (Go `cap(t.data)`).
+    #[cfg(test)]
+    pub(crate) fn cap(&self) -> usize {
+        self.view().cap
+    }
+
     /// Rows `start..end` of the first dimension, sharing this tensor's data
     /// (Go `Slice`).
     ///
@@ -316,10 +334,12 @@ impl Tensor {
             panic!("slice out of range");
         }
         let sub_size: usize = view.shape[1..].iter().product();
-        let (low, high) = (start * sub_size, end * sub_size);
-        let mut shape = vec![end - start];
-        shape.extend_from_slice(&view.shape[1..]);
-        Tensor::from_view(view.reslice(low, high, shape))
+        // Go slices the data before it computes the shape, which panics when
+        // `start > end`.
+        let mut sliced = view.reslice(start * sub_size, end * sub_size, Vec::new());
+        sliced.shape = vec![end - start];
+        sliced.shape.extend_from_slice(&view.shape[1..]);
+        Tensor::from_view(sliced)
     }
 
     /// The rows at `indices` of the first dimension, copied (Go
@@ -472,7 +492,7 @@ impl Tensor {
     /// `t *= other`, `other` repeated along `t`.
     pub(crate) fn mul(&self, other: &Tensor) -> Tensor {
         let w_size: usize = other.shape().iter().product();
-        self.combine(other, |i| modulo(i, w_size), |x, o| x * o);
+        self.combine(other, |i| modulo(i, w_size), floats::mul_first);
         self.clone()
     }
 
@@ -538,7 +558,13 @@ impl Tensor {
 
     /// The matrix product of two 2-D tensors, either transposed, with the rows
     /// of the result split into `jobs` parts computed in parallel.
-    pub(crate) fn mat_mul(&self, other: &Tensor, transpose1: bool, transpose2: bool, jobs: usize) -> Tensor {
+    pub(crate) fn mat_mul(
+        &self,
+        other: &Tensor,
+        transpose1: bool,
+        transpose2: bool,
+        jobs: usize,
+    ) -> Tensor {
         let (xs, ys) = (self.shape(), other.shape());
         if xs.len() != 2 || ys.len() != 2 {
             panic!("matMul requires 2-D tensors");
@@ -556,7 +582,11 @@ impl Tensor {
                 golang::format_ints(&ys)
             );
         }
-        let (m, k) = if transpose1 { (xs[1], xs[0]) } else { (xs[0], xs[1]) };
+        let (m, k) = if transpose1 {
+            (xs[1], xs[0])
+        } else {
+            (xs[0], xs[1])
+        };
         let n = if transpose2 { ys[0] } else { ys[1] };
         // A part from row `a` reads `t.data[a*k:]`, or `t.data[a:]` with the
         // leading dimension `m` when `t` is transposed.
@@ -573,7 +603,19 @@ impl Tensor {
                 rest = tail;
             }
             run_parts(chunks, |(start, end, c)| {
-                floats::mm(transpose1, transpose2, end - start, n, k, &a[start * row_step..], lda, b, ldb, c, n);
+                floats::mm(
+                    transpose1,
+                    transpose2,
+                    end - start,
+                    n,
+                    k,
+                    &a[start * row_step..],
+                    lda,
+                    b,
+                    ldb,
+                    c,
+                    n,
+                );
             });
         });
         Tensor::raw(result, vec![m, n])
@@ -581,7 +623,13 @@ impl Tensor {
 
     /// The matrix products of the matrices of two 3-D tensors, either
     /// transposed, the batch spread over `jobs` workers.
-    pub(crate) fn batch_mat_mul(&self, other: &Tensor, transpose1: bool, transpose2: bool, jobs: usize) -> Tensor {
+    pub(crate) fn batch_mat_mul(
+        &self,
+        other: &Tensor,
+        transpose1: bool,
+        transpose2: bool,
+        jobs: usize,
+    ) -> Tensor {
         let (xs, ys) = (self.shape(), other.shape());
         if xs.len() != 3 || ys.len() != 3 {
             panic!("BatchMatMul requires 3-D tensors");
@@ -599,7 +647,11 @@ impl Tensor {
             panic!("batchMatMul requires the shapes of tensors are compatible");
         }
         let b = xs[0];
-        let (m, k) = if transpose1 { (xs[2], xs[1]) } else { (xs[1], xs[2]) };
+        let (m, k) = if transpose1 {
+            (xs[2], xs[1])
+        } else {
+            (xs[1], xs[2])
+        };
         let n = if transpose2 { ys[1] } else { ys[2] };
         let lda = if transpose1 { m } else { k };
         let ldb = if transpose2 { k } else { n };
@@ -615,7 +667,19 @@ impl Tensor {
             deps::parallel_for(b, jobs, |i| {
                 let a = &x[i * m * k..(i + 1) * m * k];
                 let bb = &y[i * n * k..(i + 1) * n * k];
-                floats::mm(transpose1, transpose2, m, n, k, a, lda, bb, ldb, &mut lock(&chunks[i]), n);
+                floats::mm(
+                    transpose1,
+                    transpose2,
+                    m,
+                    n,
+                    k,
+                    a,
+                    lda,
+                    bb,
+                    ldb,
+                    &mut lock(&chunks[i]),
+                    n,
+                );
             });
         });
         Tensor::raw(result, vec![b, m, n])
@@ -631,7 +695,11 @@ impl Tensor {
     /// `t.data[i] = t.data[i] > other.data[0 or i] ? 1 : 0`.
     pub(crate) fn gt(&self, other: &Tensor) -> Tensor {
         let scalar = other.is_scalar();
-        self.combine(other, |i| if scalar { 0 } else { i }, |x, o| if x > o { 1.0 } else { 0.0 });
+        self.combine(
+            other,
+            |i| if scalar { 0 } else { i },
+            |x, o| if x > o { 1.0 } else { 0.0 },
+        );
         self.clone()
     }
 
@@ -670,7 +738,12 @@ impl Tensor {
     /// The sum along `axis`. A 1-D tensor gives a scalar by `lo.Sum`, which
     /// starts from +0.
     pub(crate) fn sum(&self, axis: isize, keep_dim: bool) -> Tensor {
-        self.reduce(axis, keep_dim, |d| d.iter().fold(0.0, |s, &x| s + x), |s, x| s + x)
+        self.reduce(
+            axis,
+            keep_dim,
+            |d| d.iter().fold(0.0, |s, &x| floats::add_first(s, x)),
+            floats::add_first,
+        )
     }
 
     fn reduce(
@@ -764,12 +837,14 @@ pub(crate) fn go_index(i: usize, len: usize) -> usize {
 
 /// `i % n`, which Go rejects for `n == 0`.
 pub(crate) fn modulo(i: usize, n: usize) -> usize {
-    i.checked_rem(n).unwrap_or_else(|| panic!("runtime error: integer divide by zero"))
+    i.checked_rem(n)
+        .unwrap_or_else(|| panic!("runtime error: integer divide by zero"))
 }
 
 /// `i / n`, which Go rejects for `n == 0`.
 fn divide(i: usize, n: usize) -> usize {
-    i.checked_div(n).unwrap_or_else(|| panic!("runtime error: integer divide by zero"))
+    i.checked_div(n)
+        .unwrap_or_else(|| panic!("runtime error: integer divide by zero"))
 }
 
 /// Go's `bSize`: the size of `t` divided by each dimension of `other` in
@@ -842,8 +917,12 @@ impl fmt::Display for Tensor {
             data.iter().map(|&x| golang::format_float32(x)).collect()
         } else {
             let head = data[..5].iter().map(|&x| golang::format_float32(x));
-            let tail = data[data.len() - 5..].iter().map(|&x| golang::format_float32(x));
-            head.chain(std::iter::once("...".to_owned())).chain(tail).collect()
+            let tail = data[data.len() - 5..]
+                .iter()
+                .map(|&x| golang::format_float32(x));
+            head.chain(std::iter::once("...".to_owned()))
+                .chain(tail)
+                .collect()
         };
         write!(f, "[{}]", items.join(", "))
     }
@@ -868,7 +947,11 @@ pub fn new_tensor(data: Vec<f32>, shape: &[usize]) -> Tensor {
 fn check_size(len: usize, shape: &[usize]) {
     let size: usize = shape.iter().product();
     if len != size {
-        panic!("shape {} does not match data size {}", golang::format_ints(shape), len);
+        panic!(
+            "shape {} does not match data size {}",
+            golang::format_ints(shape),
+            len
+        );
     }
 }
 
@@ -907,7 +990,11 @@ pub fn uniform(low: f32, high: f32, shape: &[usize]) -> Tensor {
 /// Normal values from Go's global source (Go `Normal`).
 pub fn normal(mean: f32, std: f32, shape: &[usize]) -> Tensor {
     let n: usize = shape.iter().product();
-    let data = deps::global(|rng| (0..n).map(|_| rng.norm_float64() as f32 * std + mean).collect());
+    let data = deps::global(|rng| {
+        (0..n)
+            .map(|_| rng.norm_float64() as f32 * std + mean)
+            .collect()
+    });
     Tensor::raw(data, shape.to_vec())
 }
 
@@ -925,7 +1012,10 @@ pub fn zeros(shape: &[usize]) -> Tensor {
 /// source for `None` (Go `NormalInit`).
 pub fn normal_init(rng: Option<&mut dyn Rng>, t: &Tensor, mean: f32, std: f32) {
     let fill = |rng: &mut dyn Rng| {
-        t.write(|d| d.iter_mut().for_each(|x| *x = rng.norm_float64() as f32 * std + mean));
+        t.write(|d| {
+            d.iter_mut()
+                .for_each(|x| *x = rng.norm_float64() as f32 * std + mean)
+        });
     };
     match rng {
         Some(rng) => fill(rng),

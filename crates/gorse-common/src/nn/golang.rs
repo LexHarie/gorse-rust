@@ -85,12 +85,7 @@ pub(crate) fn format_float32(v: f32) -> String {
     if v == 0.0 {
         return format!("{sign}0");
     }
-    // Rust's `{:e}` of an `f32` writes its shortest round-trip digits too, as
-    // `d[.ddd]e<exp>`; only the layout differs from Go's.
-    let sci = format!("{:e}", v.abs());
-    let (mantissa, exp) = sci.split_once('e').expect("`{:e}` writes an exponent");
-    let exp: i32 = exp.parse().expect("`{:e}` writes a decimal exponent");
-    let digits: Vec<char> = mantissa.chars().filter(|&c| c != '.').collect();
+    let (digits, exp) = shortest_digits(v.abs());
     let nd = i32::try_from(digits.len()).expect("at most 9 digits");
     let mut out = String::from(sign);
     // Go: `exp < -4 || exp >= eprec`, with `eprec` 6 for shortest output.
@@ -129,6 +124,45 @@ pub(crate) fn format_float32(v: f32) -> String {
         }
     }
     out
+}
+
+/// The shortest decimal digits that read back to `v` (finite, positive), as
+/// Go's `shortFloat` picks them, and the decimal exponent of the first.
+///
+/// These are the digits of Rust's `{:e}`, except where two candidates are
+/// equally near `v`: Go takes the even one (`unrounded.round`), Rust the
+/// other one. `float32(3493168.25)` is `3.4931682e+06` in Go.
+fn shortest_digits(v: f32) -> (Vec<char>, i32) {
+    let split = |s: String| {
+        let (mantissa, exp) = s.split_once('e').expect("`{:e}` writes an exponent");
+        let exp: i32 = exp.parse().expect("`{:e}` writes a decimal exponent");
+        let digits: Vec<char> = mantissa.chars().filter(|&c| c != '.').collect();
+        (digits, exp)
+    };
+    let (digits, exp) = split(format!("{:e}", v));
+    // The exact value: an `f32` has at most 112 significant digits.
+    let (mut exact, exact_exp) = split(format!("{:.120e}", f64::from(v)));
+    while exact.last() == Some(&'0') {
+        exact.pop();
+    }
+    let nd = digits.len();
+    if exact_exp != exp || exact.len() != nd + 1 || exact[nd] != '5' {
+        return (digits, exp);
+    }
+    // `v` is halfway between the `nd`-digit numbers `low` and `low + 1`.
+    let low: u64 = exact[..nd]
+        .iter()
+        .collect::<String>()
+        .parse()
+        .expect("digits");
+    let even = low + low % 2;
+    let mut digits: Vec<char> = even.to_string().chars().collect();
+    let exp = exp + i32::try_from(digits.len()).expect("few digits")
+        - i32::try_from(nd).expect("few digits");
+    while digits.len() > 1 && digits.last() == Some(&'0') {
+        digits.pop();
+    }
+    (digits, exp)
 }
 
 /// Why `strconv.Atoi` rejects its input.
@@ -183,9 +217,18 @@ mod tests {
         assert_eq!(max32(1.0, 2.0), 2.0);
         assert_eq!(max32(2.0, 1.0), 2.0);
         // A negative NaN loses its sign against 0; a signalling NaN survives.
-        assert_eq!(max32(f32::from_bits(0xffc0_0000), 0.0).to_bits(), 0x7fc0_0000);
-        assert_eq!(max32(f32::from_bits(0x7f80_0001), 0.0).to_bits(), 0x7f80_0001);
-        assert_eq!(max32(0.0, f32::from_bits(0x7fc1_2345)).to_bits(), 0x7fc1_2345);
+        assert_eq!(
+            max32(f32::from_bits(0xffc0_0000), 0.0).to_bits(),
+            0x7fc0_0000
+        );
+        assert_eq!(
+            max32(f32::from_bits(0x7f80_0001), 0.0).to_bits(),
+            0x7f80_0001
+        );
+        assert_eq!(
+            max32(0.0, f32::from_bits(0x7fc1_2345)).to_bits(),
+            0x7fc1_2345
+        );
     }
 
     #[test]
@@ -194,12 +237,34 @@ mod tests {
             let e = std::panic::catch_unwind(f).expect_err("panics");
             e.downcast_ref::<String>().expect("message").clone()
         };
-        assert_eq!(msg(|| drop(index(-1, 3))), "runtime error: index out of range [-1]");
-        assert_eq!(msg(|| drop(index(3, 3))), "runtime error: index out of range [3] with length 3");
-        assert_eq!(msg(|| drop(slice(0, 7, 6))), "runtime error: slice bounds out of range [:7] with capacity 6");
-        assert_eq!(msg(|| drop(slice(4, 2, 6))), "runtime error: slice bounds out of range [4:2]");
-        assert_eq!(msg(|| drop(slice(-2, 0, 6))), "runtime error: slice bounds out of range [-2:]");
-        assert_eq!(msg(|| drop(slice(0, -1, 6))), "runtime error: slice bounds out of range [:-1]");
+        assert_eq!(
+            msg(|| {
+                let _ = index(-1, 3);
+            }),
+            "runtime error: index out of range [-1]"
+        );
+        assert_eq!(
+            msg(|| {
+                let _ = index(3, 3);
+            }),
+            "runtime error: index out of range [3] with length 3"
+        );
+        assert_eq!(
+            msg(|| drop(slice(0, 7, 6))),
+            "runtime error: slice bounds out of range [:7] with capacity 6"
+        );
+        assert_eq!(
+            msg(|| drop(slice(4, 2, 6))),
+            "runtime error: slice bounds out of range [4:2]"
+        );
+        assert_eq!(
+            msg(|| drop(slice(-2, 0, 6))),
+            "runtime error: slice bounds out of range [-2:]"
+        );
+        assert_eq!(
+            msg(|| drop(slice(0, -1, 6))),
+            "runtime error: slice bounds out of range [:-1]"
+        );
         assert_eq!(slice(2, 6, 6), 2..6);
     }
 

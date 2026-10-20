@@ -129,7 +129,8 @@ impl Message {
                     4
                 }
                 // An unknown field, or a known one of another wire type.
-                _ => consume_field_value(num, typ, b, RECURSION_LIMIT).ok_or(Error::InvalidWireFormat)?,
+                _ => consume_field_value(num, typ, b, RECURSION_LIMIT)
+                    .ok_or(Error::InvalidWireFormat)?,
             };
             b = &b[n..];
         }
@@ -262,7 +263,11 @@ pub(crate) fn read_delimited(r: &mut dyn Read) -> Result<Message, ReadError> {
     let read = r.take(length).read_to_end(&mut body).map_err(Error::Io)?;
     if (read as u64) < length {
         // `io.ReadFull`: io.EOF for nothing read, else io.ErrUnexpectedEOF.
-        return Err(if read == 0 { ReadError::Eof } else { Error::UnexpectedEof.into() });
+        return Err(if read == 0 {
+            ReadError::Eof
+        } else {
+            Error::UnexpectedEof.into()
+        });
     }
     Ok(Message::decode(&body)?)
 }
@@ -292,19 +297,35 @@ mod tests {
 
     fn random_message(s: &mut Seq) -> Message {
         let key = (0..s.below(4))
-            .map(|_| (0..s.below(6)).map(|_| char::from(b'A' + s.below(26) as u8)).collect())
+            .map(|_| {
+                (0..s.below(6))
+                    .map(|_| char::from(b'A' + s.below(26) as u8))
+                    .collect()
+            })
             .collect();
-        let shape = (0..s.below(4)).map(|_| s.next() as i32 >> s.below(32)).collect();
-        let data = (0..s.below(9)).map(|_| f32::from_bits(s.next() as u32)).collect();
+        let shape = (0..s.below(4))
+            .map(|_| s.next() as i32 >> s.below(32))
+            .collect();
+        let data = (0..s.below(9))
+            .map(|_| f32::from_bits(s.next() as u32))
+            .collect();
         Message { key, shape, data }
     }
 
     fn to_prost(m: &Message) -> gorse_protocol::Tensor {
-        gorse_protocol::Tensor { key: m.key.clone(), shape: m.shape.clone(), data: m.data.clone() }
+        gorse_protocol::Tensor {
+            key: m.key.clone(),
+            shape: m.shape.clone(),
+            data: m.data.clone(),
+        }
     }
 
     fn bits(m: &Message) -> (Vec<String>, Vec<i32>, Vec<u32>) {
-        (m.key.clone(), m.shape.clone(), m.data.iter().map(|x| x.to_bits()).collect())
+        (
+            m.key.clone(),
+            m.shape.clone(),
+            m.data.iter().map(|x| x.to_bits()).collect(),
+        )
     }
 
     #[test]
@@ -323,9 +344,13 @@ mod tests {
         // Unpacked repeated numbers, and unknown fields of every wire type,
         // a group among them, which are skipped.
         let mut b = vec![0x0a, 0x01, b'k'];
-        b.extend([0x10, 0x05, 0x10, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01]);
+        b.extend([
+            0x10, 0x05, 0x10, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01,
+        ]);
         b.extend([0x1d, 0x00, 0x00, 0x80, 0x3f]);
-        b.extend([0x20, 0x07, 0x29, 1, 2, 3, 4, 5, 6, 7, 8, 0x32, 0x00, 0x3d, 1, 2, 3, 4]);
+        b.extend([
+            0x20, 0x07, 0x29, 1, 2, 3, 4, 5, 6, 7, 8, 0x32, 0x00, 0x3d, 1, 2, 3, 4,
+        ]);
         b.extend([0x43, 0x08, 0x01, 0x44]);
         b.extend([0x12, 0x02, 0x03, 0x04, 0x1a, 0x04, 0x00, 0x00, 0x00, 0x40]);
         let ours = Message::decode(&b).expect("decodes");
@@ -344,7 +369,14 @@ mod tests {
         // rejects it instead).
         let b = [0x08, 0x01, 0x15, 0, 0, 0, 0, 0x18, 0x02, 0x0a, 0x00];
         let m = Message::decode(&b).expect("decodes");
-        assert_eq!(m, Message { key: vec![String::new()], shape: vec![], data: vec![] });
+        assert_eq!(
+            m,
+            Message {
+                key: vec![String::new()],
+                shape: vec![],
+                data: vec![]
+            }
+        );
     }
 
     #[test]
@@ -359,11 +391,26 @@ mod tests {
         assert!(invalid(&[0x12, 0x01, 0x80]), "a truncated packed varint");
         assert!(invalid(&[0x43, 0x4c]), "a group closed by another number");
         assert!(invalid(&[0x43]), "an unclosed group");
-        assert!(invalid(&[0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02]), "varint overflow");
-        assert!(invalid(&[0x80, 0x80, 0x80, 0x80, 0x10, 0x00]), "field number 2^29");
-        assert!(matches!(Message::decode(&[0x0a, 0x01, 0xff]), Err(Error::InvalidUtf8)));
+        assert!(
+            invalid(&[0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02]),
+            "varint overflow"
+        );
+        assert!(
+            invalid(&[0x80, 0x80, 0x80, 0x80, 0x10, 0x00]),
+            "field number 2^29"
+        );
+        assert!(matches!(
+            Message::decode(&[0x0a, 0x01, 0xff]),
+            Err(Error::InvalidUtf8)
+        ));
         let ok = |b: &[u8]| Message::decode(b).is_ok();
-        assert!(ok(&[0xf8, 0xff, 0xff, 0xff, 0x0f, 0x00]), "field number 2^29 - 1");
-        assert!(ok(&[0xfb, 0xff, 0xff, 0xff, 0x0f, 0xfc, 0xff, 0xff, 0xff, 0x0f]), "an empty group 2^29 - 1");
+        assert!(
+            ok(&[0xf8, 0xff, 0xff, 0xff, 0x0f, 0x00]),
+            "field number 2^29 - 1"
+        );
+        assert!(
+            ok(&[0xfb, 0xff, 0xff, 0xff, 0x0f, 0xfc, 0xff, 0xff, 0xff, 0x0f]),
+            "an empty group 2^29 - 1"
+        );
     }
 }

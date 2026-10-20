@@ -18,6 +18,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"math/rand"
@@ -314,6 +316,23 @@ func tensorCases() []testCase {
 				lit([]float32{nan, inf, -inf, bits(0x80000000)}, 2, 2).String(),
 			)
 			r.add("strings", s)
+		}},
+		{"tensor/format", func(r *rec) {
+			// The String of scalars of random bits, and of integers divided
+			// by 1, 2, 4 or 8, where two shortest forms are often equally near.
+			g := seq(712)
+			var b strings.Builder
+			for range 100000 {
+				b.WriteString(scalar(math.Float32frombits(uint32(g.next()))).String())
+				b.WriteByte('\n')
+			}
+			for range 100000 {
+				n := g.next()
+				b.WriteString(scalar(float32(n>>40) / float32(int(1)<<(n%4))).String())
+				b.WriteByte('\n')
+			}
+			sum := sha256.Sum256([]byte(b.String()))
+			r.add("digest", hex.EncodeToString(sum[:]))
 		}},
 		{"tensor/linspace", func(r *rec) {
 			r.t("0_1_5", nn.LinSpace(0, 1, 5))

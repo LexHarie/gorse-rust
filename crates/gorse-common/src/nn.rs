@@ -30,14 +30,14 @@ mod optimizers;
 mod tensor;
 
 pub use functions::{
-    abs, add, bce_with_logits, bmm, broadcast, cos, div, embedding, exp, flatten, log, mat_mul, mean,
-    mean_square_error, mul, neg, pow, relu, reshape, sigmoid, sin, softmax, softmax_cross_entropy, square,
-    sub, sum,
+    abs, add, bce_with_logits, bmm, broadcast, cos, div, embedding, exp, flatten, log, mat_mul,
+    mean, mean_square_error, mul, neg, pow, relu, reshape, sigmoid, sin, softmax,
+    softmax_cross_entropy, square, sub, sum,
 };
 pub use layers::{
-    Attention, EmbeddingLayer, Error, Field, FlattenLayer, Layer, LinearLayer, Model, ReLULayer, Reflect,
-    Reflected, Sequential, SigmoidLayer, load, new_attention, new_embedding, new_flatten, new_linear,
-    new_relu, new_sequential, new_sigmoid, save,
+    Attention, EmbeddingLayer, Error, Field, FlattenLayer, Layer, LinearLayer, Model, ReLULayer,
+    Reflect, Reflected, Sequential, SigmoidLayer, load, new_attention, new_embedding, new_flatten,
+    new_linear, new_relu, new_sequential, new_sigmoid, save,
 };
 pub use optimizers::{Adam, Optimizer, SGD, new_adam, new_sgd};
 pub use tensor::{
@@ -56,5 +56,7 @@ pub trait Rng {
     fn norm_float64(&mut self) -> f64;
 }
 
+#[cfg(test)]
+mod golden_tests;
 #[cfg(test)]
 mod tests;

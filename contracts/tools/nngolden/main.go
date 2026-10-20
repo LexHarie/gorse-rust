@@ -182,11 +182,15 @@ func catch(f func()) (v any) {
 	return nil
 }
 
+// errValue records an error's text. protobuf-go starts its messages with
+// "proto:" and a space that is U+0020 or U+00A0 depending on a hash of the
+// binary (internal/detrand), to discourage comparing them; the space is
+// recorded as U+0020 whichever this binary got.
 func errValue(err error) any {
 	if err == nil {
 		return nil
 	}
-	return map[string]any{"error": err.Error()}
+	return map[string]any{"error": strings.ReplaceAll(err.Error(), "proto:\u00a0", "proto: ")}
 }
 
 // rec is the ordered list of named values of one case.

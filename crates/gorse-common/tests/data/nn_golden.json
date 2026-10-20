@@ -5836,6 +5836,861 @@
      }
     ]
    ],
+   "op/nan/add": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/add_scalar": [
+    [
+     "out",
+     {
+      "data": "7fc000317fc000317fc000317fc000317fc000317fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "40c00000",
+      "shape": []
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000317fc000317fc000317fc000317fc000317fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/div": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000213eaaaaab7fc00022ffc000237fc000247fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/div_scalar": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000317fc000317fc000317fc000317fc000317fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/matmul": [
+    [
+     "out",
+     {
+      "data": "7fc000227fc000257fc000227fc00025",
+      "shape": [
+       2,
+       2
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "ffc000237fc000247fc00025ffc000237fc000247fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc00013ffc00014404000007fc00013ffc0001440400000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000227fc000257fc000227fc00025",
+      "shape": [
+       2,
+       2
+      ]
+     }
+    ]
+   ],
+   "op/nan/maximum_relu": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000227fc000137fc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "000000000000000000000000000000000000000000000000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "000000000000000000000000000000000000000000000000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000227fc000137fc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/mean": [
+    [
+     "out",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3e2aaaab3e2aaaab3e2aaaab3e2aaaab3e2aaaab3e2aaaab",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ]
+   ],
+   "op/nan/mse": [
+    [
+     "out",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ]
+   ],
+   "op/nan/mul": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc00021404000007fc00022ffc000237fc000247fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc000117fc000123f8000007fc00013ffc0001440000000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/mul_scalar": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000317fc000317fc000317fc000317fc000317fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/pow": [
+    [
+     "out",
+     {
+      "data": "7fe000007fe000003f8000007fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fe000007fe000007fc000227fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc000117fc00012000000007fc000137fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fe000007fe000003f8000007fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/pow_scalar": [
+    [
+     "out",
+     {
+      "data": "7fe000007fe000003f8000007fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fe000007fe000007fc000317fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fe000007fe000003f8000007fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/sigmoid": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000123f3b26a87fc00013ffc000143f617beb",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "ffc00011ffc000123e4954a3ffc000137fc000143dd706df",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000123f3b26a87fc00013ffc000143f617beb",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/softmax": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000137fc00013ffc000147fc00017",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000117fc000127fc000137fc00013ffc000147fc00017",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000137fc00013ffc000147fc00017",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/square": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000123f8000007fc00013ffc0001440800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000117fc00012400000007fc00013ffc0001440800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000123f8000007fc00013ffc0001440800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/sub": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "bf800000bf800000bf800000bf800000bf800000bf800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/sub_scalar": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "c0c00000",
+      "shape": []
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/sum": [
+    [
+     "out",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ]
+   ],
+   "op/nan/sum_along0": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc0001240400000",
+      "shape": [
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc0001240400000",
+      "shape": [
+       3
+      ]
+     }
+    ]
+   ],
    "op/neg": [
     [
      "out",
@@ -9126,6 +9981,12 @@
        3
       ]
      }
+    ]
+   ],
+   "tensor/format": [
+    [
+     "digest",
+     "a1000e999fa5fa7eb6a20e0599ba04dd46c5480430a96f93719c2d71a25667ca"
     ]
    ],
    "tensor/get": [
@@ -16351,6 +17212,861 @@
      }
     ]
    ],
+   "op/nan/add": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/add_scalar": [
+    [
+     "out",
+     {
+      "data": "7fc000317fc000317fc000317fc000317fc000317fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "40c00000",
+      "shape": []
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000317fc000317fc000317fc000317fc000317fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/div": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000213eaaaaab7fc00022ffc000237fc000247fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/div_scalar": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000317fc000317fc000317fc000317fc000317fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/matmul": [
+    [
+     "out",
+     {
+      "data": "7fc000227fc000257fc000227fc00025",
+      "shape": [
+       2,
+       2
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "ffc000237fc000247fc00025ffc000237fc000247fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc00013ffc00014404000007fc00013ffc0001440400000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000227fc000257fc000227fc00025",
+      "shape": [
+       2,
+       2
+      ]
+     }
+    ]
+   ],
+   "op/nan/maximum_relu": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000227fc000137fc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "000000000000000000000000000000000000000000000000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "000000000000000000000000000000000000000000000000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000227fc000137fc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/mean": [
+    [
+     "out",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3e2aaaab3e2aaaab3e2aaaab3e2aaaab3e2aaaab3e2aaaab",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ]
+   ],
+   "op/nan/mse": [
+    [
+     "out",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ]
+   ],
+   "op/nan/mul": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc00021404000007fc00022ffc000237fc000247fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc000117fc000123f8000007fc00013ffc0001440000000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/mul_scalar": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000317fc000317fc000317fc000317fc000317fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/pow": [
+    [
+     "out",
+     {
+      "data": "7fe000007fe000003f8000007fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fe000007fe000007fc000227fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc000117fc00012000000007fc000137fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fe000007fe000003f8000007fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/pow_scalar": [
+    [
+     "out",
+     {
+      "data": "7fe000007fe000003f8000007fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fe000007fe000007fc000317fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fe000007fe000003f8000007fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/sigmoid": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000123f3b26a87fc00013ffc000143f617beb",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "ffc00011ffc000123e4954a3ffc000137fc000143dd706df",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000123f3b26a87fc00013ffc000143f617beb",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/softmax": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000137fc00013ffc000147fc00017",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000117fc000127fc000137fc00013ffc000147fc00017",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000137fc00013ffc000147fc00017",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/square": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000123f8000007fc00013ffc0001440800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000117fc00012400000007fc00013ffc0001440800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000123f8000007fc00013ffc0001440800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/sub": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "bf800000bf800000bf800000bf800000bf800000bf800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/sub_scalar": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "c0c00000",
+      "shape": []
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/sum": [
+    [
+     "out",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ]
+   ],
+   "op/nan/sum_along0": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc0001240400000",
+      "shape": [
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc0001240400000",
+      "shape": [
+       3
+      ]
+     }
+    ]
+   ],
    "op/neg": [
     [
      "out",
@@ -19641,6 +21357,12 @@
        3
       ]
      }
+    ]
+   ],
+   "tensor/format": [
+    [
+     "digest",
+     "a1000e999fa5fa7eb6a20e0599ba04dd46c5480430a96f93719c2d71a25667ca"
     ]
    ],
    "tensor/get": [
@@ -26866,6 +28588,861 @@
      }
     ]
    ],
+   "op/nan/add": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/add_scalar": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "40c00000",
+      "shape": []
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/div": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000213eaaaaab7fc00022ffc000237fc000247fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/div_scalar": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000317fc000317fc000317fc000317fc000317fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/matmul": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000117fc000137fc00013",
+      "shape": [
+       2,
+       2
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "ffc000237fc000247fc00025ffc000237fc000247fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc00013ffc00014404000007fc00013ffc0001440400000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000117fc000137fc00013",
+      "shape": [
+       2,
+       2
+      ]
+     }
+    ]
+   ],
+   "op/nan/maximum_relu": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000227fc000137fc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "000000000000000000000000000000000000000000000000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "000000000000000000000000000000000000000000000000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000227fc000137fc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/mean": [
+    [
+     "out",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3e2aaaab3e2aaaab3e2aaaab3e2aaaab3e2aaaab3e2aaaab",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ]
+   ],
+   "op/nan/mse": [
+    [
+     "out",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ]
+   ],
+   "op/nan/mul": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc00021404000007fc00022ffc000237fc000247fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc000117fc000123f8000007fc00013ffc0001440000000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/mul_scalar": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000317fc000317fc000317fc000317fc000317fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/pow": [
+    [
+     "out",
+     {
+      "data": "7fe000007fe000003f8000007fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fe000007fe000007fc000227fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc000117fc00012000000007fc000137fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fe000007fe000003f8000007fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/pow_scalar": [
+    [
+     "out",
+     {
+      "data": "7fe000007fe000003f8000007fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fe000007fe000007fc000317fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fe000007fe000003f8000007fe000007fe000007fe00000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/sigmoid": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000123f3b26a87fc00013ffc000143f617beb",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "ffc00011ffc000123e4954a3ffc000137fc000143dd706df",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000123f3b26a87fc00013ffc000143f617beb",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/softmax": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000137fc00013ffc000147fc00017",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000117fc000127fc000137fc00013ffc000147fc00017",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000137fc00013ffc000147fc00017",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/square": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000123f8000007fc00013ffc0001440800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "7fc000117fc00012400000007fc00013ffc0001440800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000123f8000007fc00013ffc0001440800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/sub": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "bf800000bf800000bf800000bf800000bf800000bf800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000227fc00013ffc000147fc00025",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/sub_scalar": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "grad1",
+     {
+      "data": "c0c00000",
+      "shape": []
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc000127fc000317fc00013ffc000147fc00031",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ]
+   ],
+   "op/nan/sum": [
+    [
+     "out",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc00011",
+      "shape": []
+     }
+    ]
+   ],
+   "op/nan/sum_along0": [
+    [
+     "out",
+     {
+      "data": "7fc000117fc0001240400000",
+      "shape": [
+       3
+      ]
+     }
+    ],
+    [
+     "backward",
+     null
+    ],
+    [
+     "grad0",
+     {
+      "data": "3f8000003f8000003f8000003f8000003f8000003f800000",
+      "shape": [
+       2,
+       3
+      ]
+     }
+    ],
+    [
+     "out.grad",
+     null
+    ],
+    [
+     "out.after",
+     {
+      "data": "7fc000117fc0001240400000",
+      "shape": [
+       3
+      ]
+     }
+    ]
+   ],
    "op/neg": [
     [
      "out",
@@ -30156,6 +32733,12 @@
        3
       ]
      }
+    ]
+   ],
+   "tensor/format": [
+    [
+     "digest",
+     "a1000e999fa5fa7eb6a20e0599ba04dd46c5480430a96f93719c2d71a25667ca"
     ]
    ],
    "tensor/get": [
