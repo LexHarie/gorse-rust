@@ -6,6 +6,7 @@
 //! Each module ports one Go package under `common/` and names its Go sources in
 //! its header.
 
+pub mod ann;
 pub mod blas;
 pub mod consistent;
 pub mod dateparse;
@@ -18,3 +19,5 @@ pub mod gostrings;
 pub mod gotime;
 pub mod gourl;
 pub mod heap;
+pub mod math32;
+pub mod util;

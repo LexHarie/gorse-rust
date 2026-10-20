@@ -55,11 +55,48 @@ go run ./contracts/tools/heapgolden -out crates/gorse-common/tests/data/heap_gol
 go run ./contracts/tools/exprgolden -out crates/gorse-common/tests/data/expression_golden.json
 # lafikl/consistent, the worker ring (gorse-common)
 go run ./contracts/tools/consistentgolden -out crates/gorse-common/tests/data/consistent_golden.json
+# common/ann, brute force and HNSW (gorse-common)
+go run ./contracts/tools/anngolden -out crates/gorse-common/tests/data/ann_golden.json
 # config.LoadConfig, Config.Validate and the recommender hashes (gorse-config)
 go run ./contracts/tools/configgolden -out crates/gorse-config/tests/data/config_golden.json
+# Go's time package and araddon/dateparse: Unicode, IsPrint and errno tables,
+# TZif files, a stand-in GOROOT zip and the goldens (gorse-common)
+go run ./contracts/tools/timegolden \
+  -tables crates/gorse-common/src/dateparse/tables.rs \
+  -strconv-tables crates/gorse-common/src/gostrconv/tables.rs \
+  -errno crates/gorse-common/src/gotime/errno.rs \
+  -zoneinfo crates/gorse-common/tests/data/zoneinfo \
+  -goroot crates/gorse-common/tests/data/goroot \
+  -time-out crates/gorse-common/tests/data/gotime_golden.json \
+  -dateparse-out crates/gorse-common/tests/data/dateparse_golden.json
+# chewxy/math32 with and without its amd64 assembly, including digests over all
+# 2^32 inputs (gorse-common; linux/amd64 only, several minutes)
+go run ./contracts/tools/math32golden -out crates/gorse-common/tests/data/math32_golden.json
+# expr-lang v1.17.8's parser and lexer: curated, config, quoting and bulk
+# verdicts and the Go test tables (gorse-expr), and its Unicode tables
+go run ./contracts/tools/exprparsegolden -out-dir crates/gorse-expr/tests/data
+go run ./contracts/tools/exprunicode -out crates/gorse-expr/src/unicode_tables.rs
+# common/util (WP-1-4): Go's math/rand streams and tables, util and strconv
+# parsers, and the TLS credential cases (gorse-common)
+go run ./contracts/tools/randgolden \
+  -tables-out crates/gorse-common/src/util/rand/tables.rs \
+  -out crates/gorse-common/tests/data/rand_golden.json
+go run ./contracts/tools/utilgolden -out crates/gorse-common/tests/data/util_golden.json
+go run ./contracts/tools/tlsgolden \
+  -dir crates/gorse-common/tests/data/tls \
+  -out crates/gorse-common/tests/data/tls_golden.json
 ```
 
 Regenerating at the pinned commit must give no diff except in values the files
-mark as run-dependent (wall-clock `update_at` columns, Mongo `_id`s, and the order
+mark as run-dependent (wall-clock `update_at` columns, Mongo `_id`s, the order
 of `required` arrays in the OpenAPI files, which go-restful-openapi emits in
-nondeterministic order).
+nondeterministic order, and the raw `blob` of the `hnsw small` case in
+`ann_golden.json`, whose upper-layer entries Go writes in `sync.Map` order; its
+sorted form, `blob_sha256`, does not change). `tlsgolden` makes new keys and
+certificates on every run; its verdicts must not change. The live TLS check
+between Go and Rust peers is not part of `cargo test`:
+
+```
+cargo build --release -p gorse-common --example tls_peer
+go run ./contracts/tools/tlsgolden -interop target/release/examples/tls_peer
+```

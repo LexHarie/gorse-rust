@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-5, WP-1-7, WP-1-13. WP-1-4, WP-1-6, WP-1-8, WP-1-9, WP-1-11, WP-1-12, WP-1-14 and WP-1-19 run in parallel threads (D-26); WP-1-10 and WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-7, WP-1-9, WP-1-10, WP-1-13, WP-1-19. WP-1-11 part 1 (math32) merged. WP-1-6, WP-1-8, WP-1-11, WP-1-12 and WP-1-14 run in parallel threads (D-26); WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
@@ -122,6 +122,47 @@ correction below states the evidence.
   and WP-3-6 adds the checker, compiler and VM to the same crate instead of
   `gorse-logics/src/expr/`. The crate-selection row is reworded. Found by the
   WP-1-7 thread.
+- **C-13 `time` is a hand port of Go's `time` package, not `chrono` (WP-1-9).**
+  `porting/crate-selection.md` picked `chrono` 0.4.45 with Go layouts written
+  on top. What Gorse needs from `time` is Go's exact text: `Time.String()` with
+  the monotonic suffix `m=+…` (the cache stores it, `PORTING_NOTES.md` Q-1), Go
+  layouts in both directions with Go's `ParseError` texts (dateparse builds a
+  layout and calls `time.Parse`), `Duration.String` and `ParseDuration`
+  (configs), `MarshalJSON`/`UnmarshalJSON`, and `LoadLocation`'s search order,
+  TZif reader and errors. With those ported, `chrono` contributes nothing (it
+  has no monotonic reading and reads zones differently), so it is not a
+  dependency; the crate-selection row now says so. Found by the WP-1-9 thread.
+- **C-14 dateparse needs `strconv.Quote` (WP-1-9).** Its errors quote the input
+  with `%q`, so the new module `gorse_common::gostrconv` ports `Quote`,
+  `AppendQuote`, `QuoteRune` and `IsPrint` (with Go's print table, generated).
+  WP-1-14 extends it with `ParseInt`, `ParseUint` and `Atoi`; later ports that
+  quote Go strings use it.
+- **C-15 `chewxy/math32` is a dependency to port (WP-1-11).**
+  `porting/work-packages.md` and `porting/crate-selection.md` did not list it,
+  though `common/nn`, `common/ann`, `dataset` and both model packages call it
+  and their results depend on its exact bits. Rust's `f32::exp` and `f32::ln`
+  call the platform libm, whose results differ. It is a hand port in
+  `gorse_common::math32` (v1.11.2, the version `go.mod` pins), owned by
+  WP-1-11 and pushed ahead of `common/nn` because WP-1-10 needs `Log` and
+  `Floor`; `crate-selection.md` gains its row. Found by the WP-1-11 thread.
+- **C-16 TLS needs a patched `rustls` (WP-1-4).** Go workers and servers dial
+  the master with `util.NewClientCreds`, built on grpc's `advancedtls`, whose
+  `ClientHandshake` uses the dial target `host:port` as the TLS server name
+  (it does not strip the port), and Go's `crypto/tls` sends it as is. Stock
+  `rustls` 0.23.46 aborts the handshake on such a name
+  (`ServerNameMustContainOneHostName`), so a Rust master would refuse every Go
+  client: unpatched, 34 of the 62 interop cases differ, every one that reaches
+  a handshake. Ritchie chose the patch on 2026-10-18 (decision card "How should
+  a Rust master accept Go workers' TLS connections?"): `third_party/rustls` is
+  the published 0.23.46 with one change in `src/server/hs.rs`, so the server
+  ignores a server name that is not a DNS name, as it already did for an IP
+  address. It is wired in with `[patch.crates-io]` and kept out of the
+  workspace with `exclude`; `third_party/rustls/GORSE.md` says how to upgrade.
+  `third_party/`, not `vendor/`, because the Go toolchain gives a `vendor/`
+  directory next to `go.mod` its own meaning. `porting/crate-selection.md`
+  gains a TLS row.
+- **C-17 `aws-lc-rs`, not `ring` (WP-1-4).** The certificates Gorse's own
+  TestSSL makes (`madflojo/testcerts`) are P-521, which `ring` cannot verify.
 
 ## Decision log
 
@@ -255,6 +296,165 @@ or accepts a metric gap outside the Go tests' own tolerances.
   five constants and `FromPB` keeps the field for unknown enum numbers
   (`PORTING_NOTES.md` Q-51). Go's `Match` is `matches` (`match` is a Rust
   keyword).
+- **D-30 The gob subset gains `[]float32` (WP-1-10).** `ann.HNSW.Marshal`
+  writes each vector with `WriteGob`, so a `logics.MatrixFactorizationItems`
+  blob holds top-level `[]float32` values. Only `logics/cf_test.go` creates
+  one, so no Gorse process reads one written by another; the codec covers the
+  type so that HNSW blobs read Go's bytes and write them back unchanged.
+  Evidence: three `[]float32` encodings and nine decodes (errors included) in
+  `crates/gorse-common/tests/data/gob_golden.json` and
+  `gob_decode_golden.json`, and the HNSW blobs of `ann_golden.json`.
+- **D-31 Go strings are bytes in `gotime` and `dateparse` (WP-1-9).** Parsers
+  take `impl AsRef<[u8]>` and accept any bytes, as Go does; results Go can
+  return as invalid UTF-8 are `Vec<u8>` (`dateparse::parse_format`). Errors keep
+  Go's exact bytes behind accessors (`dateparse::Error::error_bytes`,
+  `gotime::ParseError::value` and friends); their `Display` replaces invalid
+  UTF-8 with U+FFFD.
+- **D-32 `gotime` keeps Go's shape (WP-1-9).** Go's `int` is `i64`, Go's
+  wrapping arithmetic wraps, `time.Date`/`time.Unix`/`time.Now` are free
+  functions (`date`, `unix`, `now`), the mutable `time.Local` is
+  `local()`/`set_local()`. `Location` is an `Arc`; `==` on `Location` and on
+  `Time` compares like Go's `==` (pointer identity of the location),
+  `Time::equal` compares instants and `Location::deep_equal` stands in for
+  `reflect.DeepEqual`.
+- **D-33 Tables Go computes are generated from Go (WP-1-9)**, not derived from
+  Rust's Unicode data: `dateparse/tables.rs` (`unicode.IsLetter`, `IsDigit`,
+  `ToLower` over every code point, Unicode 17.0.0), `gostrconv/tables.rs`
+  (`strconv.IsPrint`) and `gotime/errno.rs` (the `syscall.Errno` texts
+  `LoadLocation` reports), all written by `contracts/tools/timegolden`.
+- **D-34 Hermetic zone data for tests (WP-1-9).** The tool writes the TZif files
+  of the zones the tests use to `crates/gorse-common/tests/data/zoneinfo/` and a
+  stand-in GOROOT zip (`tests/data/goroot/lib/time/zoneinfo.zip`, Go's
+  uncompressed format) from go1.27.0's own `lib/time/zoneinfo.zip`. The tests
+  turn the system zone directories off (`internal::disable_platform_sources`)
+  and point the GOROOT fallback at the stand-in, so results do not depend on
+  the machine's tzdata.
+- **D-35 Time golden corpus (WP-1-9).** `gotime_golden.json`: 400 `Format` cases
+  over 38 layouts and 19 `Local` zones, 2061 `Parse`/`ParseInLocation` cases,
+  351 `Date` normalizations, 26 `Duration.String`, 77 `ParseDuration`, 60
+  `UnmarshalJSON`/`UnmarshalText`. `dateparse_golden.json`: 17615 cases of
+  `ParseAny`, `ParseIn`, `ParseLocal`, `ParseStrict` and `ParseFormat` over
+  dateparse's own test inputs, edge cases, the values Go nodes write to the
+  cache and a seeded corpus of mutations, in several `Local` zones and with
+  each option. Every case must match exactly (instant, location name and
+  offset, or error text, or layout).
+- **D-36 The input is `&str` (WP-1-19).** A Go string may hold any bytes; Gorse's
+  `item_expr` values come from TOML (UTF-8 by its spec) and the
+  `RECOMMEND_CONFIG` JSON override in the meta store (`master.go:164`, decoded
+  to UTF-8); no environment binding sets one (`config.go:742-797`). So text is
+  enough. The corpus inputs that are not UTF-8 cannot be passed and are counted per source
+  in the golden files (two: one row of `TestLex`, one string literal of
+  another expr-lang test).
+- **D-37 Token values and `StringNode` values are bytes (`Vec<u8>`) (WP-1-19).**
+  Go strings are bytes, and an escape can make a string literal's value
+  invalid UTF-8 (`PORTING_NOTES.md` Q-85). `Token::value_str` gives the text where it is
+  UTF-8; identifiers and operators always are.
+- **D-38 `parse` returns `Result<Tree, Error>` (WP-1-19).** Go returns the
+  half-built tree together with the error; every caller (Gorse's validator,
+  `expr.Compile`, `expr.Eval`) drops it, so here the error is all there is.
+  The parser keeps Go's control flow after an error exactly (it decides which
+  error is reported, Q-86); a `None` child always comes with an error,
+  so no node with a missing child is ever built.
+- **D-39 Shared subtrees are cloned (WP-1-19).** Go points the condition and the
+  first branch of `a ?: b` at one node, and neighbouring comparisons of a
+  chain `a < b < c` at one middle node (`PORTING_NOTES.md` Q-95). A Rust tree owns its
+  nodes, so these are equal copies. For WP-3-6: Go's checker and patchers
+  visit such a node twice through the same pointer; with copies each is
+  visited once, which gives the same result as long as visiting is
+  deterministic.
+- **D-40 Any depth, like Go (WP-1-19).** Go's stacks grow to 1 GB, and a config
+  may turn the node budget off (`MaxNodes: 0`), so depth is unbounded. The
+  recursive functions (parser, printer, dump, walk, clone, compare, debug)
+  run under `stacker::maybe_grow` (`stacker` 0.1.25, recorded in
+  `porting/crate-selection.md`), and dropping a tree iterates.
+  `tests/parser_deep.rs` parses, prints, walks, clones and compares trees
+  100,000 levels deep on a 256 KiB thread; the synthetic goldens include
+  200,000 nested parentheses and node chains on both sides of the budget.
+- **D-41 What waits for WP-3-6 (WP-1-19).** `ConstantNode` (only the optimizer
+  makes it; `TestPrint_ConstantNode` is not ported), the `nature`/type of each
+  node and the `Node` interface's type methods, the rest of `conf.Config`
+  (environment types, function values, builtins table, optimizer and VM
+  switches), `file.Error.Prev` and the JSON tags of `file.Error`. The parser
+  needs of `conf.Config` only `MaxNodes`, `Disabled`, `DisableIfOperator` and
+  `IsOverridden`; the Rust `Config` holds the names of the functions and of
+  the environment's entries as sets. Go's `IsOverridden` asks
+  `Env.Get(name)` of the environment's nature; WP-3-6 derives the set from
+  the environment's type.
+- **D-42 The API is `parser::parse`, `parser::parse_with_config`,
+  `parser::lexer::lex` and `Lexer::new(&Source)` (WP-1-19).** Go's reusable `Parser`
+  (with a `Parse` method) and `Lexer.Reset` are not ported (`PORTING_NOTES.md` Q-93); one
+  lexer per source.
+- **D-43 Character classes come from Go's tables (WP-1-19).** `unicode.IsLetter`,
+  `IsDigit`, `IsSpace` and `strconv.IsPrint` are generated from Go 1.27.0
+  (Unicode 17.0.0) into `unicode_tables.rs`, so the lexer and the quoting of
+  error messages follow Go's Unicode version rather than Rust's. A unit test
+  compares all four with Go for every code point.
+- **D-44 The Go test tables are read from the Go source (WP-1-19).**
+  `exprparsegolden` (tables.go) turns the tables of `TestParse`,
+  `TestParse_error`, `TestParse_optional_chaining`, `TestNodeBudget`,
+  `TestLex` and `TestPrint` into `parser_go_tests.json` (expected trees as
+  JSON, unset fields left to Go's zero values), and
+  `tests/parser_go_tests.rs` runs them with Go's assertions (`Dump(want) ==
+  Dump(actual)`, the error text, `compareTokens`, `Node.String()`).
+  Hand-ported: `TestParse_pipe_operator`, `TestNodeBudgetDisabled`,
+  `TestLex_location`, `TestLex_error` (its table is a constant, split as Go
+  splits it), `TestPrint_MemberNode`, `ast` `TestWalk`, `TestWalk_patch`,
+  `TestFind`, and `file` `TestStringSource_Snippet*`.
+- **D-45 Licence (WP-1-19).** The crate ports MIT-licensed code: `license =
+  "Apache-2.0 AND MIT"`, with expr-lang's licence in
+  `crates/gorse-expr/LICENSE-expr-lang`.
+- **D-46 Go's checks on the CA certificate (WP-1-4).** `advancedtls` in
+  `CertVerification` mode runs `x509.Verify` with the purpose's extended key
+  usage and no host name. `webpki` keeps only the name and key of a trust
+  anchor, so `util/tls.rs` runs Go's other checks in `webpki`'s path callback,
+  on every chain `webpki` builds (a rejected chain makes it try the next, as Go
+  tries other chains): the CA must be valid now, its extended key usage (if
+  any) must include the purpose or `anyExtendedKeyUsage`, the number of
+  intermediates must respect its `MaxPathLen`, and every issuer, the CA
+  included, must pass Go's `CheckSignatureFrom` constraints (a v3 certificate
+  needs `BasicConstraints` with `cA`, and a `KeyUsage` with any bit set must
+  include `keyCertSign`). A custom `ExtendedKeyUsageValidator` accepts
+  `anyExtendedKeyUsage` on the leaf, as Go does and `webpki` does not.
+  `x509-parser` reads the fields.
+- **D-47 Verdicts, not error texts, for TLS handshakes (WP-1-4).**
+  `tls_golden.json` records Go's error texts for reading; the tests compare
+  whether each side built its credentials, whether the handshake and a
+  ping/pong went through, which side rejected the other, and the ALPN
+  protocol (`PORTING_NOTES.md` X-37). Credential errors that Gorse surfaces at
+  start-up match Go's text: `open <path>: <os error>`, `failed to append
+  certificate`, `tls: failed to find any PEM data in certificate input` /
+  `key input`, and `tls: ...` for a key that does not match its certificate.
+- **D-48 Number parsing lives in `gostrconv` (WP-1-4).** WP-1-4 first ported
+  `Atoi`, `ParseInt`, `ParseUint` and `ParseFloat` under `util::strconv`, then
+  dropped its integer copies for WP-1-14's and added only `ParseFloat` as
+  `gostrconv/atof.rs`, in the same shape (0 with a syntax error, the signed
+  infinity with a range error). `util_golden.json` also checks `gostrconv`'s
+  `atoi`, `parse_int` and `parse_uint` with bit size 0, including the value
+  Go returns next to an error, and `quote` and `is_print` at every edge of
+  Go's print table: all match. WP-1-14 takes over `atof.rs` (D-52).
+- **D-49 `util::parse_float`, `parse_int` and `parse_uint` return a `Result`
+  (WP-1-4).** Go's `util.ParseFloat[T]` and friends also return a value next to
+  an error; every Gorse caller (`common/datautil/datautil.go`,
+  `storage/cache/redis.go`, `dataset/dataset.go`) returns the error without
+  reading it. Inputs are bytes (`impl AsRef<[u8]>`), as in `gostrconv`.
+- **D-50 The rand tables come from Go (WP-1-4).** `util/rand/tables.rs`
+  (`rngCooked`, the ziggurat tables of `normal.go` and `exp.go`) is written by
+  `randgolden` from Go's own values. The decimal constants of Go's amd64
+  `math.Exp` and `math.Log` are kept as Go's text, and a test checks the bits
+  Go's assembler gives them.
+- **D-51 Go's top-level `rand` functions are not ported (WP-1-4).** Since Go
+  1.20 they draw from a randomly seeded runtime source and `rand.Seed` is a
+  no-op, so nothing about them is reproducible.
+- **D-52 One owner for `ParseFloat` (integrator, 2026-10-19).** WP-1-4's
+  `atof.rs` ports Go's syntax (`special`, `readFloat`, `atofHex`) and hands the
+  decimal digits to Rust's correctly rounded parser. go1.27 rounds correctly
+  too, except where its slow path keeps only 800 digits (`decimal.set`), which
+  WP-1-14's golden reaches: `"9007199254740993" + "0"*790 + "1e-791"` is
+  `41cad7f29abcaf49` in Go and `4340000000000001` with the Rust parser. WP-1-14
+  owns `atof.rs` from here and replaces it with its structural port of go1.27
+  (`atof64exact`, `atof32exact`, `uscale.go`, `decimal.go` with the 800-digit
+  cap), checked against WP-1-4's golden, its own and the 800-digit cases, and
+  adds `ParseBool` (`atob.go`).
 
 ## Open questions for Ritchie
 
