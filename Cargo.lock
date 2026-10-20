@@ -448,6 +448,7 @@ dependencies = [
  "cc",
  "gorse-protocol",
  "hex",
+ "indexmap",
  "md-5",
  "prost",
  "regex",
