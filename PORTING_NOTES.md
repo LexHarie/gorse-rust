@@ -1553,11 +1553,15 @@ said otherwise), so the Rust result is Go's.
   flushes the whole database, which would make parallel Rust tests clobber each
   other. The assertions are unchanged.
 
-- **X-81 `rediss://` does not connect in this build.** The `redis` crate's TLS
-  feature is not enabled, so `Client::open` fails with "can't connect with TLS,
-  the feature is not enabled". Go accepts `rediss://`. Enabling the feature pulls
-  a TLS backend that must be reconciled with the patched rustls in
-  `third_party/`. Decision needed from the coordinator.
+- **X-81 `rediss://` connects through rustls, with the system roots.** The redis
+  crate's `tokio-rustls-comp` feature is on, reusing the workspace's rustls. The
+  server certificate is checked against the system roots, which
+  `rustls-native-certs` loads, and `SSL_CERT_FILE` overrides them on Linux, as
+  Go does. Verified against `redis:8` with TLS on (self-signed CA, SAN
+  `localhost`): all seven tests pass with the CA in `SSL_CERT_FILE`, and the
+  connection fails with `invalid peer certificate: UnknownIssuer` without it.
+  Go's `skip_verify=true` query parameter is not mapped; it is not used by the
+  Go CI.
 
 - **O-27 closed.** `cache::sort_documents` uses `gorse_common::gosort::sort` with
   a `DocumentSorter` adapter, and the local pdqsort copy is deleted. Go's
