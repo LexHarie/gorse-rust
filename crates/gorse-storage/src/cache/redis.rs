@@ -11,7 +11,7 @@
 //! commands, as go-redis sends them, so the server needs those modules: Redis 8
 //! or Redis Stack, as `storage/docker-compose.yml` runs.
 //!
-//! The connection is made on first use, since a [`Creator`] is not async. A
+//! The connection is made on first use, as go-redis's `NewClient` is lazy. A
 //! standalone store runs on a `ConnectionManager`, which reconnects by itself.
 //! A cluster cannot pipeline commands whose keys span slots, so cluster
 //! pipelines are sent one command at a time.
@@ -22,6 +22,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD_NO_PAD;
+use futures_util::future::BoxFuture;
 use gorse_common::gocontext::Context;
 use gorse_common::gostrconv;
 use gorse_common::gotime::{self, Duration, Time};
@@ -107,9 +108,17 @@ pub fn register(registry: &mut Registry) {
     );
 }
 
-/// Go's creator for the Redis schemes, as a [`Creator`].
-fn create(path: &str, table_prefix: &str, opts: &[Opt]) -> Result<Box<dyn Database>, Error> {
-    Ok(Box::new(open(path, table_prefix, opts)?))
+/// Go's creator for the Redis schemes, as a [`Creator`]. The open does not
+/// connect, so the future is ready when it is first polled.
+fn create<'a>(
+    path: &'a str,
+    table_prefix: &'a str,
+    opts: &'a [Opt],
+) -> BoxFuture<'a, Result<Box<dyn Database>, Error>> {
+    Box::pin(async move {
+        let store: Box<dyn Database> = Box::new(open(path, table_prefix, opts)?);
+        Ok(store)
+    })
 }
 
 /// Opens a store on a Redis URL. A `+cluster` scheme opens a cluster, and the
