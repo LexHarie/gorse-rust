@@ -2306,6 +2306,22 @@ said otherwise), so the Rust result is Go's.
   blocker, and that it is logged for after conformance (WP-2-13). Consolidating on one driver
   is the follow-up. Open.
 
+- **O-61 `mysql_cold_full_authentication_connects` fails on MariaDB 10.2.** The test (X-144,
+  Q-232) creates an account `IDENTIFIED WITH caching_sha2_password`. MariaDB 10.2 has no such
+  plugin, so the statement fails with error 1064 and the test panics. On MySQL 8.0 it passes.
+  Go's `TestMySQL` has no equivalent case, so the CI's MariaDB job does not run it. The
+  compatibility job is not green for `cache::sql` until this is ruled on. Options for the
+  coordinator: run the case only when the server is MySQL 8 (skipped with a printed reason on
+  MariaDB, as Go does for `TestTimezone`), with the reasoning in a D-entry; or record the MariaDB
+  run as a known exception. The test is not to be skipped without that ruling (the no-cheating
+  rule). Open. Evidence: D-184.
+
+- **O-62 The GCS read path is not run against an emulator.** `test_gcs_read_list_remove` and
+  `test_gcs` need `GCS_EMULATOR_ENDPOINT`. fake-gcs-server 1.50.2, 1.52.3 and 1.56.1 all answer
+  404 for the XML list request (`GET /gorse-test?list-type=2&prefix=blob/`), so the read path
+  cannot pass here. The XML put and multipart tests pass in process. Real GCS needs credentials
+  this environment does not have. Open. Evidence: D-184. Also see O-31.
+
 Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
 version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does
 this port; newer versions are not tested), MariaDB 10.2.44 (`mariadb:10.2`, CI's

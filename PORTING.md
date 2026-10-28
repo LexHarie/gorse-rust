@@ -1422,6 +1422,38 @@ or accepts a metric gap outside the Go tests' own tolerances.
   `PORTING_NOTES.md` under WP-2-2 and close O-57 and O-59. Pre-release `rsa` is
   D-182 and X-153.
 
+- **D-184 Court acceptance on the merged head `12f19e46` (integrator, 2026-10-28).**
+  The head holds the audit lock bump (597b8198, from 1b01c01) and the notes fold.
+  Services: MySQL 8.0.46, PostgreSQL 10.0, MongoDB 6.0.28, Redis 8.10.3, rustfs
+  (`rustfs/rustfs:alpha`), Azurite 3.34.0, fake-gcs-server 1.56.1, MariaDB 10.2,
+  Kvrocks nightly, and a six-node Redis 8 cluster on ports 7000 to 7005.
+  - Gate (`cargo fmt --check`, `clippy --workspace --all-targets -D warnings`,
+    rustdoc with `-D warnings`, the config and YAML goldens, `cargo test --workspace`
+    with the four URIs, `go vet`, cloud and MongoDB clippy): every step exit 0.
+    TEST section: 905 passed, 0 failed, 13 ignored.
+  - Blob, `S3_ENDPOINT=127.0.0.1:9000` (host and port, no scheme, as the CI sets it)
+    with `--features s3,azure blob`: `test_s3` and `test_s3_multipart` pass, and
+    `test_azure_blob_emulator` passes. The `gorse-test` bucket and container were
+    created before the run. Azurite 3.34.0 rejects the Azure SDK's newest API
+    version, so the setup client pins `2023-11-03`.
+  - Blob, GCS, `--features gcs blob -- --include-ignored`: the XML put and multipart
+    tests pass in process. `test_gcs_read_list_remove` and `test_gcs` fail on the
+    emulator, because fake-gcs-server 1.50.2, 1.52.3 and 1.56.1 all answer 404 for
+    the XML list request (`GET /gorse-test?list-type=2`), so the read path is not
+    run here (O-62). `test_gcs` is `#[ignore]` (O-31).
+  - Redis, `cache::redis` (12 of 12 each): Kvrocks at `redis://127.0.0.1:6666/`;
+    the six-node cluster as `redis+cluster://127.0.0.1:7000` and with the five
+    `addr=` parameters. No skips.
+  - MariaDB 10.2, `MYSQL_URI=mysql://root:password@tcp(127.0.0.1:3307)/`:
+    `data::sql::tests::test_mysql` passes. `cache::sql` gives 9 passed and 1 failed:
+    `mysql_cold_full_authentication_connects` runs `CREATE USER ... IDENTIFIED WITH
+    caching_sha2_password`, and MariaDB 10.2 has no such plugin (syntax error 1064).
+    The case is a MySQL 8 check (X-144), and Go's `TestMySQL` has no equivalent. It
+    is not closed by this entry; see O-61, and the coordinator rules on it.
+  - Verdict: the head is accepted for Redis (Kvrocks and the cluster) and for the
+    data and cache stores on MySQL 8.0 and PostgreSQL 10.0. The blob S3 and Azure
+    tests pass. The GCS read path and the MariaDB cache case are open.
+
 ## Open questions for Ritchie
 
 - **Datasets.** The network policy of this environment blocks
