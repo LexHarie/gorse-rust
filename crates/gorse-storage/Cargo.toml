@@ -14,6 +14,27 @@ gorse-protocol = { workspace = true }
 gorse-storage-core = { workspace = true }
 gorse-config = { workspace = true }
 gorse-model-core = { workspace = true }
+prost-types = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }
+tonic = { workspace = true }
+tracing = { workspace = true }
+# The gRPC master store runs its async client and server on a tokio runtime
+# behind the blocking `Store` trait (Go's `Store` is synchronous).
+tokio = { version = "1.53.3", features = ["rt-multi-thread", "sync", "macros", "net"] }
+tokio-stream = { version = "0.1.19", features = ["net"] }
+url = "2.5.8"
+# Cloud stores, one feature per provider (`storage/blob/{s3,gcs,azure}.go`).
+object_store = { version = "0.14.2", default-features = false, optional = true }
+futures-util = { version = "0.3.34", default-features = false, optional = true }
+
+[features]
+s3 = ["dep:object_store", "dep:futures-util", "object_store/aws"]
+gcs = ["dep:object_store", "dep:futures-util", "object_store/gcp"]
+azure = ["dep:object_store", "dep:futures-util", "object_store/azure"]
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [lints]
 workspace = true
