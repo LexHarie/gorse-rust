@@ -1202,6 +1202,12 @@ dependencies = [
  "gorse-dataset",
  "gorse-storage",
  "gorse-storage-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
