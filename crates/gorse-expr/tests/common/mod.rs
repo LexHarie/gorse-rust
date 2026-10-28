@@ -7,6 +7,7 @@
 use gorse_expr::ast::{self, Node, NodeKind, Visitor};
 use gorse_expr::conf::Config;
 use gorse_expr::file::Source;
+use gorse_expr::nature;
 use gorse_expr::parser::{self, lexer};
 use serde_json::Value as Json;
 use sha2::{Digest as _, Sha256};
@@ -150,7 +151,7 @@ pub fn config_from_json(c: &Json) -> Config {
         })
     };
     let mut config = Config::create_new();
-    config.env.extend(names("env"));
+    config.env = nature::map_env(names("env"));
     config.max_nodes = c["max_nodes"].as_u64().expect("max_nodes");
     config.disable_if_operator = c["disable_if_operator"]
         .as_bool()

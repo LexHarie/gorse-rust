@@ -9,9 +9,8 @@
 //! except where Go leaves them unset in a finished tree (slice bounds, the
 //! optimizer's builtin fields).
 //!
-//! Not ported yet: `ConstantNode`, which only the optimizer makes, and the
-//! type information (`nature`) the checker attaches to every node; both come
-//! with WP-3-6.
+//! The checker attaches what it knows about each node as its [`Nature`]; the
+//! optimizer makes [`NodeKind::Constant`] nodes for folded values.
 
 mod dump;
 mod print;
@@ -23,6 +22,8 @@ pub use visitor::{Visitor, find, walk};
 use std::fmt;
 
 use crate::file::Location;
+use crate::nature::Nature;
+use crate::value::Value;
 
 /// A node of the tree: where in the source it comes from, and what it is.
 ///
@@ -34,6 +35,8 @@ pub struct Node {
     pub location: Location,
     /// The node.
     pub kind: NodeKind,
+    /// What the checker knows about the value of the node.
+    pub nature: Nature,
 }
 
 /// What a node is: one variant per Go node struct, named without the `Node`
@@ -188,6 +191,11 @@ pub enum NodeKind {
         /// The value.
         value: Box<Node>,
     },
+    /// A value the optimizer folded a subtree into.
+    Constant {
+        /// The value.
+        value: Value,
+    },
 }
 
 impl NodeKind {
@@ -216,6 +224,7 @@ impl NodeKind {
             Self::Array { .. } => "ArrayNode",
             Self::Map { .. } => "MapNode",
             Self::Pair { .. } => "PairNode",
+            Self::Constant { .. } => "ConstantNode",
         }
     }
 
@@ -255,7 +264,8 @@ impl NodeKind {
             | Self::Bool { .. }
             | Self::String { .. }
             | Self::Bytes { .. }
-            | Self::Pointer { .. } => {}
+            | Self::Pointer { .. }
+            | Self::Constant { .. } => {}
         }
     }
 
@@ -270,6 +280,7 @@ impl NodeKind {
                 | Self::String { .. }
                 | Self::Bytes { .. }
                 | Self::Pointer { .. }
+                | Self::Constant { .. }
         )
     }
 }
@@ -280,6 +291,7 @@ impl Node {
         Self {
             location: Location::default(),
             kind,
+            nature: Nature::default(),
         }
     }
 }
@@ -289,6 +301,7 @@ impl Clone for Node {
         with_stack(|| Self {
             location: self.location,
             kind: self.kind.clone(),
+            nature: self.nature.clone(),
         })
     }
 }

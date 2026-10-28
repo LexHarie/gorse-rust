@@ -17,6 +17,7 @@ use crate::builtin;
 use crate::conf::{Config, DEFAULT_MAX_NODES};
 use crate::file::{Error, Location, Source};
 use crate::gostr;
+use crate::nature::Nature;
 use lexer::{Kind, Lexer, Token};
 use operator::Associativity;
 
@@ -140,7 +141,11 @@ impl Parser<'_> {
         if self.err.is_some() {
             return None;
         }
-        build().map(|kind| Node { location, kind })
+        build().map(|kind| Node {
+            location,
+            kind,
+            nature: Nature::default(),
+        })
     }
 
     fn error(&mut self, message: impl FnOnce(&Self) -> String) {
