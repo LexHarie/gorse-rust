@@ -1530,6 +1530,48 @@ or accepts a metric gap outside the Go tests' own tolerances.
   `samples/*.json`. WP-2-13 compares the schema files only, as its brief says. The rows are
   covered by the store WPs' cross-reads (D-177 to D-181 and the WP-2-3 and WP-2-5 runs).
 
+- **D-193 Court acceptance for WP-2-13 on the merged head (integrator, 2026-10-28).** The WP
+  merged as `c2f5ff88` (head `eb343ec`, which supersedes `dcc8bee`), and the notes were folded
+  in `a88eb4eb`. The head at the gate is `23b31693`.
+  - Schema, `cargo test -p gorse-conformance schema` with `MYSQL_URI` (MySQL 8.0.46),
+    `MARIADB_URI` (MariaDB 10.2.44, `mysql://root:password@tcp(127.0.0.1:3307)/`),
+    `POSTGRES_URI` (10.0), `MONGO_URI` (MongoDB 6.0.28) and `REDIS_URI` (Redis 8):
+    18 passed, 0 failed. That is 12 unit tests and six integration tests
+    (`schema_sqlite`, `schema_mysql`, `schema_mariadb`, `schema_postgres`,
+    `schema_mongodb`, `schema_redis`). `POSTGRES_CONTAINER=gorse-pg` was set, because the
+    default `storage-postgres-1` does not exist on this host (D-187).
+  - `gofmt -l` on `contracts/tools/schemadump` lists nothing, and `go vet` exits 0.
+  - Gate on `23b31693` with all five URIs, `MARIADB_URI` and `POSTGRES_CONTAINER` set: TEST
+    section 958 passed, 0 failed, 13 ignored. fmt, clippy, rustdoc, goldens, `go vet`, cloud
+    clippy and MongoDB clippy all exit 0. An earlier gate run without `MARIADB_URI` was stopped
+    before it finished. Its schema tests would have failed for want of that URI, so it is not
+    a result.
+  - The count moved from 905 to 958. Of the 53 extra, 18 are the conformance tests. The other 35
+    are storage tests that the conformance crate's feature set (`mysql`, `postgres`, `sqlite`,
+    `mongodb`, `redis`) compiles into the workspace test build, because the resolver unifies
+    features across members. I did not trace those 35 to individual tests.
+  - Verdict: accepted. The open items are O-63 (samples and the Redis key layout) and O-64
+    (mixed-version runs).
+
+- **D-194 Court acceptance for O-62 on the merged head (integrator, 2026-10-28).** The O-62
+  head `f145a51` is merged as `23b31693`, which also carries `435b9fc` (lists by the raw
+  prefix, as Go does).
+  - Cloud suite, `cargo test -p gorse-storage --features s3,gcs,azure blob`, with RustFS
+    (`S3_ENDPOINT=127.0.0.1:9000`), Azurite 3.34.0 and fake-gcs-server 1.56.1 started as
+    `-scheme http -port 5051 -public-host 127.0.0.1:5051 -external-url http://127.0.0.1:5051`
+    (the memory backend), with bucket `gorse-test` created through the JSON API: 17 passed, 1
+    ignored. The ignored test is `test_gcs`, which stays under O-62 and O-31 because the server
+    refuses object_store's XML upload.
+  - `test_gcs_read_list_remove` passes. The XML list `GET /gorse%2Dtest?list-type=2&prefix=blob%2F`
+    returns 200 when `-public-host` is set to the address the client uses. The blob thread
+    found that this flag is needed, and I reproduced it.
+  - Correction to D-184 and D-185. The 404s for the XML list recorded in D-184 for fake-gcs-server
+    1.50.2, 1.52.3 and 1.56.1 came from runs without `-public-host`. They do not show that those
+    versions cannot serve the XML list. The `test_gcs` refusal of the XML upload is not re-checked
+    here.
+  - Verdict: accepted for the in-process listener and for the list, read and remove path against
+    fake-gcs-server 1.56.1 with `-public-host`. O-62 stays open for `test_gcs` only.
+
 ## Open questions for Ritchie
 
 - **Datasets.** The network policy of this environment blocks
