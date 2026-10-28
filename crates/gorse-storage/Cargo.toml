@@ -70,3 +70,10 @@ reqwest = { workspace = true }
 
 [lints]
 workspace = true
+
+# The Rust side of the wire check against Go (`contracts/tools/proxygolden`):
+# it serves the proxies, or runs the proxy clients, over the three SQL-backed
+# stores, so it needs all three features.
+[[example]]
+name = "proxy_peer"
+required-features = ["mysql", "postgres", "sqlite"]
