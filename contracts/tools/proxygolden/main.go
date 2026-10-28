@@ -45,6 +45,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorse-io/gorse/config"
 	"github.com/gorse-io/gorse/protocol"
 	"github.com/gorse-io/gorse/storage/cache"
 	"github.com/gorse-io/gorse/storage/data"
@@ -119,6 +120,21 @@ func itemsJSON(items []data.Item) []any {
 	out := make([]any, 0, len(items))
 	for _, item := range items {
 		out = append(out, itemJSON(item))
+	}
+	return out
+}
+
+// scoredItemJSON is a search result: the item's fields and its score.
+func scoredItemJSON(s data.ScoredItem) map[string]any {
+	out := itemJSON(s.Item)
+	out["Score"] = s.Score
+	return out
+}
+
+func scoredItemsJSON(items []data.ScoredItem) []any {
+	out := make([]any, 0, len(items))
+	for _, s := range items {
+		out = append(out, scoredItemJSON(s))
 	}
 	return out
 }
@@ -273,6 +289,22 @@ func dataSection(t *transcript, d data.Database) {
 	streamedFeedback, err := collectFeedback(feedbackBatches, feedbackErrs)
 	t.emit("d.get_feedback_stream", streamedFeedback, err)
 
+	t3 := time.Unix(1704168000, 0).UTC()
+	searchable := data.Item{ItemId: "i3", Categories: []string{"a"}, Timestamp: t3, Labels: []any{"news"}, Comment: "searchable notes"}
+	t.emit("d.batch_insert_item_i3", nil, d.BatchInsertItems(ctx, []data.Item{searchable}))
+	found, err := d.SearchItems(ctx, "searchable", 10)
+	t.emit("d.search_items_searchable", scoredItemsJSON(found), err)
+	found, err = d.SearchItems(ctx, "changed", 10)
+	t.emit("d.search_items_changed", scoredItemsJSON(found), err)
+	found, err = d.SearchItems(ctx, "nothing", 10)
+	t.emit("d.search_items_none", scoredItemsJSON(found), err)
+	latest, err := d.GetLatestItems(ctx, 10, nil, nil)
+	t.emit("d.get_latest_items", itemsJSON(latest), err)
+	latest, err = d.GetLatestItems(ctx, 10, []string{"a"}, nil)
+	t.emit("d.get_latest_items_category", itemsJSON(latest), err)
+	latest, err = d.GetLatestItems(ctx, 10, nil, &t3)
+	t.emit("d.get_latest_items_after", itemsJSON(latest), err)
+
 	deleted, err := d.DeleteUserItemFeedback(ctx, "u2", "i1")
 	t.emit("d.delete_user_item_feedback", deleted, err)
 	t.emit("d.delete_item_i2", nil, d.DeleteItem(ctx, "i2"))
@@ -412,50 +444,53 @@ func vectorJSON(v vectors.Vector) map[string]any {
 }
 
 // vectorsSection is the vector store, on xvec.
-func vectorsSection(t *transcript, v vectors.Database) {
+// vectorsSection runs the vector store's steps under names that start with
+// prefix: "v" for the xvec store and "q" for the Qdrant store.
+func vectorsSection(t *transcript, v vectors.Database, prefix string) {
+	name := func(step string) string { return prefix + "." + step }
 	ctx := context.Background()
 	t1 := time.Unix(1704164645, 600000000).UTC()
 	t2 := time.Unix(1704164700, 0).UTC()
 
-	t.emit("v.init", nil, v.Init())
-	t.emit("v.add_collection", nil, v.AddCollection(ctx, "docs", 2, vectors.Dot, vectors.VectorConfig{}))
+	t.emit(name("init"), nil, v.Init())
+	t.emit(name("add_collection"), nil, v.AddCollection(ctx, "docs", 2, vectors.Dot, vectors.VectorConfig{}))
 	names, err := v.ListCollections(ctx)
-	t.emit("v.list_collections", nonNil(names), err)
+	t.emit(name("list_collections"), nonNil(names), err)
 	info, err := v.DescribeCollection(ctx, "docs")
-	t.emit("v.describe_docs", collectionJSON(info), err)
+	t.emit(name("describe_docs"), collectionJSON(info), err)
 	_, err = v.DescribeCollection(ctx, "missing")
-	t.emit("v.describe_missing", nil, err)
+	t.emit(name("describe_missing"), nil, err)
 
 	vecs := []vectors.Vector{
 		{Id: "a", Values: []float32{1.5, 0.5}, Categories: []string{"c"}, Timestamp: t1},
 		{Id: "b", Values: []float32{0.5, 2.5}, Timestamp: t2},
 		{Id: "c", Values: []float32{3.5, 1.5}, IsHidden: true, Timestamp: t2},
 	}
-	t.emit("v.add_vectors", nil, v.AddVectors(ctx, "docs", vecs))
+	t.emit(name("add_vectors"), nil, v.AddVectors(ctx, "docs", vecs))
 	count, err := v.CountVectors(ctx, "docs")
-	t.emit("v.count_vectors", count, err)
+	t.emit(name("count_vectors"), count, err)
 	got, err := v.GetVectors(ctx, "docs", []string{"a", "c", "missing"})
 	out := make([]any, 0, len(got))
 	for _, g := range got {
 		out = append(out, vectorJSON(g))
 	}
-	t.emit("v.get_vectors", nonNil(out), err)
+	t.emit(name("get_vectors"), nonNil(out), err)
 
 	results, err := v.QueryVectors(ctx, "docs", vectors.Vector{Values: []float32{1.5, 0.5}}, nil, 2)
 	scored := make([]any, 0, len(results))
 	for _, r := range results {
 		scored = append(scored, map[string]any{"Id": r.Id, "Score": r.Score})
 	}
-	t.emit("v.query_vectors", nonNil(scored), err)
+	t.emit(name("query_vectors"), nonNil(scored), err)
 
-	t.emit("v.delete_vectors", nil, v.DeleteVectors(ctx, "docs", t2))
+	t.emit(name("delete_vectors"), nil, v.DeleteVectors(ctx, "docs", t2))
 	count, err = v.CountVectors(ctx, "docs")
-	t.emit("v.count_vectors_after_delete", count, err)
-	t.emit("v.optimize", nil, v.Optimize(ctx, "docs"))
-	t.emit("v.delete_collection", nil, v.DeleteCollection(ctx, "docs"))
+	t.emit(name("count_vectors_after_delete"), count, err)
+	t.emit(name("optimize"), nil, v.Optimize(ctx, "docs"))
+	t.emit(name("delete_collection"), nil, v.DeleteCollection(ctx, "docs"))
 	names, err = v.ListCollections(ctx)
-	t.emit("v.list_collections_after_delete", nonNil(names), err)
-	t.emit("v.close", nil, v.Close())
+	t.emit(name("list_collections_after_delete"), nonNil(names), err)
+	t.emit(name("close"), nil, v.Close())
 }
 
 func collectionJSON(info *vectors.CollectionInfo) map[string]any {
@@ -472,73 +507,132 @@ func ptr[T any](v T) *T {
 	return &v
 }
 
-// serveGo starts Go's three proxy servers on a loopback port, with a fresh
-// backend of each store under dir. It returns the address and a stop func.
-func serveGo(dir string) (string, func(), error) {
+// searchColumns are the search columns of Go's TestSearch
+// (storage/data/database_test.go). Search needs them reconciled before it runs.
+var searchColumns = []string{"item.ItemId", "item.Categories", "item.Labels.brand", "item.Comment"}
+
+// serveGo starts Go's proxy servers on loopback ports, with a fresh backend of
+// each store under dir: the data, cache and xvec stores on one address, and the
+// Qdrant store on another, since one gRPC server holds one vector service. It
+// returns both addresses and a stop func. The Qdrant store is a live server at
+// qdrantURI, so its "docs" collection is deleted first if an earlier run left it.
+func serveGo(dir, qdrantURI string) (string, string, func(), error) {
 	database, err := data.Open("sqlite://"+filepath.Join(dir, "data.db"), "gorse_")
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
 	if err := database.Init(); err != nil {
-		return "", nil, err
+		return "", "", nil, err
+	}
+	if err := database.Reconcile(config.SearchConfig{Columns: searchColumns}); err != nil {
+		return "", "", nil, err
 	}
 	store, err := cache.Open("sqlite://"+filepath.Join(dir, "cache.db"), "gorse_")
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
 	if err := store.Init(); err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
 	index, err := vectors.Open("xvec://"+filepath.Join(dir, "xvec"), "gorse_")
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
 	if err := index.Init(); err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
-	server := grpc.NewServer()
-	protocol.RegisterDataStoreServer(server, data.NewProxyServer(database))
-	protocol.RegisterCacheStoreServer(server, cache.NewProxyServer(store))
-	protocol.RegisterVectorStoreServer(server, vectors.NewProxyServer(index))
+	live, err := vectors.Open(qdrantURI, "gorse_")
+	if err != nil {
+		return "", "", nil, err
+	}
+	if err := live.Init(); err != nil {
+		return "", "", nil, err
+	}
+	if err := purgeDocs(live); err != nil {
+		return "", "", nil, err
+	}
+	main := grpc.NewServer()
+	protocol.RegisterDataStoreServer(main, data.NewProxyServer(database))
+	protocol.RegisterCacheStoreServer(main, cache.NewProxyServer(store))
+	protocol.RegisterVectorStoreServer(main, vectors.NewProxyServer(index))
+	qdrant := grpc.NewServer()
+	protocol.RegisterVectorStoreServer(qdrant, vectors.NewProxyServer(live))
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
+	}
+	qdrantLis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		lis.Close()
+		return "", "", nil, err
 	}
 	go func() {
-		if err := server.Serve(lis); err != nil {
+		if err := main.Serve(lis); err != nil {
 			log.Print(err)
 		}
 	}()
-	return lis.Addr().String(), server.Stop, nil
+	go func() {
+		if err := qdrant.Serve(qdrantLis); err != nil {
+			log.Print(err)
+		}
+	}()
+	stop := func() {
+		main.Stop()
+		qdrant.Stop()
+	}
+	return lis.Addr().String(), qdrantLis.Addr().String(), stop, nil
 }
 
-// runGoClient runs the scenario through Go's proxy clients on addr.
-func runGoClient(addr string) (string, error) {
+// purgeDocs deletes the "docs" collection, which a run that stopped early may
+// have left on a server that keeps its collections, as Qdrant does.
+func purgeDocs(db vectors.Database) error {
+	ctx := context.Background()
+	names, err := db.ListCollections(ctx)
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		if name == "docs" {
+			return db.DeleteCollection(ctx, "docs")
+		}
+	}
+	return nil
+}
+
+// runGoClient runs the scenario through Go's proxy clients: the data, cache and
+// xvec stores on addr, and the Qdrant store on qdrantAddr.
+func runGoClient(addr, qdrantAddr string) (string, error) {
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return "", err
 	}
 	defer conn.Close()
+	qdrantConn, err := grpc.NewClient(qdrantAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return "", err
+	}
+	defer qdrantConn.Close()
 	t := &transcript{}
 	dataSection(t, data.NewProxyClient(conn))
 	cacheSection(t, cache.NewProxyClient(conn))
-	vectorsSection(t, vectors.NewProxyClient(conn))
+	vectorsSection(t, vectors.NewProxyClient(conn), "v")
+	vectorsSection(t, vectors.NewProxyClient(qdrantConn), "q")
 	return t.String(), nil
 }
 
 // oracle runs the scenario through Go's client and server in this process.
-func oracle() (string, error) {
+func oracle(qdrantURI string) (string, error) {
 	dir, err := os.MkdirTemp("", "proxygolden")
 	if err != nil {
 		return "", err
 	}
 	defer os.RemoveAll(dir)
-	addr, stop, err := serveGo(dir)
+	addr, qdrantAddr, stop, err := serveGo(dir, qdrantURI)
 	if err != nil {
 		return "", err
 	}
 	defer stop()
-	return runGoClient(addr)
+	return runGoClient(addr, qdrantAddr)
 }
 
 // checkAgainst compares got with the golden transcript, line by line.
@@ -561,9 +655,10 @@ func checkAgainst(got, golden string) error {
 }
 
 // checkRustServer runs Go's client against the Rust proxy servers that the
-// peer serves, until its stdin closes.
-func checkRustServer(peer, golden string) error {
-	cmd := exec.Command(peer, "serve")
+// peer serves, until its stdin closes. The peer reports two addresses: one for
+// the data, cache and xvec stores, and one for the Qdrant store.
+func checkRustServer(peer, qdrantURI, golden string) error {
+	cmd := exec.Command(peer, "serve", qdrantURI)
 	cmd.Stderr = os.Stderr
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -576,12 +671,20 @@ func checkRustServer(peer, golden string) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	line, err := bufio.NewReader(stdout).ReadString('\n')
+	reader := bufio.NewReader(stdout)
+	addr, err := readReported(reader, "listening ")
 	if err != nil {
-		return fmt.Errorf("peer did not report its address: %w", err)
+		stdin.Close()
+		cmd.Wait()
+		return err
 	}
-	addr := strings.TrimPrefix(strings.TrimSpace(line), "listening ")
-	got, err := runGoClient(addr)
+	qdrantAddr, err := readReported(reader, "listening-qdrant ")
+	if err != nil {
+		stdin.Close()
+		cmd.Wait()
+		return err
+	}
+	got, err := runGoClient(addr, qdrantAddr)
 	stdin.Close()
 	if waitErr := cmd.Wait(); waitErr != nil && err == nil {
 		err = waitErr
@@ -592,20 +695,34 @@ func checkRustServer(peer, golden string) error {
 	return checkAgainst(got, golden)
 }
 
-// checkRustClient serves Go's proxies, and runs the peer's Rust client
-// against them.
-func checkRustClient(peer, golden string) error {
+// readReported reads the peer's next line, which must start with prefix, and
+// returns the address after it.
+func readReported(reader *bufio.Reader, prefix string) (string, error) {
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return "", fmt.Errorf("peer did not report its address: %w", err)
+	}
+	addr, ok := strings.CutPrefix(strings.TrimSpace(line), prefix)
+	if !ok {
+		return "", fmt.Errorf("peer reported %q, want a line starting %q", line, prefix)
+	}
+	return addr, nil
+}
+
+// checkRustClient serves Go's proxies, and runs the peer's Rust client against
+// them.
+func checkRustClient(peer, qdrantURI, golden string) error {
 	dir, err := os.MkdirTemp("", "proxygolden")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(dir)
-	addr, stop, err := serveGo(dir)
+	addr, qdrantAddr, stop, err := serveGo(dir, qdrantURI)
 	if err != nil {
 		return err
 	}
 	defer stop()
-	cmd := exec.Command(peer, "client", addr)
+	cmd := exec.Command(peer, "client", addr, qdrantAddr)
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {
@@ -617,23 +734,27 @@ func checkRustClient(peer, golden string) error {
 func main() {
 	out := flag.String("out", "crates/gorse-storage/tests/data/proxy_transcript.txt", "where the oracle writes the transcript")
 	golden := flag.String("golden", "crates/gorse-storage/tests/data/proxy_transcript.txt", "the transcript the checks compare with")
-	rustServer := flag.String("rust-server", "", "the proxy_peer example, serving the Rust proxies")
-	rustClient := flag.String("rust-client", "", "the proxy_peer example, running the Rust proxy clients")
+	rustServer := flag.String("rust-server", "", "the proxy_peer binary, serving the Rust proxies")
+	rustClient := flag.String("rust-client", "", "the proxy_peer binary, running the Rust proxy clients")
+	qdrant := flag.String("qdrant", os.Getenv("QDRANT_URI"), "a live Qdrant server, such as qdrant://127.0.0.1:6334 (defaults to $QDRANT_URI)")
 	flag.Parse()
 
+	if *qdrant == "" {
+		log.Fatal("no Qdrant server: set QDRANT_URI or pass -qdrant (the scenario's vector section runs on a live Qdrant)")
+	}
 	if *rustServer != "" || *rustClient != "" {
 		want, err := os.ReadFile(*golden)
 		if err != nil {
 			log.Fatal(err)
 		}
 		if *rustServer != "" {
-			if err := checkRustServer(*rustServer, string(want)); err != nil {
+			if err := checkRustServer(*rustServer, *qdrant, string(want)); err != nil {
 				log.Fatalf("Go client against Rust server: %v", err)
 			}
 			fmt.Println("Go client against Rust server: transcript matches")
 		}
 		if *rustClient != "" {
-			if err := checkRustClient(*rustClient, string(want)); err != nil {
+			if err := checkRustClient(*rustClient, *qdrant, string(want)); err != nil {
 				log.Fatalf("Rust client against Go server: %v", err)
 			}
 			fmt.Println("Rust client against Go server: transcript matches")
@@ -641,7 +762,7 @@ func main() {
 		return
 	}
 
-	got, err := oracle()
+	got, err := oracle(*qdrant)
 	if err != nil {
 		log.Fatal(err)
 	}

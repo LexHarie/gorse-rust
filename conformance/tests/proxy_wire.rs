@@ -3,10 +3,11 @@
 //! WP-2-12, the proxy wire check: Go's proxy clients and servers against the
 //! Rust ones, in both directions, on one scenario.
 //!
-//! `contracts/tools/proxygolden` runs the 66-step scenario through Go's proxy
-//! clients and servers, and its transcript is the golden file
+//! `contracts/tools/proxygolden` runs the scenario through Go's proxy clients
+//! and servers, and its transcript is the golden file
 //! `crates/gorse-storage/tests/data/proxy_transcript.txt`. The Rust side is the
-//! `proxy_peer` binary of this crate, which the Go tool drives:
+//! `proxy_peer` binary of this crate, which the Go tool drives. The vector steps
+//! run against a live Qdrant server, given by `QDRANT_URI`:
 //!
 //! - `proxy_oracle_matches_golden`: Go writes the transcript again, and it equals
 //!   the golden file.
@@ -15,11 +16,36 @@
 //! - `proxy_rust_client_against_go_server`: the Rust clients run against Go's
 //!   servers.
 //!
-//! Go must be on PATH, at the version in `go.mod`. A test that cannot run Go
-//! fails with the reason; it is never skipped (`conformance/README.md`).
+//! Go must be on PATH, at the version in `go.mod`, and `QDRANT_URI` must name a
+//! live Qdrant server (for example `qdrant://127.0.0.1:6334`). A test that
+//! cannot run fails with the reason; it is never skipped (`conformance/README.md`).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Mutex, MutexGuard};
+
+/// The three tests share one Qdrant server and its `docs` collection, so they
+/// run one at a time.
+static QDRANT: Mutex<()> = Mutex::new(());
+
+/// Takes the Qdrant lock. A test that panicked while holding it does not stop
+/// the others.
+fn lock_qdrant() -> MutexGuard<'static, ()> {
+    QDRANT
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// The Qdrant server's URI, from `QDRANT_URI`. A missing URI is a test failure
+/// with the reason.
+fn qdrant_uri() -> String {
+    std::env::var("QDRANT_URI").unwrap_or_else(|_| {
+        panic!(
+            "QDRANT_URI is not set: the proxy wire check needs a live Qdrant server, \
+             for example QDRANT_URI=qdrant://127.0.0.1:6334 (conformance/README.md)"
+        )
+    })
+}
 
 /// The repository root: the parent of this crate.
 fn repo_root() -> &'static Path {
@@ -75,11 +101,15 @@ fn assert_matches_golden(got: &str, golden: &str) {
 
 #[test]
 fn proxy_oracle_matches_golden() {
+    let _qdrant = lock_qdrant();
+    let qdrant = qdrant_uri();
     let dir = tempfile::tempdir().expect("temporary directory");
     let written = dir.path().join("proxy_transcript.txt");
     go(&[
         "run",
         "./contracts/tools/proxygolden",
+        "-qdrant",
+        qdrant.as_str(),
         "-out",
         written.to_str().expect("UTF-8 path"),
     ]);
@@ -90,9 +120,13 @@ fn proxy_oracle_matches_golden() {
 
 #[test]
 fn proxy_go_client_against_rust_server() {
+    let _qdrant = lock_qdrant();
+    let qdrant = qdrant_uri();
     let stdout = go(&[
         "run",
         "./contracts/tools/proxygolden",
+        "-qdrant",
+        qdrant.as_str(),
         "-rust-server",
         env!("CARGO_BIN_EXE_proxy_peer"),
         "-golden",
@@ -106,9 +140,13 @@ fn proxy_go_client_against_rust_server() {
 
 #[test]
 fn proxy_rust_client_against_go_server() {
+    let _qdrant = lock_qdrant();
+    let qdrant = qdrant_uri();
     let stdout = go(&[
         "run",
         "./contracts/tools/proxygolden",
+        "-qdrant",
+        qdrant.as_str(),
         "-rust-client",
         env!("CARGO_BIN_EXE_proxy_peer"),
         "-golden",
