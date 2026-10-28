@@ -1229,6 +1229,12 @@ dependencies = [
 [[package]]
 name = "gorse-conformance"
 version = "0.0.0"
+dependencies = [
+ "gorse-common",
+ "gorse-storage",
+ "gorse-storage-core",
+ "tokio",
+]
 
 [[package]]
 name = "gorse-dataset"

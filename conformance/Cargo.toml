@@ -10,5 +10,13 @@ publish = false
 
 [dependencies]
 
+[dev-dependencies]
+# The vector cross-read (tests/vector_cross_read.rs) drives the Rust vector stores
+# for all three backends.
+gorse-common = { workspace = true }
+gorse-storage = { workspace = true, features = ["qdrant", "milvus", "weaviate"] }
+gorse-storage-core = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
 [lints]
 workspace = true
