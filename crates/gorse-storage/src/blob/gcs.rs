@@ -70,10 +70,9 @@ mod tests {
 
     /// Go writes through the emulator here. object_store writes through the GCS
     /// XML API, which fake-gcs-server does not serve (v1.54.0 and v1.56.1 both
-    /// answer 400 "invalid uploadType"), and it answers the XML list and read
-    /// with 404 (O-62). The emulator cannot run this sequence, so the in-process
-    /// round trip below covers it instead.
-    #[ignore = "fake-gcs-server does not serve the XML write, list or read that object_store uses (O-31, O-62)"]
+    /// answer 400 "invalid uploadType"). The in-process round trip below covers
+    /// the same sequence instead.
+    #[ignore = "fake-gcs-server refuses the XML upload that object_store uses (O-31, O-62)"]
     #[tokio::test]
     async fn test_gcs() {
         let ctx = Context::background();
@@ -117,8 +116,9 @@ mod tests {
 
     /// Not in Go. The object is seeded through the emulator's JSON upload API,
     /// which fake-gcs-server does serve, and then listed, read and removed
-    /// through object_store. Against fake-gcs-server 1.50 to 1.56 this passes
-    /// only with `-external-url` set (O-62).
+    /// through object_store. It needs fake-gcs-server 1.56.1 started with both
+    /// `-external-url` and `-public-host` set to its own address. Without
+    /// `-public-host` the server answers 404 for XML list and read (O-62).
     #[tokio::test]
     async fn test_gcs_read_list_remove() {
         let ctx = Context::background();
@@ -157,11 +157,13 @@ mod tests {
     /// listener: write, list, read, remove, list. The requests the store sends
     /// are checked one by one.
     ///
-    /// The probe that recorded Go's client (proxied to fake-gcs-server, O-62)
-    /// sent the same five calls in the same order: a JSON multipart upload, a
-    /// JSON list with `prefix=blob`, a path-style read of `/gorse-test/blob%2Ftest.txt`,
-    /// a JSON delete, and a JSON list. object_store uses the XML API for all
-    /// four, so only the read is the same request: method and decoded path agree.
+    /// The probe that recorded Go's client (through a recording proxy against
+    /// fake-gcs-server, O-62) sent the same five calls in the same order: a JSON
+    /// multipart upload, a JSON list with `prefix=blob`, a path-style read of
+    /// `/gorse-test/blob%2Ftest.txt`, a JSON delete, and a JSON list. object_store
+    /// uses the XML API for all four, so only the read is the same request: method
+    /// and decoded path agree. The list sends no prefix and filters on the raw
+    /// string (see `CloudStore::list`).
     #[tokio::test]
     async fn test_gcs_xml_round_trip() {
         let ctx = Context::background();
@@ -198,12 +200,36 @@ mod tests {
             sent,
             vec![
                 "PUT /gorse-test/blob/test.txt",
-                "GET /gorse-test?list-type=2&prefix=blob/",
+                "GET /gorse-test?list-type=2",
                 "GET /gorse-test/blob/test.txt",
                 "DELETE /gorse-test/blob/test.txt",
-                "GET /gorse-test?list-type=2&prefix=blob/",
+                "GET /gorse-test?list-type=2",
             ]
         );
+    }
+
+    /// Not in Go's tests. Go lists by the raw string prefix, so a listing under
+    /// `blob` also returns `blobs/x`. Go names that object by slicing the key after
+    /// the prefix, so the name is `s/x` (Q-240). The listing must give the same
+    /// names, and must not return objects outside the prefix.
+    #[tokio::test]
+    async fn test_gcs_xml_list_matches_go_raw_prefix() {
+        let ctx = Context::background();
+        let (endpoint, fake) = serve_xml().await;
+        let client = build(&GCSConfig::default(), "gorse-test", "blob", Some(&endpoint)).unwrap();
+        {
+            let mut fake = fake.lock().unwrap();
+            for key in [
+                "gorse-test/blob/test.txt",
+                "gorse-test/blobs/x",
+                "gorse-test/other/y",
+            ] {
+                fake.objects.insert(key.to_string(), b"x".to_vec());
+            }
+        }
+
+        let names = client.list(&ctx).await.unwrap();
+        assert_eq!(names, vec!["test.txt".to_string(), "s/x".to_string()]);
     }
 
     /// Not in Go's tests. A read of a missing object reports the storage
