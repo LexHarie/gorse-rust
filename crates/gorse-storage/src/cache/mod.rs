@@ -19,12 +19,12 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use gorse_common::dateparse;
 use gorse_common::gocontext::{Context, ContextError};
+use gorse_common::gosort;
 use gorse_common::gostrconv;
 use gorse_common::gotime::{self, Duration, Time};
 use gorse_storage_core::errors::Error as StorageError;
 use gorse_storage_core::options::Opt;
 
-mod gosort;
 pub mod no_database;
 
 #[cfg(test)]
@@ -274,7 +274,26 @@ pub struct Score {
 /// `sort.Slice`. The sort is not stable, so documents with equal scores come
 /// out in the order Go's pattern-defeating quicksort gives, not in input order.
 pub fn sort_documents(documents: &mut [Score]) {
-    gosort::slice(documents, |a, b| a.score > b.score);
+    gosort::sort(&mut DocumentSorter(documents));
+}
+
+/// Orders score documents by score, highest first, as `sort.Slice` does with
+/// Go's `func(i, j int) bool`. `gosort::sort` runs the same pdqsort for
+/// `sort.Sort` and `sort.Slice`, so the two orderings agree.
+struct DocumentSorter<'a>(&'a mut [Score]);
+
+impl gosort::Interface for DocumentSorter<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn less(&self, i: usize, j: usize) -> bool {
+        self.0[i].score > self.0[j].score
+    }
+
+    fn swap(&mut self, i: usize, j: usize) {
+        self.0.swap(i, j);
+    }
 }
 
 /// Go's `cache.ConvertDocumentsToValues`: the ids of the documents, in order.
@@ -610,5 +629,105 @@ mod tests {
         assert_eq!(message("x://q"), "short t_x://q");
         assert_eq!(message("x://y/z"), "long t_x://y/z");
         assert_eq!(message("w://"), "Unknown database: w://");
+    }
+
+    /// A document is its score and its input position, so ties are visible.
+    struct Pairs<'a>(&'a mut [(u8, usize)]);
+
+    impl gosort::Interface for Pairs<'_> {
+        fn len(&self) -> usize {
+            self.0.len()
+        }
+
+        fn less(&self, i: usize, j: usize) -> bool {
+            self.0[i].0 > self.0[j].0
+        }
+
+        fn swap(&mut self, i: usize, j: usize) {
+            self.0.swap(i, j);
+        }
+    }
+
+    /// Sorts the scores with the comparator `sort_documents` uses, and returns
+    /// each document's score and input position.
+    fn order(scores: &[u8]) -> Vec<(u8, usize)> {
+        let mut docs: Vec<(u8, usize)> = scores.iter().copied().zip(0..).collect();
+        gosort::sort(&mut Pairs(&mut docs));
+        docs
+    }
+
+    #[test]
+    fn sorts_descending() {
+        let scores: Vec<u8> = (0..200).map(|i| (i * 37 % 101) as u8).collect();
+        let sorted = order(&scores);
+        assert!(sorted.windows(2).all(|w| w[0].0 >= w[1].0));
+        let mut expected = scores.clone();
+        expected.sort_unstable_by(|a, b| b.cmp(a));
+        let got: Vec<u8> = sorted.iter().map(|d| d.0).collect();
+        assert_eq!(got, expected);
+    }
+
+    /// `sort.Slice` output (Go 1.27.0) for the 40 scores `(i * 7) % 5`:
+    /// the input positions, highest score first.
+    #[test]
+    fn ties_come_out_in_go_order_of_40_items() {
+        let scores: Vec<u8> = (0..40u32).map(|i| ((i * 7) % 5) as u8).collect();
+        let got: Vec<usize> = order(&scores).iter().map(|d| d.1).collect();
+        assert_eq!(got, GO_40);
+    }
+
+    /// `sort.Slice` output (Go 1.27.0) for the 200 scores `(i * 37) % 101`,
+    /// which are mostly ties. This input takes the pattern-breaking and
+    /// heap paths that the 40-item input does not.
+    #[test]
+    fn ties_come_out_in_go_order_of_200_items() {
+        let scores: Vec<u8> = (0..200u32).map(|i| ((i * 37) % 101) as u8).collect();
+        let got: Vec<usize> = order(&scores).iter().map(|d| d.1).collect();
+        assert_eq!(got, GO_200);
+    }
+
+    const GO_40: [usize; 40] = [
+        22, 37, 2, 27, 32, 17, 12, 7, 4, 9, 24, 19, 34, 39, 14, 29, 16, 26, 31, 11, 36, 21, 1, 6,
+        8, 23, 13, 3, 28, 38, 33, 18, 20, 30, 25, 35, 0, 15, 10, 5,
+    ];
+
+    const GO_200: [usize; 200] = [
+        131, 30, 161, 60, 90, 191, 120, 19, 150, 49, 180, 79, 8, 109, 38, 139, 68, 169, 98, 199,
+        128, 27, 57, 158, 188, 87, 16, 117, 46, 147, 76, 177, 5, 106, 136, 35, 65, 166, 196, 95,
+        125, 24, 54, 155, 185, 84, 114, 13, 144, 43, 174, 73, 103, 2, 133, 32, 163, 62, 92, 193,
+        21, 122, 51, 152, 81, 182, 10, 111, 141, 40, 70, 171, 100, 130, 29, 160, 59, 89, 190, 18,
+        119, 149, 48, 179, 78, 7, 108, 138, 37, 168, 67, 198, 97, 26, 127, 56, 157, 86, 187, 116,
+        15, 146, 45, 176, 75, 105, 4, 135, 34, 64, 165, 94, 195, 124, 23, 154, 53, 184, 83, 113,
+        12, 42, 143, 173, 72, 102, 1, 132, 31, 61, 162, 192, 91, 121, 20, 151, 50, 181, 80, 9, 110,
+        140, 39, 170, 69, 99, 28, 129, 58, 159, 88, 189, 118, 17, 47, 148, 77, 178, 6, 107, 36,
+        137, 66, 167, 96, 197, 25, 126, 55, 156, 186, 85, 115, 14, 145, 44, 74, 175, 104, 3, 33,
+        134, 164, 63, 93, 194, 123, 22, 52, 153, 82, 183, 11, 112, 142, 41, 71, 172, 0, 101,
+    ];
+
+    /// `SortDocuments` on the 40-item input gives Go's order too, so the
+    /// comparator it passes is the one the golden was made with.
+    #[test]
+    fn sort_documents_breaks_ties_as_go_does() {
+        use gorse_common::gotime::Time;
+        let mut documents: Vec<Score> = (0..40u32)
+            .map(|i| Score {
+                id: i.to_string(),
+                score: ((i * 7) % 5) as f64,
+                is_hidden: false,
+                categories: Vec::new(),
+                timestamp: Time::default(),
+            })
+            .collect();
+        sort_documents(&mut documents);
+        let got = convert_documents_to_values(&documents);
+        let want: Vec<String> = GO_40.iter().map(|i| i.to_string()).collect();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn handles_short_and_empty_slices() {
+        assert!(order(&[]).is_empty());
+        assert_eq!(order(&[3]), vec![(3, 0)]);
+        assert_eq!(order(&[1, 2]), vec![(2, 1), (1, 0)]);
     }
 }
