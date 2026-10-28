@@ -1235,6 +1235,7 @@ dependencies = [
  "gorse-common",
  "gorse-config",
  "gorse-storage",
+ "gorse-storage-core",
  "indexmap",
  "mongodb",
  "redis",

@@ -13,6 +13,7 @@ build, and compare the outputs. They decide the exit gates of Phases 2 to 5.
 | `tests/rest_golden.rs` | WP-5-1 | Every REST route in `contracts/rest/*.routes.md`: status, headers that matter, and body against recorded Go responses |
 | `tests/sdk.rs` | WP-5-2 | The `gorse-go` and `gorse_rs` SDK suites against both builds |
 | `tests/playground.rs` | WP-5-3 | `gorse-in-one --playground` end to end |
+| `tests/vector_cross_read.rs` | WP-2-9 | The Rust and Go vector stores write and read each other's dataset on Qdrant, Milvus and Weaviate. The Go side is `contracts/tools/vectorxread`. Needs Go and the three servers, so the tests are `#[ignore]`d; run them with `-- --ignored` |
 
 Rules:
 
@@ -25,3 +26,5 @@ Rules:
   gate is zero unexplained diffs.
 - Backends come from `storage/docker-compose.yml`. A test that needs a backend or
   a Go binary that is unavailable fails; it is never skipped silently.
+- Tests that need a backend are `#[ignore]`d, so that `cargo test` stays offline. Run
+  them with `-- --ignored`; once run, a missing backend or Go binary fails them.
