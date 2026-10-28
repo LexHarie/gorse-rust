@@ -20,6 +20,16 @@ serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
 thiserror.workspace = true
 async-trait.workspace = true
+# The SQL drivers are optional, one feature each (D-18). `sqlx` serves MySQL and
+# Postgres; `rusqlite` serves SQLite, on `tokio`'s blocking pool.
+rusqlite = { workspace = true, optional = true }
+sqlx = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true, features = ["rt"] }
+
+[features]
+mysql = ["dep:sqlx", "sqlx/mysql"]
+postgres = ["dep:sqlx", "sqlx/postgres"]
+sqlite = ["dep:rusqlite", "dep:tokio"]
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time"] }
