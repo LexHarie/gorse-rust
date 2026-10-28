@@ -10,7 +10,7 @@
 
 use std::fs;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use gorse_common::gotime;
 use gorse_expr::compile;
@@ -101,7 +101,7 @@ fn env_nature(entries: Vec<(&str, Nature)>) -> Nature {
         .collect();
     Nature {
         ty: Some(Ty::map(Ty::string(), Ty::any())),
-        map: Some(Rc::new(MapFields { fields })),
+        map: Some(Arc::new(MapFields { fields })),
         ..Nature::default()
     }
 }
@@ -176,12 +176,12 @@ impl Fixtures {
         let item = &json["item"];
         let item = Value::Struct(
             item_ty(),
-            Rc::new(vec![
+            Arc::new(vec![
                 json_str(&item["ItemId"]),
                 json_bool(&item["IsHidden"]),
                 Value::Array(
                     Ty::slice(Ty::string()),
-                    Rc::new(
+                    Arc::new(
                         item["Categories"]
                             .as_array()
                             .map_or(Vec::new(), |a| a.iter().map(json_str).collect()),
@@ -200,10 +200,10 @@ impl Fixtures {
             .map(|f| {
                 Value::Struct(
                     feedback_ty(),
-                    Rc::new(vec![
+                    Arc::new(vec![
                         Value::Struct(
                             feedback_key_ty(),
-                            Rc::new(vec![
+                            Arc::new(vec![
                                 json_str(&f["FeedbackType"]),
                                 json_str(&f["UserId"]),
                                 json_str(&f["ItemId"]),
@@ -218,11 +218,11 @@ impl Fixtures {
                 )
             })
             .collect();
-        let feedback = Value::Array(Ty::slice(feedback_ty()), Rc::new(feedback));
+        let feedback = Value::Array(Ty::slice(feedback_ty()), Arc::new(feedback));
         let user = &json["user"];
         let user = Value::Struct(
             user_ty(),
-            Rc::new(vec![
+            Arc::new(vec![
                 json_str(&user["UserId"]),
                 json_any(&user["Labels"]),
                 json_str(&user["Comment"]),

@@ -9,13 +9,14 @@
 //! `[]data.Feedback`, the types of the values Go's `expr.Env` gives them, so
 //! the checker types the expressions as Go does.
 //!
-//! The recommender holds compiled programs, which use `Rc`s, so it is not
-//! `Send`: it is used on one thread at a time. Go's `Push` is safe to call from
-//! many goroutines; the port's `push` takes `&mut self` instead (D-WP36-3 in
-//! `porting/notes/WP-3-6.md`).
+//! The compiled programs share their types through `Arc`s, so the recommender is
+//! `Send` and can move to a worker thread (D-227, Q-254). Go's `Push` is safe to
+//! call from many goroutines at once; the port's `push` takes `&mut self`, so a
+//! caller that pushes from several threads wraps the recommender in a `Mutex`
+//! (D-WP36-3 in `porting/notes/WP-3-6.md`).
 
 use std::collections::BTreeMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use gorse_common::gotime::Time;
 use gorse_common::heap::TopKFilter;
@@ -269,7 +270,7 @@ impl NonPersonalized {
     fn environment(&self, item: &Item, feedback: &[Feedback]) -> Value {
         let item = Value::Struct(
             self.types.item.clone(),
-            Rc::new(vec![
+            Arc::new(vec![
                 Value::str(&item.item_id),
                 Value::Bool(item.is_hidden),
                 string_slice(item.categories.as_deref()),
@@ -285,11 +286,11 @@ impl NonPersonalized {
             .collect();
         Value::Map(
             Ty::map(Ty::string(), Ty::any()),
-            Rc::new(vec![
+            Arc::new(vec![
                 (Value::str("item"), item),
                 (
                     Value::str("feedback"),
-                    Value::Array(Ty::slice(self.types.feedback.clone()), Rc::new(feedback)),
+                    Value::Array(Ty::slice(self.types.feedback.clone()), Arc::new(feedback)),
                 ),
             ]),
         )
@@ -304,7 +305,7 @@ impl NonPersonalized {
         } = &feedback.feedback_key;
         let key = Value::Struct(
             self.types.feedback_key.clone(),
-            Rc::new(vec![
+            Arc::new(vec![
                 Value::str(feedback_type),
                 Value::str(user_id),
                 Value::str(item_id),
@@ -312,7 +313,7 @@ impl NonPersonalized {
         );
         Value::Struct(
             self.types.feedback.clone(),
-            Rc::new(vec![
+            Arc::new(vec![
                 key,
                 Value::Float(feedback.value),
                 Value::Time(feedback.timestamp.clone()),
@@ -330,7 +331,7 @@ fn string_slice(items: Option<&[String]>) -> Value {
     let items = items.unwrap_or(&[]);
     Value::Array(
         Ty::slice(Ty::string()),
-        Rc::new(items.iter().map(|item| Value::str(item)).collect()),
+        Arc::new(items.iter().map(|item| Value::str(item)).collect()),
     )
 }
 
@@ -348,7 +349,7 @@ fn labels_value(labels: &Labels) -> Value {
         Labels::Array(items) => Value::any_array(items.iter().map(labels_value).collect()),
         Labels::Object(entries) => Value::Map(
             Ty::map(Ty::string(), Ty::any()),
-            Rc::new(
+            Arc::new(
                 entries
                     .iter()
                     .map(|(name, value)| (Value::str(name), labels_value(value)))
@@ -366,6 +367,14 @@ mod tests {
     /// `n` seconds, as Go's `time.Duration(n) * time.Second`.
     fn seconds(n: i64) -> Duration {
         Duration(n * SECOND.0)
+    }
+
+    /// The master moves recommenders to its parallel workers, so the type must
+    /// be `Send` (D-227). This is checked when the test compiles.
+    #[test]
+    fn recommender_is_send() {
+        fn assert_send<T: Send>() {}
+        assert_send::<NonPersonalized>();
     }
 
     #[test]
