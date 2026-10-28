@@ -2424,6 +2424,71 @@ said otherwise), so the Rust result is Go's.
   tests need no server. The conformance proxy check fails without Go (`proxy_wire`). Open for
   nothing: the items the audit found are fixed in the same commit.
 
+- **X-161 Contexts do not cross the wire (WP-2-12, deviation 1).** Go passes the call's context
+  into the backend. The Rust server gives the backend a background context. A client that goes
+  away drops the call's future, which stops the work the same way.
+
+- **X-162 Where Go panics, the Rust server returns an error (WP-2-12, deviation 2).** Go's server
+  dereferences `scan_options` unchecked, so a request without them panics. The Rust server
+  returns an error there. Missing `condition` or `patch` become an error or a default. Go's client
+  always sends the options, so the oracle does not reach this case.
+
+- **X-163 The cache scan buffer is unbounded (WP-2-12, deviation 3).** `scan_scores` on the Rust
+  server pushes into an unbounded channel, so the backend is not paused by the client's reads.
+  Go's stream is paced by the send. Memory can grow with a slow reader.
+
+- **X-164 Malformed labels JSON uses serde's text (WP-2-12, deviation 4).** A labels blob that is
+  not valid JSON fails with serde's message, not Go's `encoding/json` text. Empty bytes give Go's
+  `unexpected end of JSON input`, as Go does.
+
+- **X-165 The brief's base commit was an ancestor of the integration head (WP-2-12, deviation 5).**
+  The brief names `25c5bb81`. The integration head was `12f19e4`, and `25c5bb81` is its ancestor.
+  The branch `claude/wp-2-12-proxies` starts from `12f19e4`.
+
+- **Q-241 Timestamps of nil read as Go reads them (WP-2-12, quirk 1).** `time_from_pb` of a nil
+  timestamp is the Unix epoch, as Go's `Timestamp.AsTime` on nil gives it. `optional_time_from_pb`
+  of nil is the zero time, as Go's `timeFromPB` gives it. The transcript pins both through the
+  item, feedback and vector records.
+
+- **Q-242 `GetItemStream` drops `time_limit` (WP-2-12, quirk 2).** Go's client does not send it,
+  so the Rust client does not either.
+
+- **Q-243 Empty repeated fields are nil on the wire (WP-2-12, quirk 3).** An empty `categories`
+  list reads back as nil in Go and as `None` in Rust. So `ItemPatch` and `ScorePatch` cannot clear
+  categories over the wire. The transcript shows `Categories: null` for an item stored with `[]`.
+
+- **Q-244 The cache `Get` hides backend errors (WP-2-12, quirk 4).** Go's server answers with no
+  value and no error whenever the key does not exist, even when the backend reported an error for
+  it. A failing `get` therefore reads back as a missing key, through the Rust server as well
+  (`a_failing_get_reads_as_a_missing_key_through_the_proxy`).
+
+- **Q-245 An unknown distance is refused with Go's text (WP-2-12, quirk 5).** A distance number
+  that is not one of the three known ones is an error with the text `distance method not
+  supported`, the text Go's `distanceFromPB` gives (`distances_convert_both_ways_and_refuse_unknown`).
+
+- **O-67 One scenario, two languages (WP-2-12, oracle 1).** `contracts/tools/proxygolden` runs a
+  66-step scenario (data 32, cache 19, vectors 15) through Go's proxy clients and servers, and
+  writes `crates/gorse-storage/tests/data/proxy_transcript.txt`.
+  `crates/gorse-storage/tests/common/proxy_scenario.rs` runs the same steps through the Rust proxy
+  clients. Each step's line is its name, a tab, then `{"ok":...}` or `{"err":...}`, with keys
+  sorted and integral floats written as integers.
+
+- **O-68 Both directions are checked on the wire (WP-2-12, oracle 2).**
+  `crates/gorse-storage/tests/proxy_wire.rs` replays the scenario against the Rust servers
+  in-process, per store, and compares with the golden lines. `conformance/tests/proxy_wire.rs`
+  runs the live checks under `cargo test -p gorse-conformance proxy`: Go regenerates the golden
+  file (`proxy_oracle_matches_golden`), Go's client runs against the Rust servers
+  (`proxy_go_client_against_rust_server`), and the Rust clients run against Go's servers
+  (`proxy_rust_client_against_go_server`). The Rust side is the `proxy_peer` binary of the
+  conformance crate. A missing Go fails these tests. A mutated golden line makes the
+  `-rust-client` check fail at that line.
+
+- **O-69 The transcript does not cover search or the vector stores (WP-2-12, oracle 3).** The
+  `Updated` column is checked as Go sets it, equal to the timestamp at insert. Float values are
+  chosen to be exact in f32 and f64, so both languages print them the same. `SearchItems` and
+  `GetLatestItems` are not in the scenario, and the scenario does not run against the Milvus,
+  Qdrant and Weaviate stores. Open: the scenario does not yet cover these.
+
 Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
 version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does
 this port; newer versions are not tested), MariaDB 10.2.44 (`mariadb:10.2`, CI's
