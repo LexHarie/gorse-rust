@@ -401,7 +401,7 @@ pub trait Database: Send + Sync {
     /// returned.
     async fn scan(
         &self,
-        work: &mut (dyn FnMut(&str) -> Result<(), Error> + Send),
+        work: &mut (dyn for<'a> FnMut(&'a str) -> Result<(), Error> + Send),
     ) -> Result<(), Error>;
     /// Removes everything in the store.
     async fn purge(&self) -> Result<(), Error>;
@@ -454,7 +454,10 @@ pub trait Database: Send + Sync {
     async fn scan_scores(
         &self,
         ctx: &Context,
-        callback: &mut (dyn FnMut(&str, &str, &str, Time) -> Result<(), Error> + Send),
+        callback: &mut (
+                 dyn for<'a, 'b, 'c> FnMut(&'a str, &'b str, &'c str, Time) -> Result<(), Error>
+                     + Send
+             ),
     ) -> Result<(), Error>;
 
     /// Adds time series points.
