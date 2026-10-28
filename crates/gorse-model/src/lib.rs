@@ -2,4 +2,6 @@
 
 //! Collaborative-filtering (BPR, ALS) and click-through-rate (factorization machine) models.
 //!
-//! Skeleton only (Phase 0): no Go code has been ported into this crate yet.
+//! [`cf`] holds the collaborative-filtering models. `ctr` is added by WP-3-2.
+
+pub mod cf;

@@ -1225,11 +1225,17 @@ dependencies = [
 name = "gorse-model"
 version = "0.0.0"
 dependencies = [
+ "fixedbitset",
  "gorse-common",
  "gorse-dataset",
  "gorse-model-core",
  "gorse-protocol",
  "gorse-storage",
+ "prost",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]
