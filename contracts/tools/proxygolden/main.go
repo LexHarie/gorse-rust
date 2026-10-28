@@ -548,7 +548,7 @@ func serveGo(dir, qdrantURI string) (string, string, func(), error) {
 	if err := live.Init(); err != nil {
 		return "", "", nil, err
 	}
-	if err := purgeDocs(live); err != nil {
+	if err := purgeAll(live); err != nil {
 		return "", "", nil, err
 	}
 	main := grpc.NewServer()
@@ -583,17 +583,19 @@ func serveGo(dir, qdrantURI string) (string, string, func(), error) {
 	return lis.Addr().String(), qdrantLis.Addr().String(), stop, nil
 }
 
-// purgeDocs deletes the "docs" collection, which a run that stopped early may
-// have left on a server that keeps its collections, as Qdrant does.
-func purgeDocs(db vectors.Database) error {
+// purgeAll deletes every collection on the live server, as Go's SetupTest does
+// before each vector case. The vector suite leaves its last collection behind,
+// and the scenario's list_collections step expects the server to hold "docs"
+// alone, so a run that stopped early or a suite run before it must not leak in.
+func purgeAll(db vectors.Database) error {
 	ctx := context.Background()
 	names, err := db.ListCollections(ctx)
 	if err != nil {
 		return err
 	}
 	for _, name := range names {
-		if name == "docs" {
-			return db.DeleteCollection(ctx, "docs")
+		if err := db.DeleteCollection(ctx, name); err != nil {
+			return err
 		}
 	}
 	return nil
