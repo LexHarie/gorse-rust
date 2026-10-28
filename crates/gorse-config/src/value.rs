@@ -1,4 +1,9 @@
-// Ports: the `any` values spf13/viper v1.21.0 hands to go-viper/mapstructure v2.5.0, and spf13/cast v1.10.0 ToStringMap @ add21b5
+// Ports: the `any` values spf13/viper v1.21.0 hands to go-viper/mapstructure v2.5.0, spf13/cast v1.10.0 basic.go (ToStringE) and map.go (ToStringMapE), and pelletier/go-toml v2.4.3 localtime.go (String) @ add21b5
+//
+// Derived from spf13/cast: Copyright (c) 2014 Steve Francia, MIT license,
+// crates/gorse-config/licenses/CAST-LICENSE. Derived from go-toml: Copyright
+// (c) 2021 - 2023 Thomas Pelletier, MIT license,
+// crates/gorse-config/licenses/GO-TOML-LICENSE.
 
 //! Go values of static type `any`, as viper holds them: what the format
 //! decoders leave in a `map[string]any`, the typed defaults of `SetDefault`
@@ -7,7 +12,7 @@
 //! the variants keep Go's types apart even where the numbers are the same
 //! (`int` from YAML, `int64` from TOML).
 
-use gorse_common::gotime;
+use gorse_common::{gostrconv, gotime};
 
 /// A Go value of static type `any`.
 #[derive(Clone, Debug, PartialEq)]
@@ -205,6 +210,67 @@ impl Value {
             _ => None,
         }
     }
+}
+
+impl LocalDate {
+    /// go-toml's `LocalDate.String`.
+    pub fn string(&self) -> String {
+        format!("{:04}-{:02}-{:02}", self.year, self.month, self.day)
+    }
+}
+
+impl LocalTime {
+    /// go-toml's `LocalTime.String`: the fraction to the precision it was
+    /// written with, or without trailing zeros if that is unknown.
+    pub fn string(&self) -> String {
+        let mut s = format!("{:02}:{:02}:{:02}", self.hour, self.minute, self.second);
+        let frac = format!(".{:09}", self.nanosecond);
+        if self.precision > 0 {
+            let end = usize::try_from(self.precision + 1).map_or(frac.len(), |n| n.min(frac.len()));
+            s.push_str(&frac[..end]);
+        } else if self.nanosecond > 0 {
+            s.push_str(frac.trim_end_matches('0'));
+        }
+        s
+    }
+}
+
+/// spf13/cast's `ToString` (the error discarded): what `cast.ToStringMap`
+/// makes of the keys of a `map[interface {}]interface {}`.
+pub fn cast_to_string(v: &Value) -> String {
+    match v {
+        Value::String(s) => s.clone(),
+        Value::Bool(b) => b.to_string(),
+        Value::Float64(f) => gostrconv::format_float(*f, b'f', -1, 64),
+        Value::Int(i) | Value::Int64(i) => gostrconv::format_int(*i, 10),
+        Value::Uint64(u) => gostrconv::format_uint(*u, 10),
+        Value::Nil => String::new(),
+        // fmt.Stringer.
+        Value::Time(t) => t.string(),
+        Value::Duration(d) => gotime::Duration(*d).to_string(),
+        Value::LocalDate(d) => d.string(),
+        Value::LocalTime(t) => t.string(),
+        Value::LocalDateTime(d, t) => format!("{}T{}", d.string(), t.string()),
+        // No other type has a case or a String method.
+        Value::Slice(_)
+        | Value::Map(_)
+        | Value::AnyMap(_)
+        | Value::Strings(_)
+        | Value::Struct(..) => String::new(),
+    }
+}
+
+/// spf13/cast's `ToStringMap` of a `map[interface {}]interface {}`: each key
+/// through [`cast_to_string`]. Go fills the new map in its random iteration
+/// order, so of two keys that become the same string either value may win;
+/// here the later one in the mapping does (`PORTING_NOTES.md`,
+/// "Configuration").
+pub fn cast_to_string_map(entries: &[(Value, Value)]) -> Map {
+    let mut m = Map::new();
+    for (k, v) in entries {
+        m.insert(cast_to_string(k), v.clone());
+    }
+    m
 }
 
 /// A `map[string]any`. Go maps have no order; this one keeps insertion order

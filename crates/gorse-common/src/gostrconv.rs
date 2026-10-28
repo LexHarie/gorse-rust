@@ -1,4 +1,4 @@
-// Ports: $GOROOT/src/strconv/quote.go (Quote, AppendQuote, QuoteRune, IsPrint), number.go (ParseUint, ParseInt, Atoi, ParseFloat, ParseBool, FormatBool, AppendBool, NumError), $GOROOT/src/internal/strconv/atoi.go @ go1.27.0 (the toolchain add21b5 builds with)
+// Ports: $GOROOT/src/strconv/quote.go (Quote, AppendQuote, QuoteRune, IsPrint), number.go (ParseUint, ParseInt, Atoi, ParseFloat, ParseBool, FormatBool, AppendBool, NumError, FormatFloat, FormatInt, FormatUint), $GOROOT/src/internal/strconv/atoi.go @ go1.27.0 (the toolchain add21b5 builds with)
 //
 // Derived from Go's strconv package: Copyright 2009 The Go Authors. All
 // rights reserved. Use of this source code is governed by a BSD-style license
@@ -6,8 +6,9 @@
 
 //! The parts of Go's `strconv` that error texts depend on: `%q` formats with
 //! [`quote`], so every Go error that quotes user input needs it to read the
-//! same; and the integer parsers, [`parse_float`] and [`parse_bool`] with
-//! their [`NumError`] texts.
+//! same; the integer parsers, [`parse_float`] and [`parse_bool`] with their
+//! [`NumError`] texts; and [`format_float`], [`format_int`] and [`format_uint`],
+//! which Go's `fmt`, `json` and `mapstructure` print numbers with.
 //!
 //! Go strings are bytes, so [`quote`] and the parsers take bytes: a byte
 //! that does not start a valid UTF-8 sequence is written as `\xNN`, as Go
@@ -17,10 +18,13 @@ mod atob;
 mod atof;
 #[doc(hidden)]
 pub mod decimal;
+mod ftoa;
 mod pow10tab;
 mod tables;
 #[doc(hidden)]
 pub mod uscale;
+
+pub use ftoa::{format_float, format_int, format_uint};
 
 use thiserror::Error;
 
