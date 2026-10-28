@@ -961,6 +961,49 @@ said otherwise), so the Rust result is Go's.
   touches the data types is in `master/rest.go`, and it decodes config. No
   Rust code needs the tags yet. The stores (WP-2-x) decide if they need them.
 
+### Cache core (WP-2-4)
+
+- **Q-183 `sort.Slice` is not stable.** Score documents with equal scores
+  come out in pdqsort's order, not input order. `gosort.rs` reproduces that
+  order. The two golden tests (40 and 200 items, with many ties) were generated
+  with Go 1.27.0 by `sort.Slice` on the same inputs and match exactly.
+
+- **Q-184 `Open` chooses among matching prefixes by map order in Go.** The
+  port takes the longest matching prefix. Two creators with the same prefix
+  replace each other, as `Register` does in Go.
+
+- **Q-185 `Time` values are written and read as Go does.** The writer is
+  `Time::string()` (with the `m=+` suffix for times from `now()`, Q-1). The
+  golden strings in `cache/mod.rs` tests come from Go 1.27.0's `Time.String()`:
+  `2026-01-02 03:04:05.678901 +0000 UTC`, `2023-01-01 00:00:00.0000005 +0000
+  UTC`, and the `CEST` case, which reads back as UTC.
+
+### Vector store core (WP-2-8)
+
+- **Q-186 Empty requests skip the collection check.** `AddVectors` with no
+  vectors and `GetVectors` with no ids return success for a collection that
+  does not exist. `QueryVectors` with `topK <= 0` returns an empty result
+  before the check too.
+
+- **Q-187 Query and get timestamps differ.** `GetVectors` returns
+  `time.UnixMilli(ms).UTC()`, and `QueryVectors` returns `time.UnixMilli(ms)`
+  in the local zone. Both are reproduced.
+
+- **Q-188 `DeleteCollection` restores on failure.** If xvec's `Destroy`
+  fails, Go stores the collection back in the map. The port does the same.
+
+- **Q-189 `Close` is idempotent**, and every call after it fails with
+  `xvec database is closed`, except a second `Close`, which succeeds.
+
+- **Q-190 `DeleteVectors` removes timestamps strictly before the cutoff.**
+  A vector written exactly at the cutoff stays.
+
+- **Q-191 `GetVectors` returns vectors in the order of the ids**, each id
+  once, and skips missing ids (`orderVectors`).
+
+- **Q-192 `NoDatabase.Optimize` succeeds.** Every other `NoDatabase` method
+  returns `storage.ErrNoDatabase`.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -1313,6 +1356,71 @@ said otherwise), so the Rust result is Go's.
   before an error, together with the error. No caller reads those names, so
   `unzip` returns the error alone.
 
+### Cache core (WP-2-4)
+
+- **X-71 Strings are `String`, not bytes.** D-56 treats Go strings as bytes
+  where they can hold any byte. Here every backend but Redis stores text as
+  UTF-8, and Go's JSON and BSON encoders cannot store other bytes, so a
+  `String` API matches every reachable input. A Redis value that is not UTF-8
+  will be an error in WP-2-5 where Go returns its bytes; WP-2-5 must log that.
+
+- **X-72 A test deadline is a cancel.** `gocontext` has no deadlines. The
+  suite's `TestScanScores` timeout case cancels a context from a timer thread
+  after 1 ms and accepts `Canceled` (Go accepts `DeadlineExceeded`). The
+  backends must check `ctx.err()` between documents for the case to hold.
+
+- **X-73 `Integer` returns only an error.** Go's `ReturnValue.Integer`
+  returns the parsed number next to a range error. Every Gorse caller ignores
+  the number on error, so `integer()` returns `Err` alone.
+
+### Vector store core (WP-2-8)
+
+- **X-74 Float16 bytes are copied.** Go's `Float16Bytes` and
+  `Float16Values` reinterpret memory, so the two slices share storage and the
+  conversions allocate nothing. The Rust functions copy and encode little-endian
+  explicitly. `TestHalfBytes` keeps its value assertions (the hex string and the
+  round trip). It drops the aliasing assertions (`values[0] = ...` changes
+  `encoded`, `decoded[1] = ...` changes `values`) and the `AllocsPerRun` checks,
+  which test Go's memory sharing, not the store's behaviour. Gorse only writes
+  these bytes once, so nothing depends on the sharing.
+
+- **X-75 Exact search, not HNSW.** Go's `xvec` answers queries with an
+  approximate index. This port answers them exactly, so the Rust results are
+  the true top `topK`. The results equal Go's where HNSW's recall is 1, and they
+  differ by its missed neighbours otherwise. The ranking tolerance belongs to
+  Phase 3 (metric parity); the open question is O-30. Cost: a query is O(n·d) over the collection, not
+  sublinear. `NumJobs` and `SkipUnindexedSegments` are accepted and ignored,
+  since exact search has no job count and no index to skip.
+  Scores are xvec's, read from `internal/core/algorithm/distance_batch.go` and
+  `internal/ailego/math/distance.go` at its pinned version:
+  cosine `-(1 - cos)`, Euclidean `-(squared L2)`, dot the inner product. Ties
+  go to the smaller id, which xvec leaves unspecified. A sparse query's dot
+  product sums the query's overlapping indices in the vector's index order,
+  which can round differently from xvec's merge.
+
+- **X-76 The xvec format is Rust's own (refines X-1).** X-1 says a master
+  switched between Go and Rust on one `xvec://` directory rebuilds its
+  collections on its first training round. This port makes that true like so:
+  `Init` skips a collection directory whose `gorse.vectors` is missing or lacks
+  the magic, and logs a warning. Go's xvec directories therefore do not load.
+  `AddCollection` on a name whose directory holds no log of this format removes
+  that directory and creates the collection. The removal is preceded by a
+  warning that names the directory. Such a directory is derived data
+  the master rebuilds, but the removal is not reversible. A directory with a log
+  of this format and no open collection is an error.
+
+- **X-77 Collection names are checked.** The empty name, `.`, `..`, and
+  names containing `/` or `\` are rejected with `invalid collection name`. Go
+  joins the name into the path, so `a/b` creates a nested directory that
+  `Init` never reads again (it lists one level), and `..` escapes the store
+  root. Gorse builds names from the config's item-to-item and user-to-user
+  names, so this follows X-2 in spirit: names are checked, not trusted.
+
+- **X-78 The collection schema is fixed at creation.** `DescribeCollection`
+  reports `QuantizationNone` and `Bits` 0 always, as Go does. The store does
+  not keep `Bits`, and it rejects any quantization other than none with Go's
+  text `quantization type sq for xvec not supported`.
+
 ## Open questions
 
 - **O-1** The Go CI's model tests read the datasets from `https://cdn.gorse.io`,
@@ -1442,3 +1550,27 @@ said otherwise), so the Rust result is Go's.
   budget. Only feedback that defeats pdqsort's pivot choices reaches that path,
   which real data is unlikely to do, but the dataset and logics WPs sort large
   slices, so the gap should close before WP-3-x.
+
+- **O-27 The cache core copies Go's pdqsort (WP-2-4).** `cache/gosort.rs` is a
+  private port of `sort.Slice`'s pdqsort. `gorse-common::gosort` (WP-1-17) already
+  ports the same algorithm for `sort.Sort`, so there are two copies. Owner: the
+  cache thread. Before WP-2-5 merges, it becomes a closure adapter over
+  `gorse_common::gosort`, so Go's pdqsort is in one place. Open.
+
+- **O-28 The shared suite has not run against a backend.** No backend
+  exists in this WP, and the acceptance command is `cache::no_database`. WP-2-5,
+  2-6 and 2-7 must call `cache::database_test::run` with their store. Until
+  then the suite is compiled and clippy-checked only.
+
+- **O-29 Benchmarks are not ported.** `benchmark`, `benchmarkAddDocuments`,
+  `benchmarkSearchDocuments`, `benchmarkUpdateDocuments`, the prime table and
+  `BENCHMARK_DATA_SIZE` are not run by `go test`. Phase 5 performance work is
+  the place for them.
+
+- **O-30 HNSW ranking parity.** Go's `xvec` answers with HNSW, which is
+  approximate. This port scans exactly (X-75), so its top `topK` can differ
+  from Go's where HNSW misses a neighbour. Option: `gorse_common::ann::Hnsw`
+  (WP-1-10) as the index. That would bring the rankings closer to Go's, but not
+  identical, since the graph build differs. The exact scan costs O(n·d) per
+  query. Phase 3 (metric parity) decides whether that gap is acceptable, and
+  whether xvec's index must be ported.

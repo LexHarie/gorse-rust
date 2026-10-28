@@ -739,11 +739,14 @@ dependencies = [
  "gorse-model-core",
  "gorse-protocol",
  "gorse-storage-core",
+ "hex",
  "indexmap",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
