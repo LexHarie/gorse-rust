@@ -2489,6 +2489,92 @@ said otherwise), so the Rust result is Go's.
   `GetLatestItems` are not in the scenario, and the scenario does not run against the Milvus,
   Qdrant and Weaviate stores. Open: the scenario does not yet cover these.
 
+- **Q-246 An empty first vector leaves the dimension at 0 (WP-3-4, quirk 1).** `Add` sets the
+  dimension only when it is 0, so an empty first vector keeps it 0, and the next vector sets it.
+  The empty vector stays in the index. Reproduced as written.
+
+- **Q-247 Duplicate indices in a sparse vector all reach the pruner (WP-3-4, quirk 2).**
+  `appendSparseVector` seeds `seen` from `vector.Indices`, so ids are skipped when their index is
+  taken, but the input's own duplicates both enter the pruner. `Result` sorts them with
+  `sort.Slice` (pdqsort), so the order of equal indices follows Go's algorithm, which
+  `gorse_common::gosort` ports.
+
+- **Q-248 NaN in a sparse vector (WP-3-4, quirk 3).** An id whose idf is NaN passes the `idf <= 0`
+  test and enters with a NaN value. NaN breaks the heap order, so which entries the pruner keeps
+  depends on Go's exact sift steps. The port matches them (`sparse_oracle`).
+
+- **Q-249 A sparse vector with more indices than values panics (WP-3-4, quirk 4).** Go indexes past
+  the end of `Values` in `appendSparseVector`, and the port panics too.
+
+- **Q-250 Searching an empty items index panics (WP-3-4, quirk 5).** Go's `knnSearch` panics, as
+  Q-61 records for the HNSW. `MatrixFactorizationItems::search` documents the panic.
+
+- **X-166 `math32.Log2` is a stand-in (WP-3-1, deviation 1).** Go's `math32.Log2` is
+  `float32(math.Log2(float64(x)))`, and Go's `math.Log2` uses Frexp and Go's float64 `math.Log`
+  (assembly on amd64). `evaluator.rs` uses `f64::log2`. The difference is at most one ulp of
+  float64, and it vanishes on rounding to float32. The replay confirms it on the values it covers.
+  O-3 stays open until a port of Go's `Log2` exists.
+
+- **X-167 A cancelled fit keeps the last completed phase (WP-3-1, deviation 2).** Go updates the
+  factors in place, so a cancelled fit can leave them partly updated. Here a phase is written back
+  only when it completes. `Fit` returns the zero score in both cases.
+
+- **X-168 A failed `unmarshal` leaves the model unchanged (WP-3-1, deviation 3).** Go's `Unmarshal`
+  assigns the parameters and the first factor set before a later read fails, so it can leave a
+  half-read model. Here the model is unchanged, except that the parameters may already be set.
+
+- **X-169 A negative count counts as 0 (WP-3-1, deviation 4).** Go panics when a negative
+  `NFactors` sizes a slice, and when a negative predictable count is passed to `make`. Here a count
+  parameter below 0 counts as 0, and a negative predictable count is `Error::NegativeCount`.
+
+- **X-170 Unregistered parameter types fail with Go's text (WP-3-1, deviation 5).** Go's gob
+  encoder fails for a `[]any` or `map[string]any` parameter with `gob: type not registered for
+  interface`. The Rust error has the same text (`Error::UnregisteredType`).
+
+- **X-171 `evaluate` takes the test set by `&mut` (WP-3-1, deviation 6).** Go's
+  `SampleUserNegatives` caches on the split, so Rust takes `&mut dyn CfSplit` and clones the cached
+  negatives for the call. The results are the same.
+
+- **X-172 The model types are split (WP-3-1, deviation 7).** Go's `Model` interface is `cf::Model`
+  here, and `MatrixFactorization` is a separate trait with the prediction methods. `GetModelName`'s
+  type switch is the `model_name` method.
+
+- **X-173 `MatrixFactorizationItems::add` takes `&mut self` (WP-3-4, deviation 1).** Go's `Add`
+  takes `itemsLock` and calls the HNSW from any goroutine, and its placeholder slot and index
+  position come from two locks, so concurrent adds can misplace an id. Gorse adds items from one
+  goroutine, and only `cf_test` builds one. The port has no lock and says so in its doc comment.
+
+- **X-174 The items blob's timestamp is a gob `time.Time` (WP-3-4, deviation 2, resolved).** The
+  first port wrote `MarshalBinary` bytes with no gob type. The coordinator ruled on 17:37 that the
+  bytes must match Go, since a Go node may read a blob that a Rust node wrote. The gob codec gained
+  `time.Time` (`GobEncoder`), golden-tested against Go's bytes (D-217).
+
+- **X-175 `VectorWriter::clean` with no store returns an error (WP-3-4, deviation 3).** Go calls
+  `DeleteVectors` on a nil interface and panics. The port returns `vector database no database`, the
+  error `ensureCollectionLocked` returns, as in X-7.
+
+- **X-176 Items and users `unmarshal` replace all or nothing (WP-3-4, deviation 4).** Go's `make`
+  panics on a negative count and leaves a half-filled index on a later error. The port builds the
+  new parts first and assigns them at the end, as X-22 does. Items are grown as the data arrives,
+  not allocated from the count.
+
+- **X-177 The sparse pruner's heap is a local `container/heap` port (WP-3-4, deviation 5).**
+  `gorse_common::heap::PriorityQueue` orders `i32` values differently from `sparseVectorHeap`
+  (value first, then larger index first). The local heap follows Go's `up`, `down` and `Fix` step
+  for step, so NaN values end up where Go puts them.
+
+- **X-178 `search` takes `n: usize` (WP-3-4, deviation 6).** Go's `int` may be negative, and a
+  negative `n` has no Rust value here. No caller passes one.
+
+- **O-70 CDN-hosted dataset tests and metric parity (WP-3-1, open question 1, O-1).**
+  `TestBPR_MovieLens` and `TestCCD_MovieLens` are ported with the reason `O-1: dataset from
+  cdn.gorse.io`, and their Go assertions are unchanged. Metric parity (WP-3-8) and the dataset
+  replay need the archives, and `/mnt/project-files/datasets/` does not exist yet. Open.
+
+- **O-71 The replay uses a synthetic split (WP-3-1, open question 2).** The replay fits 40 users,
+  60 items, and 6 train and 2 test interactions per user. It is not the MovieLens split. The replay
+  gate (D-195, gate 2) passes on it, and the metric gate (gate 1) still needs the datasets. Open.
+
 Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
 version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does
 this port; newer versions are not tested), MariaDB 10.2.44 (`mariadb:10.2`, CI's
