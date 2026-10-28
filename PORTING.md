@@ -1236,6 +1236,21 @@ or accepts a metric gap outside the Go tests' own tolerances.
   Go's `init` does; a node calls it once on the registry it builds. Backends in
   WP-2-2, 2-3, 2-5, 2-6 and 2-9 write their creators to this signature.
 
+- **D-158 X-103 ruling: `skip_verify=true` is honoured (coordinator).** The
+  coordinator ruled on 2026-10-28 that a `rediss://` URL with `skip_verify=true`
+  turns certificate verification off, as Go does. The operator opts in through
+  their own URL, and a drop-in must accept the configs Go accepts. The default
+  stays verified. The Redis branch tests both settings and logs the behaviour as
+  a reproduced quirk. This overrides the integrator's recommendation to refuse
+  the option, because the plan forbids behaviour changes.
+
+- **D-159 O-WP211-1 ruling: arrays and objects round-trip (coordinator).** Go
+  stores model params as `interface{}`, so an array or object param survives a
+  load and a save. The port must do the same. The ruling adds a `ParamValue`
+  variant that holds a JSON value for arrays and objects, in the model-core file.
+  The meta thread (WP-2-11) makes that change. A golden test checks that a
+  Go-written JSON value re-encodes byte-identically.
+
 ## Open questions for Ritchie
 
 - **Datasets.** The network policy of this environment blocks
