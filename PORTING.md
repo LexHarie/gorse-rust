@@ -299,6 +299,8 @@ correction below states the evidence.
 
 - **C-32 The Redis crate moves to 1.8.0, with `connection-manager`.** The crate choice in `porting/crate-selection.md` (`redis`, with `tokio-comp` and `cluster-async`) is unchanged. Its version was 1.7.1, and Ritchie's rule of 2026-10-17 requires the latest stable version (1.8.0; checked against the crates.io index). `connection-manager` is added so a store reconnects by itself, as go-redis does. `tokio-rustls-comp` enables `tls-rustls`, which gives `rediss://` its rustls TLS (X-102). `tls-rustls-insecure` gives `skip_verify=true` its insecure mode, which go-redis also honours (Q-202). `base64` (0.23.1) is an optional dependency of the `redis` feature, for category encoding. `tokio` is a normal dependency of the crate, since the blob stores need it, and the Redis store's lazy connection uses its `sync` feature.
 
+- **C-33 The brief counts two frappe tests in `data_test.go` (WP-3-2, correction C-WP32-1).** The Go file has one, `TestLoadDataFromBuiltIn`, which is ported as `load_data_from_built_in_frappe`. The brief said two.
+
 ## Decision log
 
 Ritchie's instruction of 2026-10-17 02:58Z, "btw don't do PRs. Just
@@ -1818,6 +1820,41 @@ or accepts a metric gap outside the Go tests' own tolerances.
     `logics` package's own, as the thread notes.
   - The gate is the one recorded in D-216.
   - Verdict: accepted, with `Q-246` to `Q-250` and `X-173` to `X-178` recorded.
+
+- **D-218 O-69 closes with the proxy follow-up, and the oracle purges its Qdrant server
+  (WP-2-12 follow-up, integrator).** The follow-up `68418e35` on `claude/wp-2-12-proxies` adds
+  `SearchItems`, `GetLatestItems` (all, by category, and after a time) and the vector proxy against
+  a live Qdrant 1.20.0 server. Both interop directions run against it, and the golden transcript is
+  regenerated at 88 lines. It is merged as `621a6f5e`, and O-69 is closed.
+  - The first gate on the merge failed the three proxy wire checks in the workspace run.
+    `list_collections` returned `["docs", "test"]` where the golden expects `["docs"]`. The vector
+    suite leaves its last collection on the shared test server, because Go's `SetupTest` purges
+    only before each case, and the suite does the same. The oracle's fixture purge deleted only
+    `docs`.
+  - The integrator's fix, `718a0bc7`, has the oracle delete every collection on its own live server
+    before the scenario. The Go-client-against-Rust-server check then failed the same way, because
+    the Rust peer (`proxy_peer serve`) also deleted only `docs`. The peer now deletes every
+    collection too, in the same commit as this entry. The golden is unchanged, and the three checks
+    pass with a leftover collection present.
+  - The gate that covers this merge is recorded in D-224.
+
+- **D-219 The FM layers draw from a per-model `Rand` (WP-3-2, D-WP32-1).** The layers (linear,
+  embedding lookup, attention) are built in `ctr::fm`, drawing in the order Go's `nn` layers draw.
+  The `nn` global RNG is `pub(crate)` and not seedable, so the layers cannot come from it. The merged
+  `nn` module is unchanged.
+
+- **D-220 Per-epoch scores come from one process per epoch count (WP-3-2, D-WP32-2).** Go's `Fit`
+  returns only its last score, so `modelreplay` fits each epoch count in a fresh child process.
+
+- **D-221 The initial weights are random by default, as Go's are (WP-3-2, D-WP32-3).** Go seeds
+  `math/rand` randomly unless `GODEBUG=randautoseed=0`, and then seeds it with 1. Rust keeps a random
+  default seed, as Go does, and the replay sets `set_init_seed(1)`. See Q-251.
+
+- **D-222 `AutoScaler` uses a port of Go's `math.Log1p` (WP-3-2, D-WP32-4).** Libm's result differs
+  in the last bits, and the float32 results of the two languages must agree.
+
+- **D-223 Context label ids are absolute, and user and item label ids are local (WP-3-2,
+  D-WP32-5).** Go's `Dataset.Get` treats them so, and the port does the same in the unified index.
 
 ## Open questions for Ritchie
 

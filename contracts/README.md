@@ -62,6 +62,9 @@ go run ./contracts/tools/ftoagolden -out crates/gorse-common/tests/data/ftoa_gol
 # model/cf replay data, BPR and ALS (gorse-model; conformance/tests/cf_golden.rs runs
 # this command and requires the output to equal the committed files)
 go run ./contracts/tools/modelreplay -mode cf -out crates/gorse-model/testdata/cf -epochs 5
+# model/ctr replay data, the AFM (gorse-model; conformance/tests/ctr_replay.rs runs this
+# command with the same environment and requires the output to equal the committed file)
+GODEBUG=randautoseed=0 go run ./contracts/tools/modelreplay -mode ctr -out crates/gorse-model/testdata/ctr
 # unicode.ToLower, unicode.SimpleFold, strings.ToLower and strings.EqualFold:
 # tables and golden (gorse-common)
 go run ./contracts/tools/casegolden \

@@ -2483,11 +2483,7 @@ said otherwise), so the Rust result is Go's.
   conformance crate. A missing Go fails these tests. A mutated golden line makes the
   `-rust-client` check fail at that line.
 
-- **O-69 The transcript does not cover search or the vector stores (WP-2-12, oracle 3).** The
-  `Updated` column is checked as Go sets it, equal to the timestamp at insert. Float values are
-  chosen to be exact in f32 and f64, so both languages print them the same. `SearchItems` and
-  `GetLatestItems` are not in the scenario, and the scenario does not run against the Milvus,
-  Qdrant and Weaviate stores. Open: the scenario does not yet cover these.
+- **O-69 The transcript does not cover search or the vector stores (WP-2-12, oracle 3). Closed by D-218.** The follow-up head `68418e35` adds `SearchItems`, `GetLatestItems` (all, by category, and after a time) and the vector proxy against a live Qdrant 1.20.0 server, and the golden transcript is regenerated (88 lines). The `Updated` column is checked as Go sets it, and float values are exact in f32 and f64, so both languages print them the same.
 
 - **Q-246 An empty first vector leaves the dimension at 0 (WP-3-4, quirk 1).** `Add` sets the
   dimension only when it is 0, so an empty first vector keeps it 0, and the next vector sets it.
@@ -2574,6 +2570,36 @@ said otherwise), so the Rust result is Go's.
 - **O-71 The replay uses a synthetic split (WP-3-1, open question 2).** The replay fits 40 users,
   60 items, and 6 train and 2 test interactions per user. It is not the MovieLens split. The replay
   gate (D-195, gate 2) passes on it, and the metric gate (gate 1) still needs the datasets. Open.
+
+- **Q-251 Go's FM weights are random unless `GODEBUG=randautoseed=0` (WP-3-2, quirk 1).** Go's FM
+  initialisation draws from the process-wide `math/rand`, which is seeded randomly. An unseeded Go fit
+  therefore cannot be replayed. The Rust default is random as well, and the replay runs Go with
+  `GODEBUG=randautoseed=0` and Rust with `set_init_seed(1)`.
+
+- **Q-252 `predict` and `internal_predict` panic on the AFM (WP-3-2, quirk 2).** Go's `Predict` and
+  `InternalPredict` panic with "unsupported for deep learning models", and the port keeps both panics.
+
+- **Q-253 Early stopping keeps the first greatest score (WP-3-2, quirk 3).** Go's early stopping
+  compares against `lo.MaxBy`, which keeps the first strictly greatest score. The port does the same.
+
+- **X-179 `Afm::parameters` is `pub(crate)` (WP-3-2, deviation 1).** The replay test reads the
+  parameters through it. No behaviour changes.
+
+- **X-180 The golden dataset has no timestamps (WP-3-2, deviation 2).** The FM fit never reads them,
+  and `split_by_user_time` is covered by the `data` tests. The brief listed timestamps for the replay
+  dataset, and they are left out on purpose.
+
+- **X-181 The golden stores the train and test sets as explicit tables (WP-3-2, deviation 3).** The
+  golden does not split one set with `Split`. The split has its own test.
+
+- **X-182 `set_params_reads_the_hyper_parameters_with_go_defaults` is an addition (WP-3-2,
+  deviation 4).** Go has no such test.
+
+- **X-183 `evaluator_test.go` was ported late (WP-3-2, deviation 5).** Its three tests were missed in
+  the first pass. They were ported before the report, against the same implementation.
+
+- **O-72 The metrics conformance test needs the datasets (WP-3-2, open item).** The WP-3-8 metric
+  test, like the five dataset tests of WP-3-2 under O-1, needs `/mnt/project-files/datasets/`. Open.
 
 Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
 version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does
