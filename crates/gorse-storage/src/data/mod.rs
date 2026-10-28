@@ -27,6 +27,10 @@ use gorse_storage_core::options::Opt;
 use types::{Feedback, Item, ItemPatch, ScoredItem, User, UserPatch};
 
 pub mod no_database;
+/// The SQL stores (MySQL, PostgreSQL, SQLite). Go links all three drivers into
+/// every binary, so the store is built only when all three features are on.
+#[cfg(all(feature = "mysql", feature = "postgres", feature = "sqlite"))]
+pub mod sql;
 pub mod types;
 
 #[cfg(test)]
