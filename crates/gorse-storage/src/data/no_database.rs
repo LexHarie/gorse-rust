@@ -26,8 +26,7 @@ fn no_database() -> Error {
 
 /// The stream every `NoDatabase` stream method returns: one `ErrNoDatabase`,
 /// as Go's error channel sends it.
-fn no_database_stream<'a, T: Send + 'a>(
-) -> BoxStream<'a, Result<Vec<T>, Error>> {
+fn no_database_stream<'a, T: Send + 'a>() -> BoxStream<'a, Result<Vec<T>, Error>> {
     Box::pin(stream::once(std::future::ready(Err(no_database()))))
 }
 

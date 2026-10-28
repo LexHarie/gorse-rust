@@ -39,7 +39,11 @@ async fn test_no_database() {
     assert_no_database(database.purge().await);
 
     assert_no_database(database.batch_insert_items(&ctx, &[]).await);
-    assert_no_database(database.batch_get_items(&ctx, &[], &GetOptions::default()).await);
+    assert_no_database(
+        database
+            .batch_get_items(&ctx, &[], &GetOptions::default())
+            .await,
+    );
     assert_no_database(database.modify_item(&ctx, "", &ItemPatch::default()).await);
     assert_no_database(database.get_item(&ctx, "").await);
     assert_no_database(database.search_items(&ctx, "", 0).await);
@@ -54,9 +58,21 @@ async fn test_no_database() {
     assert_no_database(database.delete_user(&ctx, "").await);
     assert_stream_no_database(database.get_user_stream(&ctx, 0)).await;
 
-    assert_no_database(database.batch_insert_feedback(&ctx, &[], false, false, false).await);
-    assert_no_database(database.batch_insert_feedback(&ctx, &[], false, false, false).await);
-    assert_no_database(database.get_user_feedback(&ctx, "", Some(gotime::now()), &[]).await);
+    assert_no_database(
+        database
+            .batch_insert_feedback(&ctx, &[], false, false, false)
+            .await,
+    );
+    assert_no_database(
+        database
+            .batch_insert_feedback(&ctx, &[], false, false, false)
+            .await,
+    );
+    assert_no_database(
+        database
+            .get_user_feedback(&ctx, "", Some(gotime::now()), &[])
+            .await,
+    );
     assert_no_database(database.get_item_feedback(&ctx, "", &[]).await);
     assert_no_database(
         database
