@@ -229,6 +229,7 @@ impl Display for NodeKind {
                 Self::String { .. } => write!(f, "{key}: {value}"),
                 _ => write!(f, "({key}): {value}"),
             },
+            Self::Constant { value } => f.write_str(&value.go_v()),
         }
     }
 }

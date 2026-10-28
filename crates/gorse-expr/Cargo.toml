@@ -10,7 +10,10 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+base64.workspace = true
 gorse-common.workspace = true
+regex.workspace = true
+regex-syntax = "0.8.11"
 stacker.workspace = true
 
 [dev-dependencies]

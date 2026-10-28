@@ -30,8 +30,32 @@
 
 pub mod ast;
 pub mod builtin;
+mod checker;
+mod compiler;
 pub mod conf;
 pub mod file;
 mod gostr;
+pub mod nature;
+mod optimizer;
 pub mod parser;
+mod regexp;
+pub mod ty;
 mod unicode_tables;
+pub mod value;
+pub mod vm;
+
+use conf::Config;
+use vm::Program;
+
+/// `expr.Compile`: parses, checks and compiles an expression under a config.
+///
+/// The config's environment is the type of the variables the expression may
+/// name, as Go's `expr.Env` gives it.
+pub fn compile(input: &str, config: &Config) -> Result<Program, file::Error> {
+    let mut tree = parser::parse_with_config(input, Some(config))?;
+    checker::check(&mut tree.node, &tree.source, config)?;
+    if config.optimize {
+        optimizer::optimize(&mut tree.node, &tree.source)?;
+    }
+    compiler::compile(&tree.node, &tree.source, config)
+}

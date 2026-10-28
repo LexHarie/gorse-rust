@@ -22,7 +22,8 @@ pub fn walk(node: &mut Node, v: &mut dyn Visitor) {
             | NodeKind::Bool { .. }
             | NodeKind::String { .. }
             | NodeKind::Bytes { .. }
-            | NodeKind::Pointer { .. } => {}
+            | NodeKind::Pointer { .. }
+            | NodeKind::Constant { .. } => {}
             NodeKind::Unary { node, .. }
             | NodeKind::Chain { node }
             | NodeKind::Predicate { node } => walk(node, v),
@@ -92,7 +93,8 @@ fn walk_ref<'a>(node: &'a Node, f: &mut dyn FnMut(&'a Node)) {
             | NodeKind::Bool { .. }
             | NodeKind::String { .. }
             | NodeKind::Bytes { .. }
-            | NodeKind::Pointer { .. } => {}
+            | NodeKind::Pointer { .. }
+            | NodeKind::Constant { .. } => {}
             NodeKind::Unary { node, .. }
             | NodeKind::Chain { node }
             | NodeKind::Predicate { node } => walk_ref(node, f),

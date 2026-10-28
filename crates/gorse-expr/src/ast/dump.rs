@@ -107,6 +107,7 @@ fn fields(kind: &NodeKind) -> Vec<(&'static str, Value<'_>)> {
         }
         NodeKind::Map { pairs } => vec![("Pairs", V::Nodes(pairs))],
         NodeKind::Pair { key, value } => vec![("Key", V::Node(key)), ("Value", V::Node(value))],
+        NodeKind::Constant { .. } => Vec::new(),
     }
 }
 
