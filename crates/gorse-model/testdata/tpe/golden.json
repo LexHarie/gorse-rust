@@ -1,0 +1,4068 @@
+{
+  "erf": [
+    {
+      "x": "0xc018000000000000",
+      "erf": "0xbff0000000000000"
+    },
+    {
+      "x": "0xc017f00000000000",
+      "erf": "0xbff0000000000000"
+    },
+    {
+      "x": "0xc017e00000000000",
+      "erf": "0xbff0000000000000"
+    },
+    {
+      "x": "0xc017d00000000000",
+      "erf": "0xbff0000000000000"
+    },
+    {
+      "x": "0xc017c00000000000",
+      "erf": "0xbff0000000000000"
+    },
+    {
+      "x": "0xc017b00000000000",
+      "erf": "0xbff0000000000000"
+    },
+    {
+      "x": "0xc017a00000000000",
+      "erf": "0xbfefffffffffffff"
+    },
+    {
+      "x": "0xc017900000000000",
+      "erf": "0xbfefffffffffffff"
+    },
+    {
+      "x": "0xc017800000000000",
+      "erf": "0xbfefffffffffffff"
+    },
+    {
+      "x": "0xc017700000000000",
+      "erf": "0xbfefffffffffffff"
+    },
+    {
+      "x": "0xc017600000000000",
+      "erf": "0xbfefffffffffffff"
+    },
+    {
+      "x": "0xc017500000000000",
+      "erf": "0xbfeffffffffffffe"
+    },
+    {
+      "x": "0xc017400000000000",
+      "erf": "0xbfeffffffffffffe"
+    },
+    {
+      "x": "0xc017300000000000",
+      "erf": "0xbfeffffffffffffe"
+    },
+    {
+      "x": "0xc017200000000000",
+      "erf": "0xbfeffffffffffffd"
+    },
+    {
+      "x": "0xc017100000000000",
+      "erf": "0xbfeffffffffffffd"
+    },
+    {
+      "x": "0xc017000000000000",
+      "erf": "0xbfeffffffffffffc"
+    },
+    {
+      "x": "0xc016f00000000000",
+      "erf": "0xbfeffffffffffffb"
+    },
+    {
+      "x": "0xc016e00000000000",
+      "erf": "0xbfeffffffffffffb"
+    },
+    {
+      "x": "0xc016d00000000000",
+      "erf": "0xbfeffffffffffff9"
+    },
+    {
+      "x": "0xc016c00000000000",
+      "erf": "0xbfeffffffffffff8"
+    },
+    {
+      "x": "0xc016b00000000000",
+      "erf": "0xbfeffffffffffff7"
+    },
+    {
+      "x": "0xc016a00000000000",
+      "erf": "0xbfeffffffffffff5"
+    },
+    {
+      "x": "0xc016900000000000",
+      "erf": "0xbfeffffffffffff3"
+    },
+    {
+      "x": "0xc016800000000000",
+      "erf": "0xbfeffffffffffff0"
+    },
+    {
+      "x": "0xc016700000000000",
+      "erf": "0xbfefffffffffffed"
+    },
+    {
+      "x": "0xc016600000000000",
+      "erf": "0xbfefffffffffffe9"
+    },
+    {
+      "x": "0xc016500000000000",
+      "erf": "0xbfefffffffffffe4"
+    },
+    {
+      "x": "0xc016400000000000",
+      "erf": "0xbfefffffffffffdf"
+    },
+    {
+      "x": "0xc016300000000000",
+      "erf": "0xbfefffffffffffd9"
+    },
+    {
+      "x": "0xc016200000000000",
+      "erf": "0xbfefffffffffffd1"
+    },
+    {
+      "x": "0xc016100000000000",
+      "erf": "0xbfefffffffffffc8"
+    },
+    {
+      "x": "0xc016000000000000",
+      "erf": "0xbfefffffffffffbe"
+    },
+    {
+      "x": "0xc015f00000000000",
+      "erf": "0xbfefffffffffffb1"
+    },
+    {
+      "x": "0xc015e00000000000",
+      "erf": "0xbfefffffffffffa2"
+    },
+    {
+      "x": "0xc015d00000000000",
+      "erf": "0xbfefffffffffff90"
+    },
+    {
+      "x": "0xc015c00000000000",
+      "erf": "0xbfefffffffffff7b"
+    },
+    {
+      "x": "0xc015b00000000000",
+      "erf": "0xbfefffffffffff62"
+    },
+    {
+      "x": "0xc015a00000000000",
+      "erf": "0xbfefffffffffff45"
+    },
+    {
+      "x": "0xc015900000000000",
+      "erf": "0xbfefffffffffff22"
+    },
+    {
+      "x": "0xc015800000000000",
+      "erf": "0xbfeffffffffffef8"
+    },
+    {
+      "x": "0xc015700000000000",
+      "erf": "0xbfeffffffffffec7"
+    },
+    {
+      "x": "0xc015600000000000",
+      "erf": "0xbfeffffffffffe8d"
+    },
+    {
+      "x": "0xc015500000000000",
+      "erf": "0xbfeffffffffffe49"
+    },
+    {
+      "x": "0xc015400000000000",
+      "erf": "0xbfeffffffffffdf8"
+    },
+    {
+      "x": "0xc015300000000000",
+      "erf": "0xbfeffffffffffd98"
+    },
+    {
+      "x": "0xc015200000000000",
+      "erf": "0xbfeffffffffffd27"
+    },
+    {
+      "x": "0xc015100000000000",
+      "erf": "0xbfeffffffffffca2"
+    },
+    {
+      "x": "0xc015000000000000",
+      "erf": "0xbfeffffffffffc05"
+    },
+    {
+      "x": "0xc014f00000000000",
+      "erf": "0xbfeffffffffffb4c"
+    },
+    {
+      "x": "0xc014e00000000000",
+      "erf": "0xbfeffffffffffa73"
+    },
+    {
+      "x": "0xc014d00000000000",
+      "erf": "0xbfeffffffffff973"
+    },
+    {
+      "x": "0xc014c00000000000",
+      "erf": "0xbfeffffffffff845"
+    },
+    {
+      "x": "0xc014b00000000000",
+      "erf": "0xbfeffffffffff6e3"
+    },
+    {
+      "x": "0xc014a00000000000",
+      "erf": "0xbfeffffffffff542"
+    },
+    {
+      "x": "0xc014900000000000",
+      "erf": "0xbfeffffffffff359"
+    },
+    {
+      "x": "0xc014800000000000",
+      "erf": "0xbfeffffffffff11a"
+    },
+    {
+      "x": "0xc014700000000000",
+      "erf": "0xbfefffffffffee77"
+    },
+    {
+      "x": "0xc014600000000000",
+      "erf": "0xbfefffffffffeb60"
+    },
+    {
+      "x": "0xc014500000000000",
+      "erf": "0xbfefffffffffe7c0"
+    },
+    {
+      "x": "0xc014400000000000",
+      "erf": "0xbfefffffffffe380"
+    },
+    {
+      "x": "0xc014300000000000",
+      "erf": "0xbfefffffffffde86"
+    },
+    {
+      "x": "0xc014200000000000",
+      "erf": "0xbfefffffffffd8b3"
+    },
+    {
+      "x": "0xc014100000000000",
+      "erf": "0xbfefffffffffd1e1"
+    },
+    {
+      "x": "0xc014000000000000",
+      "erf": "0xbfefffffffffc9e8"
+    },
+    {
+      "x": "0xc013f00000000000",
+      "erf": "0xbfefffffffffc095"
+    },
+    {
+      "x": "0xc013e00000000000",
+      "erf": "0xbfefffffffffb5b0"
+    },
+    {
+      "x": "0xc013d00000000000",
+      "erf": "0xbfefffffffffa8f6"
+    },
+    {
+      "x": "0xc013c00000000000",
+      "erf": "0xbfefffffffff9a1b"
+    },
+    {
+      "x": "0xc013b00000000000",
+      "erf": "0xbfefffffffff88c5"
+    },
+    {
+      "x": "0xc013a00000000000",
+      "erf": "0xbfefffffffff748e"
+    },
+    {
+      "x": "0xc013900000000000",
+      "erf": "0xbfefffffffff5cfd"
+    },
+    {
+      "x": "0xc013800000000000",
+      "erf": "0xbfefffffffff4188"
+    },
+    {
+      "x": "0xc013700000000000",
+      "erf": "0xbfefffffffff218f"
+    },
+    {
+      "x": "0xc013600000000000",
+      "erf": "0xbfeffffffffefc57"
+    },
+    {
+      "x": "0xc013500000000000",
+      "erf": "0xbfeffffffffed10a"
+    },
+    {
+      "x": "0xc013400000000000",
+      "erf": "0xbfeffffffffe9eb0"
+    },
+    {
+      "x": "0xc013300000000000",
+      "erf": "0xbfeffffffffe642a"
+    },
+    {
+      "x": "0xc013200000000000",
+      "erf": "0xbfeffffffffe202d"
+    },
+    {
+      "x": "0xc013100000000000",
+      "erf": "0xbfeffffffffdd13c"
+    },
+    {
+      "x": "0xc013000000000000",
+      "erf": "0xbfeffffffffd759d"
+    },
+    {
+      "x": "0xc012f00000000000",
+      "erf": "0xbfeffffffffd0b56"
+    },
+    {
+      "x": "0xc012e00000000000",
+      "erf": "0xbfeffffffffc901c"
+    },
+    {
+      "x": "0xc012d00000000000",
+      "erf": "0xbfeffffffffc014e"
+    },
+    {
+      "x": "0xc012c00000000000",
+      "erf": "0xbfeffffffffb5be5"
+    },
+    {
+      "x": "0xc012b00000000000",
+      "erf": "0xbfeffffffffa9c63"
+    },
+    {
+      "x": "0xc012a00000000000",
+      "erf": "0xbfeffffffff9bec8"
+    },
+    {
+      "x": "0xc012900000000000",
+      "erf": "0xbfeffffffff8be77"
+    },
+    {
+      "x": "0xc012800000000000",
+      "erf": "0xbfeffffffff79626"
+    },
+    {
+      "x": "0xc012700000000000",
+      "erf": "0xbfeffffffff63fc3"
+    },
+    {
+      "x": "0xc012600000000000",
+      "erf": "0xbfeffffffff4b453"
+    },
+    {
+      "x": "0xc012500000000000",
+      "erf": "0xbfeffffffff2ebda"
+    },
+    {
+      "x": "0xc012400000000000",
+      "erf": "0xbfeffffffff0dd2b"
+    },
+    {
+      "x": "0xc012300000000000",
+      "erf": "0xbfefffffffee7dc8"
+    },
+    {
+      "x": "0xc012200000000000",
+      "erf": "0xbfefffffffebc1a9"
+    },
+    {
+      "x": "0xc012100000000000",
+      "erf": "0xbfefffffffe89b0c"
+    },
+    {
+      "x": "0xc012000000000000",
+      "erf": "0xbfefffffffe4fa30"
+    },
+    {
+      "x": "0xc011f00000000000",
+      "erf": "0xbfefffffffe0cd16"
+    },
+    {
+      "x": "0xc011e00000000000",
+      "erf": "0xbfefffffffdbff2a"
+    },
+    {
+      "x": "0xc011d00000000000",
+      "erf": "0xbfefffffffd678ed"
+    },
+    {
+      "x": "0xc011c00000000000",
+      "erf": "0xbfefffffffd01f89"
+    },
+    {
+      "x": "0xc011b00000000000",
+      "erf": "0xbfefffffffc8d462"
+    },
+    {
+      "x": "0xc011a00000000000",
+      "erf": "0xbfefffffffc0748f"
+    },
+    {
+      "x": "0xc011900000000000",
+      "erf": "0xbfefffffffb6d844"
+    },
+    {
+      "x": "0xc011800000000000",
+      "erf": "0xbfefffffffabd229"
+    },
+    {
+      "x": "0xc011700000000000",
+      "erf": "0xbfefffffff9f2e9f"
+    },
+    {
+      "x": "0xc011600000000000",
+      "erf": "0xbfefffffff90b2e3"
+    },
+    {
+      "x": "0xc011500000000000",
+      "erf": "0xbfefffffff801c1f"
+    },
+    {
+      "x": "0xc011400000000000",
+      "erf": "0xbfefffffff6d1e56"
+    },
+    {
+      "x": "0xc011300000000000",
+      "erf": "0xbfefffffff57632d"
+    },
+    {
+      "x": "0xc011200000000000",
+      "erf": "0xbfefffffff3e8892"
+    },
+    {
+      "x": "0xc011100000000000",
+      "erf": "0xbfefffffff221f30"
+    },
+    {
+      "x": "0xc011000000000000",
+      "erf": "0xbfefffffff01a8b6"
+    },
+    {
+      "x": "0xc010f00000000000",
+      "erf": "0xbfeffffffedc95e7"
+    },
+    {
+      "x": "0xc010e00000000000",
+      "erf": "0xbfeffffffeb24467"
+    },
+    {
+      "x": "0xc010d00000000000",
+      "erf": "0xbfeffffffe81fc4e"
+    },
+    {
+      "x": "0xc010c00000000000",
+      "erf": "0xbfeffffffe4aed5e"
+    },
+    {
+      "x": "0xc010b00000000000",
+      "erf": "0xbfeffffffe0c2bf0"
+    },
+    {
+      "x": "0xc010a00000000000",
+      "erf": "0xbfeffffffdc4ad7a"
+    },
+    {
+      "x": "0xc010900000000000",
+      "erf": "0xbfeffffffd7344aa"
+    },
+    {
+      "x": "0xc010800000000000",
+      "erf": "0xbfeffffffd169d0c"
+    },
+    {
+      "x": "0xc010700000000000",
+      "erf": "0xbfeffffffcad3626"
+    },
+    {
+      "x": "0xc010600000000000",
+      "erf": "0xbfeffffffc355dfd"
+    },
+    {
+      "x": "0xc010500000000000",
+      "erf": "0xbfeffffffbad2aff"
+    },
+    {
+      "x": "0xc010400000000000",
+      "erf": "0xbfeffffffb127525"
+    },
+    {
+      "x": "0xc010300000000000",
+      "erf": "0xbfeffffffa62ce54"
+    },
+    {
+      "x": "0xc010200000000000",
+      "erf": "0xbfeffffff99b79d2"
+    },
+    {
+      "x": "0xc010100000000000",
+      "erf": "0xbfeffffff8b962be"
+    },
+    {
+      "x": "0xc010000000000000",
+      "erf": "0xbfeffffff7b91176"
+    },
+    {
+      "x": "0xc00fe00000000000",
+      "erf": "0xbfeffffff6969fb8"
+    },
+    {
+      "x": "0xc00fc00000000000",
+      "erf": "0xbfeffffff54dab72"
+    },
+    {
+      "x": "0xc00fa00000000000",
+      "erf": "0xbfeffffff3d9480f"
+    },
+    {
+      "x": "0xc00f800000000000",
+      "erf": "0xbfeffffff233ee1d"
+    },
+    {
+      "x": "0xc00f600000000000",
+      "erf": "0xbfeffffff0576917"
+    },
+    {
+      "x": "0xc00f400000000000",
+      "erf": "0xbfefffffee3cc32c"
+    },
+    {
+      "x": "0xc00f200000000000",
+      "erf": "0xbfefffffebdc2ec6"
+    },
+    {
+      "x": "0xc00f000000000000",
+      "erf": "0xbfefffffe92ced93"
+    },
+    {
+      "x": "0xc00ee00000000000",
+      "erf": "0xbfefffffe62534d4"
+    },
+    {
+      "x": "0xc00ec00000000000",
+      "erf": "0xbfefffffe2ba0ea5"
+    },
+    {
+      "x": "0xc00ea00000000000",
+      "erf": "0xbfefffffdedf37ed"
+    },
+    {
+      "x": "0xc00e800000000000",
+      "erf": "0xbfefffffda86faa9"
+    },
+    {
+      "x": "0xc00e600000000000",
+      "erf": "0xbfefffffd5a2041f"
+    },
+    {
+      "x": "0xc00e400000000000",
+      "erf": "0xbfefffffd01f36af"
+    },
+    {
+      "x": "0xc00e200000000000",
+      "erf": "0xbfefffffc9eb76ac"
+    },
+    {
+      "x": "0xc00e000000000000",
+      "erf": "0xbfefffffc2f171e3"
+    },
+    {
+      "x": "0xc00de00000000000",
+      "erf": "0xbfefffffbb196132"
+    },
+    {
+      "x": "0xc00dc00000000000",
+      "erf": "0xbfefffffb248c39d"
+    },
+    {
+      "x": "0xc00da00000000000",
+      "erf": "0xbfefffffa8621251"
+    },
+    {
+      "x": "0xc00d800000000000",
+      "erf": "0xbfefffff9d446ccc"
+    },
+    {
+      "x": "0xc00d600000000000",
+      "erf": "0xbfefffff90cb3c81"
+    },
+    {
+      "x": "0xc00d400000000000",
+      "erf": "0xbfefffff82cdcf1b"
+    },
+    {
+      "x": "0xc00d200000000000",
+      "erf": "0xbfefffff731ee681"
+    },
+    {
+      "x": "0xc00d000000000000",
+      "erf": "0xbfefffff618c3da6"
+    },
+    {
+      "x": "0xc00ce00000000000",
+      "erf": "0xbfefffff4dde0118"
+    },
+    {
+      "x": "0xc00cc00000000000",
+      "erf": "0xbfefffff37d63a36"
+    },
+    {
+      "x": "0xc00ca00000000000",
+      "erf": "0xbfefffff1f302bc1"
+    },
+    {
+      "x": "0xc00c800000000000",
+      "erf": "0xbfefffff039f9e8f"
+    },
+    {
+      "x": "0xc00c600000000000",
+      "erf": "0xbfeffffee4d01cd6"
+    },
+    {
+      "x": "0xc00c400000000000",
+      "erf": "0xbfeffffec2641a9e"
+    },
+    {
+      "x": "0xc00c200000000000",
+      "erf": "0xbfeffffe9bf4098c"
+    },
+    {
+      "x": "0xc00c000000000000",
+      "erf": "0xbfeffffe710d565e"
+    },
+    {
+      "x": "0xc00be00000000000",
+      "erf": "0xbfeffffe41314e06"
+    },
+    {
+      "x": "0xc00bc00000000000",
+      "erf": "0xbfeffffe0bd3e852"
+    },
+    {
+      "x": "0xc00ba00000000000",
+      "erf": "0xbfeffffdd05a75ea"
+    },
+    {
+      "x": "0xc00b800000000000",
+      "erf": "0xbfeffffd8e1a2f22"
+    },
+    {
+      "x": "0xc00b600000000000",
+      "erf": "0xbfeffffd4456a10d"
+    },
+    {
+      "x": "0xc00b400000000000",
+      "erf": "0xbfeffffcf23ff5fc"
+    },
+    {
+      "x": "0xc00b200000000000",
+      "erf": "0xbfeffffc96f1165e"
+    },
+    {
+      "x": "0xc00b000000000000",
+      "erf": "0xbfeffffc316d9ed0"
+    },
+    {
+      "x": "0xc00ae00000000000",
+      "erf": "0xbfeffffbc09fa7cd"
+    },
+    {
+      "x": "0xc00ac00000000000",
+      "erf": "0xbfeffffb43555b5f"
+    },
+    {
+      "x": "0xc00aa00000000000",
+      "erf": "0xbfeffffab83e54b8"
+    },
+    {
+      "x": "0xc00a800000000000",
+      "erf": "0xbfeffffa1de8c582"
+    },
+    {
+      "x": "0xc00a600000000000",
+      "erf": "0xbfeffff972be5c59"
+    },
+    {
+      "x": "0xc00a400000000000",
+      "erf": "0xbfeffff8b500e77c"
+    },
+    {
+      "x": "0xc00a200000000000",
+      "erf": "0xbfeffff7e2c6aea2"
+    },
+    {
+      "x": "0xc00a000000000000",
+      "erf": "0xbfeffff6f9f67e55"
+    },
+    {
+      "x": "0xc009e00000000000",
+      "erf": "0xbfeffff5f8435efc"
+    },
+    {
+      "x": "0xc009c00000000000",
+      "erf": "0xbfeffff4db27f146"
+    },
+    {
+      "x": "0xc009a00000000000",
+      "erf": "0xbfeffff39fe16963"
+    },
+    {
+      "x": "0xc009800000000000",
+      "erf": "0xbfeffff2436a21dc"
+    },
+    {
+      "x": "0xc009600000000000",
+      "erf": "0xbfeffff0c273bea2"
+    },
+    {
+      "x": "0xc009400000000000",
+      "erf": "0xbfefffef1960d85d"
+    },
+    {
+      "x": "0xc009200000000000",
+      "erf": "0xbfefffed443e2787"
+    },
+    {
+      "x": "0xc009000000000000",
+      "erf": "0xbfefffeb3ebb267b"
+    },
+    {
+      "x": "0xc008e00000000000",
+      "erf": "0xbfefffe904222101"
+    },
+    {
+      "x": "0xc008c00000000000",
+      "erf": "0xbfefffe68f4fa777"
+    },
+    {
+      "x": "0xc008a00000000000",
+      "erf": "0xbfefffe3daa95b18"
+    },
+    {
+      "x": "0xc008800000000000",
+      "erf": "0xbfefffe0e0140857"
+    },
+    {
+      "x": "0xc008600000000000",
+      "erf": "0xbfefffdd98e903b2"
+    },
+    {
+      "x": "0xc008400000000000",
+      "erf": "0xbfefffd9fdeabcce"
+    },
+    {
+      "x": "0xc008200000000000",
+      "erf": "0xbfefffd607387b07"
+    },
+    {
+      "x": "0xc008000000000000",
+      "erf": "0xbfefffd1ac4135f9"
+    },
+    {
+      "x": "0xc007e00000000000",
+      "erf": "0xbfefffcce3b57bff"
+    },
+    {
+      "x": "0xc007c00000000000",
+      "erf": "0xbfefffc7a37857d2"
+    },
+    {
+      "x": "0xc007a00000000000",
+      "erf": "0xbfefffc1e08f25f5"
+    },
+    {
+      "x": "0xc007800000000000",
+      "erf": "0xbfefffbb8f1049c6"
+    },
+    {
+      "x": "0xc007600000000000",
+      "erf": "0xbfefffb4a210b172"
+    },
+    {
+      "x": "0xc007400000000000",
+      "erf": "0xbfefffad0b901755"
+    },
+    {
+      "x": "0xc007200000000000",
+      "erf": "0xbfefffa4bc63ee9a"
+    },
+    {
+      "x": "0xc007000000000000",
+      "erf": "0xbfefff9ba420e834"
+    },
+    {
+      "x": "0xc006e00000000000",
+      "erf": "0xbfefff91b102fca8"
+    },
+    {
+      "x": "0xc006c00000000000",
+      "erf": "0xbfefff86cfd3e657"
+    },
+    {
+      "x": "0xc006a00000000000",
+      "erf": "0xbfefff7aebcff755"
+    },
+    {
+      "x": "0xc006800000000000",
+      "erf": "0xbfefff6dee89352e"
+    },
+    {
+      "x": "0xc006600000000000",
+      "erf": "0xbfefff5fbfc8a439"
+    },
+    {
+      "x": "0xc006400000000000",
+      "erf": "0xbfefff50456dab8c"
+    },
+    {
+      "x": "0xc006200000000000",
+      "erf": "0xbfefff3f634b79f9"
+    },
+    {
+      "x": "0xc006000000000000",
+      "erf": "0xbfefff2cfb0453d9"
+    },
+    {
+      "x": "0xc005e00000000000",
+      "erf": "0xbfefff18ebe2b0e1"
+    },
+    {
+      "x": "0xc005c00000000000",
+      "erf": "0xbfefff0312b010b5"
+    },
+    {
+      "x": "0xc005a00000000000",
+      "erf": "0xbfeffeeb49896c6d"
+    },
+    {
+      "x": "0xc005800000000000",
+      "erf": "0xbfeffed167b12ac2"
+    },
+    {
+      "x": "0xc005600000000000",
+      "erf": "0xbfeffeb5415e7c44"
+    },
+    {
+      "x": "0xc005400000000000",
+      "erf": "0xbfeffe96a78a04a9"
+    },
+    {
+      "x": "0xc005200000000000",
+      "erf": "0xbfeffe7567b7b5e1"
+    },
+    {
+      "x": "0xc005000000000000",
+      "erf": "0xbfeffe514bbdc197"
+    },
+    {
+      "x": "0xc004e00000000000",
+      "erf": "0xbfeffe2a1988857c"
+    },
+    {
+      "x": "0xc004c00000000000",
+      "erf": "0xbfeffdff92db56e5"
+    },
+    {
+      "x": "0xc004a00000000000",
+      "erf": "0xbfeffdd1750e1220"
+    },
+    {
+      "x": "0xc004800000000000",
+      "erf": "0xbfeffd9f78c7524a"
+    },
+    {
+      "x": "0xc004600000000000",
+      "erf": "0xbfeffd6951b33686"
+    },
+    {
+      "x": "0xc004400000000000",
+      "erf": "0xbfeffd2eae369a07"
+    },
+    {
+      "x": "0xc004200000000000",
+      "erf": "0xbfeffcef371ea4d7"
+    },
+    {
+      "x": "0xc004000000000000",
+      "erf": "0xbfeffcaa8f4c9bea"
+    },
+    {
+      "x": "0xc003e00000000000",
+      "erf": "0xbfeffc60535dd7f5"
+    },
+    {
+      "x": "0xc003c00000000000",
+      "erf": "0xbfeffc10194fcb64"
+    },
+    {
+      "x": "0xc003a00000000000",
+      "erf": "0xbfeffbb970200110"
+    },
+    {
+      "x": "0xc003800000000000",
+      "erf": "0xbfeffb5bdf67fe6f"
+    },
+    {
+      "x": "0xc003600000000000",
+      "erf": "0xbfeffaf6e6f4f5c0"
+    },
+    {
+      "x": "0xc003400000000000",
+      "erf": "0xbfeffa89fe5b3625"
+    },
+    {
+      "x": "0xc003200000000000",
+      "erf": "0xbfeffa14948549a7"
+    },
+    {
+      "x": "0xc003000000000000",
+      "erf": "0xbfeff9960f3eb327"
+    },
+    {
+      "x": "0xc002e00000000000",
+      "erf": "0xbfeff90dcaba4096"
+    },
+    {
+      "x": "0xc002c00000000000",
+      "erf": "0xbfeff87b1913e853"
+    },
+    {
+      "x": "0xc002a00000000000",
+      "erf": "0xbfeff7dd41ce2b4d"
+    },
+    {
+      "x": "0xc002800000000000",
+      "erf": "0xbfeff733814af88c"
+    },
+    {
+      "x": "0xc002600000000000",
+      "erf": "0xbfeff67d08401202"
+    },
+    {
+      "x": "0xc002400000000000",
+      "erf": "0xbfeff5b8fb26f5f6"
+    },
+    {
+      "x": "0xc002200000000000",
+      "erf": "0xbfeff4e671a85425"
+    },
+    {
+      "x": "0xc002000000000000",
+      "erf": "0xbfeff404760319b4"
+    },
+    {
+      "x": "0xc001e00000000000",
+      "erf": "0xbfeff312046f2339"
+    },
+    {
+      "x": "0xc001c00000000000",
+      "erf": "0xbfeff20e0a7ba8c2"
+    },
+    {
+      "x": "0xc001a00000000000",
+      "erf": "0xbfeff0f766697c76"
+    },
+    {
+      "x": "0xc001800000000000",
+      "erf": "0xbfefefcce6813974"
+    },
+    {
+      "x": "0xc001600000000000",
+      "erf": "0xbfefee8d486585ee"
+    },
+    {
+      "x": "0xc001400000000000",
+      "erf": "0xbfefed37386190fb"
+    },
+    {
+      "x": "0xc001200000000000",
+      "erf": "0xbfefebc950b3fa75"
+    },
+    {
+      "x": "0xc001000000000000",
+      "erf": "0xbfefea4218d6594a"
+    },
+    {
+      "x": "0xc000e00000000000",
+      "erf": "0xbfefe8a004c19ae6"
+    },
+    {
+      "x": "0xc000c00000000000",
+      "erf": "0xbfefe6e1742f7cf6"
+    },
+    {
+      "x": "0xc000a00000000000",
+      "erf": "0xbfefe504b1d9696c"
+    },
+    {
+      "x": "0xc000800000000000",
+      "erf": "0xbfefe307f2b503d0"
+    },
+    {
+      "x": "0xc000600000000000",
+      "erf": "0xbfefe0e9552ebdd6"
+    },
+    {
+      "x": "0xc000400000000000",
+      "erf": "0xbfefdea6e062d0c9"
+    },
+    {
+      "x": "0xc000200000000000",
+      "erf": "0xbfefdc3e835500b3"
+    },
+    {
+      "x": "0xc000000000000000",
+      "erf": "0xbfefd9ae142795e3"
+    },
+    {
+      "x": "0xbfffc00000000000",
+      "erf": "0xbfefd6f34f52013a"
+    },
+    {
+      "x": "0xbfff800000000000",
+      "erf": "0xbfefd40bd6d7a785"
+    },
+    {
+      "x": "0xbfff400000000000",
+      "erf": "0xbfefd0f5317f582f"
+    },
+    {
+      "x": "0xbfff000000000000",
+      "erf": "0xbfefcdacca0bfb73"
+    },
+    {
+      "x": "0xbffec00000000000",
+      "erf": "0xbfefca2fee770c79"
+    },
+    {
+      "x": "0xbffe800000000000",
+      "erf": "0xbfefc67bcf2d7b8f"
+    },
+    {
+      "x": "0xbffe400000000000",
+      "erf": "0xbfefc28d7e4f9cd0"
+    },
+    {
+      "x": "0xbffe000000000000",
+      "erf": "0xbfefbe61eef4cf6a"
+    },
+    {
+      "x": "0xbffdc00000000000",
+      "erf": "0xbfefb9f5f4739170"
+    },
+    {
+      "x": "0xbffd800000000000",
+      "erf": "0xbfefb54641aebbc9"
+    },
+    {
+      "x": "0xbffd400000000000",
+      "erf": "0xbfefb04f6868a944"
+    },
+    {
+      "x": "0xbffd000000000000",
+      "erf": "0xbfefab0dd89d1309"
+    },
+    {
+      "x": "0xbffcc00000000000",
+      "erf": "0xbfefa57ddfe27376"
+    },
+    {
+      "x": "0xbffc800000000000",
+      "erf": "0xbfef9f9ba8d3c733"
+    },
+    {
+      "x": "0xbffc400000000000",
+      "erf": "0xbfef99633a838a57"
+    },
+    {
+      "x": "0xbffc000000000000",
+      "erf": "0xbfef92d077f8d56d"
+    },
+    {
+      "x": "0xbffbc00000000000",
+      "erf": "0xbfef8bdf1fb78370"
+    },
+    {
+      "x": "0xbffb800000000000",
+      "erf": "0xbfef848acb544e95"
+    },
+    {
+      "x": "0xbffb400000000000",
+      "erf": "0xbfef7cceef15d631"
+    },
+    {
+      "x": "0xbffb000000000000",
+      "erf": "0xbfef74a6d9a38383"
+    },
+    {
+      "x": "0xbffac00000000000",
+      "erf": "0xbfef6c0db3c34641"
+    },
+    {
+      "x": "0xbffa800000000000",
+      "erf": "0xbfef62fe80272419"
+    },
+    {
+      "x": "0xbffa400000000000",
+      "erf": "0xbfef59741b4b97cf"
+    },
+    {
+      "x": "0xbffa000000000000",
+      "erf": "0xbfef4f693b67bd77"
+    },
+    {
+      "x": "0xbff9c00000000000",
+      "erf": "0xbfef44d870704911"
+    },
+    {
+      "x": "0xbff9800000000000",
+      "erf": "0xbfef39bc242e43e6"
+    },
+    {
+      "x": "0xbff9400000000000",
+      "erf": "0xbfef2e0e9a6a8b09"
+    },
+    {
+      "x": "0xbff9000000000000",
+      "erf": "0xbfef21c9f12f0677"
+    },
+    {
+      "x": "0xbff8c00000000000",
+      "erf": "0xbfef14e8211e8c55"
+    },
+    {
+      "x": "0xbff8800000000000",
+      "erf": "0xbfef0762fde45ee6"
+    },
+    {
+      "x": "0xbff8400000000000",
+      "erf": "0xbfeef93436bc2daa"
+    },
+    {
+      "x": "0xbff8000000000000",
+      "erf": "0xbfeeea5557137ae0"
+    },
+    {
+      "x": "0xbff7c00000000000",
+      "erf": "0xbfeedabfc7453e63"
+    },
+    {
+      "x": "0xbff7800000000000",
+      "erf": "0xbfeeca6ccd709544"
+    },
+    {
+      "x": "0xbff7400000000000",
+      "erf": "0xbfeeb9558e6b42ce"
+    },
+    {
+      "x": "0xbff7000000000000",
+      "erf": "0xbfeea7730ed0bbb9"
+    },
+    {
+      "x": "0xbff6c00000000000",
+      "erf": "0xbfee94be342e6744"
+    },
+    {
+      "x": "0xbff6800000000000",
+      "erf": "0xbfee812fc64db369"
+    },
+    {
+      "x": "0xbff6400000000000",
+      "erf": "0xbfee6cc0709c8a0d"
+    },
+    {
+      "x": "0xbff6000000000000",
+      "erf": "0xbfee5768c3b4a3fc"
+    },
+    {
+      "x": "0xbff5c00000000000",
+      "erf": "0xbfee4121370224cc"
+    },
+    {
+      "x": "0xbff5800000000000",
+      "erf": "0xbfee29e22a89d766"
+    },
+    {
+      "x": "0xbff5400000000000",
+      "erf": "0xbfee11a3e8cf4eb8"
+    },
+    {
+      "x": "0xbff5000000000000",
+      "erf": "0xbfedf85ea8db188d"
+    },
+    {
+      "x": "0xbff4c00000000000",
+      "erf": "0xbfedde0a90611a0e"
+    },
+    {
+      "x": "0xbff4800000000000",
+      "erf": "0xbfedc29fb60715af"
+    },
+    {
+      "x": "0xbff4400000000000",
+      "erf": "0xbfeda61623cb41e0"
+    },
+    {
+      "x": "0xbff4000000000000",
+      "erf": "0xbfed8865d98abe00"
+    },
+    {
+      "x": "0xbff3c00000000000",
+      "erf": "0xbfed6986cfa798e7"
+    },
+    {
+      "x": "0xbff3800000000000",
+      "erf": "0xbfed4970f9ce00d9"
+    },
+    {
+      "x": "0xbff3400000000000",
+      "erf": "0xbfed281c49d818d0"
+    },
+    {
+      "x": "0xbff3000000000000",
+      "erf": "0xbfed0580b2cfd249"
+    },
+    {
+      "x": "0xbff2c00000000000",
+      "erf": "0xbfece1962c0e0d8b"
+    },
+    {
+      "x": "0xbff2800000000000",
+      "erf": "0xbfecbc54b476248d"
+    },
+    {
+      "x": "0xbff2400000000000",
+      "erf": "0xbfec95b455cce69c"
+    },
+    {
+      "x": "0xbff2000000000000",
+      "erf": "0xbfec6dad2829ec62"
+    },
+    {
+      "x": "0xbff1c00000000000",
+      "erf": "0xbfec443755820d64"
+    },
+    {
+      "x": "0xbff1800000000000",
+      "erf": "0xbfec194b1d49a184"
+    },
+    {
+      "x": "0xbff1400000000000",
+      "erf": "0xbfebece0d82d1a5c"
+    },
+    {
+      "x": "0xbff1000000000000",
+      "erf": "0xbfebbef0fbde6221"
+    },
+    {
+      "x": "0xbff0c00000000000",
+      "erf": "0xbfeb8f741ef54f84"
+    },
+    {
+      "x": "0xbff0800000000000",
+      "erf": "0xbfeb5e62fce16095"
+    },
+    {
+      "x": "0xbff0400000000000",
+      "erf": "0xbfeb2bb679ead19c"
+    },
+    {
+      "x": "0xbff0000000000000",
+      "erf": "0xbfeaf767a741088b"
+    },
+    {
+      "x": "0xbfef800000000000",
+      "erf": "0xbfeac16fc7143263"
+    },
+    {
+      "x": "0xbfef000000000000",
+      "erf": "0xbfea89c850b7d54d"
+    },
+    {
+      "x": "0xbfee800000000000",
+      "erf": "0xbfea506af4cc00f4"
+    },
+    {
+      "x": "0xbfee000000000000",
+      "erf": "0xbfea1551a16aaeaf"
+    },
+    {
+      "x": "0xbfed800000000000",
+      "erf": "0xbfe9d8768656cc42"
+    },
+    {
+      "x": "0xbfed000000000000",
+      "erf": "0xbfe999d4192a5715"
+    },
+    {
+      "x": "0xbfec800000000000",
+      "erf": "0xbfe959651980da31"
+    },
+    {
+      "x": "0xbfec000000000000",
+      "erf": "0xbfe91724951b8fc6"
+    },
+    {
+      "x": "0xbfeb800000000000",
+      "erf": "0xbfe8d30debfc572e"
+    },
+    {
+      "x": "0xbfeb000000000000",
+      "erf": "0xbfe88d1cd474a2e0"
+    },
+    {
+      "x": "0xbfea800000000000",
+      "erf": "0xbfe8454d5f25760d"
+    },
+    {
+      "x": "0xbfea000000000000",
+      "erf": "0xbfe7fb9bfaed8078"
+    },
+    {
+      "x": "0xbfe9800000000000",
+      "erf": "0xbfe7b00578c26037"
+    },
+    {
+      "x": "0xbfe9000000000000",
+      "erf": "0xbfe762870f720c6f"
+    },
+    {
+      "x": "0xbfe8800000000000",
+      "erf": "0xbfe7131e5f496a5a"
+    },
+    {
+      "x": "0xbfe8000000000000",
+      "erf": "0xbfe6c1c9759d0e60"
+    },
+    {
+      "x": "0xbfe7800000000000",
+      "erf": "0xbfe66e86d0312e82"
+    },
+    {
+      "x": "0xbfe7000000000000",
+      "erf": "0xbfe61955607dd15d"
+    },
+    {
+      "x": "0xbfe6800000000000",
+      "erf": "0xbfe5c2348ecc4dc3"
+    },
+    {
+      "x": "0xbfe6000000000000",
+      "erf": "0xbfe569243d2b3a9b"
+    },
+    {
+      "x": "0xbfe5800000000000",
+      "erf": "0xbfe50e24ca35fd2c"
+    },
+    {
+      "x": "0xbfe5000000000000",
+      "erf": "0xbfe4b13713ad3513"
+    },
+    {
+      "x": "0xbfe4800000000000",
+      "erf": "0xbfe4525c78dd5966"
+    },
+    {
+      "x": "0xbfe4000000000000",
+      "erf": "0xbfe3f196dcd0f135"
+    },
+    {
+      "x": "0xbfe3800000000000",
+      "erf": "0xbfe38ee8a84beb71"
+    },
+    {
+      "x": "0xbfe3000000000000",
+      "erf": "0xbfe32a54cb8db67b"
+    },
+    {
+      "x": "0xbfe2800000000000",
+      "erf": "0xbfe2c3debfd7d6c1"
+    },
+    {
+      "x": "0xbfe2000000000000",
+      "erf": "0xbfe25b8a88b6dd7f"
+    },
+    {
+      "x": "0xbfe1800000000000",
+      "erf": "0xbfe1f15cb50bc4de"
+    },
+    {
+      "x": "0xbfe1000000000000",
+      "erf": "0xbfe1855a5fd3dd50"
+    },
+    {
+      "x": "0xbfe0800000000000",
+      "erf": "0xbfe1178930ada115"
+    },
+    {
+      "x": "0xbfe0000000000000",
+      "erf": "0xbfe0a7ef5c18edd2"
+    },
+    {
+      "x": "0xbfdf000000000000",
+      "erf": "0xbfe03693a371519c"
+    },
+    {
+      "x": "0xbfde000000000000",
+      "erf": "0xbfdf86faa9428f9d"
+    },
+    {
+      "x": "0xbfdd000000000000",
+      "erf": "0xbfde9d68931ae650"
+    },
+    {
+      "x": "0xbfdc000000000000",
+      "erf": "0xbfddb081ce6e2a48"
+    },
+    {
+      "x": "0xbfdb000000000000",
+      "erf": "0xbfdcc058392a6d2d"
+    },
+    {
+      "x": "0xbfda000000000000",
+      "erf": "0xbfdbccfec24855b8"
+    },
+    {
+      "x": "0xbfd9000000000000",
+      "erf": "0xbfdad68966569a87"
+    },
+    {
+      "x": "0xbfd8000000000000",
+      "erf": "0xbfd9dd0d2b721f39"
+    },
+    {
+      "x": "0xbfd7000000000000",
+      "erf": "0xbfd8e0a01cab516b"
+    },
+    {
+      "x": "0xbfd6000000000000",
+      "erf": "0xbfd7e15944d9d3e4"
+    },
+    {
+      "x": "0xbfd5000000000000",
+      "erf": "0xbfd6df50a8dff772"
+    },
+    {
+      "x": "0xbfd4000000000000",
+      "erf": "0xbfd5da9f415ff23f"
+    },
+    {
+      "x": "0xbfd3000000000000",
+      "erf": "0xbfd4d35ef3e5372e"
+    },
+    {
+      "x": "0xbfd2000000000000",
+      "erf": "0xbfd3c9aa8b84beda"
+    },
+    {
+      "x": "0xbfd1000000000000",
+      "erf": "0xbfd2bd9db0f7827f"
+    },
+    {
+      "x": "0xbfd0000000000000",
+      "erf": "0xbfd1af54e232d609"
+    },
+    {
+      "x": "0xbfce000000000000",
+      "erf": "0xbfd09eed6982b948"
+    },
+    {
+      "x": "0xbfcc000000000000",
+      "erf": "0xbfcf190aa85540e1"
+    },
+    {
+      "x": "0xbfca000000000000",
+      "erf": "0xbfccf076d1233237"
+    },
+    {
+      "x": "0xbfc8000000000000",
+      "erf": "0xbfcac45e37fe2526"
+    },
+    {
+      "x": "0xbfc6000000000000",
+      "erf": "0xbfc895010fdbdbfd"
+    },
+    {
+      "x": "0xbfc4000000000000",
+      "erf": "0xbfc662a0bdf7a89f"
+    },
+    {
+      "x": "0xbfc2000000000000",
+      "erf": "0xbfc42d7fc2f64959"
+    },
+    {
+      "x": "0xbfc0000000000000",
+      "erf": "0xbfc1f5e1a35c3b89"
+    },
+    {
+      "x": "0xbfbc000000000000",
+      "erf": "0xbfbf78159ec8bb50"
+    },
+    {
+      "x": "0xbfb8000000000000",
+      "erf": "0xbfbb0081148a873a"
+    },
+    {
+      "x": "0xbfb4000000000000",
+      "erf": "0xbfb68591a1e83b5d"
+    },
+    {
+      "x": "0xbfb0000000000000",
+      "erf": "0xbfb207d480e90658"
+    },
+    {
+      "x": "0xbfa8000000000000",
+      "erf": "0xbfab0fafef135745"
+    },
+    {
+      "x": "0xbfa0000000000000",
+      "erf": "0xbfa20c5645dd2538"
+    },
+    {
+      "x": "0xbf90000000000000",
+      "erf": "0xbf920d77083f17a0"
+    },
+    {
+      "x": "0x0000000000000000",
+      "erf": "0x0000000000000000"
+    },
+    {
+      "x": "0x3f90000000000000",
+      "erf": "0x3f920d77083f17a0"
+    },
+    {
+      "x": "0x3fa0000000000000",
+      "erf": "0x3fa20c5645dd2538"
+    },
+    {
+      "x": "0x3fa8000000000000",
+      "erf": "0x3fab0fafef135745"
+    },
+    {
+      "x": "0x3fb0000000000000",
+      "erf": "0x3fb207d480e90658"
+    },
+    {
+      "x": "0x3fb4000000000000",
+      "erf": "0x3fb68591a1e83b5d"
+    },
+    {
+      "x": "0x3fb8000000000000",
+      "erf": "0x3fbb0081148a873a"
+    },
+    {
+      "x": "0x3fbc000000000000",
+      "erf": "0x3fbf78159ec8bb50"
+    },
+    {
+      "x": "0x3fc0000000000000",
+      "erf": "0x3fc1f5e1a35c3b89"
+    },
+    {
+      "x": "0x3fc2000000000000",
+      "erf": "0x3fc42d7fc2f64959"
+    },
+    {
+      "x": "0x3fc4000000000000",
+      "erf": "0x3fc662a0bdf7a89f"
+    },
+    {
+      "x": "0x3fc6000000000000",
+      "erf": "0x3fc895010fdbdbfd"
+    },
+    {
+      "x": "0x3fc8000000000000",
+      "erf": "0x3fcac45e37fe2526"
+    },
+    {
+      "x": "0x3fca000000000000",
+      "erf": "0x3fccf076d1233237"
+    },
+    {
+      "x": "0x3fcc000000000000",
+      "erf": "0x3fcf190aa85540e1"
+    },
+    {
+      "x": "0x3fce000000000000",
+      "erf": "0x3fd09eed6982b948"
+    },
+    {
+      "x": "0x3fd0000000000000",
+      "erf": "0x3fd1af54e232d609"
+    },
+    {
+      "x": "0x3fd1000000000000",
+      "erf": "0x3fd2bd9db0f7827f"
+    },
+    {
+      "x": "0x3fd2000000000000",
+      "erf": "0x3fd3c9aa8b84beda"
+    },
+    {
+      "x": "0x3fd3000000000000",
+      "erf": "0x3fd4d35ef3e5372e"
+    },
+    {
+      "x": "0x3fd4000000000000",
+      "erf": "0x3fd5da9f415ff23f"
+    },
+    {
+      "x": "0x3fd5000000000000",
+      "erf": "0x3fd6df50a8dff772"
+    },
+    {
+      "x": "0x3fd6000000000000",
+      "erf": "0x3fd7e15944d9d3e4"
+    },
+    {
+      "x": "0x3fd7000000000000",
+      "erf": "0x3fd8e0a01cab516b"
+    },
+    {
+      "x": "0x3fd8000000000000",
+      "erf": "0x3fd9dd0d2b721f39"
+    },
+    {
+      "x": "0x3fd9000000000000",
+      "erf": "0x3fdad68966569a87"
+    },
+    {
+      "x": "0x3fda000000000000",
+      "erf": "0x3fdbccfec24855b8"
+    },
+    {
+      "x": "0x3fdb000000000000",
+      "erf": "0x3fdcc058392a6d2d"
+    },
+    {
+      "x": "0x3fdc000000000000",
+      "erf": "0x3fddb081ce6e2a48"
+    },
+    {
+      "x": "0x3fdd000000000000",
+      "erf": "0x3fde9d68931ae650"
+    },
+    {
+      "x": "0x3fde000000000000",
+      "erf": "0x3fdf86faa9428f9d"
+    },
+    {
+      "x": "0x3fdf000000000000",
+      "erf": "0x3fe03693a371519c"
+    },
+    {
+      "x": "0x3fe0000000000000",
+      "erf": "0x3fe0a7ef5c18edd2"
+    },
+    {
+      "x": "0x3fe0800000000000",
+      "erf": "0x3fe1178930ada115"
+    },
+    {
+      "x": "0x3fe1000000000000",
+      "erf": "0x3fe1855a5fd3dd50"
+    },
+    {
+      "x": "0x3fe1800000000000",
+      "erf": "0x3fe1f15cb50bc4de"
+    },
+    {
+      "x": "0x3fe2000000000000",
+      "erf": "0x3fe25b8a88b6dd7f"
+    },
+    {
+      "x": "0x3fe2800000000000",
+      "erf": "0x3fe2c3debfd7d6c1"
+    },
+    {
+      "x": "0x3fe3000000000000",
+      "erf": "0x3fe32a54cb8db67b"
+    },
+    {
+      "x": "0x3fe3800000000000",
+      "erf": "0x3fe38ee8a84beb71"
+    },
+    {
+      "x": "0x3fe4000000000000",
+      "erf": "0x3fe3f196dcd0f135"
+    },
+    {
+      "x": "0x3fe4800000000000",
+      "erf": "0x3fe4525c78dd5966"
+    },
+    {
+      "x": "0x3fe5000000000000",
+      "erf": "0x3fe4b13713ad3513"
+    },
+    {
+      "x": "0x3fe5800000000000",
+      "erf": "0x3fe50e24ca35fd2c"
+    },
+    {
+      "x": "0x3fe6000000000000",
+      "erf": "0x3fe569243d2b3a9b"
+    },
+    {
+      "x": "0x3fe6800000000000",
+      "erf": "0x3fe5c2348ecc4dc3"
+    },
+    {
+      "x": "0x3fe7000000000000",
+      "erf": "0x3fe61955607dd15d"
+    },
+    {
+      "x": "0x3fe7800000000000",
+      "erf": "0x3fe66e86d0312e82"
+    },
+    {
+      "x": "0x3fe8000000000000",
+      "erf": "0x3fe6c1c9759d0e60"
+    },
+    {
+      "x": "0x3fe8800000000000",
+      "erf": "0x3fe7131e5f496a5a"
+    },
+    {
+      "x": "0x3fe9000000000000",
+      "erf": "0x3fe762870f720c6f"
+    },
+    {
+      "x": "0x3fe9800000000000",
+      "erf": "0x3fe7b00578c26037"
+    },
+    {
+      "x": "0x3fea000000000000",
+      "erf": "0x3fe7fb9bfaed8078"
+    },
+    {
+      "x": "0x3fea800000000000",
+      "erf": "0x3fe8454d5f25760d"
+    },
+    {
+      "x": "0x3feb000000000000",
+      "erf": "0x3fe88d1cd474a2e0"
+    },
+    {
+      "x": "0x3feb800000000000",
+      "erf": "0x3fe8d30debfc572e"
+    },
+    {
+      "x": "0x3fec000000000000",
+      "erf": "0x3fe91724951b8fc6"
+    },
+    {
+      "x": "0x3fec800000000000",
+      "erf": "0x3fe959651980da31"
+    },
+    {
+      "x": "0x3fed000000000000",
+      "erf": "0x3fe999d4192a5715"
+    },
+    {
+      "x": "0x3fed800000000000",
+      "erf": "0x3fe9d8768656cc42"
+    },
+    {
+      "x": "0x3fee000000000000",
+      "erf": "0x3fea1551a16aaeaf"
+    },
+    {
+      "x": "0x3fee800000000000",
+      "erf": "0x3fea506af4cc00f4"
+    },
+    {
+      "x": "0x3fef000000000000",
+      "erf": "0x3fea89c850b7d54d"
+    },
+    {
+      "x": "0x3fef800000000000",
+      "erf": "0x3feac16fc7143263"
+    },
+    {
+      "x": "0x3ff0000000000000",
+      "erf": "0x3feaf767a741088b"
+    },
+    {
+      "x": "0x3ff0400000000000",
+      "erf": "0x3feb2bb679ead19c"
+    },
+    {
+      "x": "0x3ff0800000000000",
+      "erf": "0x3feb5e62fce16095"
+    },
+    {
+      "x": "0x3ff0c00000000000",
+      "erf": "0x3feb8f741ef54f84"
+    },
+    {
+      "x": "0x3ff1000000000000",
+      "erf": "0x3febbef0fbde6221"
+    },
+    {
+      "x": "0x3ff1400000000000",
+      "erf": "0x3febece0d82d1a5c"
+    },
+    {
+      "x": "0x3ff1800000000000",
+      "erf": "0x3fec194b1d49a184"
+    },
+    {
+      "x": "0x3ff1c00000000000",
+      "erf": "0x3fec443755820d64"
+    },
+    {
+      "x": "0x3ff2000000000000",
+      "erf": "0x3fec6dad2829ec62"
+    },
+    {
+      "x": "0x3ff2400000000000",
+      "erf": "0x3fec95b455cce69c"
+    },
+    {
+      "x": "0x3ff2800000000000",
+      "erf": "0x3fecbc54b476248d"
+    },
+    {
+      "x": "0x3ff2c00000000000",
+      "erf": "0x3fece1962c0e0d8b"
+    },
+    {
+      "x": "0x3ff3000000000000",
+      "erf": "0x3fed0580b2cfd249"
+    },
+    {
+      "x": "0x3ff3400000000000",
+      "erf": "0x3fed281c49d818d0"
+    },
+    {
+      "x": "0x3ff3800000000000",
+      "erf": "0x3fed4970f9ce00d9"
+    },
+    {
+      "x": "0x3ff3c00000000000",
+      "erf": "0x3fed6986cfa798e7"
+    },
+    {
+      "x": "0x3ff4000000000000",
+      "erf": "0x3fed8865d98abe00"
+    },
+    {
+      "x": "0x3ff4400000000000",
+      "erf": "0x3feda61623cb41e0"
+    },
+    {
+      "x": "0x3ff4800000000000",
+      "erf": "0x3fedc29fb60715af"
+    },
+    {
+      "x": "0x3ff4c00000000000",
+      "erf": "0x3fedde0a90611a0e"
+    },
+    {
+      "x": "0x3ff5000000000000",
+      "erf": "0x3fedf85ea8db188d"
+    },
+    {
+      "x": "0x3ff5400000000000",
+      "erf": "0x3fee11a3e8cf4eb8"
+    },
+    {
+      "x": "0x3ff5800000000000",
+      "erf": "0x3fee29e22a89d766"
+    },
+    {
+      "x": "0x3ff5c00000000000",
+      "erf": "0x3fee4121370224cc"
+    },
+    {
+      "x": "0x3ff6000000000000",
+      "erf": "0x3fee5768c3b4a3fc"
+    },
+    {
+      "x": "0x3ff6400000000000",
+      "erf": "0x3fee6cc0709c8a0d"
+    },
+    {
+      "x": "0x3ff6800000000000",
+      "erf": "0x3fee812fc64db369"
+    },
+    {
+      "x": "0x3ff6c00000000000",
+      "erf": "0x3fee94be342e6744"
+    },
+    {
+      "x": "0x3ff7000000000000",
+      "erf": "0x3feea7730ed0bbb9"
+    },
+    {
+      "x": "0x3ff7400000000000",
+      "erf": "0x3feeb9558e6b42ce"
+    },
+    {
+      "x": "0x3ff7800000000000",
+      "erf": "0x3feeca6ccd709544"
+    },
+    {
+      "x": "0x3ff7c00000000000",
+      "erf": "0x3feedabfc7453e63"
+    },
+    {
+      "x": "0x3ff8000000000000",
+      "erf": "0x3feeea5557137ae0"
+    },
+    {
+      "x": "0x3ff8400000000000",
+      "erf": "0x3feef93436bc2daa"
+    },
+    {
+      "x": "0x3ff8800000000000",
+      "erf": "0x3fef0762fde45ee6"
+    },
+    {
+      "x": "0x3ff8c00000000000",
+      "erf": "0x3fef14e8211e8c55"
+    },
+    {
+      "x": "0x3ff9000000000000",
+      "erf": "0x3fef21c9f12f0677"
+    },
+    {
+      "x": "0x3ff9400000000000",
+      "erf": "0x3fef2e0e9a6a8b09"
+    },
+    {
+      "x": "0x3ff9800000000000",
+      "erf": "0x3fef39bc242e43e6"
+    },
+    {
+      "x": "0x3ff9c00000000000",
+      "erf": "0x3fef44d870704911"
+    },
+    {
+      "x": "0x3ffa000000000000",
+      "erf": "0x3fef4f693b67bd77"
+    },
+    {
+      "x": "0x3ffa400000000000",
+      "erf": "0x3fef59741b4b97cf"
+    },
+    {
+      "x": "0x3ffa800000000000",
+      "erf": "0x3fef62fe80272419"
+    },
+    {
+      "x": "0x3ffac00000000000",
+      "erf": "0x3fef6c0db3c34641"
+    },
+    {
+      "x": "0x3ffb000000000000",
+      "erf": "0x3fef74a6d9a38383"
+    },
+    {
+      "x": "0x3ffb400000000000",
+      "erf": "0x3fef7cceef15d631"
+    },
+    {
+      "x": "0x3ffb800000000000",
+      "erf": "0x3fef848acb544e95"
+    },
+    {
+      "x": "0x3ffbc00000000000",
+      "erf": "0x3fef8bdf1fb78370"
+    },
+    {
+      "x": "0x3ffc000000000000",
+      "erf": "0x3fef92d077f8d56d"
+    },
+    {
+      "x": "0x3ffc400000000000",
+      "erf": "0x3fef99633a838a57"
+    },
+    {
+      "x": "0x3ffc800000000000",
+      "erf": "0x3fef9f9ba8d3c733"
+    },
+    {
+      "x": "0x3ffcc00000000000",
+      "erf": "0x3fefa57ddfe27376"
+    },
+    {
+      "x": "0x3ffd000000000000",
+      "erf": "0x3fefab0dd89d1309"
+    },
+    {
+      "x": "0x3ffd400000000000",
+      "erf": "0x3fefb04f6868a944"
+    },
+    {
+      "x": "0x3ffd800000000000",
+      "erf": "0x3fefb54641aebbc9"
+    },
+    {
+      "x": "0x3ffdc00000000000",
+      "erf": "0x3fefb9f5f4739170"
+    },
+    {
+      "x": "0x3ffe000000000000",
+      "erf": "0x3fefbe61eef4cf6a"
+    },
+    {
+      "x": "0x3ffe400000000000",
+      "erf": "0x3fefc28d7e4f9cd0"
+    },
+    {
+      "x": "0x3ffe800000000000",
+      "erf": "0x3fefc67bcf2d7b8f"
+    },
+    {
+      "x": "0x3ffec00000000000",
+      "erf": "0x3fefca2fee770c79"
+    },
+    {
+      "x": "0x3fff000000000000",
+      "erf": "0x3fefcdacca0bfb73"
+    },
+    {
+      "x": "0x3fff400000000000",
+      "erf": "0x3fefd0f5317f582f"
+    },
+    {
+      "x": "0x3fff800000000000",
+      "erf": "0x3fefd40bd6d7a785"
+    },
+    {
+      "x": "0x3fffc00000000000",
+      "erf": "0x3fefd6f34f52013a"
+    },
+    {
+      "x": "0x4000000000000000",
+      "erf": "0x3fefd9ae142795e3"
+    },
+    {
+      "x": "0x4000200000000000",
+      "erf": "0x3fefdc3e835500b3"
+    },
+    {
+      "x": "0x4000400000000000",
+      "erf": "0x3fefdea6e062d0c9"
+    },
+    {
+      "x": "0x4000600000000000",
+      "erf": "0x3fefe0e9552ebdd6"
+    },
+    {
+      "x": "0x4000800000000000",
+      "erf": "0x3fefe307f2b503d0"
+    },
+    {
+      "x": "0x4000a00000000000",
+      "erf": "0x3fefe504b1d9696c"
+    },
+    {
+      "x": "0x4000c00000000000",
+      "erf": "0x3fefe6e1742f7cf6"
+    },
+    {
+      "x": "0x4000e00000000000",
+      "erf": "0x3fefe8a004c19ae6"
+    },
+    {
+      "x": "0x4001000000000000",
+      "erf": "0x3fefea4218d6594a"
+    },
+    {
+      "x": "0x4001200000000000",
+      "erf": "0x3fefebc950b3fa75"
+    },
+    {
+      "x": "0x4001400000000000",
+      "erf": "0x3fefed37386190fb"
+    },
+    {
+      "x": "0x4001600000000000",
+      "erf": "0x3fefee8d486585ee"
+    },
+    {
+      "x": "0x4001800000000000",
+      "erf": "0x3fefefcce6813974"
+    },
+    {
+      "x": "0x4001a00000000000",
+      "erf": "0x3feff0f766697c76"
+    },
+    {
+      "x": "0x4001c00000000000",
+      "erf": "0x3feff20e0a7ba8c2"
+    },
+    {
+      "x": "0x4001e00000000000",
+      "erf": "0x3feff312046f2339"
+    },
+    {
+      "x": "0x4002000000000000",
+      "erf": "0x3feff404760319b4"
+    },
+    {
+      "x": "0x4002200000000000",
+      "erf": "0x3feff4e671a85425"
+    },
+    {
+      "x": "0x4002400000000000",
+      "erf": "0x3feff5b8fb26f5f6"
+    },
+    {
+      "x": "0x4002600000000000",
+      "erf": "0x3feff67d08401202"
+    },
+    {
+      "x": "0x4002800000000000",
+      "erf": "0x3feff733814af88c"
+    },
+    {
+      "x": "0x4002a00000000000",
+      "erf": "0x3feff7dd41ce2b4d"
+    },
+    {
+      "x": "0x4002c00000000000",
+      "erf": "0x3feff87b1913e853"
+    },
+    {
+      "x": "0x4002e00000000000",
+      "erf": "0x3feff90dcaba4096"
+    },
+    {
+      "x": "0x4003000000000000",
+      "erf": "0x3feff9960f3eb327"
+    },
+    {
+      "x": "0x4003200000000000",
+      "erf": "0x3feffa14948549a7"
+    },
+    {
+      "x": "0x4003400000000000",
+      "erf": "0x3feffa89fe5b3625"
+    },
+    {
+      "x": "0x4003600000000000",
+      "erf": "0x3feffaf6e6f4f5c0"
+    },
+    {
+      "x": "0x4003800000000000",
+      "erf": "0x3feffb5bdf67fe6f"
+    },
+    {
+      "x": "0x4003a00000000000",
+      "erf": "0x3feffbb970200110"
+    },
+    {
+      "x": "0x4003c00000000000",
+      "erf": "0x3feffc10194fcb64"
+    },
+    {
+      "x": "0x4003e00000000000",
+      "erf": "0x3feffc60535dd7f5"
+    },
+    {
+      "x": "0x4004000000000000",
+      "erf": "0x3feffcaa8f4c9bea"
+    },
+    {
+      "x": "0x4004200000000000",
+      "erf": "0x3feffcef371ea4d7"
+    },
+    {
+      "x": "0x4004400000000000",
+      "erf": "0x3feffd2eae369a07"
+    },
+    {
+      "x": "0x4004600000000000",
+      "erf": "0x3feffd6951b33686"
+    },
+    {
+      "x": "0x4004800000000000",
+      "erf": "0x3feffd9f78c7524a"
+    },
+    {
+      "x": "0x4004a00000000000",
+      "erf": "0x3feffdd1750e1220"
+    },
+    {
+      "x": "0x4004c00000000000",
+      "erf": "0x3feffdff92db56e5"
+    },
+    {
+      "x": "0x4004e00000000000",
+      "erf": "0x3feffe2a1988857c"
+    },
+    {
+      "x": "0x4005000000000000",
+      "erf": "0x3feffe514bbdc197"
+    },
+    {
+      "x": "0x4005200000000000",
+      "erf": "0x3feffe7567b7b5e1"
+    },
+    {
+      "x": "0x4005400000000000",
+      "erf": "0x3feffe96a78a04a9"
+    },
+    {
+      "x": "0x4005600000000000",
+      "erf": "0x3feffeb5415e7c44"
+    },
+    {
+      "x": "0x4005800000000000",
+      "erf": "0x3feffed167b12ac2"
+    },
+    {
+      "x": "0x4005a00000000000",
+      "erf": "0x3feffeeb49896c6d"
+    },
+    {
+      "x": "0x4005c00000000000",
+      "erf": "0x3fefff0312b010b5"
+    },
+    {
+      "x": "0x4005e00000000000",
+      "erf": "0x3fefff18ebe2b0e1"
+    },
+    {
+      "x": "0x4006000000000000",
+      "erf": "0x3fefff2cfb0453d9"
+    },
+    {
+      "x": "0x4006200000000000",
+      "erf": "0x3fefff3f634b79f9"
+    },
+    {
+      "x": "0x4006400000000000",
+      "erf": "0x3fefff50456dab8c"
+    },
+    {
+      "x": "0x4006600000000000",
+      "erf": "0x3fefff5fbfc8a439"
+    },
+    {
+      "x": "0x4006800000000000",
+      "erf": "0x3fefff6dee89352e"
+    },
+    {
+      "x": "0x4006a00000000000",
+      "erf": "0x3fefff7aebcff755"
+    },
+    {
+      "x": "0x4006c00000000000",
+      "erf": "0x3fefff86cfd3e657"
+    },
+    {
+      "x": "0x4006e00000000000",
+      "erf": "0x3fefff91b102fca8"
+    },
+    {
+      "x": "0x4007000000000000",
+      "erf": "0x3fefff9ba420e834"
+    },
+    {
+      "x": "0x4007200000000000",
+      "erf": "0x3fefffa4bc63ee9a"
+    },
+    {
+      "x": "0x4007400000000000",
+      "erf": "0x3fefffad0b901755"
+    },
+    {
+      "x": "0x4007600000000000",
+      "erf": "0x3fefffb4a210b172"
+    },
+    {
+      "x": "0x4007800000000000",
+      "erf": "0x3fefffbb8f1049c6"
+    },
+    {
+      "x": "0x4007a00000000000",
+      "erf": "0x3fefffc1e08f25f5"
+    },
+    {
+      "x": "0x4007c00000000000",
+      "erf": "0x3fefffc7a37857d2"
+    },
+    {
+      "x": "0x4007e00000000000",
+      "erf": "0x3fefffcce3b57bff"
+    },
+    {
+      "x": "0x4008000000000000",
+      "erf": "0x3fefffd1ac4135f9"
+    },
+    {
+      "x": "0x4008200000000000",
+      "erf": "0x3fefffd607387b07"
+    },
+    {
+      "x": "0x4008400000000000",
+      "erf": "0x3fefffd9fdeabcce"
+    },
+    {
+      "x": "0x4008600000000000",
+      "erf": "0x3fefffdd98e903b2"
+    },
+    {
+      "x": "0x4008800000000000",
+      "erf": "0x3fefffe0e0140857"
+    },
+    {
+      "x": "0x4008a00000000000",
+      "erf": "0x3fefffe3daa95b18"
+    },
+    {
+      "x": "0x4008c00000000000",
+      "erf": "0x3fefffe68f4fa777"
+    },
+    {
+      "x": "0x4008e00000000000",
+      "erf": "0x3fefffe904222101"
+    },
+    {
+      "x": "0x4009000000000000",
+      "erf": "0x3fefffeb3ebb267b"
+    },
+    {
+      "x": "0x4009200000000000",
+      "erf": "0x3fefffed443e2787"
+    },
+    {
+      "x": "0x4009400000000000",
+      "erf": "0x3fefffef1960d85d"
+    },
+    {
+      "x": "0x4009600000000000",
+      "erf": "0x3feffff0c273bea2"
+    },
+    {
+      "x": "0x4009800000000000",
+      "erf": "0x3feffff2436a21dc"
+    },
+    {
+      "x": "0x4009a00000000000",
+      "erf": "0x3feffff39fe16963"
+    },
+    {
+      "x": "0x4009c00000000000",
+      "erf": "0x3feffff4db27f146"
+    },
+    {
+      "x": "0x4009e00000000000",
+      "erf": "0x3feffff5f8435efc"
+    },
+    {
+      "x": "0x400a000000000000",
+      "erf": "0x3feffff6f9f67e55"
+    },
+    {
+      "x": "0x400a200000000000",
+      "erf": "0x3feffff7e2c6aea2"
+    },
+    {
+      "x": "0x400a400000000000",
+      "erf": "0x3feffff8b500e77c"
+    },
+    {
+      "x": "0x400a600000000000",
+      "erf": "0x3feffff972be5c59"
+    },
+    {
+      "x": "0x400a800000000000",
+      "erf": "0x3feffffa1de8c582"
+    },
+    {
+      "x": "0x400aa00000000000",
+      "erf": "0x3feffffab83e54b8"
+    },
+    {
+      "x": "0x400ac00000000000",
+      "erf": "0x3feffffb43555b5f"
+    },
+    {
+      "x": "0x400ae00000000000",
+      "erf": "0x3feffffbc09fa7cd"
+    },
+    {
+      "x": "0x400b000000000000",
+      "erf": "0x3feffffc316d9ed0"
+    },
+    {
+      "x": "0x400b200000000000",
+      "erf": "0x3feffffc96f1165e"
+    },
+    {
+      "x": "0x400b400000000000",
+      "erf": "0x3feffffcf23ff5fc"
+    },
+    {
+      "x": "0x400b600000000000",
+      "erf": "0x3feffffd4456a10d"
+    },
+    {
+      "x": "0x400b800000000000",
+      "erf": "0x3feffffd8e1a2f22"
+    },
+    {
+      "x": "0x400ba00000000000",
+      "erf": "0x3feffffdd05a75ea"
+    },
+    {
+      "x": "0x400bc00000000000",
+      "erf": "0x3feffffe0bd3e852"
+    },
+    {
+      "x": "0x400be00000000000",
+      "erf": "0x3feffffe41314e06"
+    },
+    {
+      "x": "0x400c000000000000",
+      "erf": "0x3feffffe710d565e"
+    },
+    {
+      "x": "0x400c200000000000",
+      "erf": "0x3feffffe9bf4098c"
+    },
+    {
+      "x": "0x400c400000000000",
+      "erf": "0x3feffffec2641a9e"
+    },
+    {
+      "x": "0x400c600000000000",
+      "erf": "0x3feffffee4d01cd6"
+    },
+    {
+      "x": "0x400c800000000000",
+      "erf": "0x3fefffff039f9e8f"
+    },
+    {
+      "x": "0x400ca00000000000",
+      "erf": "0x3fefffff1f302bc1"
+    },
+    {
+      "x": "0x400cc00000000000",
+      "erf": "0x3fefffff37d63a36"
+    },
+    {
+      "x": "0x400ce00000000000",
+      "erf": "0x3fefffff4dde0118"
+    },
+    {
+      "x": "0x400d000000000000",
+      "erf": "0x3fefffff618c3da6"
+    },
+    {
+      "x": "0x400d200000000000",
+      "erf": "0x3fefffff731ee681"
+    },
+    {
+      "x": "0x400d400000000000",
+      "erf": "0x3fefffff82cdcf1b"
+    },
+    {
+      "x": "0x400d600000000000",
+      "erf": "0x3fefffff90cb3c81"
+    },
+    {
+      "x": "0x400d800000000000",
+      "erf": "0x3fefffff9d446ccc"
+    },
+    {
+      "x": "0x400da00000000000",
+      "erf": "0x3fefffffa8621251"
+    },
+    {
+      "x": "0x400dc00000000000",
+      "erf": "0x3fefffffb248c39d"
+    },
+    {
+      "x": "0x400de00000000000",
+      "erf": "0x3fefffffbb196132"
+    },
+    {
+      "x": "0x400e000000000000",
+      "erf": "0x3fefffffc2f171e3"
+    },
+    {
+      "x": "0x400e200000000000",
+      "erf": "0x3fefffffc9eb76ac"
+    },
+    {
+      "x": "0x400e400000000000",
+      "erf": "0x3fefffffd01f36af"
+    },
+    {
+      "x": "0x400e600000000000",
+      "erf": "0x3fefffffd5a2041f"
+    },
+    {
+      "x": "0x400e800000000000",
+      "erf": "0x3fefffffda86faa9"
+    },
+    {
+      "x": "0x400ea00000000000",
+      "erf": "0x3fefffffdedf37ed"
+    },
+    {
+      "x": "0x400ec00000000000",
+      "erf": "0x3fefffffe2ba0ea5"
+    },
+    {
+      "x": "0x400ee00000000000",
+      "erf": "0x3fefffffe62534d4"
+    },
+    {
+      "x": "0x400f000000000000",
+      "erf": "0x3fefffffe92ced93"
+    },
+    {
+      "x": "0x400f200000000000",
+      "erf": "0x3fefffffebdc2ec6"
+    },
+    {
+      "x": "0x400f400000000000",
+      "erf": "0x3fefffffee3cc32c"
+    },
+    {
+      "x": "0x400f600000000000",
+      "erf": "0x3feffffff0576917"
+    },
+    {
+      "x": "0x400f800000000000",
+      "erf": "0x3feffffff233ee1d"
+    },
+    {
+      "x": "0x400fa00000000000",
+      "erf": "0x3feffffff3d9480f"
+    },
+    {
+      "x": "0x400fc00000000000",
+      "erf": "0x3feffffff54dab72"
+    },
+    {
+      "x": "0x400fe00000000000",
+      "erf": "0x3feffffff6969fb8"
+    },
+    {
+      "x": "0x4010000000000000",
+      "erf": "0x3feffffff7b91176"
+    },
+    {
+      "x": "0x4010100000000000",
+      "erf": "0x3feffffff8b962be"
+    },
+    {
+      "x": "0x4010200000000000",
+      "erf": "0x3feffffff99b79d2"
+    },
+    {
+      "x": "0x4010300000000000",
+      "erf": "0x3feffffffa62ce54"
+    },
+    {
+      "x": "0x4010400000000000",
+      "erf": "0x3feffffffb127525"
+    },
+    {
+      "x": "0x4010500000000000",
+      "erf": "0x3feffffffbad2aff"
+    },
+    {
+      "x": "0x4010600000000000",
+      "erf": "0x3feffffffc355dfd"
+    },
+    {
+      "x": "0x4010700000000000",
+      "erf": "0x3feffffffcad3626"
+    },
+    {
+      "x": "0x4010800000000000",
+      "erf": "0x3feffffffd169d0c"
+    },
+    {
+      "x": "0x4010900000000000",
+      "erf": "0x3feffffffd7344aa"
+    },
+    {
+      "x": "0x4010a00000000000",
+      "erf": "0x3feffffffdc4ad7a"
+    },
+    {
+      "x": "0x4010b00000000000",
+      "erf": "0x3feffffffe0c2bf0"
+    },
+    {
+      "x": "0x4010c00000000000",
+      "erf": "0x3feffffffe4aed5e"
+    },
+    {
+      "x": "0x4010d00000000000",
+      "erf": "0x3feffffffe81fc4e"
+    },
+    {
+      "x": "0x4010e00000000000",
+      "erf": "0x3feffffffeb24467"
+    },
+    {
+      "x": "0x4010f00000000000",
+      "erf": "0x3feffffffedc95e7"
+    },
+    {
+      "x": "0x4011000000000000",
+      "erf": "0x3fefffffff01a8b6"
+    },
+    {
+      "x": "0x4011100000000000",
+      "erf": "0x3fefffffff221f30"
+    },
+    {
+      "x": "0x4011200000000000",
+      "erf": "0x3fefffffff3e8892"
+    },
+    {
+      "x": "0x4011300000000000",
+      "erf": "0x3fefffffff57632d"
+    },
+    {
+      "x": "0x4011400000000000",
+      "erf": "0x3fefffffff6d1e56"
+    },
+    {
+      "x": "0x4011500000000000",
+      "erf": "0x3fefffffff801c1f"
+    },
+    {
+      "x": "0x4011600000000000",
+      "erf": "0x3fefffffff90b2e3"
+    },
+    {
+      "x": "0x4011700000000000",
+      "erf": "0x3fefffffff9f2e9f"
+    },
+    {
+      "x": "0x4011800000000000",
+      "erf": "0x3fefffffffabd229"
+    },
+    {
+      "x": "0x4011900000000000",
+      "erf": "0x3fefffffffb6d844"
+    },
+    {
+      "x": "0x4011a00000000000",
+      "erf": "0x3fefffffffc0748f"
+    },
+    {
+      "x": "0x4011b00000000000",
+      "erf": "0x3fefffffffc8d462"
+    },
+    {
+      "x": "0x4011c00000000000",
+      "erf": "0x3fefffffffd01f89"
+    },
+    {
+      "x": "0x4011d00000000000",
+      "erf": "0x3fefffffffd678ed"
+    },
+    {
+      "x": "0x4011e00000000000",
+      "erf": "0x3fefffffffdbff2a"
+    },
+    {
+      "x": "0x4011f00000000000",
+      "erf": "0x3fefffffffe0cd16"
+    },
+    {
+      "x": "0x4012000000000000",
+      "erf": "0x3fefffffffe4fa30"
+    },
+    {
+      "x": "0x4012100000000000",
+      "erf": "0x3fefffffffe89b0c"
+    },
+    {
+      "x": "0x4012200000000000",
+      "erf": "0x3fefffffffebc1a9"
+    },
+    {
+      "x": "0x4012300000000000",
+      "erf": "0x3fefffffffee7dc8"
+    },
+    {
+      "x": "0x4012400000000000",
+      "erf": "0x3feffffffff0dd2b"
+    },
+    {
+      "x": "0x4012500000000000",
+      "erf": "0x3feffffffff2ebda"
+    },
+    {
+      "x": "0x4012600000000000",
+      "erf": "0x3feffffffff4b453"
+    },
+    {
+      "x": "0x4012700000000000",
+      "erf": "0x3feffffffff63fc3"
+    },
+    {
+      "x": "0x4012800000000000",
+      "erf": "0x3feffffffff79626"
+    },
+    {
+      "x": "0x4012900000000000",
+      "erf": "0x3feffffffff8be77"
+    },
+    {
+      "x": "0x4012a00000000000",
+      "erf": "0x3feffffffff9bec8"
+    },
+    {
+      "x": "0x4012b00000000000",
+      "erf": "0x3feffffffffa9c63"
+    },
+    {
+      "x": "0x4012c00000000000",
+      "erf": "0x3feffffffffb5be5"
+    },
+    {
+      "x": "0x4012d00000000000",
+      "erf": "0x3feffffffffc014e"
+    },
+    {
+      "x": "0x4012e00000000000",
+      "erf": "0x3feffffffffc901c"
+    },
+    {
+      "x": "0x4012f00000000000",
+      "erf": "0x3feffffffffd0b56"
+    },
+    {
+      "x": "0x4013000000000000",
+      "erf": "0x3feffffffffd759d"
+    },
+    {
+      "x": "0x4013100000000000",
+      "erf": "0x3feffffffffdd13c"
+    },
+    {
+      "x": "0x4013200000000000",
+      "erf": "0x3feffffffffe202d"
+    },
+    {
+      "x": "0x4013300000000000",
+      "erf": "0x3feffffffffe642a"
+    },
+    {
+      "x": "0x4013400000000000",
+      "erf": "0x3feffffffffe9eb0"
+    },
+    {
+      "x": "0x4013500000000000",
+      "erf": "0x3feffffffffed10a"
+    },
+    {
+      "x": "0x4013600000000000",
+      "erf": "0x3feffffffffefc57"
+    },
+    {
+      "x": "0x4013700000000000",
+      "erf": "0x3fefffffffff218f"
+    },
+    {
+      "x": "0x4013800000000000",
+      "erf": "0x3fefffffffff4188"
+    },
+    {
+      "x": "0x4013900000000000",
+      "erf": "0x3fefffffffff5cfd"
+    },
+    {
+      "x": "0x4013a00000000000",
+      "erf": "0x3fefffffffff748e"
+    },
+    {
+      "x": "0x4013b00000000000",
+      "erf": "0x3fefffffffff88c5"
+    },
+    {
+      "x": "0x4013c00000000000",
+      "erf": "0x3fefffffffff9a1b"
+    },
+    {
+      "x": "0x4013d00000000000",
+      "erf": "0x3fefffffffffa8f6"
+    },
+    {
+      "x": "0x4013e00000000000",
+      "erf": "0x3fefffffffffb5b0"
+    },
+    {
+      "x": "0x4013f00000000000",
+      "erf": "0x3fefffffffffc095"
+    },
+    {
+      "x": "0x4014000000000000",
+      "erf": "0x3fefffffffffc9e8"
+    },
+    {
+      "x": "0x4014100000000000",
+      "erf": "0x3fefffffffffd1e1"
+    },
+    {
+      "x": "0x4014200000000000",
+      "erf": "0x3fefffffffffd8b3"
+    },
+    {
+      "x": "0x4014300000000000",
+      "erf": "0x3fefffffffffde86"
+    },
+    {
+      "x": "0x4014400000000000",
+      "erf": "0x3fefffffffffe380"
+    },
+    {
+      "x": "0x4014500000000000",
+      "erf": "0x3fefffffffffe7c0"
+    },
+    {
+      "x": "0x4014600000000000",
+      "erf": "0x3fefffffffffeb60"
+    },
+    {
+      "x": "0x4014700000000000",
+      "erf": "0x3fefffffffffee77"
+    },
+    {
+      "x": "0x4014800000000000",
+      "erf": "0x3feffffffffff11a"
+    },
+    {
+      "x": "0x4014900000000000",
+      "erf": "0x3feffffffffff359"
+    },
+    {
+      "x": "0x4014a00000000000",
+      "erf": "0x3feffffffffff542"
+    },
+    {
+      "x": "0x4014b00000000000",
+      "erf": "0x3feffffffffff6e3"
+    },
+    {
+      "x": "0x4014c00000000000",
+      "erf": "0x3feffffffffff845"
+    },
+    {
+      "x": "0x4014d00000000000",
+      "erf": "0x3feffffffffff973"
+    },
+    {
+      "x": "0x4014e00000000000",
+      "erf": "0x3feffffffffffa73"
+    },
+    {
+      "x": "0x4014f00000000000",
+      "erf": "0x3feffffffffffb4c"
+    },
+    {
+      "x": "0x4015000000000000",
+      "erf": "0x3feffffffffffc05"
+    },
+    {
+      "x": "0x4015100000000000",
+      "erf": "0x3feffffffffffca2"
+    },
+    {
+      "x": "0x4015200000000000",
+      "erf": "0x3feffffffffffd27"
+    },
+    {
+      "x": "0x4015300000000000",
+      "erf": "0x3feffffffffffd98"
+    },
+    {
+      "x": "0x4015400000000000",
+      "erf": "0x3feffffffffffdf8"
+    },
+    {
+      "x": "0x4015500000000000",
+      "erf": "0x3feffffffffffe49"
+    },
+    {
+      "x": "0x4015600000000000",
+      "erf": "0x3feffffffffffe8d"
+    },
+    {
+      "x": "0x4015700000000000",
+      "erf": "0x3feffffffffffec7"
+    },
+    {
+      "x": "0x4015800000000000",
+      "erf": "0x3feffffffffffef8"
+    },
+    {
+      "x": "0x4015900000000000",
+      "erf": "0x3fefffffffffff22"
+    },
+    {
+      "x": "0x4015a00000000000",
+      "erf": "0x3fefffffffffff45"
+    },
+    {
+      "x": "0x4015b00000000000",
+      "erf": "0x3fefffffffffff62"
+    },
+    {
+      "x": "0x4015c00000000000",
+      "erf": "0x3fefffffffffff7b"
+    },
+    {
+      "x": "0x4015d00000000000",
+      "erf": "0x3fefffffffffff90"
+    },
+    {
+      "x": "0x4015e00000000000",
+      "erf": "0x3fefffffffffffa2"
+    },
+    {
+      "x": "0x4015f00000000000",
+      "erf": "0x3fefffffffffffb1"
+    },
+    {
+      "x": "0x4016000000000000",
+      "erf": "0x3fefffffffffffbe"
+    },
+    {
+      "x": "0x4016100000000000",
+      "erf": "0x3fefffffffffffc8"
+    },
+    {
+      "x": "0x4016200000000000",
+      "erf": "0x3fefffffffffffd1"
+    },
+    {
+      "x": "0x4016300000000000",
+      "erf": "0x3fefffffffffffd9"
+    },
+    {
+      "x": "0x4016400000000000",
+      "erf": "0x3fefffffffffffdf"
+    },
+    {
+      "x": "0x4016500000000000",
+      "erf": "0x3fefffffffffffe4"
+    },
+    {
+      "x": "0x4016600000000000",
+      "erf": "0x3fefffffffffffe9"
+    },
+    {
+      "x": "0x4016700000000000",
+      "erf": "0x3fefffffffffffed"
+    },
+    {
+      "x": "0x4016800000000000",
+      "erf": "0x3feffffffffffff0"
+    },
+    {
+      "x": "0x4016900000000000",
+      "erf": "0x3feffffffffffff3"
+    },
+    {
+      "x": "0x4016a00000000000",
+      "erf": "0x3feffffffffffff5"
+    },
+    {
+      "x": "0x4016b00000000000",
+      "erf": "0x3feffffffffffff7"
+    },
+    {
+      "x": "0x4016c00000000000",
+      "erf": "0x3feffffffffffff8"
+    },
+    {
+      "x": "0x4016d00000000000",
+      "erf": "0x3feffffffffffff9"
+    },
+    {
+      "x": "0x4016e00000000000",
+      "erf": "0x3feffffffffffffb"
+    },
+    {
+      "x": "0x4016f00000000000",
+      "erf": "0x3feffffffffffffb"
+    },
+    {
+      "x": "0x4017000000000000",
+      "erf": "0x3feffffffffffffc"
+    },
+    {
+      "x": "0x4017100000000000",
+      "erf": "0x3feffffffffffffd"
+    },
+    {
+      "x": "0x4017200000000000",
+      "erf": "0x3feffffffffffffd"
+    },
+    {
+      "x": "0x4017300000000000",
+      "erf": "0x3feffffffffffffe"
+    },
+    {
+      "x": "0x4017400000000000",
+      "erf": "0x3feffffffffffffe"
+    },
+    {
+      "x": "0x4017500000000000",
+      "erf": "0x3feffffffffffffe"
+    },
+    {
+      "x": "0x4017600000000000",
+      "erf": "0x3fefffffffffffff"
+    },
+    {
+      "x": "0x4017700000000000",
+      "erf": "0x3fefffffffffffff"
+    },
+    {
+      "x": "0x4017800000000000",
+      "erf": "0x3fefffffffffffff"
+    },
+    {
+      "x": "0x4017900000000000",
+      "erf": "0x3fefffffffffffff"
+    },
+    {
+      "x": "0x4017a00000000000",
+      "erf": "0x3fefffffffffffff"
+    },
+    {
+      "x": "0x4017b00000000000",
+      "erf": "0x3ff0000000000000"
+    },
+    {
+      "x": "0x4017c00000000000",
+      "erf": "0x3ff0000000000000"
+    },
+    {
+      "x": "0x4017d00000000000",
+      "erf": "0x3ff0000000000000"
+    },
+    {
+      "x": "0x4017e00000000000",
+      "erf": "0x3ff0000000000000"
+    },
+    {
+      "x": "0x4017f00000000000",
+      "erf": "0x3ff0000000000000"
+    },
+    {
+      "x": "0x4018000000000000",
+      "erf": "0x3ff0000000000000"
+    }
+  ],
+  "maxmin": [
+    {
+      "a": "0xfff0000000000000",
+      "b": "0xfff0000000000000",
+      "max": "0xfff0000000000000",
+      "min": "0xfff0000000000000"
+    },
+    {
+      "a": "0xfff0000000000000",
+      "b": "0xc004000000000000",
+      "max": "0xc004000000000000",
+      "min": "0xfff0000000000000"
+    },
+    {
+      "a": "0xfff0000000000000",
+      "b": "0x8000000000000000",
+      "max": "0x8000000000000000",
+      "min": "0xfff0000000000000"
+    },
+    {
+      "a": "0xfff0000000000000",
+      "b": "0x0000000000000000",
+      "max": "0x0000000000000000",
+      "min": "0xfff0000000000000"
+    },
+    {
+      "a": "0xfff0000000000000",
+      "b": "0x3ff0000000000000",
+      "max": "0x3ff0000000000000",
+      "min": "0xfff0000000000000"
+    },
+    {
+      "a": "0xfff0000000000000",
+      "b": "0x4008000000000000",
+      "max": "0x4008000000000000",
+      "min": "0xfff0000000000000"
+    },
+    {
+      "a": "0xfff0000000000000",
+      "b": "0x7ff0000000000000",
+      "max": "0x7ff0000000000000",
+      "min": "0xfff0000000000000"
+    },
+    {
+      "a": "0xfff0000000000000",
+      "b": "0x7ff8000000000001",
+      "max": "0x7ff8000000000001",
+      "min": "0xfff0000000000000"
+    },
+    {
+      "a": "0xc004000000000000",
+      "b": "0xfff0000000000000",
+      "max": "0xc004000000000000",
+      "min": "0xfff0000000000000"
+    },
+    {
+      "a": "0xc004000000000000",
+      "b": "0xc004000000000000",
+      "max": "0xc004000000000000",
+      "min": "0xc004000000000000"
+    },
+    {
+      "a": "0xc004000000000000",
+      "b": "0x8000000000000000",
+      "max": "0x8000000000000000",
+      "min": "0xc004000000000000"
+    },
+    {
+      "a": "0xc004000000000000",
+      "b": "0x0000000000000000",
+      "max": "0x0000000000000000",
+      "min": "0xc004000000000000"
+    },
+    {
+      "a": "0xc004000000000000",
+      "b": "0x3ff0000000000000",
+      "max": "0x3ff0000000000000",
+      "min": "0xc004000000000000"
+    },
+    {
+      "a": "0xc004000000000000",
+      "b": "0x4008000000000000",
+      "max": "0x4008000000000000",
+      "min": "0xc004000000000000"
+    },
+    {
+      "a": "0xc004000000000000",
+      "b": "0x7ff0000000000000",
+      "max": "0x7ff0000000000000",
+      "min": "0xc004000000000000"
+    },
+    {
+      "a": "0xc004000000000000",
+      "b": "0x7ff8000000000001",
+      "max": "0x7ff8000000000001",
+      "min": "0x7ff8000000000001"
+    },
+    {
+      "a": "0x8000000000000000",
+      "b": "0xfff0000000000000",
+      "max": "0x8000000000000000",
+      "min": "0xfff0000000000000"
+    },
+    {
+      "a": "0x8000000000000000",
+      "b": "0xc004000000000000",
+      "max": "0x8000000000000000",
+      "min": "0xc004000000000000"
+    },
+    {
+      "a": "0x8000000000000000",
+      "b": "0x8000000000000000",
+      "max": "0x8000000000000000",
+      "min": "0x8000000000000000"
+    },
+    {
+      "a": "0x8000000000000000",
+      "b": "0x0000000000000000",
+      "max": "0x0000000000000000",
+      "min": "0x8000000000000000"
+    },
+    {
+      "a": "0x8000000000000000",
+      "b": "0x3ff0000000000000",
+      "max": "0x3ff0000000000000",
+      "min": "0x8000000000000000"
+    },
+    {
+      "a": "0x8000000000000000",
+      "b": "0x4008000000000000",
+      "max": "0x4008000000000000",
+      "min": "0x8000000000000000"
+    },
+    {
+      "a": "0x8000000000000000",
+      "b": "0x7ff0000000000000",
+      "max": "0x7ff0000000000000",
+      "min": "0x8000000000000000"
+    },
+    {
+      "a": "0x8000000000000000",
+      "b": "0x7ff8000000000001",
+      "max": "0x7ff8000000000001",
+      "min": "0x7ff8000000000001"
+    },
+    {
+      "a": "0x0000000000000000",
+      "b": "0xfff0000000000000",
+      "max": "0x0000000000000000",
+      "min": "0xfff0000000000000"
+    },
+    {
+      "a": "0x0000000000000000",
+      "b": "0xc004000000000000",
+      "max": "0x0000000000000000",
+      "min": "0xc004000000000000"
+    },
+    {
+      "a": "0x0000000000000000",
+      "b": "0x8000000000000000",
+      "max": "0x0000000000000000",
+      "min": "0x8000000000000000"
+    },
+    {
+      "a": "0x0000000000000000",
+      "b": "0x0000000000000000",
+      "max": "0x0000000000000000",
+      "min": "0x0000000000000000"
+    },
+    {
+      "a": "0x0000000000000000",
+      "b": "0x3ff0000000000000",
+      "max": "0x3ff0000000000000",
+      "min": "0x0000000000000000"
+    },
+    {
+      "a": "0x0000000000000000",
+      "b": "0x4008000000000000",
+      "max": "0x4008000000000000",
+      "min": "0x0000000000000000"
+    },
+    {
+      "a": "0x0000000000000000",
+      "b": "0x7ff0000000000000",
+      "max": "0x7ff0000000000000",
+      "min": "0x0000000000000000"
+    },
+    {
+      "a": "0x0000000000000000",
+      "b": "0x7ff8000000000001",
+      "max": "0x7ff8000000000001",
+      "min": "0x7ff8000000000001"
+    },
+    {
+      "a": "0x3ff0000000000000",
+      "b": "0xfff0000000000000",
+      "max": "0x3ff0000000000000",
+      "min": "0xfff0000000000000"
+    },
+    {
+      "a": "0x3ff0000000000000",
+      "b": "0xc004000000000000",
+      "max": "0x3ff0000000000000",
+      "min": "0xc004000000000000"
+    },
+    {
+      "a": "0x3ff0000000000000",
+      "b": "0x8000000000000000",
+      "max": "0x3ff0000000000000",
+      "min": "0x8000000000000000"
+    },
+    {
+      "a": "0x3ff0000000000000",
+      "b": "0x0000000000000000",
+      "max": "0x3ff0000000000000",
+      "min": "0x0000000000000000"
+    },
+    {
+      "a": "0x3ff0000000000000",
+      "b": "0x3ff0000000000000",
+      "max": "0x3ff0000000000000",
+      "min": "0x3ff0000000000000"
+    },
+    {
+      "a": "0x3ff0000000000000",
+      "b": "0x4008000000000000",
+      "max": "0x4008000000000000",
+      "min": "0x3ff0000000000000"
+    },
+    {
+      "a": "0x3ff0000000000000",
+      "b": "0x7ff0000000000000",
+      "max": "0x7ff0000000000000",
+      "min": "0x3ff0000000000000"
+    },
+    {
+      "a": "0x3ff0000000000000",
+      "b": "0x7ff8000000000001",
+      "max": "0x7ff8000000000001",
+      "min": "0x7ff8000000000001"
+    },
+    {
+      "a": "0x4008000000000000",
+      "b": "0xfff0000000000000",
+      "max": "0x4008000000000000",
+      "min": "0xfff0000000000000"
+    },
+    {
+      "a": "0x4008000000000000",
+      "b": "0xc004000000000000",
+      "max": "0x4008000000000000",
+      "min": "0xc004000000000000"
+    },
+    {
+      "a": "0x4008000000000000",
+      "b": "0x8000000000000000",
+      "max": "0x4008000000000000",
+      "min": "0x8000000000000000"
+    },
+    {
+      "a": "0x4008000000000000",
+      "b": "0x0000000000000000",
+      "max": "0x4008000000000000",
+      "min": "0x0000000000000000"
+    },
+    {
+      "a": "0x4008000000000000",
+      "b": "0x3ff0000000000000",
+      "max": "0x4008000000000000",
+      "min": "0x3ff0000000000000"
+    },
+    {
+      "a": "0x4008000000000000",
+      "b": "0x4008000000000000",
+      "max": "0x4008000000000000",
+      "min": "0x4008000000000000"
+    },
+    {
+      "a": "0x4008000000000000",
+      "b": "0x7ff0000000000000",
+      "max": "0x7ff0000000000000",
+      "min": "0x4008000000000000"
+    },
+    {
+      "a": "0x4008000000000000",
+      "b": "0x7ff8000000000001",
+      "max": "0x7ff8000000000001",
+      "min": "0x7ff8000000000001"
+    },
+    {
+      "a": "0x7ff0000000000000",
+      "b": "0xfff0000000000000",
+      "max": "0x7ff0000000000000",
+      "min": "0xfff0000000000000"
+    },
+    {
+      "a": "0x7ff0000000000000",
+      "b": "0xc004000000000000",
+      "max": "0x7ff0000000000000",
+      "min": "0xc004000000000000"
+    },
+    {
+      "a": "0x7ff0000000000000",
+      "b": "0x8000000000000000",
+      "max": "0x7ff0000000000000",
+      "min": "0x8000000000000000"
+    },
+    {
+      "a": "0x7ff0000000000000",
+      "b": "0x0000000000000000",
+      "max": "0x7ff0000000000000",
+      "min": "0x0000000000000000"
+    },
+    {
+      "a": "0x7ff0000000000000",
+      "b": "0x3ff0000000000000",
+      "max": "0x7ff0000000000000",
+      "min": "0x3ff0000000000000"
+    },
+    {
+      "a": "0x7ff0000000000000",
+      "b": "0x4008000000000000",
+      "max": "0x7ff0000000000000",
+      "min": "0x4008000000000000"
+    },
+    {
+      "a": "0x7ff0000000000000",
+      "b": "0x7ff0000000000000",
+      "max": "0x7ff0000000000000",
+      "min": "0x7ff0000000000000"
+    },
+    {
+      "a": "0x7ff0000000000000",
+      "b": "0x7ff8000000000001",
+      "max": "0x7ff0000000000000",
+      "min": "0x7ff8000000000001"
+    },
+    {
+      "a": "0x7ff8000000000001",
+      "b": "0xfff0000000000000",
+      "max": "0x7ff8000000000001",
+      "min": "0xfff0000000000000"
+    },
+    {
+      "a": "0x7ff8000000000001",
+      "b": "0xc004000000000000",
+      "max": "0x7ff8000000000001",
+      "min": "0x7ff8000000000001"
+    },
+    {
+      "a": "0x7ff8000000000001",
+      "b": "0x8000000000000000",
+      "max": "0x7ff8000000000001",
+      "min": "0x7ff8000000000001"
+    },
+    {
+      "a": "0x7ff8000000000001",
+      "b": "0x0000000000000000",
+      "max": "0x7ff8000000000001",
+      "min": "0x7ff8000000000001"
+    },
+    {
+      "a": "0x7ff8000000000001",
+      "b": "0x3ff0000000000000",
+      "max": "0x7ff8000000000001",
+      "min": "0x7ff8000000000001"
+    },
+    {
+      "a": "0x7ff8000000000001",
+      "b": "0x4008000000000000",
+      "max": "0x7ff8000000000001",
+      "min": "0x7ff8000000000001"
+    },
+    {
+      "a": "0x7ff8000000000001",
+      "b": "0x7ff0000000000000",
+      "max": "0x7ff0000000000000",
+      "min": "0x7ff8000000000001"
+    },
+    {
+      "a": "0x7ff8000000000001",
+      "b": "0x7ff8000000000001",
+      "max": "0x7ff8000000000001",
+      "min": "0x7ff8000000000001"
+    }
+  ],
+  "trials": [
+    {
+      "number": 0,
+      "x": "0x4000bee2a949fc3c",
+      "lr": "0x40172032f4df7b40",
+      "q": "0x3fe8000000000000",
+      "n": "0x4008000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x4000000000000000",
+      "value": "0x40273fd224c23caf"
+    },
+    {
+      "number": 1,
+      "x": "0x400de445e79064c0",
+      "lr": "0x3f5dfd4a66b84472",
+      "q": "0x0000000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x0000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4012f0431f21c6dc"
+    },
+    {
+      "number": 2,
+      "x": "0x3fd378dfc58349a0",
+      "lr": "0x3ffcc0b62041fb72",
+      "q": "0x3fd0000000000000",
+      "n": "0x4008000000000000",
+      "s": "0x4018000000000000",
+      "c": "0x4000000000000000",
+      "value": "0x40267c4fc5dc2521"
+    },
+    {
+      "number": 3,
+      "x": "0xbfe3e9167acb4050",
+      "lr": "0x3f8bc354a7a1dcac",
+      "q": "0x3fd0000000000000",
+      "n": "0x4008000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x4000000000000000",
+      "value": "0x401d6f412505971c"
+    },
+    {
+      "number": 4,
+      "x": "0xc017bebb9691de75",
+      "lr": "0x3f9c6e3a14b3ff3c",
+      "q": "0x3fe0000000000000",
+      "n": "0x4000000000000000",
+      "s": "0x4010000000000000",
+      "c": "0x3ff0000000000000",
+      "value": "0x402cd126ae3e953b"
+    },
+    {
+      "number": 5,
+      "x": "0xc0103bbfc4e91c65",
+      "lr": "0x3ff0623a8100401d",
+      "q": "0x3fd0000000000000",
+      "n": "0x401c000000000000",
+      "s": "0x0000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4021aa2732949636"
+    },
+    {
+      "number": 6,
+      "x": "0x3fde7d701953cb80",
+      "lr": "0x3f55436cc82b4097",
+      "q": "0x0000000000000000",
+      "n": "0x4018000000000000",
+      "s": "0x4020000000000000",
+      "c": "0x3ff0000000000000",
+      "value": "0x40290b6a63cf204a"
+    },
+    {
+      "number": 7,
+      "x": "0xc020d26517f26bb6",
+      "lr": "0x3fcea6a69aeebe78",
+      "q": "0x0000000000000000",
+      "n": "0x4010000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x4000000000000000",
+      "value": "0x402c57ca7d86b0bc"
+    },
+    {
+      "number": 8,
+      "x": "0xc01a2381e7b858c4",
+      "lr": "0x3fc2b0a416cbee70",
+      "q": "0x3fe0000000000000",
+      "n": "0x3ff0000000000000",
+      "s": "0x4018000000000000",
+      "c": "0x3ff0000000000000",
+      "value": "0x4031e37f31c07e54"
+    },
+    {
+      "number": 9,
+      "x": "0x3fe39329e1e3de40",
+      "lr": "0x3f8528aa0e9c98ea",
+      "q": "0x3fd0000000000000",
+      "n": "0x4000000000000000",
+      "s": "0x4018000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x40224183375e1af6"
+    },
+    {
+      "number": 10,
+      "x": "0xc01f6ccc3d479b64",
+      "lr": "0x3f50f1ced30f332d",
+      "q": "0x3ff0000000000000",
+      "n": "0x401c000000000000",
+      "s": "0x4018000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4032daef48169a9c"
+    },
+    {
+      "number": 11,
+      "x": "0xc01486a4c68df4a0",
+      "lr": "0x3f54ab9de581f7d6",
+      "q": "0x3fe0000000000000",
+      "n": "0x4008000000000000",
+      "s": "0x4018000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x402b42ad0657ce40"
+    },
+    {
+      "number": 12,
+      "x": "0x402142d528c0db4f",
+      "lr": "0x3f76c9f30ac0ef92",
+      "q": "0x3fe0000000000000",
+      "n": "0x4000000000000000",
+      "s": "0x4010000000000000",
+      "c": "0x4000000000000000",
+      "value": "0x40301ffdf52fc198"
+    },
+    {
+      "number": 13,
+      "x": "0x4008bfb1ada5eb3f",
+      "lr": "0x3f56b62bec0fb73d",
+      "q": "0x0000000000000000",
+      "n": "0x4018000000000000",
+      "s": "0x4010000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x40222f36ba0a1a52"
+    },
+    {
+      "number": 14,
+      "x": "0x401916577c4604d5",
+      "lr": "0x3f542b937e604b3d",
+      "q": "0x3fe8000000000000",
+      "n": "0x4018000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x4000000000000000",
+      "value": "0x40280a8a61870f68"
+    },
+    {
+      "number": 15,
+      "x": "0x4014957657a02c32",
+      "lr": "0x3f7f5586b5266cba",
+      "q": "0x3fe0000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x4010000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x402346d07af9714c"
+    },
+    {
+      "number": 16,
+      "x": "0x3ff3708192ba4328",
+      "lr": "0x3f8e1476512811f6",
+      "q": "0x3fd0000000000000",
+      "n": "0x4010000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x4000000000000000",
+      "value": "0x4013cd162985fcc1"
+    },
+    {
+      "number": 17,
+      "x": "0x4017bc46e443fa40",
+      "lr": "0x3f6d7a0911032d6e",
+      "q": "0x3ff0000000000000",
+      "n": "0x4022000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4029dc4bd190eced"
+    },
+    {
+      "number": 18,
+      "x": "0x40224b1826c60be4",
+      "lr": "0x3fabb4c9393c5638",
+      "q": "0x0000000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x0000000000000000",
+      "c": "0x4000000000000000",
+      "value": "0x40282f635d8ccf8e"
+    },
+    {
+      "number": 19,
+      "x": "0x4017fbce89895c5e",
+      "lr": "0x3f534b7aac54c390",
+      "q": "0x3fd0000000000000",
+      "n": "0x4010000000000000",
+      "s": "0x4018000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x40277d4ce8ef4b89"
+    },
+    {
+      "number": 20,
+      "x": "0x4009d39fe9c819ae",
+      "lr": "0x3fb49d899d1e69bc",
+      "q": "0x3fe8000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x3ff0000000000000",
+      "value": "0x401b9759ce6f9330"
+    },
+    {
+      "number": 21,
+      "x": "0x40118dbd4896da0d",
+      "lr": "0x3fc419ba1f3fcd15",
+      "q": "0x3fe0000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x3ff0000000000000",
+      "value": "0x401eecef779cdba4"
+    },
+    {
+      "number": 22,
+      "x": "0x3ff178326336f1d8",
+      "lr": "0x3f74622e4a079f3a",
+      "q": "0x3fe8000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x4018000000000000",
+      "c": "0x3ff0000000000000",
+      "value": "0x4021ac7a069d9d47"
+    },
+    {
+      "number": 23,
+      "x": "0x40128934fa55cd93",
+      "lr": "0x3faf5fed2cb0ca15",
+      "q": "0x3fd0000000000000",
+      "n": "0x4018000000000000",
+      "s": "0x0000000000000000",
+      "c": "0x3ff0000000000000",
+      "value": "0x401d4a751ffc6bff"
+    },
+    {
+      "number": 24,
+      "x": "0xc0119bde4b7f5ccf",
+      "lr": "0x3f9e21da71561111",
+      "q": "0x3fe8000000000000",
+      "n": "0x4010000000000000",
+      "s": "0x4024000000000000",
+      "c": "0x3ff0000000000000",
+      "value": "0x40311f6f1c4381b0"
+    },
+    {
+      "number": 25,
+      "x": "0x400f2e7d89c798c9",
+      "lr": "0x3fa923d6297b2491",
+      "q": "0x3fe8000000000000",
+      "n": "0x4018000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x3ff0000000000000",
+      "value": "0x4021327b8c486b0e"
+    },
+    {
+      "number": 26,
+      "x": "0x3fe1612597da509c",
+      "lr": "0x3fe0b91f9e3f6c81",
+      "q": "0x3ff0000000000000",
+      "n": "0x4018000000000000",
+      "s": "0x4010000000000000",
+      "c": "0x4000000000000000",
+      "value": "0x4021f57fa06651be"
+    },
+    {
+      "number": 27,
+      "x": "0xc00ee44992fa5f6c",
+      "lr": "0x3f68719195aaab9a",
+      "q": "0x3fe0000000000000",
+      "n": "0x3ff0000000000000",
+      "s": "0x4010000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4028b78b4ba53d30"
+    },
+    {
+      "number": 28,
+      "x": "0x400d417c23df658e",
+      "lr": "0x3fa118bd42624240",
+      "q": "0x3fe0000000000000",
+      "n": "0x4018000000000000",
+      "s": "0x4024000000000000",
+      "c": "0x3ff0000000000000",
+      "value": "0x40301fa325dabb90"
+    },
+    {
+      "number": 29,
+      "x": "0x40162cf0dcdb3475",
+      "lr": "0x3fd1558e1a178296",
+      "q": "0x3fd0000000000000",
+      "n": "0x4018000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x40220bcbfd9cde26"
+    },
+    {
+      "number": 30,
+      "x": "0x3ff65362a1527f86",
+      "lr": "0x3fa8c75784f1bb2d",
+      "q": "0x0000000000000000",
+      "n": "0x4008000000000000",
+      "s": "0x0000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4002c693f29578d6"
+    },
+    {
+      "number": 31,
+      "x": "0x400a72684512d2a3",
+      "lr": "0x3f6e2147517776c5",
+      "q": "0x0000000000000000",
+      "n": "0x4018000000000000",
+      "s": "0x0000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4015356ff99f3a62"
+    },
+    {
+      "number": 32,
+      "x": "0x400d627f35742a34",
+      "lr": "0x3fbfd081a8530d7c",
+      "q": "0x3fe8000000000000",
+      "n": "0x4000000000000000",
+      "s": "0x4010000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x402298feca0c6472"
+    },
+    {
+      "number": 33,
+      "x": "0xc00d9d02351f0f97",
+      "lr": "0x3f8e055b149f25db",
+      "q": "0x0000000000000000",
+      "n": "0x4022000000000000",
+      "s": "0x4010000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x402d5fbf36829c1c"
+    },
+    {
+      "number": 34,
+      "x": "0x40191337a6e1e7e1",
+      "lr": "0x3f77dfc6f713c4f4",
+      "q": "0x3fe0000000000000",
+      "n": "0x4018000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4023869fda921178"
+    },
+    {
+      "number": 35,
+      "x": "0xbffca9856e49b1be",
+      "lr": "0x3fb1db2bc397b3c8",
+      "q": "0x0000000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x0000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4012e2f4ac840da0"
+    },
+    {
+      "number": 36,
+      "x": "0x3fe6ed5b0bc33cc8",
+      "lr": "0x3f7d84ad5268bb0f",
+      "q": "0x3fe8000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x40101af37332fe38"
+    },
+    {
+      "number": 37,
+      "x": "0xbfdff7fc5524c0c0",
+      "lr": "0x3fa4b05cdcfa5500",
+      "q": "0x3fe0000000000000",
+      "n": "0x3ff0000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x401bd61f0b985762"
+    },
+    {
+      "number": 38,
+      "x": "0x3ff61b4b620b9d2a",
+      "lr": "0x3fb42bf6c152b7d8",
+      "q": "0x3fe8000000000000",
+      "n": "0x4010000000000000",
+      "s": "0x0000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x3ff0d88bf5f671ac"
+    },
+    {
+      "number": 39,
+      "x": "0xbffda3e74ffcde68",
+      "lr": "0x3fb893ef69dc47cd",
+      "q": "0x0000000000000000",
+      "n": "0x4020000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x402383550b2be33e"
+    },
+    {
+      "number": 40,
+      "x": "0xc020bbc35570dc16",
+      "lr": "0x3f7a306125386392",
+      "q": "0x3fe8000000000000",
+      "n": "0x4010000000000000",
+      "s": "0x4010000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x402c387d494c350a"
+    },
+    {
+      "number": 41,
+      "x": "0x4011651d99da7f39",
+      "lr": "0x3f7380989ea93f8b",
+      "q": "0x3fd0000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x4010000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4022301eb9d96a74"
+    },
+    {
+      "number": 42,
+      "x": "0x401caf3f9d0276bd",
+      "lr": "0x3fb14ddfae68842f",
+      "q": "0x3ff0000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x402435040f246a56"
+    },
+    {
+      "number": 43,
+      "x": "0x3fcdd658ab0c22f4",
+      "lr": "0x3fa4edffb799dc28",
+      "q": "0x3fd0000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4011e7713b386b30"
+    },
+    {
+      "number": 44,
+      "x": "0x400bd07b65015f09",
+      "lr": "0x3fb1c898a06cecbe",
+      "q": "0x3fe8000000000000",
+      "n": "0x4008000000000000",
+      "s": "0x4010000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4020508da7ff7de9"
+    },
+    {
+      "number": 45,
+      "x": "0x3ffcdda5eef07c5e",
+      "lr": "0x3fb1319003168611",
+      "q": "0x3fe0000000000000",
+      "n": "0x4020000000000000",
+      "s": "0x4018000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x402679519dd7e280"
+    },
+    {
+      "number": 46,
+      "x": "0xc01063aca3123b84",
+      "lr": "0x3fe4572b69a6541c",
+      "q": "0x3fe0000000000000",
+      "n": "0x4000000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4022774908238304"
+    },
+    {
+      "number": 47,
+      "x": "0xc00634be779d657f",
+      "lr": "0x3fa5eeac6e447874",
+      "q": "0x3fe8000000000000",
+      "n": "0x4010000000000000",
+      "s": "0x0000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4011ee81e2f229cf"
+    },
+    {
+      "number": 48,
+      "x": "0xc0016e96e0b16ca3",
+      "lr": "0x3f8548bc652d6eb1",
+      "q": "0x3fd0000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x4018000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4025d65389130fcd"
+    },
+    {
+      "number": 49,
+      "x": "0x3fca4708d6a447a0",
+      "lr": "0x3fa4f87bc3d0d324",
+      "q": "0x3ff0000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x4010000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x401b03d6c1c33c1d"
+    },
+    {
+      "number": 50,
+      "x": "0xc00e045fd45e6df6",
+      "lr": "0x3fc0085c77549b38",
+      "q": "0x3fd0000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x4010000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4024c0f6833a4910"
+    },
+    {
+      "number": 51,
+      "x": "0xc00dcb9e07163fea",
+      "lr": "0x3f555902cdf2d9f8",
+      "q": "0x3fe0000000000000",
+      "n": "0x4010000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x401ce479735e40c7"
+    },
+    {
+      "number": 52,
+      "x": "0x400ac7a5e4191fc1",
+      "lr": "0x3fd7a856f5752428",
+      "q": "0x3fe8000000000000",
+      "n": "0x4010000000000000",
+      "s": "0x0000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4005d29b056a7b3c"
+    },
+    {
+      "number": 53,
+      "x": "0x4018f48bd3b584bd",
+      "lr": "0x3fa22a37ec69292d",
+      "q": "0x3fe0000000000000",
+      "n": "0x4010000000000000",
+      "s": "0x4018000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4027681bb1ee5936"
+    },
+    {
+      "number": 54,
+      "x": "0xbff6ffb2aeab1dd4",
+      "lr": "0x3f6855145523be6d",
+      "q": "0x3ff0000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4019bce2092022fd"
+    },
+    {
+      "number": 55,
+      "x": "0xc0015ec32c595478",
+      "lr": "0x3f89153bb56201f5",
+      "q": "0x3fe0000000000000",
+      "n": "0x4000000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x401ea2d6f851f93b"
+    },
+    {
+      "number": 56,
+      "x": "0x40115d1a53a465e3",
+      "lr": "0x3fb28dc555ed871e",
+      "q": "0x3fd0000000000000",
+      "n": "0x4014000000000000",
+      "s": "0x4000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x401c12e33e4cafc6"
+    },
+    {
+      "number": 57,
+      "x": "0x4019282a40fa3c35",
+      "lr": "0x3ff607ede767c8a9",
+      "q": "0x3fd0000000000000",
+      "n": "0x4008000000000000",
+      "s": "0x0000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x401daa25bad42e5f"
+    },
+    {
+      "number": 58,
+      "x": "0xbfe82fc15c16280c",
+      "lr": "0x3fa340b0b7260162",
+      "q": "0x3ff0000000000000",
+      "n": "0x4010000000000000",
+      "s": "0x0000000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x4005beed9428f1fe"
+    },
+    {
+      "number": 59,
+      "x": "0x3ff3420c135543b0",
+      "lr": "0x3fe5d463fd24089f",
+      "q": "0x3fe8000000000000",
+      "n": "0x4008000000000000",
+      "s": "0x4024000000000000",
+      "c": "0x0000000000000000",
+      "value": "0x40274587c23ce900"
+    }
+  ]
+}

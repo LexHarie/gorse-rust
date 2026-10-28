@@ -1,4 +1,4 @@
-// Ports: model/cf/model.go @ add21b5 (SuggestParams excluded: WP-3-3)
+// Ports: model/cf/model.go @ add21b5
 
 //! Bayesian personalized ranking (BPR) and alternating least squares (ALS), the
 //! base they share, and the marshalling of their parameters and factors.
@@ -22,7 +22,7 @@ use gorse_common::parallel;
 use gorse_common::util::{self, RandomGenerator};
 use gorse_dataset::dataset::CfSplit;
 use gorse_dataset::dict::FreqDict;
-use gorse_model_core::model::{BaseModel, Model as CoreModel};
+use gorse_model_core::model::{BaseModel, Model as CoreModel, SuggestTrial};
 use gorse_model_core::params::{
     ALPHA, INIT_MEAN, INIT_STD_DEV, LR, N_EPOCHS, N_FACTORS, ParamValue, Params, REG,
 };
@@ -791,6 +791,26 @@ impl CoreModel for BPR {
         self.base.params()
     }
 
+    /// Go's `BPR.SuggestParams`.
+    fn suggest_params(&self, trial: &mut dyn SuggestTrial) -> Params {
+        Params(BTreeMap::from([
+            (N_FACTORS.to_owned(), ParamValue::Int(16)),
+            (
+                LR.to_owned(),
+                ParamValue::Float64(trial.suggest_log_float(LR, 0.001, 0.1)),
+            ),
+            (
+                REG.to_owned(),
+                ParamValue::Float64(trial.suggest_log_float(REG, 0.001, 0.1)),
+            ),
+            (INIT_MEAN.to_owned(), ParamValue::Int(0)),
+            (
+                INIT_STD_DEV.to_owned(),
+                ParamValue::Float64(trial.suggest_log_float(INIT_STD_DEV, 0.001, 0.1)),
+            ),
+        ]))
+    }
+
     fn clear(&mut self) {
         self.base.clear();
     }
@@ -1028,6 +1048,26 @@ impl CoreModel for ALS {
 
     fn get_params(&self) -> &Params {
         self.base.params()
+    }
+
+    /// Go's `ALS.SuggestParams`.
+    fn suggest_params(&self, trial: &mut dyn SuggestTrial) -> Params {
+        Params(BTreeMap::from([
+            (N_FACTORS.to_owned(), ParamValue::Int(16)),
+            (INIT_MEAN.to_owned(), ParamValue::Int(0)),
+            (
+                INIT_STD_DEV.to_owned(),
+                ParamValue::Float64(trial.suggest_log_float(INIT_STD_DEV, 0.001, 0.1)),
+            ),
+            (
+                REG.to_owned(),
+                ParamValue::Float64(trial.suggest_log_float(REG, 0.001, 0.1)),
+            ),
+            (
+                ALPHA.to_owned(),
+                ParamValue::Float64(trial.suggest_log_float(ALPHA, 0.001, 0.1)),
+            ),
+        ]))
     }
 
     fn clear(&mut self) {

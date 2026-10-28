@@ -59,3 +59,20 @@ pub fn compile(input: &str, config: &Config) -> Result<Program, file::Error> {
     }
     compiler::compile(&tree.node, &tree.source, config)
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::ty::Ty;
+    use crate::value::Value;
+    use crate::vm::Program;
+
+    /// The compiled programs and the values they run on are `Send`, so the
+    /// logics can move them between threads (D-227). Checked when this compiles.
+    #[test]
+    fn programs_and_values_are_send() {
+        fn assert_send<T: Send>() {}
+        assert_send::<Program>();
+        assert_send::<Value>();
+        assert_send::<Ty>();
+    }
+}

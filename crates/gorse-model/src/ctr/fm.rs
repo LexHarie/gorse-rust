@@ -1,8 +1,4 @@
-// Ports: model/ctr/fm.go @ add21b5
-//
-// Not ported here: `AFM.SuggestParams` (fm.go line 79), which takes a goptuna
-// trial. WP-3-3 ports it with the TPE sampler. `fm_xla.go` and `model.py` are
-// not ported (D-8, D-196).
+// Ports: model/ctr/fm.go @ add21b5, except fm_xla.go and model.py (D-8, D-196)
 
 //! The factorization machine with attention (AFM), the default build of Go's
 //! `model/ctr` (`fm.go`): sparse features and item embeddings go through an
@@ -29,7 +25,7 @@ use gorse_common::util::rand::Rand;
 use gorse_dataset::dataset::CtrSplit;
 use gorse_dataset::index::{Index, NOT_ID};
 use gorse_dataset::unified_index::{UnifiedIndex, marshal_unified_index, unmarshal_unified_index};
-use gorse_model_core::model::{BaseModel, Model};
+use gorse_model_core::model::{BaseModel, Model, SuggestTrial};
 use gorse_model_core::params::{
     ADAM, AUTO_SCALE, BATCH_SIZE, INIT_MEAN, INIT_STD_DEV, LR, N_EPOCHS, N_FACTORS, OPTIMIZER,
     ParamValue, Params, REG, SGD,
@@ -637,6 +633,26 @@ impl Model for Afm {
 
     fn get_params(&self) -> &Params {
         self.base.get_params()
+    }
+
+    /// Go's `AFM.SuggestParams`.
+    fn suggest_params(&self, trial: &mut dyn SuggestTrial) -> Params {
+        Params(BTreeMap::from([
+            (N_FACTORS.to_owned(), ParamValue::Int(16)),
+            (
+                LR.to_owned(),
+                ParamValue::Float64(trial.suggest_log_float(LR, 0.001, 0.1)),
+            ),
+            (
+                REG.to_owned(),
+                ParamValue::Float64(trial.suggest_log_float(REG, 0.001, 0.1)),
+            ),
+            (INIT_MEAN.to_owned(), ParamValue::Int(0)),
+            (
+                INIT_STD_DEV.to_owned(),
+                ParamValue::Float64(trial.suggest_log_float(INIT_STD_DEV, 0.001, 0.1)),
+            ),
+        ]))
     }
 
     /// Go's `Clear`: drops the index and the scalers. The weights stay.

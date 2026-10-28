@@ -9,7 +9,7 @@
 //! compiler read.
 
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::builtin::Function;
 use crate::ty::{Kind, Ty};
@@ -41,7 +41,7 @@ pub struct Nature {
     /// the nature of its elements when that differs from the type.
     pub reference: Option<Box<Nature>>,
     /// The fields of an environment map, set on the environment only.
-    pub map: Option<Rc<MapFields>>,
+    pub map: Option<Arc<MapFields>>,
     /// Whether an unknown name is an error (the environment is strict).
     pub strict: bool,
     /// The builtin function this nature stands for, when an identifier names
@@ -118,7 +118,7 @@ pub fn map_env_of(entries: impl IntoIterator<Item = (String, Nature)>) -> Nature
     let fields = entries.into_iter().collect();
     Nature {
         ty: Some(Ty::map(Ty::string(), Ty::any())),
-        map: Some(Rc::new(MapFields { fields })),
+        map: Some(Arc::new(MapFields { fields })),
         ..Nature::default()
     }
 }

@@ -12,9 +12,9 @@
 //! Pointers are not modelled. Gorse's expressions never see one, so Go's
 //! dereference steps do nothing here and the compiler does not emit them.
 
-use std::cell::OnceCell;
 use std::fmt;
-use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::OnceLock;
 
 /// What a type is: `reflect.Kind`, without the kinds expr never sees.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -166,18 +166,18 @@ struct Data {
     fields: Vec<Field>,
     // Set once: a method may name the type it belongs to, so the list is
     // filled in after the type exists (see `Ty::set_methods`).
-    methods: OnceCell<Vec<Method>>,
+    methods: OnceLock<Vec<Method>>,
     func: Option<Signature>,
 }
 
 /// A Go type. Two types are the same when they print the same, which is how
 /// Go decides identity for the types of this port.
 #[derive(Debug, Clone)]
-pub struct Ty(Rc<Data>);
+pub struct Ty(Arc<Data>);
 
 impl PartialEq for Ty {
     fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &other.0)
+        Arc::ptr_eq(&self.0, &other.0)
             || (self.0.kind == other.0.kind && self.0.name == other.0.name)
     }
 }
@@ -192,7 +192,7 @@ impl fmt::Display for Ty {
 
 impl Ty {
     fn new(data: Data) -> Ty {
-        Ty(Rc::new(data))
+        Ty(Arc::new(data))
     }
 
     fn plain(kind: Kind, name: &str) -> Ty {
@@ -204,7 +204,7 @@ impl Ty {
             key: None,
             len: 0,
             fields: Vec::new(),
-            methods: OnceCell::new(),
+            methods: OnceLock::new(),
             func: None,
         })
     }
@@ -461,8 +461,8 @@ impl Ty {
 /// The method set of a new type. It is set now when there are methods, so
 /// that a type made without them can still be given some by
 /// [`Ty::set_methods`].
-fn method_cell(methods: Vec<Method>) -> OnceCell<Vec<Method>> {
-    let cell = OnceCell::new();
+fn method_cell(methods: Vec<Method>) -> OnceLock<Vec<Method>> {
+    let cell = OnceLock::new();
     if !methods.is_empty() {
         let _ = cell.set(methods);
     }
@@ -479,7 +479,7 @@ impl Data {
             key: None,
             len: 0,
             fields: Vec::new(),
-            methods: OnceCell::new(),
+            methods: OnceLock::new(),
             func: None,
         }
     }

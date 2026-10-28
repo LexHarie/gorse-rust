@@ -6,7 +6,7 @@
 //! The rewrites of operator and builtin shapes. Each turns a shape into a
 //! cheaper one with the same value.
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::ast::{Node, NodeKind, Visitor, find};
 use crate::ty::{Kind, Ty};
@@ -57,7 +57,7 @@ fn in_array(node: &Node) -> Option<NodeKind> {
     };
     let set = Value::Map(
         Ty::map(key, Ty::any()),
-        Rc::new(keys.into_iter().map(|key| (key, Value::Nil)).collect()),
+        Arc::new(keys.into_iter().map(|key| (key, Value::Nil)).collect()),
     );
     Some(NodeKind::Binary {
         operator: operator.clone(),
@@ -80,7 +80,7 @@ fn literal_strings(nodes: &[Node]) -> Option<Vec<Value>> {
     nodes
         .iter()
         .map(|node| match &node.kind {
-            NodeKind::String { value } => Some(Value::Str(Rc::from(value.as_slice()))),
+            NodeKind::String { value } => Some(Value::Str(Arc::from(value.as_slice()))),
             _ => None,
         })
         .collect()

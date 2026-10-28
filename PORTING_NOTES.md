@@ -1388,7 +1388,7 @@ said otherwise), so the Rust result is Go's.
   `SuggestParams(trial goptuna.Trial) Params` needs goptuna's `Trial`, which is
   part of the tuning port (WP-3-3, `model/cf/optimize.go` and
   `model/ctr/optimize.go`). WP-3-3 adds it to the trait, and the models implement
-  it there. The other `Model` methods are here.
+  it there. The other `Model` methods are here. Closed by WP-3-3 (X-197).
 
 - **X-66 `init` side effect.** Go's `init` creates `~/.gorse/dataset` and
   `~/.gorse/temp` when any binary starts, and stops the process if that fails.
@@ -2601,11 +2601,13 @@ said otherwise), so the Rust result is Go's.
 - **O-72 The metrics conformance test needs the datasets (WP-3-2, open item).** The WP-3-8 metric
   test, like the five dataset tests of WP-3-2 under O-1, needs `/mnt/project-files/datasets/`. Open.
 
-- **Q-254 Non-personalised pushes from parallel workers need `Send` expressions (WP-3-6, open).**
+- **Q-254 Non-personalised pushes from parallel workers need `Send` expressions (WP-3-6, closed by D-232).**
   `NonPersonalized` is not `Send`, because its compiled programs hold `Rc`s. Go's `Push` runs on
   `parallel.Parallel` workers (`master/tasks.go`, 607 to 630). The ruling is D-227: the master work
   package makes the expression types `Send`, recommended as `Arc`-based, before it merges. Open until
-  that package merges.
+  that package merges. On 2026-10-28 the coordinator asked the WP-3-6 thread to make the change now on
+  `claude/q-254-send` (`Arc`-based, with a compile-time `Send` assertion), so it does not wait for the
+  master package. Closed by D-232: `claude/q-254-send` (`df15b3f`) is merged as `6ae07e72`.
 
 - **Q-255 `json.Number` labels become floats in expressions (WP-3-6, open).** Go keeps a
   `json.Number` as a named string type, and the port turns it into a float. So `len`, string
@@ -2651,6 +2653,47 @@ said otherwise), so the Rust result is Go's.
 
 - **O-74 `const_expr` is not run (WP-3-6, oracle 3, closed).** Gorse configures no `ConstFns`, and Go
   skips that pass when there are none, so there is nothing to compare.
+
+- **Q-257 goptuna's `floats.Argsort` sorts its input in place (WP-3-3, provisional D-WP33-1).** goptuna's
+  `NewParzenEstimator` relies on Gonum's `floats.Argsort` sorting the `mus` slice it is given, so that
+  slice comes back sorted. The Rust port keeps the in-place sort (`tpe/parzen.rs`, `argsort`) rather than
+  sorting a copy, so the caller sees the order Go's caller sees.
+
+- **Q-258 `ModelSearch` takes its models in name order (WP-3-3, provisional Q-WP33-2).** Go's
+  `NewModelSearch` takes a map of model types, whose iteration order is random. The Rust port takes a
+  `BTreeMap`, so the categorical choice is over sorted names and the trial sequence is fixed for a given
+  seed. Go's own order is not reproducible, so no Go run fixes this choice.
+
+- **X-193 Gonum's `floats.Sum` and `CumSum` are summed in sequence (WP-3-3, provisional D-WP33-2).** On
+  amd64 Gonum sums with SIMD, and the order depends on memory alignment. The port sums in sequence. The
+  TPE golden matches bit for bit, but an input with another alignment could differ in the last bit.
+
+- **X-194 Each sampler owns its random source (WP-3-3, provisional D-WP33-3).** goptuna's multinomial and
+  categorical draws read `math/rand`'s global source, which Go seeds from the runtime, or with 1 under
+  `GODEBUG=randautoseed=0`. Rust has no process-wide source with those semantics, so each `TpeSampler`
+  and `RandomSampler` owns a source seeded from `RandomState`. The golden test seeds it with 1, as the
+  Go run does.
+
+- **X-195 `Erf`, `Max` and `Min` are ported locally (WP-3-3, X-WP33-3).** `math.Erf` is ported from
+  `math/erf.go`, and `Max` and `Min` from `math.go`, because Rust's `f64` methods differ on NaN and on
+  signed zero. WP-3-3 records the coordinator's approval, and the court has not seen the ruling itself.
+
+- **X-196 The `tpe` module headers name goptuna and Go 1.27, not the add21b5 pin (WP-3-3, X-WP33-4).**
+  The sources are `c-bata/goptuna@v0.9.0`, the version the root `go.mod` pins, and Go's standard library
+  at go1.27.0. They are not the add21b5 Gorse pin.
+
+- **X-197 The tuning hook is `SuggestTrial` in model-core (WP-3-3, X-WP33-5, closes X-65 in a changed form).** Go's
+  `SuggestParams(trial goptuna.Trial)` takes goptuna's `Trial`, which lives in `gorse-model`, a crate
+  that depends on model-core. So model-core defines `SuggestTrial`, with the two methods the models call
+  (`suggest_log_float` and `suggest_discrete_float`), and `Model::suggest_params(&self, &mut dyn
+  SuggestTrial) -> Params`. `gorse_model::tpe::Trial` implements it. This deviates from X-65's plan,
+  which put `SuggestParams` with goptuna's `Trial` on the trait. The coordinator approved it on
+  2026-10-28 (D-231).
+
+- **X-198 goptuna's relative sampling, pruners and storage are not ported (WP-3-3, scope).** The relative
+  sampler and the intersection search space, pruners, user and system attributes, `ShouldPrune`,
+  `Distribution.Contains`, `EnqueueTrial`, the storage tests, and `GetParamsGrid` are left out. Gorse's
+  tuning calls none of them. `GetParamsGrid` appears only in Go's test mock (`ctr/optimize_test.go`).
 
 Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
 version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does

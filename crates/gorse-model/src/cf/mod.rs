@@ -4,11 +4,12 @@
 //! least squares (ALS) matrix factorization, the top-n evaluator, and the
 //! marshalling of the models.
 //!
-//! The hyper-parameter tuning hooks (`SuggestParams`, Go's `goptuna`) are not
-//! here: WP-3-3 ports them with the TPE sampler.
+//! The hyper-parameter search over these models is in [`optimize`], on the TPE
+//! sampler of [`crate::tpe`].
 
 pub mod evaluator;
 pub mod model;
+pub mod optimize;
 
 #[cfg(test)]
 mod replay;
