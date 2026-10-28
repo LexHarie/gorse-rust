@@ -31,7 +31,7 @@ Every Rust module names the Go files it ports with a
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-18, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); the frozen config.schema.json and config.keys.md match a fresh run of the Go generator byte for byte (X-49, closed 2026-10-28). WP-1-18 (dataset) is merged: Q-210 to Q-217, X-117 to X-129, O-51 and O-52 open, and the ml-1m test is ignored (O-1). Every Phase 1 WP is merged. All in `porting/work-packages.md` |
 | 2. Storage | exited (D-207) | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-3 (MongoDB data store, feature `mongodb`, MongoDB 6.0.28; O-53 open for 8.0; the `get_item_stream` doc is corrected, O-54). WP-2-11 (meta store, SQLite through rusqlite 0.39.0, D-160 to D-166; O-48 closed, O-49 and O-50 open for Phases 3 and 4). WP-2-2 (SQL data store, MySQL, Postgres and SQLite as one build; D-177 to D-181; O-36 closed by the SQL and MongoDB runs; O-57 and O-59 closed by the Go and Rust cross-reads on PostgreSQL, MySQL and SQLite, D-177 to D-181). WP-2-6 (SQL cache store: MySQL and Postgres on sqlx 0.9.0, SQLite on rusqlite 0.39.0; D-167 to D-175; Q-232 MySQL auth open). WP-2-9 (D-197 to D-200), WP-2-12 (D-202 to D-206) and WP-2-13 (D-186 to D-193) merged. The court audit of the env-gated backend tests is O-66 (D-201). Phase 2 exited (D-207): `test_gcs` stays ignored with its reason, and O-62 stays open for a real-GCS run before Phase 5. |
-| 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
+| 3. Models and logics | in progress | Accepted: WP-3-1 (D-216), WP-3-4 (D-217), WP-3-2 (D-224) and WP-3-6 (D-229, with Q-254 and Q-255 open). WP-3-3 is under review. WP-3-5 can start now. WP-3-7 waits for WP-3-5 and WP-3-6, WP-3-8 needs the datasets (O-1, O-70 to O-72) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
 
@@ -1879,6 +1879,67 @@ or accepts a metric gap outside the Go tests' own tolerances.
   - The contracts README names the CTR replay command. `O-72` stays open: the metrics test needs the
     datasets, as O-70 and O-71 do.
   - Verdict: accepted.
+
+- **D-225 `expr-lang` 2.1.0 is rejected, and the expression engine is a hand port (WP-3-6, spike,
+  D-WP36-1).** The brief's step 2 kept the crate only if it passed the Go oracle corpus (1330 cases,
+  golden from expr-lang v1.17.8). Over the 1327 non-volatile cases: both reject 468 (391 at compile,
+  77 at run time), the values agree on 652, the values differ on 166 (int against float from JSON, and
+  Go type names), the spike rejects 27 cases where Go gives a value, accepts 12 that Go rejects at
+  compile time, returns nil for 6 cases where Go gives an index error, and panics on 2 valid
+  expressions. The reasons are: no static type checking, which Gorse needs (a score must be numeric
+  and a filter boolean, `non_personalized.go`); error texts that differ from `file.Error`; no Go
+  `time.Time` or `time.Duration` on values built from Go structs; panics on valid input; and no `;`
+  sequences. So the checker, compiler and VM are a hand port (D-10), in `gorse-expr`.
+
+- **D-226 The hand port follows Go's packages, file by file (WP-3-6, D-WP36-2).** `ty.rs` is the reflect
+  type model, `nature.rs` is the checker's nature, `value.rs` is the runtime `Value` with one variant
+  per Go kind, and `checker/`, `compiler.rs`, `vm/`, `builtin/` and `optimizer/` follow Go's files.
+  Struct values are built from Gorse's data types in Rust, so that the `Ty` matches the Go struct.
+  Not ported, as Gorse's API does not reach them: the patcher and `Visitor`, `ConstExpr`, the
+  function and operator options, `Profile`, the `Debug` VM and `SafeFunction`. The typed fast-path
+  opcodes are emitted only where Go's optimizer chooses them, and the port uses the generic opcode,
+  whose results and errors are the same by construction (the corpus checks this, X-192).
+
+- **D-227 Ruling on Q-254: `NonPersonalized` must be `Send` before the master merges (integrator,
+  2026-10-28).** The coordinator asked for a ruling on how the master pushes into non-personalised
+  recommenders. Go's `Push` is called from `parallel.Parallel` workers (`master/tasks.go`, 607 to
+  630), so the port's `NonPersonalized`, whose compiled programs hold `Rc`, cannot be shared across
+  those workers. The court requires the master's work package to make the expression types `Send`
+  before it merges. The recommended way is `Arc`-based expression types, since Go pushes
+  concurrently and a single owning thread would serialise the pushes. The change is local to
+  `gorse-expr` and costs an atomic count per clone. The non-personalised port may keep `&mut self`
+  until then. This is recorded as Q-254, open.
+
+- **D-228 Ruling on Q-255: the `json.Number` labels stay floats for WP-3-6 and are fixed before
+  Phase 5 (integrator, 2026-10-28).** Go keeps a `json.Number` as a named string type, so an expression
+  that compares a numeric label with a string, or calls a string function on it, behaves differently
+  here (X-185). The deviation is accepted for WP-3-6, because the rest of the expression semantics
+  are exact on the oracle corpus. Before Phase 5 conformance, `gorse-expr` must carry a named-string
+  value for `json.Number`, so the corpus can cover these cases. This is recorded as Q-255, open, and
+  the coordinator schedules it.
+
+- **D-229 Court acceptance for WP-3-6 on the head `faa048d4` (integrator, 2026-10-28).** The branch
+  `claude/wp-3-6-logics-expr` is merged as `2ba2a1d6` at head `e2af7613`. The merged head failed
+  `cargo fmt --check` on module formatting in `gorse-expr` alone, and `faa048d4` only applies
+  `cargo fmt` to those sources. The fix changes no code.
+  - The expression engine is the hand port of D-225 and D-226, with the rulings D-227 (Q-254, the
+    `Send` requirement before the master merges) and D-228 (Q-255, the `json.Number` labels). Both
+    stay open, and neither blocks this integration. The deviations are recorded as X-184 to X-192,
+    and the Go oracle module as X-192. O-73 (the corpus compares map-order results as multisets)
+    stays open. O-74 (`const_expr` is not run) is closed, because Gorse configures no `ConstFns`.
+  - The gate on `faa048d4`, with every URI set: `cargo fmt --check`, `cargo clippy --workspace
+    --all-targets -D warnings`, rustdoc with `-D warnings`, the config and YAML goldens, `go vet`, the
+    cloud and Mongo clippy runs, the vector acceptance with `--include-ignored`, the vector cross-read,
+    the proxy conformance and the proxy store tests all exit 0. `cargo test --workspace
+    --no-fail-fast`: TEST section 1049 passed, 0 failed, 54 ignored. The count rises from 1036 on
+    D-224's head, and the difference is WP-3-6's new tests.
+  - The vector acceptance skips `vectors::weaviate::tests::sparse`, as D-224 and the Weaviate
+    backend's own `#[ignore]` reason state. Go's `TestSparse` skips for Weaviate, so the skip matches
+    Go and is not a removed check.
+  - The Redis TLS cases fail with `REDIS_TLS_URI is not set` under `--include-ignored` with the URI
+    unset (exit 101, expected, O-66). They fail rather than pass.
+  - Verdict: accepted, with Q-254 and Q-255 open. The master work package must close Q-254 before the
+    master merges, and Q-255 before Phase 5 conformance.
 
 ## Open questions for Ritchie
 

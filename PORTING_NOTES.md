@@ -2601,6 +2601,57 @@ said otherwise), so the Rust result is Go's.
 - **O-72 The metrics conformance test needs the datasets (WP-3-2, open item).** The WP-3-8 metric
   test, like the five dataset tests of WP-3-2 under O-1, needs `/mnt/project-files/datasets/`. Open.
 
+- **Q-254 Non-personalised pushes from parallel workers need `Send` expressions (WP-3-6, open).**
+  `NonPersonalized` is not `Send`, because its compiled programs hold `Rc`s. Go's `Push` runs on
+  `parallel.Parallel` workers (`master/tasks.go`, 607 to 630). The ruling is D-227: the master work
+  package makes the expression types `Send`, recommended as `Arc`-based, before it merges. Open until
+  that package merges.
+
+- **Q-255 `json.Number` labels become floats in expressions (WP-3-6, open).** Go keeps a
+  `json.Number` as a named string type, and the port turns it into a float. So `len`, string
+  comparison and string functions on a numeric label differ from Go. The ruling is D-228: a
+  named-string value in `gorse-expr` before Phase 5 conformance. Open.
+
+- **Q-256 Each `push` converts the item and all its feedback (WP-3-6, measure later).** The cost is
+  O(feedback) per item. It is measured in the WP-3-8 replay before anything is optimised.
+
+- **X-184 `NonPersonalized` is not `Send` (WP-3-6, deviation 3).** See Q-254 and D-227.
+
+- **X-185 A `json.Number` label is a float (WP-3-6, deviation 4).** See Q-255 and D-228.
+
+- **X-186 The integer kinds of expression values are `int`, `int64`, `time.Month` and
+  `time.Weekday` (WP-3-6, deviation 5).** The score accepts a float, an `int` or an `int64`, which
+  are the only kinds Gorse's expressions produce. Go's other integer kinds are not in the port.
+
+- **X-187 Pointers are not modelled, except `*time.Location` (WP-3-6, deviation 6).** Only map
+  environments are ported, since Gorse uses only those. An `expr.Env` of a struct is not.
+
+- **X-188 Four multi-value `time.Time` methods are not exposed (WP-3-6, deviation 7).** `Date`,
+  `Clock`, `Zone` and `ISOWeek` are missing, so an expression that calls one fails to compile here,
+  and Go compiles it.
+
+- **X-189 Set constants are typed `map[int]interface {}` (WP-3-6, deviation 8).** Go's optimizer
+  types `x in [...]` as `map[int]struct {}`. Only `%T` output differs.
+
+- **X-190 `pow` uses `f64::powf` (WP-3-6, deviation 9).** Go's `math.Pow` can differ in the last bit
+  on some inputs. The corpus agrees on all its `pow` cases.
+
+- **X-191 `toJSON` does not apply the duplicate-name rule (WP-3-6, deviation 10).** `encoding/json`
+  drops a field that an embedded field dominates. Gorse's structs have no such duplicates.
+
+- **X-192 The Go oracle module is a Gorse-patched `expr-lang` (WP-3-6, oracle 1).** The module in the
+  Go module cache is v1.17.8 with two patches: `optimizer/sum_range.go` has a closed form for
+  `reduce`, and `optimizer/count_threshold.go` sets `Builtin.Threshold`. The port follows the patched
+  code.
+
+- **O-73 The corpus compares map-order results as multisets (WP-3-6, oracle 2, open).** A list
+  result from `keys`, `values` or `toPairs` is compared up to order, and a boolean that depends on
+  map order is not compared. Go's map order is random, so the oracle has no fixed answer there. The
+  coverage of those three functions is narrower because of this. Open.
+
+- **O-74 `const_expr` is not run (WP-3-6, oracle 3, closed).** Gorse configures no `ConstFns`, and Go
+  skips that pass when there are none, so there is nothing to compare.
+
 Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
 version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does
 this port; newer versions are not tested), MariaDB 10.2.44 (`mariadb:10.2`, CI's
