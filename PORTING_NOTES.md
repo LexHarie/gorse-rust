@@ -2411,6 +2411,19 @@ said otherwise), so the Rust result is Go's.
   Go's `TestSparse` skips for Weaviate too. Nothing is open against Go. The item closes if Weaviate
   support is added in a later WP.
 
+- **O-66 Backend tests with no server configured must not pass (court audit, 2026-10-28).** The
+  court rule from the coordinator: a backend test whose server is not configured reports ignored
+  or fails, and never passes, so the test counts are honest evidence. The audit read every test
+  that takes a backend URI. The Redis cache tests, the MongoDB cache and data tests, and the SQL
+  cache and data suites returned early when their URI was unset, so they passed with no server.
+  Each now panics with `<NAME> is not set`, as the schema tests do (D-189). The Redis TLS tests
+  need a self-signed TLS server that `storage/docker-compose.yml` does not run, so they are
+  `#[ignore]` with that reason and fail with `REDIS_TLS_URI is not set` under `--include-ignored`.
+  The vector tests are the WP-2-9 change on `b9fde43d` (D-201). The blob tests already panic
+  through `required_env`, and `test_gcs` is ignored under O-31 and O-62. The in-process proxy
+  tests need no server. The conformance proxy check fails without Go (`proxy_wire`). Open for
+  nothing: the items the audit found are fixed in the same commit.
+
 Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
 version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does
 this port; newer versions are not tested), MariaDB 10.2.44 (`mariadb:10.2`, CI's

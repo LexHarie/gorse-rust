@@ -572,8 +572,7 @@ mod tests {
     #[tokio::test]
     async fn creator_opens_the_store() {
         let Ok(uri) = std::env::var("MONGO_URI") else {
-            eprintln!("MONGO_URI is not set, skipping MongoDB creator test");
-            return;
+            panic!("MONGO_URI is not set");
         };
         let db = super::creator(
             &format!("{uri}gorse_cache_test?authSource=admin&connect=direct"),
@@ -592,8 +591,7 @@ mod tests {
     #[tokio::test]
     async fn mongo() {
         let Ok(uri) = std::env::var("MONGO_URI") else {
-            eprintln!("MONGO_URI is not set, skipping MongoDB test");
-            return;
+            panic!("MONGO_URI is not set");
         };
         let db_name = "gorse_cache_test";
         // Drop the database, as Go's SetupSuite does before it creates the schema.

@@ -10,11 +10,11 @@
 
 #[cfg(feature = "milvus")]
 pub mod milvus;
+pub mod proxy;
 #[cfg(feature = "qdrant")]
 pub mod qdrant;
 #[cfg(feature = "weaviate")]
 pub mod weaviate;
-pub mod proxy;
 pub mod xvec;
 
 #[cfg(test)]

@@ -57,8 +57,7 @@ impl Backend for SqlDatabase {
 #[tokio::test]
 async fn test_mysql() {
     let Ok(uri) = std::env::var("MYSQL_URI") else {
-        eprintln!("MYSQL_URI is not set, skipping MySQL test");
-        return;
+        panic!("MYSQL_URI is not set");
     };
     // Go's SetupSuite drops and creates the database with a connection of its
     // own, to the server with no database named.
@@ -109,8 +108,7 @@ async fn test_mysql() {
 #[tokio::test]
 async fn test_postgres() {
     let Ok(uri) = std::env::var("POSTGRES_URI") else {
-        eprintln!("POSTGRES_URI is not set, skipping PostgreSQL test");
-        return;
+        panic!("POSTGRES_URI is not set");
     };
     let admin = sqlx::postgres::PgConnectOptions::from_str(&format!("{uri}?sslmode=disable"))
         .expect("POSTGRES_URI is a URL");
