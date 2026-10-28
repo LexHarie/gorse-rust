@@ -1,0 +1,6652 @@
+[
+  {
+    "source": "item.Timestamp.Unix()",
+    "env": "non_personalized",
+    "origin": "logics/non_personalized_test.go:32"
+  },
+  {
+    "source": "len(feedback)",
+    "env": "non_personalized",
+    "origin": "logics/non_personalized_test.go:52"
+  },
+  {
+    "source": "1",
+    "env": "non_personalized",
+    "origin": "master/tasks_test.go:663"
+  },
+  {
+    "source": "!item.IsHidden",
+    "env": "non_personalized",
+    "origin": "logics/non_personalized_test.go:105"
+  },
+  {
+    "source": "count(feedback, .FeedbackType == 'star')",
+    "env": "non_personalized",
+    "origin": "logics/non_personalized_test.go:148"
+  },
+  {
+    "source": "(now() - item.Timestamp).Hours() < 168",
+    "env": "non_personalized",
+    "origin": "logics/non_personalized_test.go:149"
+  },
+  {
+    "source": "(now() - item.Timestamp).Nanoseconds() < 3600000000000",
+    "env": "non_personalized",
+    "origin": "logics/non_personalized_test.go:73"
+  },
+  {
+    "source": "item.Labels.embedding",
+    "env": "item",
+    "origin": "config/config.toml:211"
+  },
+  {
+    "source": "item.Labels",
+    "env": "item",
+    "origin": "master/tasks_test.go:217"
+  },
+  {
+    "source": "item.Labels.description",
+    "env": "item",
+    "origin": "logics/item_to_item_test.go:50"
+  },
+  {
+    "source": "item.Labels.brand",
+    "env": "item",
+    "origin": "server/rest_test.go:819"
+  },
+  {
+    "source": "item.ItemId",
+    "env": "item",
+    "origin": "server/rest_test.go:819"
+  },
+  {
+    "source": "item.Categories",
+    "env": "item",
+    "origin": "server/rest_test.go:819"
+  },
+  {
+    "source": "item.Comment",
+    "env": "item",
+    "origin": "server/rest_test.go:819"
+  },
+  {
+    "source": "item.Labels.title",
+    "env": "item",
+    "origin": "contracts/tools/schemadump/main.go:54"
+  },
+  {
+    "source": "item.Labels.",
+    "env": "item",
+    "origin": "config/config_test.go:566"
+  },
+  {
+    "source": "user.Labels.description",
+    "env": "user",
+    "origin": "logics/user_to_user_test.go:51"
+  },
+  {
+    "source": "user.Labels.embedding",
+    "env": "user",
+    "origin": "logics/user_to_user_test.go:76"
+  },
+  {
+    "source": "user.Labels",
+    "env": "user",
+    "origin": "logics/user_to_user_test.go:103"
+  },
+  {
+    "source": "item.Labels.missing",
+    "env": "item",
+    "origin": "synthetic: absent key"
+  },
+  {
+    "source": "user.Labels.missing",
+    "env": "user",
+    "origin": "synthetic: absent key"
+  },
+  {
+    "source": "nil",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "true",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "true",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "false",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "false",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "0x1F",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "0x1F",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "0o17",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "0o17",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "0b101",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "0b101",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1_000",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1_000",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1e3",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1e3",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "2.5e-3",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "2.5e-3",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'it''s'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'it''s'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "\"tab\\tnew\\n\"",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "\"tab\\tnew\\n\"",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "`raw\\n`",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "`raw\\n`",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "b\"abc\"",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "b\"abc\"",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "b\"\\xff\"",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "b\"\\xff\"",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 + 2 * 3",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 + 2 * 3",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "(1 + 2) * 3",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "(1 + 2) * 3",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "2 ** 10",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "2 ** 10",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "2 ^ 10",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "2 ^ 10",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "7 % 3",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "7 % 3",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "-7 % 3",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "-7 % 3",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "7 / 2",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "7 / 2",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "7.0 / 2",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "7.0 / 2",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 / 0",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 / 0",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 % 0",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 % 0",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1.0 / 0.0",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1.0 / 0.0",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "-1.0 / 0.0",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "-1.0 / 0.0",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "0.0 / 0.0",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "0.0 / 0.0",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 == 1.0",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 == 1.0",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 != 2",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 != 2",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'a' < 'b'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'a' < 'b'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'a' >= 'a'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'a' >= 'a'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 < 2 and 2 < 3",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 < 2 and 2 < 3",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 > 2 or 2 < 3",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 > 2 or 2 < 3",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "not true",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "not true",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "!false",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "!false",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "true && false",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "true && false",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "true || false",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "true || false",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 + 'a'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 + 'a'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'a' + 1",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'a' + 1",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'a' + 'b'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'a' + 'b'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1] + [2]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1] + [2]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "-'a'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "-'a'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "+1",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "+1",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "-1",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "-1",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "not 1",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "not 1",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "!nil",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "!nil",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 && 2",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 && 2",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 || 2",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 || 2",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil == nil",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil == nil",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil != nil",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil != nil",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 in [1, 2]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 in [1, 2]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "3 in [1, 2]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "3 in [1, 2]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'a' in {'a': 1}",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'a' in {'a': 1}",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'a' in 'abc'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'a' in 'abc'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'b' not in ['a']",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'b' not in ['a']",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc' matches '^a'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc' matches '^a'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc' matches '('",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc' matches '('",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc' contains 'b'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc' contains 'b'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc' startsWith 'a'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc' startsWith 'a'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc' endsWith 'c'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc' endsWith 'c'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'ab' + nil",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'ab' + nil",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 .. 3",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 .. 3",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1..3",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1..3",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1..3]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1..3]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1..0",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1..0",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc'[1]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc'[1]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc'[1:2]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc'[1:2]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc'[:2]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc'[:2]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc'[2:]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc'[2:]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc'[5]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'abc'[5]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1, 2, 3][1:]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1, 2, 3][1:]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1, 2, 3][-1]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1, 2, 3][-1]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1, 2, 3][3]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1, 2, 3][3]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1, 2, 3][0:9]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1, 2, 3][0:9]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1, 2, 3][2:1]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1, 2, 3][2:1]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{'a': 1}['a']",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{'a': 1}['a']",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{'a': 1}.a",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{'a': 1}.a",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{'a': 1}['b']",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{'a': 1}['b']",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{'a': 1}.b",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{'a': 1}.b",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{a: 1}.a",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{a: 1}.a",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{'a': {'b': 2}}.a.b",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{'a': {'b': 2}}.a.b",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{'a': nil}.a?.b",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{'a': nil}.a?.b",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil?.a",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil?.a",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil.a",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil.a",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil[0]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil[0]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1.foo",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1.foo",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'x'.foo",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'x'.foo",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 ? 'y' : 'n'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 ? 'y' : 'n'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "true ? 'y' : 'n'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "true ? 'y' : 'n'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil ?? 'd'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil ?? 'd'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 ?? 2",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 ?? 2",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil ?: 2",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil ?: 2",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "0 ?: 2",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "0 ?: 2",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "true ? 1 : 2.0",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "true ? 1 : 2.0",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "if true { 1 } else { 2 }",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "if true { 1 } else { 2 }",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "if 1 == 2 { 1 } else { 'two' }",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "if 1 == 2 { 1 } else { 'two' }",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "let x = 2; x * x",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "let x = 2; x * x",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "let x = 2; let y = x + 1; x * y",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "let x = 2; let y = x + 1; x * y",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1; 2",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1; 2",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "let f = 1; f",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "let f = 1; f",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1, 2, 3] | len()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1, 2, 3] | len()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'ab' | upper()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'ab' | upper()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "#",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "#",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "len(#)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "len(#)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1, 2] | map(# * 2)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1, 2] | map(# * 2)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "all([true, false], #)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "all([true, false], #)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "all([1, 2], # > 0)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "all([1, 2], # > 0)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "none([1, 2], # > 2)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "none([1, 2], # > 2)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "any([1, 2], # > 1)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "any([1, 2], # > 1)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "one([1, 2], # > 1)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "one([1, 2], # > 1)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "filter([1, 2, 3], # > 1)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "filter([1, 2, 3], # > 1)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "filter([1, 2, 3], # > 5)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "filter([1, 2, 3], # > 5)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "map([1, 2], # * 10)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "map([1, 2], # * 10)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "map([1, 2], #index)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "map([1, 2], #index)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "find([1, 2, 3], # > 1)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "find([1, 2, 3], # > 1)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "find([1, 2, 3], # > 9)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "find([1, 2, 3], # > 9)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "findIndex([1, 2, 3], # > 1)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "findIndex([1, 2, 3], # > 1)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "findLast([1, 2, 3], # < 3)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "findLast([1, 2, 3], # < 3)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "findLastIndex([1, 2, 3], # < 3)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "findLastIndex([1, 2, 3], # < 3)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "count([1, 2, 3], # > 1)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "count([1, 2, 3], # > 1)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "count([1, 2, 3])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "count([1, 2, 3])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "count({'a': 1, 'b': 2}, # > 1)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "count({'a': 1, 'b': 2}, # > 1)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sum([1, 2, 3])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sum([1, 2, 3])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sum([1.5, 2])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sum([1.5, 2])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sum([1, 2], # * 2)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sum([1, 2], # * 2)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sum([])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sum([])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "groupBy([1, 2, 3], # % 2)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "groupBy([1, 2, 3], # % 2)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sortBy([3, 1, 2])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sortBy([3, 1, 2])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sortBy([3, 1, 2], #, 'desc')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sortBy([3, 1, 2], #, 'desc')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "reduce([1, 2, 3], #acc + #)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "reduce([1, 2, 3], #acc + #)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "reduce([1, 2, 3], #acc + #, 10)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "reduce([1, 2, 3], #acc + #, 10)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "reduce([], #acc + #)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "reduce([], #acc + #)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "len([1, 2])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "len([1, 2])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "len('abc')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "len('abc')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "len({'a': 1})",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "len({'a': 1})",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "len(nil)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "len(nil)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "len(1)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "len(1)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "type(1)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "type(1)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "type('a')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "type('a')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "type(nil)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "type(nil)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "type([])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "type([])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "type({})",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "type({})",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "type(now())",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "type(now())",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "type(1.5)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "type(1.5)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "first([1, 2])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "first([1, 2])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "first([])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "first([])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "last([1, 2])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "last([1, 2])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "last([])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "last([])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "get([1, 2], 1)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "get([1, 2], 1)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "get([1, 2], 5)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "get([1, 2], 5)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "get({'a': 1}, 'a')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "get({'a': 1}, 'a')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "take([1, 2, 3], 2)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "take([1, 2, 3], 2)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "take([1, 2, 3], 9)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "take([1, 2, 3], 9)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "keys({'a': 1, 'b': 2})",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "keys({'a': 1, 'b': 2})",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "values({'a': 1, 'b': 2})",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "values({'a': 1, 'b': 2})",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "toPairs({'a': 1})",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "toPairs({'a': 1})",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "fromPairs([['a', 1]])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "fromPairs([['a', 1]])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "reverse([1, 2, 3])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "reverse([1, 2, 3])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "reverse('abc')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "reverse('abc')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "uniq([1, 1, 2])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "uniq([1, 1, 2])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "concat([1], [2, 3])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "concat([1], [2, 3])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "flatten([[1], [2, 3]])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "flatten([[1], [2, 3]])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sort([3, 1, 2])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sort([3, 1, 2])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sort([3, 1, 2], 'desc')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sort([3, 1, 2], 'desc')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sort(['b', 'a'])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "sort(['b', 'a'])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "abs(-1.5)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "abs(-1.5)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "abs(-2)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "abs(-2)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "ceil(1.2)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "ceil(1.2)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "floor(-1.2)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "floor(-1.2)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "round(2.5)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "round(2.5)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "round(-2.5)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "round(-2.5)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "int('12')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "int('12')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "int(3.9)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "int(3.9)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "int('x')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "int('x')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "float('1.5')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "float('1.5')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "float(3)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "float(3)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "string(3)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "string(3)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "string(nil)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "string(nil)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "string([1])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "string([1])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "trim('  a ')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "trim('  a ')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "trim('xxaxx', 'x')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "trim('xxaxx', 'x')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "trimPrefix('abc', 'a')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "trimPrefix('abc', 'a')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "trimSuffix('abc', 'c')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "trimSuffix('abc', 'c')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "upper('a')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "upper('a')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "lower('A')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "lower('A')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "split('a,b', ',')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "split('a,b', ',')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "split('abc', '')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "split('abc', '')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "splitAfter('a,b', ',')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "splitAfter('a,b', ',')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "replace('aaa', 'a', 'b')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "replace('aaa', 'a', 'b')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "repeat('a', 3)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "repeat('a', 3)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "repeat('a', -1)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "repeat('a', -1)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "join(['a', 'b'], '-')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "join(['a', 'b'], '-')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "indexOf('abcb', 'b')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "indexOf('abcb', 'b')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "lastIndexOf('abcb', 'b')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "lastIndexOf('abcb', 'b')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "hasPrefix('abc', 'ab')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "hasPrefix('abc', 'ab')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "hasSuffix('abc', 'bc')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "hasSuffix('abc', 'bc')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "max(1, 2)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "max(1, 2)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "max([1, 2.5])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "max([1, 2.5])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "min(1, 2)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "min(1, 2)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "min([])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "min([])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "mean([1, 2])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "mean([1, 2])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "mean([])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "mean([])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "median([3, 1, 2])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "median([3, 1, 2])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "median([1, 2])",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "median([1, 2])",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "toJSON({'a': 1})",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "toJSON({'a': 1})",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "toJSON(nil)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "toJSON(nil)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "fromJSON('{\"a\": 1}')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "fromJSON('{\"a\": 1}')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "fromJSON('x')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "fromJSON('x')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "toBase64('a')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "toBase64('a')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "fromBase64('YQ==')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "fromBase64('YQ==')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "duration('1h')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "duration('1h')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "duration('1.5s')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "duration('1.5s')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "duration('1x')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "duration('1x')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02T03:04:05Z')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02T03:04:05Z')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02 03:04:05', 'UTC')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02 03:04:05', 'UTC')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('x')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('x')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "timezone('UTC')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "timezone('UTC')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date(1000, 'UTC')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date(1000, 'UTC')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitand(1, 3)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitand(1, 3)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitor(1, 2)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitor(1, 2)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitxor(3, 1)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitxor(3, 1)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitnand(3, 1)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitnand(3, 1)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitshl(1, 4)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitshl(1, 4)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitshr(16, 2)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitshr(16, 2)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitushr(-1, 60)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitushr(-1, 60)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitnot(1)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitnot(1)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitshl(1, -1)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "bitshl(1, -1)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "now() > date('2000-01-01')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "now() > date('2000-01-01')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02') + duration('1h')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02') + duration('1h')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02') - date('2000-01-01')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02') - date('2000-01-01')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02') < date('2001-01-01')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02') < date('2001-01-01')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02') == date('2000-01-02')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02') == date('2000-01-02')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Year()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Year()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Month()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Month()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Weekday()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Weekday()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Unix()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Unix()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Format('2006-01-02')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Format('2006-01-02')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "duration('90m').Hours()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "duration('90m').Hours()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "duration('90m').Minutes()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "duration('90m').Minutes()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "duration('90m').String()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "duration('90m').String()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "duration('90m').Seconds()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "duration('90m').Seconds()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').AddDate(0, 1, 0)",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').AddDate(0, 1, 0)",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Add(duration('1h'))",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Add(duration('1h'))",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Sub(date('2000-01-01'))",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Sub(date('2000-01-01'))",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Before(date('2001-01-01'))",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Before(date('2001-01-01'))",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').After(date('2001-01-01'))",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').After(date('2001-01-01'))",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Day()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Day()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').YearDay()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').YearDay()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Hour()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Hour()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Nanosecond()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Nanosecond()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').UnixMilli()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').UnixMilli()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').IsZero()",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').IsZero()",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Truncate(duration('1h'))",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02').Truncate(duration('1h'))",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "true + 1",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "true + 1",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1] - 1",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1] - 1",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{} * 2",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{} * 2",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil + 1",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "nil + 1",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'a' * 2",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "'a' * 2",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 < 'a'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 < 'a'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 == 'a'",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 == 'a'",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1] == [1]",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "[1] == [1]",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{'a': 1} == {'a': 1}",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "{'a': 1} == {'a': 1}",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02') > 1",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "date('2000-01-02') > 1",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 + duration('1h')",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 + duration('1h')",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1.5 % 2",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1.5 % 2",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "2 ** 0.5",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "2 ** 0.5",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "10 / 4 * 4",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "10 / 4 * 4",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 << 2",
+    "env": "none",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "1 << 2",
+    "env": "non_personalized",
+    "origin": "synthetic: bare engine"
+  },
+  {
+    "source": "item.Labels.nested.x",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.nested.x",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.nested.x",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.nested.y",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.nested.y",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.nested.y",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.brand == 'acme'",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.brand == 'acme'",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.brand == 'acme'",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.rating + 1",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.rating + 1",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.rating + 1",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.count * 2",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.count * 2",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.count * 2",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.count > 5",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.count > 5",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.count > 5",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.brand + 'x'",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.brand + 'x'",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.brand + 'x'",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.flags[2] == nil",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.flags[2] == nil",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.flags[2] == nil",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.flags[0] ?? 'd'",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.flags[0] ?? 'd'",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.flags[0] ?? 'd'",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.embedding[1]",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.embedding[1]",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.embedding[1]",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.embedding[5]",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.embedding[5]",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.embedding[5]",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.embedding | len()",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.embedding | len()",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.embedding | len()",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "sum(item.Labels.embedding)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "sum(item.Labels.embedding)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "sum(item.Labels.embedding)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.empty == ''",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.empty == ''",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.empty == ''",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.nope ?? 'default'",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.nope ?? 'default'",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.nope ?? 'default'",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.nope?.x",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.nope?.x",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.nope?.x",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.nested?.x",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.nested?.x",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.nested?.x",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Categories[0]",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Categories[0]",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Categories[0]",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Categories[5]",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Categories[5]",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Categories[5]",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Categories | len()",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Categories | len()",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Categories | len()",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "'movie' in item.Categories",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "'movie' in item.Categories",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "'movie' in item.Categories",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.ItemId + '-' + item.Comment",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.ItemId + '-' + item.Comment",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.ItemId + '-' + item.Comment",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Comment matches 'World$'",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Comment matches 'World$'",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Comment matches 'World$'",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Comment contains 'lo W'",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Comment contains 'lo W'",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Comment contains 'lo W'",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "upper(item.Comment)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "upper(item.Comment)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "upper(item.Comment)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "split(item.Comment, ' ')",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "split(item.Comment, ' ')",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "split(item.Comment, ' ')",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "len(item.Comment)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "len(item.Comment)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "len(item.Comment)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.IsHidden == false",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.IsHidden == false",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.IsHidden == false",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Timestamp.Year()",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Timestamp.Year()",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Timestamp.Year()",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Timestamp.Unix() / 3600",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Timestamp.Unix() / 3600",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Timestamp.Unix() / 3600",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Timestamp + duration('1h')",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Timestamp + duration('1h')",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Timestamp + duration('1h')",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Timestamp.Sub(now()).Hours() < 0",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Timestamp.Sub(now()).Hours() < 0",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Timestamp.Sub(now()).Hours() < 0",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Timestamp > date('1999-01-01')",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Timestamp > date('1999-01-01')",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Timestamp > date('1999-01-01')",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[0].Value * 2",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[0].Value * 2",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[0].Value * 2",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[10].Value",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[10].Value",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[10].Value",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[0].FeedbackType",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[0].FeedbackType",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[0].FeedbackType",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[1].Labels.score",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[1].Labels.score",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[1].Labels.score",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[0].Labels.score",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[0].Labels.score",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[0].Labels.score",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[-1].UserId",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[-1].UserId",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "feedback[-1].UserId",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "len(feedback) / 2",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "len(feedback) / 2",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "len(feedback) / 2",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "sum(feedback, .Value)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "sum(feedback, .Value)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "sum(feedback, .Value)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "sum(feedback, .Value) / len(feedback)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "sum(feedback, .Value) / len(feedback)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "sum(feedback, .Value) / len(feedback)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "map(feedback, .Value)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "map(feedback, .Value)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "map(feedback, .Value)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "filter(feedback, .Value > 0.5)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "filter(feedback, .Value > 0.5)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "filter(feedback, .Value > 0.5)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "all(feedback, .Value > 0)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "all(feedback, .Value > 0)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "all(feedback, .Value > 0)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "any(feedback, .FeedbackType == 'like')",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "any(feedback, .FeedbackType == 'like')",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "any(feedback, .FeedbackType == 'like')",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "one(feedback, .Value == 1)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "one(feedback, .Value == 1)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "one(feedback, .Value == 1)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "none(feedback, .Value > 9)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "none(feedback, .Value > 9)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "none(feedback, .Value > 9)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "groupBy(feedback, .FeedbackType)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "groupBy(feedback, .FeedbackType)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "groupBy(feedback, .FeedbackType)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "count(feedback, .Value > 1)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "count(feedback, .Value > 1)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "count(feedback, .Value > 1)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "max(map(feedback, .Value))",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "max(map(feedback, .Value))",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "max(map(feedback, .Value))",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "first(feedback).Comment",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "first(feedback).Comment",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "first(feedback).Comment",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "last(feedback).Comment",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "last(feedback).Comment",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "last(feedback).Comment",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "find(feedback, .UserId == '2').Value",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "find(feedback, .UserId == '2').Value",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "find(feedback, .UserId == '2').Value",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "findIndex(feedback, .UserId == '3')",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "findIndex(feedback, .UserId == '3')",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "findIndex(feedback, .UserId == '3')",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "sortBy(feedback, .Value)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "sortBy(feedback, .Value)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "sortBy(feedback, .Value)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "reduce(feedback, #acc + #.Value, 0.0)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "reduce(feedback, #acc + #.Value, 0.0)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "reduce(feedback, #acc + #.Value, 0.0)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "mean(map(feedback, .Value))",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "mean(map(feedback, .Value))",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "mean(map(feedback, .Value))",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "count(feedback, #.FeedbackType == 'star')",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "count(feedback, #.FeedbackType == 'star')",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "count(feedback, #.FeedbackType == 'star')",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "count(feedback, .Labels.score > 1)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "count(feedback, .Labels.score > 1)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "count(feedback, .Labels.score > 1)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.embedding[0] + item.Labels.embedding[1]",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.embedding[0] + item.Labels.embedding[1]",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.embedding[0] + item.Labels.embedding[1]",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "int(item.Labels.rating)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "int(item.Labels.rating)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "int(item.Labels.rating)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "round(item.Labels.rating)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "round(item.Labels.rating)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "round(item.Labels.rating)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "string(item.Labels.count)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "string(item.Labels.count)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "string(item.Labels.count)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "toJSON(item.Labels)",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "toJSON(item.Labels)",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "toJSON(item.Labels)",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "toJSON(feedback[0])",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "toJSON(feedback[0])",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "toJSON(feedback[0])",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "user.Labels.description + ' fan'",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "user.Labels.description + ' fan'",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "user.Labels.description + ' fan'",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "user.Labels.embedding[1]",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "user.Labels.embedding[1]",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "user.Labels.embedding[1]",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "user.UserId",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "user.UserId",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "user.UserId",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "user.Comment",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "user.Comment",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "user.Comment",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "user.Labels",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "user.Labels",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.embedding | sum()",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.embedding | sum()",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.embedding | sum()",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.description",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.description",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.missing.deep",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.missing.deep",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.missing.deep",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.missing.deep.deeper",
+    "env": "non_personalized",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.missing.deep.deeper",
+    "env": "item",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "item.Labels.missing.deep.deeper",
+    "env": "user",
+    "origin": "synthetic: site"
+  },
+  {
+    "source": "\"Hello\\nWorld\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:69"
+  },
+  {
+    "source": "\"Hello\\nWorld\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:69"
+  },
+  {
+    "source": "\"Hello\\nWorld\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:69"
+  },
+  {
+    "source": "`Hello",
+    "env": "none",
+    "origin": "docs/language-definition.md:75"
+  },
+  {
+    "source": "`Hello",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:75"
+  },
+  {
+    "source": "`Hello",
+    "env": "item",
+    "origin": "docs/language-definition.md:75"
+  },
+  {
+    "source": "World`",
+    "env": "none",
+    "origin": "docs/language-definition.md:75"
+  },
+  {
+    "source": "World`",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:75"
+  },
+  {
+    "source": "World`",
+    "env": "item",
+    "origin": "docs/language-definition.md:75"
+  },
+  {
+    "source": "`Hello\nWorld`",
+    "env": "none",
+    "origin": "docs/language-definition.md:75"
+  },
+  {
+    "source": "`Hello\nWorld`",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:75"
+  },
+  {
+    "source": "`Hello\nWorld`",
+    "env": "item",
+    "origin": "docs/language-definition.md:75"
+  },
+  {
+    "source": "b\"abc\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:87"
+  },
+  {
+    "source": "b\"ÿ\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:93"
+  },
+  {
+    "source": "b\"ÿ\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:93"
+  },
+  {
+    "source": "b\"ÿ\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:93"
+  },
+  {
+    "source": "b\"\\xff\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:103"
+  },
+  {
+    "source": "b\"\\x00\\x01\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:103"
+  },
+  {
+    "source": "b\"\\x00\\x01\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:103"
+  },
+  {
+    "source": "b\"\\x00\\x01\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:103"
+  },
+  {
+    "source": "b\"\\101\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:103"
+  },
+  {
+    "source": "b\"\\101\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:103"
+  },
+  {
+    "source": "b\"\\101\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:103"
+  },
+  {
+    "source": "b\"\\xff\"\nb\"\\x00\\x01\"\nb\"\\101\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:103"
+  },
+  {
+    "source": "b\"\\xff\"\nb\"\\x00\\x01\"\nb\"\\101\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:103"
+  },
+  {
+    "source": "b\"\\xff\"\nb\"\\x00\\x01\"\nb\"\\101\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:103"
+  },
+  {
+    "source": "user.Name",
+    "env": "none",
+    "origin": "docs/language-definition.md:184"
+  },
+  {
+    "source": "user.Name",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:184"
+  },
+  {
+    "source": "user.Name",
+    "env": "item",
+    "origin": "docs/language-definition.md:184"
+  },
+  {
+    "source": "user[\"Name\"]",
+    "env": "none",
+    "origin": "docs/language-definition.md:184"
+  },
+  {
+    "source": "user[\"Name\"]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:184"
+  },
+  {
+    "source": "user[\"Name\"]",
+    "env": "item",
+    "origin": "docs/language-definition.md:184"
+  },
+  {
+    "source": "user.Name\nuser[\"Name\"]",
+    "env": "none",
+    "origin": "docs/language-definition.md:184"
+  },
+  {
+    "source": "user.Name\nuser[\"Name\"]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:184"
+  },
+  {
+    "source": "user.Name\nuser[\"Name\"]",
+    "env": "item",
+    "origin": "docs/language-definition.md:184"
+  },
+  {
+    "source": "array[0]",
+    "env": "none",
+    "origin": "docs/language-definition.md:193"
+  },
+  {
+    "source": "array[0]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:193"
+  },
+  {
+    "source": "array[0]",
+    "env": "item",
+    "origin": "docs/language-definition.md:193"
+  },
+  {
+    "source": "array[-1]",
+    "env": "none",
+    "origin": "docs/language-definition.md:193"
+  },
+  {
+    "source": "array[-1]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:193"
+  },
+  {
+    "source": "array[-1]",
+    "env": "item",
+    "origin": "docs/language-definition.md:193"
+  },
+  {
+    "source": "array[0]\narray[-1]",
+    "env": "none",
+    "origin": "docs/language-definition.md:193"
+  },
+  {
+    "source": "array[0]\narray[-1]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:193"
+  },
+  {
+    "source": "array[0]\narray[-1]",
+    "env": "item",
+    "origin": "docs/language-definition.md:193"
+  },
+  {
+    "source": "\"John\" in [\"John\", \"Jane\"]",
+    "env": "none",
+    "origin": "docs/language-definition.md:200"
+  },
+  {
+    "source": "\"John\" in [\"John\", \"Jane\"]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:200"
+  },
+  {
+    "source": "\"John\" in [\"John\", \"Jane\"]",
+    "env": "item",
+    "origin": "docs/language-definition.md:200"
+  },
+  {
+    "source": "\"name\" in {\"name\": \"John\", \"age\": 30}",
+    "env": "none",
+    "origin": "docs/language-definition.md:200"
+  },
+  {
+    "source": "\"name\" in {\"name\": \"John\", \"age\": 30}",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:200"
+  },
+  {
+    "source": "\"name\" in {\"name\": \"John\", \"age\": 30}",
+    "env": "item",
+    "origin": "docs/language-definition.md:200"
+  },
+  {
+    "source": "\"John\" in [\"John\", \"Jane\"]\n\"name\" in {\"name\": \"John\", \"age\": 30}",
+    "env": "none",
+    "origin": "docs/language-definition.md:200"
+  },
+  {
+    "source": "\"John\" in [\"John\", \"Jane\"]\n\"name\" in {\"name\": \"John\", \"age\": 30}",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:200"
+  },
+  {
+    "source": "\"John\" in [\"John\", \"Jane\"]\n\"name\" in {\"name\": \"John\", \"age\": 30}",
+    "env": "item",
+    "origin": "docs/language-definition.md:200"
+  },
+  {
+    "source": "author.User?.Name",
+    "env": "none",
+    "origin": "docs/language-definition.md:211"
+  },
+  {
+    "source": "author.User?.Name",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:211"
+  },
+  {
+    "source": "author.User?.Name",
+    "env": "item",
+    "origin": "docs/language-definition.md:211"
+  },
+  {
+    "source": "author.User != nil ? author.User.Name : nil",
+    "env": "none",
+    "origin": "docs/language-definition.md:217"
+  },
+  {
+    "source": "author.User != nil ? author.User.Name : nil",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:217"
+  },
+  {
+    "source": "author.User != nil ? author.User.Name : nil",
+    "env": "item",
+    "origin": "docs/language-definition.md:217"
+  },
+  {
+    "source": "author.User?.Name ?? \"Anonymous\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:226"
+  },
+  {
+    "source": "author.User?.Name ?? \"Anonymous\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:226"
+  },
+  {
+    "source": "author.User?.Name ?? \"Anonymous\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:226"
+  },
+  {
+    "source": "author.User != nil ? author.User.Name : \"Anonymous\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:232"
+  },
+  {
+    "source": "author.User != nil ? author.User.Name : \"Anonymous\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:232"
+  },
+  {
+    "source": "author.User != nil ? author.User.Name : \"Anonymous\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:232"
+  },
+  {
+    "source": "array[1:4] == [2, 3, 4]",
+    "env": "none",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[1:4] == [2, 3, 4]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[1:4] == [2, 3, 4]",
+    "env": "item",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[1:-1] == [2, 3, 4]",
+    "env": "none",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[1:-1] == [2, 3, 4]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[1:-1] == [2, 3, 4]",
+    "env": "item",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[:3] == [1, 2, 3]",
+    "env": "none",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[:3] == [1, 2, 3]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[:3] == [1, 2, 3]",
+    "env": "item",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[3:] == [4, 5]",
+    "env": "none",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[3:] == [4, 5]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[3:] == [4, 5]",
+    "env": "item",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[:] == array",
+    "env": "none",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[:] == array",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[:] == array",
+    "env": "item",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[1:4] == [2, 3, 4]\narray[1:-1] == [2, 3, 4]\narray[:3] == [1, 2, 3]\narray[3:] == [4, 5]\narray[:] == array",
+    "env": "none",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[1:4] == [2, 3, 4]\narray[1:-1] == [2, 3, 4]\narray[:3] == [1, 2, 3]\narray[3:] == [4, 5]\narray[:] == array",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "array[1:4] == [2, 3, 4]\narray[1:-1] == [2, 3, 4]\narray[:3] == [1, 2, 3]\narray[3:] == [4, 5]\narray[:] == array",
+    "env": "item",
+    "origin": "docs/language-definition.md:242"
+  },
+  {
+    "source": "user.Name | lower() | split(\" \")",
+    "env": "none",
+    "origin": "docs/language-definition.md:255"
+  },
+  {
+    "source": "user.Name | lower() | split(\" \")",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:255"
+  },
+  {
+    "source": "user.Name | lower() | split(\" \")",
+    "env": "item",
+    "origin": "docs/language-definition.md:255"
+  },
+  {
+    "source": "split(lower(user.Name), \" \")",
+    "env": "none",
+    "origin": "docs/language-definition.md:261"
+  },
+  {
+    "source": "split(lower(user.Name), \" \")",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:261"
+  },
+  {
+    "source": "split(lower(user.Name), \" \")",
+    "env": "item",
+    "origin": "docs/language-definition.md:261"
+  },
+  {
+    "source": "1..3 == [1, 2, 3]",
+    "env": "none",
+    "origin": "docs/language-definition.md:269"
+  },
+  {
+    "source": "1..3 == [1, 2, 3]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:269"
+  },
+  {
+    "source": "1..3 == [1, 2, 3]",
+    "env": "item",
+    "origin": "docs/language-definition.md:269"
+  },
+  {
+    "source": "let x = 42; x * 2",
+    "env": "none",
+    "origin": "docs/language-definition.md:279"
+  },
+  {
+    "source": "let x = 42; x * 2",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:279"
+  },
+  {
+    "source": "let x = 42; x * 2",
+    "env": "item",
+    "origin": "docs/language-definition.md:279"
+  },
+  {
+    "source": "let x = 42;",
+    "env": "none",
+    "origin": "docs/language-definition.md:285"
+  },
+  {
+    "source": "let x = 42;",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:285"
+  },
+  {
+    "source": "let x = 42;",
+    "env": "item",
+    "origin": "docs/language-definition.md:285"
+  },
+  {
+    "source": "let y = 2;",
+    "env": "none",
+    "origin": "docs/language-definition.md:285"
+  },
+  {
+    "source": "let y = 2;",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:285"
+  },
+  {
+    "source": "let y = 2;",
+    "env": "item",
+    "origin": "docs/language-definition.md:285"
+  },
+  {
+    "source": "x * y",
+    "env": "none",
+    "origin": "docs/language-definition.md:285"
+  },
+  {
+    "source": "x * y",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:285"
+  },
+  {
+    "source": "x * y",
+    "env": "item",
+    "origin": "docs/language-definition.md:285"
+  },
+  {
+    "source": "let x = 42;\nlet y = 2;\nx * y",
+    "env": "none",
+    "origin": "docs/language-definition.md:285"
+  },
+  {
+    "source": "let x = 42;\nlet y = 2;\nx * y",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:285"
+  },
+  {
+    "source": "let x = 42;\nlet y = 2;\nx * y",
+    "env": "item",
+    "origin": "docs/language-definition.md:285"
+  },
+  {
+    "source": "let name = user.Name | lower() | split(\" \");",
+    "env": "none",
+    "origin": "docs/language-definition.md:293"
+  },
+  {
+    "source": "let name = user.Name | lower() | split(\" \");",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:293"
+  },
+  {
+    "source": "let name = user.Name | lower() | split(\" \");",
+    "env": "item",
+    "origin": "docs/language-definition.md:293"
+  },
+  {
+    "source": "\"Hello, \" + name[0] + \"!\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:293"
+  },
+  {
+    "source": "\"Hello, \" + name[0] + \"!\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:293"
+  },
+  {
+    "source": "\"Hello, \" + name[0] + \"!\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:293"
+  },
+  {
+    "source": "let name = user.Name | lower() | split(\" \");\n\"Hello, \" + name[0] + \"!\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:293"
+  },
+  {
+    "source": "let name = user.Name | lower() | split(\" \");\n\"Hello, \" + name[0] + \"!\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:293"
+  },
+  {
+    "source": "let name = user.Name | lower() | split(\" \");\n\"Hello, \" + name[0] + \"!\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:293"
+  },
+  {
+    "source": "foo.Name == $env[\"foo\"].Name",
+    "env": "none",
+    "origin": "docs/language-definition.md:302"
+  },
+  {
+    "source": "foo.Name == $env[\"foo\"].Name",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:302"
+  },
+  {
+    "source": "foo.Name == $env[\"foo\"].Name",
+    "env": "item",
+    "origin": "docs/language-definition.md:302"
+  },
+  {
+    "source": "$env[\"var with spaces\"]",
+    "env": "none",
+    "origin": "docs/language-definition.md:302"
+  },
+  {
+    "source": "$env[\"var with spaces\"]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:302"
+  },
+  {
+    "source": "$env[\"var with spaces\"]",
+    "env": "item",
+    "origin": "docs/language-definition.md:302"
+  },
+  {
+    "source": "foo.Name == $env[\"foo\"].Name\n$env[\"var with spaces\"]",
+    "env": "none",
+    "origin": "docs/language-definition.md:302"
+  },
+  {
+    "source": "foo.Name == $env[\"foo\"].Name\n$env[\"var with spaces\"]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:302"
+  },
+  {
+    "source": "foo.Name == $env[\"foo\"].Name\n$env[\"var with spaces\"]",
+    "env": "item",
+    "origin": "docs/language-definition.md:302"
+  },
+  {
+    "source": "'foo' in $env",
+    "env": "none",
+    "origin": "docs/language-definition.md:311"
+  },
+  {
+    "source": "'foo' in $env",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:311"
+  },
+  {
+    "source": "'foo' in $env",
+    "env": "item",
+    "origin": "docs/language-definition.md:311"
+  },
+  {
+    "source": "filter(0..9, {# % 2 == 0})",
+    "env": "none",
+    "origin": "docs/language-definition.md:320"
+  },
+  {
+    "source": "filter(0..9, {# % 2 == 0})",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:320"
+  },
+  {
+    "source": "filter(0..9, {# % 2 == 0})",
+    "env": "item",
+    "origin": "docs/language-definition.md:320"
+  },
+  {
+    "source": "filter(tweets, {len(.Content) > 240})",
+    "env": "none",
+    "origin": "docs/language-definition.md:327"
+  },
+  {
+    "source": "filter(tweets, {len(.Content) > 240})",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:327"
+  },
+  {
+    "source": "filter(tweets, {len(.Content) > 240})",
+    "env": "item",
+    "origin": "docs/language-definition.md:327"
+  },
+  {
+    "source": "filter(tweets, len(.Content) > 240)",
+    "env": "none",
+    "origin": "docs/language-definition.md:333"
+  },
+  {
+    "source": "filter(tweets, len(.Content) > 240)",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:333"
+  },
+  {
+    "source": "filter(tweets, len(.Content) > 240)",
+    "env": "item",
+    "origin": "docs/language-definition.md:333"
+  },
+  {
+    "source": "filter(posts, {",
+    "env": "none",
+    "origin": "docs/language-definition.md:340"
+  },
+  {
+    "source": "filter(posts, {",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:340"
+  },
+  {
+    "source": "filter(posts, {",
+    "env": "item",
+    "origin": "docs/language-definition.md:340"
+  },
+  {
+    "source": "    let post = #;",
+    "env": "none",
+    "origin": "docs/language-definition.md:340"
+  },
+  {
+    "source": "    let post = #;",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:340"
+  },
+  {
+    "source": "    let post = #;",
+    "env": "item",
+    "origin": "docs/language-definition.md:340"
+  },
+  {
+    "source": "    any(.Comments, .Author == post.Author)",
+    "env": "none",
+    "origin": "docs/language-definition.md:340"
+  },
+  {
+    "source": "    any(.Comments, .Author == post.Author)",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:340"
+  },
+  {
+    "source": "    any(.Comments, .Author == post.Author)",
+    "env": "item",
+    "origin": "docs/language-definition.md:340"
+  },
+  {
+    "source": "})",
+    "env": "none",
+    "origin": "docs/language-definition.md:340"
+  },
+  {
+    "source": "})",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:340"
+  },
+  {
+    "source": "})",
+    "env": "item",
+    "origin": "docs/language-definition.md:340"
+  },
+  {
+    "source": "filter(posts, {\n    let post = #;\n    any(.Comments, .Author == post.Author)\n})",
+    "env": "none",
+    "origin": "docs/language-definition.md:340"
+  },
+  {
+    "source": "filter(posts, {\n    let post = #;\n    any(.Comments, .Author == post.Author)\n})",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:340"
+  },
+  {
+    "source": "filter(posts, {\n    let post = #;\n    any(.Comments, .Author == post.Author)\n})",
+    "env": "item",
+    "origin": "docs/language-definition.md:340"
+  },
+  {
+    "source": "trim(\"  Hello  \") == \"Hello\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:356"
+  },
+  {
+    "source": "trim(\"  Hello  \") == \"Hello\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:356"
+  },
+  {
+    "source": "trim(\"  Hello  \") == \"Hello\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:356"
+  },
+  {
+    "source": "trim(\"__Hello__\", \"_\") == \"Hello\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:356"
+  },
+  {
+    "source": "trim(\"__Hello__\", \"_\") == \"Hello\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:356"
+  },
+  {
+    "source": "trim(\"__Hello__\", \"_\") == \"Hello\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:356"
+  },
+  {
+    "source": "trim(\"  Hello  \") == \"Hello\"\ntrim(\"__Hello__\", \"_\") == \"Hello\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:356"
+  },
+  {
+    "source": "trim(\"  Hello  \") == \"Hello\"\ntrim(\"__Hello__\", \"_\") == \"Hello\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:356"
+  },
+  {
+    "source": "trim(\"  Hello  \") == \"Hello\"\ntrim(\"__Hello__\", \"_\") == \"Hello\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:356"
+  },
+  {
+    "source": "trimPrefix(\"HelloWorld\", \"Hello\") == \"World\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:365"
+  },
+  {
+    "source": "trimPrefix(\"HelloWorld\", \"Hello\") == \"World\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:365"
+  },
+  {
+    "source": "trimPrefix(\"HelloWorld\", \"Hello\") == \"World\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:365"
+  },
+  {
+    "source": "trimSuffix(\"HelloWorld\", \"World\") == \"Hello\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:373"
+  },
+  {
+    "source": "trimSuffix(\"HelloWorld\", \"World\") == \"Hello\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:373"
+  },
+  {
+    "source": "trimSuffix(\"HelloWorld\", \"World\") == \"Hello\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:373"
+  },
+  {
+    "source": "upper(\"hello\") == \"HELLO\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:381"
+  },
+  {
+    "source": "upper(\"hello\") == \"HELLO\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:381"
+  },
+  {
+    "source": "upper(\"hello\") == \"HELLO\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:381"
+  },
+  {
+    "source": "lower(\"HELLO\") == \"hello\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:389"
+  },
+  {
+    "source": "lower(\"HELLO\") == \"hello\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:389"
+  },
+  {
+    "source": "lower(\"HELLO\") == \"hello\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:389"
+  },
+  {
+    "source": "split(\"apple,orange,grape\", \",\") == [\"apple\", \"orange\", \"grape\"]",
+    "env": "none",
+    "origin": "docs/language-definition.md:397"
+  },
+  {
+    "source": "split(\"apple,orange,grape\", \",\") == [\"apple\", \"orange\", \"grape\"]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:397"
+  },
+  {
+    "source": "split(\"apple,orange,grape\", \",\") == [\"apple\", \"orange\", \"grape\"]",
+    "env": "item",
+    "origin": "docs/language-definition.md:397"
+  },
+  {
+    "source": "split(\"apple,orange,grape\", \",\", 2) == [\"apple\", \"orange,grape\"]",
+    "env": "none",
+    "origin": "docs/language-definition.md:397"
+  },
+  {
+    "source": "split(\"apple,orange,grape\", \",\", 2) == [\"apple\", \"orange,grape\"]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:397"
+  },
+  {
+    "source": "split(\"apple,orange,grape\", \",\", 2) == [\"apple\", \"orange,grape\"]",
+    "env": "item",
+    "origin": "docs/language-definition.md:397"
+  },
+  {
+    "source": "split(\"apple,orange,grape\", \",\") == [\"apple\", \"orange\", \"grape\"]\nsplit(\"apple,orange,grape\", \",\", 2) == [\"apple\", \"orange,grape\"]",
+    "env": "none",
+    "origin": "docs/language-definition.md:397"
+  },
+  {
+    "source": "split(\"apple,orange,grape\", \",\") == [\"apple\", \"orange\", \"grape\"]\nsplit(\"apple,orange,grape\", \",\", 2) == [\"apple\", \"orange,grape\"]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:397"
+  },
+  {
+    "source": "split(\"apple,orange,grape\", \",\") == [\"apple\", \"orange\", \"grape\"]\nsplit(\"apple,orange,grape\", \",\", 2) == [\"apple\", \"orange,grape\"]",
+    "env": "item",
+    "origin": "docs/language-definition.md:397"
+  },
+  {
+    "source": "splitAfter(\"apple,orange,grape\", \",\") == [\"apple,\", \"orange,\", \"grape\"]",
+    "env": "none",
+    "origin": "docs/language-definition.md:406"
+  },
+  {
+    "source": "splitAfter(\"apple,orange,grape\", \",\") == [\"apple,\", \"orange,\", \"grape\"]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:406"
+  },
+  {
+    "source": "splitAfter(\"apple,orange,grape\", \",\") == [\"apple,\", \"orange,\", \"grape\"]",
+    "env": "item",
+    "origin": "docs/language-definition.md:406"
+  },
+  {
+    "source": "splitAfter(\"apple,orange,grape\", \",\", 2) == [\"apple,\", \"orange,grape\"]",
+    "env": "none",
+    "origin": "docs/language-definition.md:406"
+  },
+  {
+    "source": "splitAfter(\"apple,orange,grape\", \",\", 2) == [\"apple,\", \"orange,grape\"]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:406"
+  },
+  {
+    "source": "splitAfter(\"apple,orange,grape\", \",\", 2) == [\"apple,\", \"orange,grape\"]",
+    "env": "item",
+    "origin": "docs/language-definition.md:406"
+  },
+  {
+    "source": "splitAfter(\"apple,orange,grape\", \",\") == [\"apple,\", \"orange,\", \"grape\"]\nsplitAfter(\"apple,orange,grape\", \",\", 2) == [\"apple,\", \"orange,grape\"]",
+    "env": "none",
+    "origin": "docs/language-definition.md:406"
+  },
+  {
+    "source": "splitAfter(\"apple,orange,grape\", \",\") == [\"apple,\", \"orange,\", \"grape\"]\nsplitAfter(\"apple,orange,grape\", \",\", 2) == [\"apple,\", \"orange,grape\"]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:406"
+  },
+  {
+    "source": "splitAfter(\"apple,orange,grape\", \",\") == [\"apple,\", \"orange,\", \"grape\"]\nsplitAfter(\"apple,orange,grape\", \",\", 2) == [\"apple,\", \"orange,grape\"]",
+    "env": "item",
+    "origin": "docs/language-definition.md:406"
+  },
+  {
+    "source": "replace(\"Hello World\", \"World\", \"Universe\") == \"Hello Universe\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:415"
+  },
+  {
+    "source": "replace(\"Hello World\", \"World\", \"Universe\") == \"Hello Universe\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:415"
+  },
+  {
+    "source": "replace(\"Hello World\", \"World\", \"Universe\") == \"Hello Universe\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:415"
+  },
+  {
+    "source": "repeat(\"Hi\", 3) == \"HiHiHi\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:423"
+  },
+  {
+    "source": "repeat(\"Hi\", 3) == \"HiHiHi\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:423"
+  },
+  {
+    "source": "repeat(\"Hi\", 3) == \"HiHiHi\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:423"
+  },
+  {
+    "source": "indexOf(\"apple pie\", \"pie\") == 6",
+    "env": "none",
+    "origin": "docs/language-definition.md:431"
+  },
+  {
+    "source": "indexOf(\"apple pie\", \"pie\") == 6",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:431"
+  },
+  {
+    "source": "indexOf(\"apple pie\", \"pie\") == 6",
+    "env": "item",
+    "origin": "docs/language-definition.md:431"
+  },
+  {
+    "source": "lastIndexOf(\"apple pie apple\", \"apple\") == 10",
+    "env": "none",
+    "origin": "docs/language-definition.md:439"
+  },
+  {
+    "source": "lastIndexOf(\"apple pie apple\", \"apple\") == 10",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:439"
+  },
+  {
+    "source": "lastIndexOf(\"apple pie apple\", \"apple\") == 10",
+    "env": "item",
+    "origin": "docs/language-definition.md:439"
+  },
+  {
+    "source": "hasPrefix(\"HelloWorld\", \"Hello\") == true",
+    "env": "none",
+    "origin": "docs/language-definition.md:447"
+  },
+  {
+    "source": "hasPrefix(\"HelloWorld\", \"Hello\") == true",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:447"
+  },
+  {
+    "source": "hasPrefix(\"HelloWorld\", \"Hello\") == true",
+    "env": "item",
+    "origin": "docs/language-definition.md:447"
+  },
+  {
+    "source": "hasSuffix(\"HelloWorld\", \"World\") == true",
+    "env": "none",
+    "origin": "docs/language-definition.md:455"
+  },
+  {
+    "source": "hasSuffix(\"HelloWorld\", \"World\") == true",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:455"
+  },
+  {
+    "source": "hasSuffix(\"HelloWorld\", \"World\") == true",
+    "env": "item",
+    "origin": "docs/language-definition.md:455"
+  },
+  {
+    "source": "createdAt - now()",
+    "env": "none",
+    "origin": "docs/language-definition.md:464"
+  },
+  {
+    "source": "createdAt - now()",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:464"
+  },
+  {
+    "source": "createdAt - now()",
+    "env": "item",
+    "origin": "docs/language-definition.md:464"
+  },
+  {
+    "source": "createdAt + duration(\"1h\")",
+    "env": "none",
+    "origin": "docs/language-definition.md:470"
+  },
+  {
+    "source": "createdAt + duration(\"1h\")",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:470"
+  },
+  {
+    "source": "createdAt + duration(\"1h\")",
+    "env": "item",
+    "origin": "docs/language-definition.md:470"
+  },
+  {
+    "source": "createdAt > now() - duration(\"1h\")",
+    "env": "none",
+    "origin": "docs/language-definition.md:476"
+  },
+  {
+    "source": "createdAt > now() - duration(\"1h\")",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:476"
+  },
+  {
+    "source": "createdAt > now() - duration(\"1h\")",
+    "env": "item",
+    "origin": "docs/language-definition.md:476"
+  },
+  {
+    "source": "now().Year() == 2024",
+    "env": "none",
+    "origin": "docs/language-definition.md:484"
+  },
+  {
+    "source": "now().Year() == 2024",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:484"
+  },
+  {
+    "source": "now().Year() == 2024",
+    "env": "item",
+    "origin": "docs/language-definition.md:484"
+  },
+  {
+    "source": "duration(\"1h\").Seconds() == 3600",
+    "env": "none",
+    "origin": "docs/language-definition.md:494"
+  },
+  {
+    "source": "duration(\"1h\").Seconds() == 3600",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:494"
+  },
+  {
+    "source": "duration(\"1h\").Seconds() == 3600",
+    "env": "item",
+    "origin": "docs/language-definition.md:494"
+  },
+  {
+    "source": "date(\"2023-08-14\")",
+    "env": "none",
+    "origin": "docs/language-definition.md:518"
+  },
+  {
+    "source": "date(\"2023-08-14\")",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:518"
+  },
+  {
+    "source": "date(\"2023-08-14\")",
+    "env": "item",
+    "origin": "docs/language-definition.md:518"
+  },
+  {
+    "source": "date(\"15:04:05\")",
+    "env": "none",
+    "origin": "docs/language-definition.md:518"
+  },
+  {
+    "source": "date(\"15:04:05\")",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:518"
+  },
+  {
+    "source": "date(\"15:04:05\")",
+    "env": "item",
+    "origin": "docs/language-definition.md:518"
+  },
+  {
+    "source": "date(\"2023-08-14T00:00:00Z\")",
+    "env": "none",
+    "origin": "docs/language-definition.md:518"
+  },
+  {
+    "source": "date(\"2023-08-14T00:00:00Z\")",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:518"
+  },
+  {
+    "source": "date(\"2023-08-14T00:00:00Z\")",
+    "env": "item",
+    "origin": "docs/language-definition.md:518"
+  },
+  {
+    "source": "date(\"2023-08-14 00:00:00\", \"2006-01-02 15:04:05\", \"Europe/Zurich\")",
+    "env": "none",
+    "origin": "docs/language-definition.md:518"
+  },
+  {
+    "source": "date(\"2023-08-14 00:00:00\", \"2006-01-02 15:04:05\", \"Europe/Zurich\")",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:518"
+  },
+  {
+    "source": "date(\"2023-08-14 00:00:00\", \"2006-01-02 15:04:05\", \"Europe/Zurich\")",
+    "env": "item",
+    "origin": "docs/language-definition.md:518"
+  },
+  {
+    "source": "date(\"2023-08-14\")\ndate(\"15:04:05\")\ndate(\"2023-08-14T00:00:00Z\")\ndate(\"2023-08-14 00:00:00\", \"2006-01-02 15:04:05\", \"Europe/Zurich\")",
+    "env": "none",
+    "origin": "docs/language-definition.md:518"
+  },
+  {
+    "source": "date(\"2023-08-14\")\ndate(\"15:04:05\")\ndate(\"2023-08-14T00:00:00Z\")\ndate(\"2023-08-14 00:00:00\", \"2006-01-02 15:04:05\", \"Europe/Zurich\")",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:518"
+  },
+  {
+    "source": "date(\"2023-08-14\")\ndate(\"15:04:05\")\ndate(\"2023-08-14T00:00:00Z\")\ndate(\"2023-08-14 00:00:00\", \"2006-01-02 15:04:05\", \"Europe/Zurich\")",
+    "env": "item",
+    "origin": "docs/language-definition.md:518"
+  },
+  {
+    "source": "date(\"2023-08-14\").Year() == 2023",
+    "env": "none",
+    "origin": "docs/language-definition.md:537"
+  },
+  {
+    "source": "date(\"2023-08-14\").Year() == 2023",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:537"
+  },
+  {
+    "source": "date(\"2023-08-14\").Year() == 2023",
+    "env": "item",
+    "origin": "docs/language-definition.md:537"
+  },
+  {
+    "source": "timezone(\"Europe/Zurich\")",
+    "env": "none",
+    "origin": "docs/language-definition.md:546"
+  },
+  {
+    "source": "timezone(\"Europe/Zurich\")",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:546"
+  },
+  {
+    "source": "timezone(\"Europe/Zurich\")",
+    "env": "item",
+    "origin": "docs/language-definition.md:546"
+  },
+  {
+    "source": "timezone(\"UTC\")",
+    "env": "none",
+    "origin": "docs/language-definition.md:546"
+  },
+  {
+    "source": "timezone(\"UTC\")",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:546"
+  },
+  {
+    "source": "timezone(\"UTC\")",
+    "env": "item",
+    "origin": "docs/language-definition.md:546"
+  },
+  {
+    "source": "timezone(\"Europe/Zurich\")\ntimezone(\"UTC\")",
+    "env": "none",
+    "origin": "docs/language-definition.md:546"
+  },
+  {
+    "source": "timezone(\"Europe/Zurich\")\ntimezone(\"UTC\")",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:546"
+  },
+  {
+    "source": "timezone(\"Europe/Zurich\")\ntimezone(\"UTC\")",
+    "env": "item",
+    "origin": "docs/language-definition.md:546"
+  },
+  {
+    "source": "date(\"2023-08-14 00:00:00\").In(timezone(\"Europe/Zurich\"))",
+    "env": "none",
+    "origin": "docs/language-definition.md:553"
+  },
+  {
+    "source": "date(\"2023-08-14 00:00:00\").In(timezone(\"Europe/Zurich\"))",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:553"
+  },
+  {
+    "source": "date(\"2023-08-14 00:00:00\").In(timezone(\"Europe/Zurich\"))",
+    "env": "item",
+    "origin": "docs/language-definition.md:553"
+  },
+  {
+    "source": "max(5, 7) == 7",
+    "env": "none",
+    "origin": "docs/language-definition.md:563"
+  },
+  {
+    "source": "max(5, 7) == 7",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:563"
+  },
+  {
+    "source": "max(5, 7) == 7",
+    "env": "item",
+    "origin": "docs/language-definition.md:563"
+  },
+  {
+    "source": "min(5, 7) == 5",
+    "env": "none",
+    "origin": "docs/language-definition.md:571"
+  },
+  {
+    "source": "min(5, 7) == 5",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:571"
+  },
+  {
+    "source": "min(5, 7) == 5",
+    "env": "item",
+    "origin": "docs/language-definition.md:571"
+  },
+  {
+    "source": "abs(-5) == 5",
+    "env": "none",
+    "origin": "docs/language-definition.md:579"
+  },
+  {
+    "source": "abs(-5) == 5",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:579"
+  },
+  {
+    "source": "abs(-5) == 5",
+    "env": "item",
+    "origin": "docs/language-definition.md:579"
+  },
+  {
+    "source": "ceil(1.5) == 2.0",
+    "env": "none",
+    "origin": "docs/language-definition.md:587"
+  },
+  {
+    "source": "ceil(1.5) == 2.0",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:587"
+  },
+  {
+    "source": "ceil(1.5) == 2.0",
+    "env": "item",
+    "origin": "docs/language-definition.md:587"
+  },
+  {
+    "source": "floor(1.5) == 1.0",
+    "env": "none",
+    "origin": "docs/language-definition.md:595"
+  },
+  {
+    "source": "floor(1.5) == 1.0",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:595"
+  },
+  {
+    "source": "floor(1.5) == 1.0",
+    "env": "item",
+    "origin": "docs/language-definition.md:595"
+  },
+  {
+    "source": "round(1.5) == 2.0",
+    "env": "none",
+    "origin": "docs/language-definition.md:603"
+  },
+  {
+    "source": "round(1.5) == 2.0",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:603"
+  },
+  {
+    "source": "round(1.5) == 2.0",
+    "env": "item",
+    "origin": "docs/language-definition.md:603"
+  },
+  {
+    "source": "all(tweets, {.Size < 280})",
+    "env": "none",
+    "origin": "docs/language-definition.md:614"
+  },
+  {
+    "source": "all(tweets, {.Size < 280})",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:614"
+  },
+  {
+    "source": "all(tweets, {.Size < 280})",
+    "env": "item",
+    "origin": "docs/language-definition.md:614"
+  },
+  {
+    "source": "any(tweets, {.Size > 280})",
+    "env": "none",
+    "origin": "docs/language-definition.md:623"
+  },
+  {
+    "source": "any(tweets, {.Size > 280})",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:623"
+  },
+  {
+    "source": "any(tweets, {.Size > 280})",
+    "env": "item",
+    "origin": "docs/language-definition.md:623"
+  },
+  {
+    "source": "one(participants, {.Winner})",
+    "env": "none",
+    "origin": "docs/language-definition.md:632"
+  },
+  {
+    "source": "one(participants, {.Winner})",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:632"
+  },
+  {
+    "source": "one(participants, {.Winner})",
+    "env": "item",
+    "origin": "docs/language-definition.md:632"
+  },
+  {
+    "source": "none(tweets, {.Size > 280})",
+    "env": "none",
+    "origin": "docs/language-definition.md:641"
+  },
+  {
+    "source": "none(tweets, {.Size > 280})",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:641"
+  },
+  {
+    "source": "none(tweets, {.Size > 280})",
+    "env": "item",
+    "origin": "docs/language-definition.md:641"
+  },
+  {
+    "source": "map(tweets, {.Size})",
+    "env": "none",
+    "origin": "docs/language-definition.md:650"
+  },
+  {
+    "source": "map(tweets, {.Size})",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:650"
+  },
+  {
+    "source": "map(tweets, {.Size})",
+    "env": "item",
+    "origin": "docs/language-definition.md:650"
+  },
+  {
+    "source": "filter(users, .Name startsWith \"J\")",
+    "env": "none",
+    "origin": "docs/language-definition.md:658"
+  },
+  {
+    "source": "filter(users, .Name startsWith \"J\")",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:658"
+  },
+  {
+    "source": "filter(users, .Name startsWith \"J\")",
+    "env": "item",
+    "origin": "docs/language-definition.md:658"
+  },
+  {
+    "source": "find([1, 2, 3, 4], # > 2) == 3",
+    "env": "none",
+    "origin": "docs/language-definition.md:666"
+  },
+  {
+    "source": "find([1, 2, 3, 4], # > 2) == 3",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:666"
+  },
+  {
+    "source": "find([1, 2, 3, 4], # > 2) == 3",
+    "env": "item",
+    "origin": "docs/language-definition.md:666"
+  },
+  {
+    "source": "findIndex([1, 2, 3, 4], # > 2) == 2",
+    "env": "none",
+    "origin": "docs/language-definition.md:674"
+  },
+  {
+    "source": "findIndex([1, 2, 3, 4], # > 2) == 2",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:674"
+  },
+  {
+    "source": "findIndex([1, 2, 3, 4], # > 2) == 2",
+    "env": "item",
+    "origin": "docs/language-definition.md:674"
+  },
+  {
+    "source": "findLast([1, 2, 3, 4], # > 2) == 4",
+    "env": "none",
+    "origin": "docs/language-definition.md:682"
+  },
+  {
+    "source": "findLast([1, 2, 3, 4], # > 2) == 4",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:682"
+  },
+  {
+    "source": "findLast([1, 2, 3, 4], # > 2) == 4",
+    "env": "item",
+    "origin": "docs/language-definition.md:682"
+  },
+  {
+    "source": "findLastIndex([1, 2, 3, 4], # > 2) == 3",
+    "env": "none",
+    "origin": "docs/language-definition.md:690"
+  },
+  {
+    "source": "findLastIndex([1, 2, 3, 4], # > 2) == 3",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:690"
+  },
+  {
+    "source": "findLastIndex([1, 2, 3, 4], # > 2) == 3",
+    "env": "item",
+    "origin": "docs/language-definition.md:690"
+  },
+  {
+    "source": "groupBy(users, .Age)",
+    "env": "none",
+    "origin": "docs/language-definition.md:698"
+  },
+  {
+    "source": "groupBy(users, .Age)",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:698"
+  },
+  {
+    "source": "groupBy(users, .Age)",
+    "env": "item",
+    "origin": "docs/language-definition.md:698"
+  },
+  {
+    "source": "count(users, .Age > 18)",
+    "env": "none",
+    "origin": "docs/language-definition.md:706"
+  },
+  {
+    "source": "count(users, .Age > 18)",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:706"
+  },
+  {
+    "source": "count(users, .Age > 18)",
+    "env": "item",
+    "origin": "docs/language-definition.md:706"
+  },
+  {
+    "source": "len(filter(users, .Age > 18))",
+    "env": "none",
+    "origin": "docs/language-definition.md:712"
+  },
+  {
+    "source": "len(filter(users, .Age > 18))",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:712"
+  },
+  {
+    "source": "len(filter(users, .Age > 18))",
+    "env": "item",
+    "origin": "docs/language-definition.md:712"
+  },
+  {
+    "source": "count([true, false, true]) == 2",
+    "env": "none",
+    "origin": "docs/language-definition.md:718"
+  },
+  {
+    "source": "count([true, false, true]) == 2",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:718"
+  },
+  {
+    "source": "count([true, false, true]) == 2",
+    "env": "item",
+    "origin": "docs/language-definition.md:718"
+  },
+  {
+    "source": "concat([1, 2], [3, 4]) == [1, 2, 3, 4]",
+    "env": "none",
+    "origin": "docs/language-definition.md:726"
+  },
+  {
+    "source": "concat([1, 2], [3, 4]) == [1, 2, 3, 4]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:726"
+  },
+  {
+    "source": "concat([1, 2], [3, 4]) == [1, 2, 3, 4]",
+    "env": "item",
+    "origin": "docs/language-definition.md:726"
+  },
+  {
+    "source": "flatten([1, 2, [3, 4]]) == [1, 2, 3, 4]",
+    "env": "none",
+    "origin": "docs/language-definition.md:734"
+  },
+  {
+    "source": "flatten([1, 2, [3, 4]]) == [1, 2, 3, 4]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:734"
+  },
+  {
+    "source": "flatten([1, 2, [3, 4]]) == [1, 2, 3, 4]",
+    "env": "item",
+    "origin": "docs/language-definition.md:734"
+  },
+  {
+    "source": "uniq([1, 2, 3, 2, 1]) == [1, 2, 3]",
+    "env": "none",
+    "origin": "docs/language-definition.md:742"
+  },
+  {
+    "source": "uniq([1, 2, 3, 2, 1]) == [1, 2, 3]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:742"
+  },
+  {
+    "source": "uniq([1, 2, 3, 2, 1]) == [1, 2, 3]",
+    "env": "item",
+    "origin": "docs/language-definition.md:742"
+  },
+  {
+    "source": "join([\"apple\", \"orange\", \"grape\"], \",\") == \"apple,orange,grape\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:751"
+  },
+  {
+    "source": "join([\"apple\", \"orange\", \"grape\"], \",\") == \"apple,orange,grape\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:751"
+  },
+  {
+    "source": "join([\"apple\", \"orange\", \"grape\"], \",\") == \"apple,orange,grape\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:751"
+  },
+  {
+    "source": "join([\"apple\", \"orange\", \"grape\"]) == \"appleorangegrape\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:751"
+  },
+  {
+    "source": "join([\"apple\", \"orange\", \"grape\"]) == \"appleorangegrape\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:751"
+  },
+  {
+    "source": "join([\"apple\", \"orange\", \"grape\"]) == \"appleorangegrape\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:751"
+  },
+  {
+    "source": "join([\"apple\", \"orange\", \"grape\"], \",\") == \"apple,orange,grape\"\njoin([\"apple\", \"orange\", \"grape\"]) == \"appleorangegrape\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:751"
+  },
+  {
+    "source": "join([\"apple\", \"orange\", \"grape\"], \",\") == \"apple,orange,grape\"\njoin([\"apple\", \"orange\", \"grape\"]) == \"appleorangegrape\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:751"
+  },
+  {
+    "source": "join([\"apple\", \"orange\", \"grape\"], \",\") == \"apple,orange,grape\"\njoin([\"apple\", \"orange\", \"grape\"]) == \"appleorangegrape\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:751"
+  },
+  {
+    "source": "reduce(1..9, #acc + #)",
+    "env": "none",
+    "origin": "docs/language-definition.md:768"
+  },
+  {
+    "source": "reduce(1..9, #acc + #)",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:768"
+  },
+  {
+    "source": "reduce(1..9, #acc + #)",
+    "env": "item",
+    "origin": "docs/language-definition.md:768"
+  },
+  {
+    "source": "reduce(1..9, #acc + #, 0)",
+    "env": "none",
+    "origin": "docs/language-definition.md:768"
+  },
+  {
+    "source": "reduce(1..9, #acc + #, 0)",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:768"
+  },
+  {
+    "source": "reduce(1..9, #acc + #, 0)",
+    "env": "item",
+    "origin": "docs/language-definition.md:768"
+  },
+  {
+    "source": "reduce(1..9, #acc + #)\nreduce(1..9, #acc + #, 0)",
+    "env": "none",
+    "origin": "docs/language-definition.md:768"
+  },
+  {
+    "source": "reduce(1..9, #acc + #)\nreduce(1..9, #acc + #, 0)",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:768"
+  },
+  {
+    "source": "reduce(1..9, #acc + #)\nreduce(1..9, #acc + #, 0)",
+    "env": "item",
+    "origin": "docs/language-definition.md:768"
+  },
+  {
+    "source": "sum([1, 2, 3]) == 6",
+    "env": "none",
+    "origin": "docs/language-definition.md:777"
+  },
+  {
+    "source": "sum([1, 2, 3]) == 6",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:777"
+  },
+  {
+    "source": "sum([1, 2, 3]) == 6",
+    "env": "item",
+    "origin": "docs/language-definition.md:777"
+  },
+  {
+    "source": "sum(accounts, .Balance)",
+    "env": "none",
+    "origin": "docs/language-definition.md:784"
+  },
+  {
+    "source": "sum(accounts, .Balance)",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:784"
+  },
+  {
+    "source": "sum(accounts, .Balance)",
+    "env": "item",
+    "origin": "docs/language-definition.md:784"
+  },
+  {
+    "source": "reduce(accounts, #acc + .Balance, 0)",
+    "env": "none",
+    "origin": "docs/language-definition.md:790"
+  },
+  {
+    "source": "reduce(accounts, #acc + .Balance, 0)",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:790"
+  },
+  {
+    "source": "reduce(accounts, #acc + .Balance, 0)",
+    "env": "item",
+    "origin": "docs/language-definition.md:790"
+  },
+  {
+    "source": "sum(map(accounts, .Balance))",
+    "env": "none",
+    "origin": "docs/language-definition.md:790"
+  },
+  {
+    "source": "sum(map(accounts, .Balance))",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:790"
+  },
+  {
+    "source": "sum(map(accounts, .Balance))",
+    "env": "item",
+    "origin": "docs/language-definition.md:790"
+  },
+  {
+    "source": "reduce(accounts, #acc + .Balance, 0)\nsum(map(accounts, .Balance))",
+    "env": "none",
+    "origin": "docs/language-definition.md:790"
+  },
+  {
+    "source": "reduce(accounts, #acc + .Balance, 0)\nsum(map(accounts, .Balance))",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:790"
+  },
+  {
+    "source": "reduce(accounts, #acc + .Balance, 0)\nsum(map(accounts, .Balance))",
+    "env": "item",
+    "origin": "docs/language-definition.md:790"
+  },
+  {
+    "source": "mean([1, 2, 3]) == 2.0",
+    "env": "none",
+    "origin": "docs/language-definition.md:800"
+  },
+  {
+    "source": "mean([1, 2, 3]) == 2.0",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:800"
+  },
+  {
+    "source": "mean([1, 2, 3]) == 2.0",
+    "env": "item",
+    "origin": "docs/language-definition.md:800"
+  },
+  {
+    "source": "median([1, 2, 3]) == 2.0",
+    "env": "none",
+    "origin": "docs/language-definition.md:808"
+  },
+  {
+    "source": "median([1, 2, 3]) == 2.0",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:808"
+  },
+  {
+    "source": "median([1, 2, 3]) == 2.0",
+    "env": "item",
+    "origin": "docs/language-definition.md:808"
+  },
+  {
+    "source": "first([1, 2, 3]) == 1",
+    "env": "none",
+    "origin": "docs/language-definition.md:816"
+  },
+  {
+    "source": "first([1, 2, 3]) == 1",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:816"
+  },
+  {
+    "source": "first([1, 2, 3]) == 1",
+    "env": "item",
+    "origin": "docs/language-definition.md:816"
+  },
+  {
+    "source": "last([1, 2, 3]) == 3",
+    "env": "none",
+    "origin": "docs/language-definition.md:824"
+  },
+  {
+    "source": "last([1, 2, 3]) == 3",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:824"
+  },
+  {
+    "source": "last([1, 2, 3]) == 3",
+    "env": "item",
+    "origin": "docs/language-definition.md:824"
+  },
+  {
+    "source": "take([1, 2, 3, 4], 2) == [1, 2]",
+    "env": "none",
+    "origin": "docs/language-definition.md:832"
+  },
+  {
+    "source": "take([1, 2, 3, 4], 2) == [1, 2]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:832"
+  },
+  {
+    "source": "take([1, 2, 3, 4], 2) == [1, 2]",
+    "env": "item",
+    "origin": "docs/language-definition.md:832"
+  },
+  {
+    "source": "reverse([3, 1, 4]) == [4, 1, 3]",
+    "env": "none",
+    "origin": "docs/language-definition.md:840"
+  },
+  {
+    "source": "reverse([3, 1, 4]) == [4, 1, 3]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:840"
+  },
+  {
+    "source": "reverse([3, 1, 4]) == [4, 1, 3]",
+    "env": "item",
+    "origin": "docs/language-definition.md:840"
+  },
+  {
+    "source": "reverse(reverse([3, 1, 4])) == [3, 1, 4]",
+    "env": "none",
+    "origin": "docs/language-definition.md:840"
+  },
+  {
+    "source": "reverse(reverse([3, 1, 4])) == [3, 1, 4]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:840"
+  },
+  {
+    "source": "reverse(reverse([3, 1, 4])) == [3, 1, 4]",
+    "env": "item",
+    "origin": "docs/language-definition.md:840"
+  },
+  {
+    "source": "reverse([3, 1, 4]) == [4, 1, 3]\nreverse(reverse([3, 1, 4])) == [3, 1, 4]",
+    "env": "none",
+    "origin": "docs/language-definition.md:840"
+  },
+  {
+    "source": "reverse([3, 1, 4]) == [4, 1, 3]\nreverse(reverse([3, 1, 4])) == [3, 1, 4]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:840"
+  },
+  {
+    "source": "reverse([3, 1, 4]) == [4, 1, 3]\nreverse(reverse([3, 1, 4])) == [3, 1, 4]",
+    "env": "item",
+    "origin": "docs/language-definition.md:840"
+  },
+  {
+    "source": "sort([3, 1, 4]) == [1, 3, 4]",
+    "env": "none",
+    "origin": "docs/language-definition.md:850"
+  },
+  {
+    "source": "sort([3, 1, 4]) == [1, 3, 4]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:850"
+  },
+  {
+    "source": "sort([3, 1, 4]) == [1, 3, 4]",
+    "env": "item",
+    "origin": "docs/language-definition.md:850"
+  },
+  {
+    "source": "sort([3, 1, 4], \"desc\") == [4, 3, 1]",
+    "env": "none",
+    "origin": "docs/language-definition.md:850"
+  },
+  {
+    "source": "sort([3, 1, 4], \"desc\") == [4, 3, 1]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:850"
+  },
+  {
+    "source": "sort([3, 1, 4], \"desc\") == [4, 3, 1]",
+    "env": "item",
+    "origin": "docs/language-definition.md:850"
+  },
+  {
+    "source": "sort([3, 1, 4]) == [1, 3, 4]\nsort([3, 1, 4], \"desc\") == [4, 3, 1]",
+    "env": "none",
+    "origin": "docs/language-definition.md:850"
+  },
+  {
+    "source": "sort([3, 1, 4]) == [1, 3, 4]\nsort([3, 1, 4], \"desc\") == [4, 3, 1]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:850"
+  },
+  {
+    "source": "sort([3, 1, 4]) == [1, 3, 4]\nsort([3, 1, 4], \"desc\") == [4, 3, 1]",
+    "env": "item",
+    "origin": "docs/language-definition.md:850"
+  },
+  {
+    "source": "sortBy(users, .Age)",
+    "env": "none",
+    "origin": "docs/language-definition.md:860"
+  },
+  {
+    "source": "sortBy(users, .Age)",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:860"
+  },
+  {
+    "source": "sortBy(users, .Age)",
+    "env": "item",
+    "origin": "docs/language-definition.md:860"
+  },
+  {
+    "source": "sortBy(users, .Age, \"desc\")",
+    "env": "none",
+    "origin": "docs/language-definition.md:860"
+  },
+  {
+    "source": "sortBy(users, .Age, \"desc\")",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:860"
+  },
+  {
+    "source": "sortBy(users, .Age, \"desc\")",
+    "env": "item",
+    "origin": "docs/language-definition.md:860"
+  },
+  {
+    "source": "sortBy(users, .Age)\nsortBy(users, .Age, \"desc\")",
+    "env": "none",
+    "origin": "docs/language-definition.md:860"
+  },
+  {
+    "source": "sortBy(users, .Age)\nsortBy(users, .Age, \"desc\")",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:860"
+  },
+  {
+    "source": "sortBy(users, .Age)\nsortBy(users, .Age, \"desc\")",
+    "env": "item",
+    "origin": "docs/language-definition.md:860"
+  },
+  {
+    "source": "keys({\"name\": \"John\", \"age\": 30}) == [\"name\", \"age\"]",
+    "env": "none",
+    "origin": "docs/language-definition.md:871"
+  },
+  {
+    "source": "keys({\"name\": \"John\", \"age\": 30}) == [\"name\", \"age\"]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:871"
+  },
+  {
+    "source": "keys({\"name\": \"John\", \"age\": 30}) == [\"name\", \"age\"]",
+    "env": "item",
+    "origin": "docs/language-definition.md:871"
+  },
+  {
+    "source": "values({\"name\": \"John\", \"age\": 30}) == [\"John\", 30]",
+    "env": "none",
+    "origin": "docs/language-definition.md:879"
+  },
+  {
+    "source": "values({\"name\": \"John\", \"age\": 30}) == [\"John\", 30]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:879"
+  },
+  {
+    "source": "values({\"name\": \"John\", \"age\": 30}) == [\"John\", 30]",
+    "env": "item",
+    "origin": "docs/language-definition.md:879"
+  },
+  {
+    "source": "type(42) == \"int\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:902"
+  },
+  {
+    "source": "type(42) == \"int\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:902"
+  },
+  {
+    "source": "type(42) == \"int\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:902"
+  },
+  {
+    "source": "type(\"hello\") == \"string\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:902"
+  },
+  {
+    "source": "type(\"hello\") == \"string\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:902"
+  },
+  {
+    "source": "type(\"hello\") == \"string\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:902"
+  },
+  {
+    "source": "type(now()) == \"time.Time\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:902"
+  },
+  {
+    "source": "type(now()) == \"time.Time\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:902"
+  },
+  {
+    "source": "type(now()) == \"time.Time\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:902"
+  },
+  {
+    "source": "type(42) == \"int\"\ntype(\"hello\") == \"string\"\ntype(now()) == \"time.Time\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:902"
+  },
+  {
+    "source": "type(42) == \"int\"\ntype(\"hello\") == \"string\"\ntype(now()) == \"time.Time\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:902"
+  },
+  {
+    "source": "type(42) == \"int\"\ntype(\"hello\") == \"string\"\ntype(now()) == \"time.Time\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:902"
+  },
+  {
+    "source": "int(\"123\") == 123",
+    "env": "none",
+    "origin": "docs/language-definition.md:912"
+  },
+  {
+    "source": "int(\"123\") == 123",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:912"
+  },
+  {
+    "source": "int(\"123\") == 123",
+    "env": "item",
+    "origin": "docs/language-definition.md:912"
+  },
+  {
+    "source": "float(\"123.45\") == 123.45",
+    "env": "none",
+    "origin": "docs/language-definition.md:920"
+  },
+  {
+    "source": "float(\"123.45\") == 123.45",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:920"
+  },
+  {
+    "source": "float(\"123.45\") == 123.45",
+    "env": "item",
+    "origin": "docs/language-definition.md:920"
+  },
+  {
+    "source": "string(123) == \"123\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:928"
+  },
+  {
+    "source": "string(123) == \"123\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:928"
+  },
+  {
+    "source": "string(123) == \"123\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:928"
+  },
+  {
+    "source": "toJSON({\"name\": \"John\", \"age\": 30})",
+    "env": "none",
+    "origin": "docs/language-definition.md:936"
+  },
+  {
+    "source": "toJSON({\"name\": \"John\", \"age\": 30})",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:936"
+  },
+  {
+    "source": "toJSON({\"name\": \"John\", \"age\": 30})",
+    "env": "item",
+    "origin": "docs/language-definition.md:936"
+  },
+  {
+    "source": "fromJSON('{\"name\": \"John\", \"age\": 30}')",
+    "env": "none",
+    "origin": "docs/language-definition.md:944"
+  },
+  {
+    "source": "fromJSON('{\"name\": \"John\", \"age\": 30}')",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:944"
+  },
+  {
+    "source": "fromJSON('{\"name\": \"John\", \"age\": 30}')",
+    "env": "item",
+    "origin": "docs/language-definition.md:944"
+  },
+  {
+    "source": "toBase64(\"Hello World\") == \"SGVsbG8gV29ybGQ=\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:952"
+  },
+  {
+    "source": "toBase64(\"Hello World\") == \"SGVsbG8gV29ybGQ=\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:952"
+  },
+  {
+    "source": "toBase64(\"Hello World\") == \"SGVsbG8gV29ybGQ=\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:952"
+  },
+  {
+    "source": "fromBase64(\"SGVsbG8gV29ybGQ=\") == \"Hello World\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:960"
+  },
+  {
+    "source": "fromBase64(\"SGVsbG8gV29ybGQ=\") == \"Hello World\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:960"
+  },
+  {
+    "source": "fromBase64(\"SGVsbG8gV29ybGQ=\") == \"Hello World\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:960"
+  },
+  {
+    "source": "toPairs({\"name\": \"John\", \"age\": 30}) == [[\"name\", \"John\"], [\"age\", 30]]",
+    "env": "none",
+    "origin": "docs/language-definition.md:968"
+  },
+  {
+    "source": "toPairs({\"name\": \"John\", \"age\": 30}) == [[\"name\", \"John\"], [\"age\", 30]]",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:968"
+  },
+  {
+    "source": "toPairs({\"name\": \"John\", \"age\": 30}) == [[\"name\", \"John\"], [\"age\", 30]]",
+    "env": "item",
+    "origin": "docs/language-definition.md:968"
+  },
+  {
+    "source": "fromPairs([[\"name\", \"John\"], [\"age\", 30]]) == {\"name\": \"John\", \"age\": 30}",
+    "env": "none",
+    "origin": "docs/language-definition.md:976"
+  },
+  {
+    "source": "fromPairs([[\"name\", \"John\"], [\"age\", 30]]) == {\"name\": \"John\", \"age\": 30}",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:976"
+  },
+  {
+    "source": "fromPairs([[\"name\", \"John\"], [\"age\", 30]]) == {\"name\": \"John\", \"age\": 30}",
+    "env": "item",
+    "origin": "docs/language-definition.md:976"
+  },
+  {
+    "source": "len([1, 2, 3]) == 3",
+    "env": "none",
+    "origin": "docs/language-definition.md:986"
+  },
+  {
+    "source": "len([1, 2, 3]) == 3",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:986"
+  },
+  {
+    "source": "len([1, 2, 3]) == 3",
+    "env": "item",
+    "origin": "docs/language-definition.md:986"
+  },
+  {
+    "source": "len({\"name\": \"John\", \"age\": 30}) == 2",
+    "env": "none",
+    "origin": "docs/language-definition.md:986"
+  },
+  {
+    "source": "len({\"name\": \"John\", \"age\": 30}) == 2",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:986"
+  },
+  {
+    "source": "len({\"name\": \"John\", \"age\": 30}) == 2",
+    "env": "item",
+    "origin": "docs/language-definition.md:986"
+  },
+  {
+    "source": "len(\"Hello\") == 5",
+    "env": "none",
+    "origin": "docs/language-definition.md:986"
+  },
+  {
+    "source": "len(\"Hello\") == 5",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:986"
+  },
+  {
+    "source": "len(\"Hello\") == 5",
+    "env": "item",
+    "origin": "docs/language-definition.md:986"
+  },
+  {
+    "source": "len([1, 2, 3]) == 3\nlen({\"name\": \"John\", \"age\": 30}) == 2\nlen(\"Hello\") == 5",
+    "env": "none",
+    "origin": "docs/language-definition.md:986"
+  },
+  {
+    "source": "len([1, 2, 3]) == 3\nlen({\"name\": \"John\", \"age\": 30}) == 2\nlen(\"Hello\") == 5",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:986"
+  },
+  {
+    "source": "len([1, 2, 3]) == 3\nlen({\"name\": \"John\", \"age\": 30}) == 2\nlen(\"Hello\") == 5",
+    "env": "item",
+    "origin": "docs/language-definition.md:986"
+  },
+  {
+    "source": "get([1, 2, 3], 1) == 2",
+    "env": "none",
+    "origin": "docs/language-definition.md:997"
+  },
+  {
+    "source": "get([1, 2, 3], 1) == 2",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:997"
+  },
+  {
+    "source": "get([1, 2, 3], 1) == 2",
+    "env": "item",
+    "origin": "docs/language-definition.md:997"
+  },
+  {
+    "source": "get({\"name\": \"John\", \"age\": 30}, \"name\") == \"John\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:997"
+  },
+  {
+    "source": "get({\"name\": \"John\", \"age\": 30}, \"name\") == \"John\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:997"
+  },
+  {
+    "source": "get({\"name\": \"John\", \"age\": 30}, \"name\") == \"John\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:997"
+  },
+  {
+    "source": "get([1, 2, 3], 1) == 2\nget({\"name\": \"John\", \"age\": 30}, \"name\") == \"John\"",
+    "env": "none",
+    "origin": "docs/language-definition.md:997"
+  },
+  {
+    "source": "get([1, 2, 3], 1) == 2\nget({\"name\": \"John\", \"age\": 30}, \"name\") == \"John\"",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:997"
+  },
+  {
+    "source": "get([1, 2, 3], 1) == 2\nget({\"name\": \"John\", \"age\": 30}, \"name\") == \"John\"",
+    "env": "item",
+    "origin": "docs/language-definition.md:997"
+  },
+  {
+    "source": "bitand(0b1010, 0b1100) == 0b1000",
+    "env": "none",
+    "origin": "docs/language-definition.md:1008"
+  },
+  {
+    "source": "bitand(0b1010, 0b1100) == 0b1000",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:1008"
+  },
+  {
+    "source": "bitand(0b1010, 0b1100) == 0b1000",
+    "env": "item",
+    "origin": "docs/language-definition.md:1008"
+  },
+  {
+    "source": "bitor(0b1010, 0b1100) == 0b1110",
+    "env": "none",
+    "origin": "docs/language-definition.md:1016"
+  },
+  {
+    "source": "bitor(0b1010, 0b1100) == 0b1110",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:1016"
+  },
+  {
+    "source": "bitor(0b1010, 0b1100) == 0b1110",
+    "env": "item",
+    "origin": "docs/language-definition.md:1016"
+  },
+  {
+    "source": "bitxor(0b1010, 0b1100) == 0b110",
+    "env": "none",
+    "origin": "docs/language-definition.md:1024"
+  },
+  {
+    "source": "bitxor(0b1010, 0b1100) == 0b110",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:1024"
+  },
+  {
+    "source": "bitxor(0b1010, 0b1100) == 0b110",
+    "env": "item",
+    "origin": "docs/language-definition.md:1024"
+  },
+  {
+    "source": "bitnand(0b1010, 0b1100) == 0b10",
+    "env": "none",
+    "origin": "docs/language-definition.md:1032"
+  },
+  {
+    "source": "bitnand(0b1010, 0b1100) == 0b10",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:1032"
+  },
+  {
+    "source": "bitnand(0b1010, 0b1100) == 0b10",
+    "env": "item",
+    "origin": "docs/language-definition.md:1032"
+  },
+  {
+    "source": "bitnot(0b1010) == -0b1011",
+    "env": "none",
+    "origin": "docs/language-definition.md:1040"
+  },
+  {
+    "source": "bitnot(0b1010) == -0b1011",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:1040"
+  },
+  {
+    "source": "bitnot(0b1010) == -0b1011",
+    "env": "item",
+    "origin": "docs/language-definition.md:1040"
+  },
+  {
+    "source": "bitshl(0b101101, 2) == 0b10110100",
+    "env": "none",
+    "origin": "docs/language-definition.md:1048"
+  },
+  {
+    "source": "bitshl(0b101101, 2) == 0b10110100",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:1048"
+  },
+  {
+    "source": "bitshl(0b101101, 2) == 0b10110100",
+    "env": "item",
+    "origin": "docs/language-definition.md:1048"
+  },
+  {
+    "source": "bitshr(0b101101, 2) == 0b1011",
+    "env": "none",
+    "origin": "docs/language-definition.md:1056"
+  },
+  {
+    "source": "bitshr(0b101101, 2) == 0b1011",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:1056"
+  },
+  {
+    "source": "bitshr(0b101101, 2) == 0b1011",
+    "env": "item",
+    "origin": "docs/language-definition.md:1056"
+  },
+  {
+    "source": "bitushr(-0b101, 2) == 4611686018427387902",
+    "env": "none",
+    "origin": "docs/language-definition.md:1064"
+  },
+  {
+    "source": "bitushr(-0b101, 2) == 4611686018427387902",
+    "env": "non_personalized",
+    "origin": "docs/language-definition.md:1064"
+  },
+  {
+    "source": "bitushr(-0b101, 2) == 4611686018427387902",
+    "env": "item",
+    "origin": "docs/language-definition.md:1064"
+  },
+  {
+    "source": "object.field",
+    "env": "none",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "object.field",
+    "env": "non_personalized",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "object.field",
+    "env": "item",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "object.unknown",
+    "env": "none",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "object.unknown",
+    "env": "non_personalized",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "object.unknown",
+    "env": "item",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "struct.field",
+    "env": "none",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "struct.field",
+    "env": "non_personalized",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "struct.field",
+    "env": "item",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "struct.unknown",
+    "env": "none",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "struct.unknown",
+    "env": "non_personalized",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "struct.unknown",
+    "env": "item",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "foobar",
+    "env": "none",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "foobar",
+    "env": "non_personalized",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "foobar",
+    "env": "item",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "object.field\nobject.unknown\nstruct.field\nstruct.unknown\nfoobar",
+    "env": "none",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "object.field\nobject.unknown\nstruct.field\nstruct.unknown\nfoobar",
+    "env": "non_personalized",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "object.field\nobject.unknown\nstruct.field\nstruct.unknown\nfoobar",
+    "env": "item",
+    "origin": "docs/environment.md:97"
+  },
+  {
+    "source": "let arr = [1, 2, 3]; arr[0]",
+    "env": "none",
+    "origin": "docs/configuration.md:41"
+  },
+  {
+    "source": "let arr = [1, 2, 3]; arr[0]",
+    "env": "non_personalized",
+    "origin": "docs/configuration.md:41"
+  },
+  {
+    "source": "let arr = [1, 2, 3]; arr[0]",
+    "env": "item",
+    "origin": "docs/configuration.md:41"
+  },
+  {
+    "source": "let arr = [1, 2, 3]; int(arr[0])",
+    "env": "none",
+    "origin": "docs/configuration.md:58"
+  },
+  {
+    "source": "let arr = [1, 2, 3]; int(arr[0])",
+    "env": "non_personalized",
+    "origin": "docs/configuration.md:58"
+  },
+  {
+    "source": "let arr = [1, 2, 3]; int(arr[0])",
+    "env": "item",
+    "origin": "docs/configuration.md:58"
+  },
+  {
+    "source": "customFunc(42)",
+    "env": "none",
+    "origin": "docs/configuration.md:74"
+  },
+  {
+    "source": "customFunc(42)",
+    "env": "non_personalized",
+    "origin": "docs/configuration.md:74"
+  },
+  {
+    "source": "customFunc(42)",
+    "env": "item",
+    "origin": "docs/configuration.md:74"
+  },
+  {
+    "source": "customFunc(ctx, 42)",
+    "env": "none",
+    "origin": "docs/configuration.md:74"
+  },
+  {
+    "source": "customFunc(ctx, 42)",
+    "env": "non_personalized",
+    "origin": "docs/configuration.md:74"
+  },
+  {
+    "source": "customFunc(ctx, 42)",
+    "env": "item",
+    "origin": "docs/configuration.md:74"
+  },
+  {
+    "source": "customFunc(42)\ncustomFunc(ctx, 42)",
+    "env": "none",
+    "origin": "docs/configuration.md:74"
+  },
+  {
+    "source": "customFunc(42)\ncustomFunc(ctx, 42)",
+    "env": "non_personalized",
+    "origin": "docs/configuration.md:74"
+  },
+  {
+    "source": "customFunc(42)\ncustomFunc(ctx, 42)",
+    "env": "item",
+    "origin": "docs/configuration.md:74"
+  },
+  {
+    "source": "fib(10)",
+    "env": "none",
+    "origin": "docs/configuration.md:116"
+  },
+  {
+    "source": "fib(10)",
+    "env": "non_personalized",
+    "origin": "docs/configuration.md:116"
+  },
+  {
+    "source": "fib(10)",
+    "env": "item",
+    "origin": "docs/configuration.md:116"
+  },
+  {
+    "source": "fib(12+12)",
+    "env": "none",
+    "origin": "docs/configuration.md:116"
+  },
+  {
+    "source": "fib(12+12)",
+    "env": "non_personalized",
+    "origin": "docs/configuration.md:116"
+  },
+  {
+    "source": "fib(12+12)",
+    "env": "item",
+    "origin": "docs/configuration.md:116"
+  },
+  {
+    "source": "fib(x)",
+    "env": "none",
+    "origin": "docs/configuration.md:116"
+  },
+  {
+    "source": "fib(x)",
+    "env": "non_personalized",
+    "origin": "docs/configuration.md:116"
+  },
+  {
+    "source": "fib(x)",
+    "env": "item",
+    "origin": "docs/configuration.md:116"
+  },
+  {
+    "source": "fib(10)\nfib(12+12)\nfib(x)",
+    "env": "none",
+    "origin": "docs/configuration.md:116"
+  },
+  {
+    "source": "fib(10)\nfib(12+12)\nfib(x)",
+    "env": "non_personalized",
+    "origin": "docs/configuration.md:116"
+  },
+  {
+    "source": "fib(10)\nfib(12+12)\nfib(x)",
+    "env": "item",
+    "origin": "docs/configuration.md:116"
+  },
+  {
+    "source": "date(\"2024-11-23 12:00:00\")",
+    "env": "none",
+    "origin": "docs/configuration.md:131"
+  },
+  {
+    "source": "date(\"2024-11-23 12:00:00\")",
+    "env": "non_personalized",
+    "origin": "docs/configuration.md:131"
+  },
+  {
+    "source": "date(\"2024-11-23 12:00:00\")",
+    "env": "item",
+    "origin": "docs/configuration.md:131"
+  },
+  {
+    "source": "now()",
+    "env": "none",
+    "origin": "docs/configuration.md:131"
+  },
+  {
+    "source": "now()",
+    "env": "non_personalized",
+    "origin": "docs/configuration.md:131"
+  },
+  {
+    "source": "now()",
+    "env": "item",
+    "origin": "docs/configuration.md:131"
+  },
+  {
+    "source": "date(\"2024-11-23 12:00:00\")\nnow()",
+    "env": "none",
+    "origin": "docs/configuration.md:131"
+  },
+  {
+    "source": "date(\"2024-11-23 12:00:00\")\nnow()",
+    "env": "non_personalized",
+    "origin": "docs/configuration.md:131"
+  },
+  {
+    "source": "date(\"2024-11-23 12:00:00\")\nnow()",
+    "env": "item",
+    "origin": "docs/configuration.md:131"
+  },
+  {
+    "source": "a + b + c",
+    "env": "none",
+    "origin": "docs/patch.md:48"
+  },
+  {
+    "source": "a + b + c",
+    "env": "non_personalized",
+    "origin": "docs/patch.md:48"
+  },
+  {
+    "source": "a + b + c",
+    "env": "item",
+    "origin": "docs/patch.md:48"
+  },
+  {
+    "source": "add(add(a, b), c)",
+    "env": "none",
+    "origin": "docs/patch.md:54"
+  },
+  {
+    "source": "add(add(a, b), c)",
+    "env": "non_personalized",
+    "origin": "docs/patch.md:54"
+  },
+  {
+    "source": "add(add(a, b), c)",
+    "env": "item",
+    "origin": "docs/patch.md:54"
+  }
+]
