@@ -133,7 +133,7 @@ fn check(case: &Json) -> Option<String> {
                     return Some(format!("node {i}: got {h}, want {w}"));
                 }
             }
-            drop_deep(map);
+            drop(map);
             None
         }
         (Some(_), Err(err)) => Some(format!("got error {err:?}, want a value")),
@@ -168,19 +168,6 @@ fn check(case: &Json) -> Option<String> {
                     want.is_some()
                 )),
             }
-        }
-    }
-}
-
-/// Drops a decoded map without recursing (some documents nest ten thousand
-/// levels deep, and the compiler's drop of a `Value` recurses).
-fn drop_deep(m: Map) {
-    let mut stack: Vec<Value> = m.into_iter().map(|(_, v)| v).collect();
-    while let Some(v) = stack.pop() {
-        match v {
-            Value::Slice(items) => stack.extend(items),
-            Value::Map(m) => stack.extend(m.into_iter().map(|(_, v)| v)),
-            _ => {}
         }
     }
 }

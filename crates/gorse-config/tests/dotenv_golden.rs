@@ -317,8 +317,8 @@ fn decode_matches_go_except_listed_invalid_utf8() {
         };
         let got: Result<BTreeMap<String, String>, String> = got.map(|m| {
             m.into_iter()
-                .map(|(k, v)| match v {
-                    Value::String(s) => (k, s),
+                .map(|(k, v)| match &v {
+                    Value::String(s) => (k, s.clone()),
                     other => panic!("{}: {k} is not a string: {other:?}", case.name),
                 })
                 .collect()
