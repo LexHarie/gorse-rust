@@ -73,7 +73,13 @@ fn labels(seed: u64, n: usize, classes: u64) -> Vec<f32> {
 fn signs(seed: u64, n: usize) -> Vec<f32> {
     let mut r = Seq(seed);
     (0..n)
-        .map(|_| if r.next() % 2 == 0 { -1.0 } else { 1.0 })
+        .map(|_| {
+            if r.next().is_multiple_of(2) {
+                -1.0
+            } else {
+                1.0
+            }
+        })
         .collect()
 }
 
@@ -479,11 +485,11 @@ fn op_cases(cs: &mut Vec<(String, Case)>) {
     });
     // Go's constant `-0.0` is +0.
     case(cs, "op/sin/large", move |r| {
-        let x = [1e5, 1e10, -3e7, 3.4e38, NAN, INF, 3.141_592_7, 0.0];
+        let x = [1e5, 1e10, -3e7, 3.4e38, NAN, INF, math32::PI, 0.0];
         op_case(r, unary(sin), vec![lit(&x, &[8])]);
     });
     case(cs, "op/cos/large", move |r| {
-        let x = [1e5, 1e10, -3e7, 3.4e38, NAN, INF, 3.141_592_7, 0.0];
+        let x = [1e5, 1e10, -3e7, 3.4e38, NAN, INF, math32::PI, 0.0];
         op_case(r, unary(cos), vec![lit(&x, &[8])]);
     });
     case(cs, "op/abs/specials", move |r| {
@@ -822,6 +828,12 @@ fn op_cases(cs: &mut Vec<(String, Case)>) {
 
 /// The NaN cases: NaNs of distinct payloads, quiet and signaling, meet in
 /// each operation.
+/// A binary operator of the nan cases, over the tensors it is given.
+type BinaryOp = fn(&[Tensor]) -> Tensor;
+
+/// A unary operator of the nan cases, named as the case is.
+type UnaryOp = (&'static str, fn(&Tensor) -> Tensor);
+
 fn nan_cases(cs: &mut Vec<(String, Case)>) {
     fn nx() -> Tensor {
         let x = [
@@ -848,7 +860,7 @@ fn nan_cases(cs: &mut Vec<(String, Case)>) {
     fn nz() -> Tensor {
         lit(&[bits(0x7fc0_0031)], &[])
     }
-    let binary: [(&str, fn(&[Tensor]) -> Tensor); 8] = [
+    let binary: [(&str, BinaryOp); 8] = [
         ("add", add_all),
         ("sub", |i| sub(&i[0], &i[1])),
         ("mul", |i| mul(&i[0], &i[1])),
@@ -863,7 +875,7 @@ fn nan_cases(cs: &mut Vec<(String, Case)>) {
             op_case(r, f, vec![nx(), ny()])
         });
     }
-    let scalar: [(&str, fn(&[Tensor]) -> Tensor); 5] = [
+    let scalar: [(&str, BinaryOp); 5] = [
         ("add_scalar", add_all),
         ("sub_scalar", |i| sub(&i[0], &i[1])),
         ("mul_scalar", |i| mul(&i[0], &i[1])),
@@ -875,7 +887,7 @@ fn nan_cases(cs: &mut Vec<(String, Case)>) {
             op_case(r, f, vec![nx(), nz()])
         });
     }
-    let unary: [(&str, fn(&Tensor) -> Tensor); 6] = [
+    let unary: [UnaryOp; 6] = [
         ("sum", |x| sum(x, &[])),
         ("sum_along0", |x| sum(x, &[0])),
         ("mean", mean),
@@ -972,16 +984,14 @@ fn graph_cases(cs: &mut Vec<(String, Case)>) {
         r.t_opt("x.grad", x.grad());
         r.t_opt("y.grad", y.grad());
     });
-    for (name, x0, y0) in [("graph/matyas", 1.0, 1.0)] {
-        case(cs, name, move |r| {
-            let (x, y) = (scalar(x0), scalar(y0));
-            let z = matyas(&x, &y);
-            z.backward();
-            r.t("z", &z);
-            r.t_opt("x.grad", x.grad());
-            r.t_opt("y.grad", y.grad());
-        });
-    }
+    case(cs, "graph/matyas", move |r| {
+        let (x, y) = (scalar(1.0), scalar(1.0));
+        let z = matyas(&x, &y);
+        z.backward();
+        r.t("z", &z);
+        r.t_opt("x.grad", x.grad());
+        r.t_opt("y.grad", y.grad());
+    });
     for (name, x0, y0) in [
         ("graph/goldstein", 1.0, 1.0),
         ("graph/goldstein_off_minimum", 0.3, -0.7),
@@ -1194,7 +1204,7 @@ fn tensor_cases(cs: &mut Vec<(String, Case)>) {
             1_234_567.0,
             3.402_823_5e38,
             1e-45,
-            1.175_494_35e-38,
+            f32::MIN_POSITIVE,
             16_777_216.0,
             0.3,
             2.5e-7,
@@ -1569,11 +1579,13 @@ impl Afm {
 /// Pads `b` to a multiple of 4 and reads it as little-endian float32 bits.
 fn bytes_as_floats(b: &[u8]) -> Vec<f32> {
     let mut b = b.to_vec();
-    while b.len() % 4 != 0 {
+    while !b.len().is_multiple_of(4) {
         b.push(0);
     }
-    b.chunks_exact(4)
-        .map(|c| f32::from_bits(u32::from_le_bytes([c[0], c[1], c[2], c[3]])))
+    let (chunks, _) = b.as_chunks::<4>();
+    chunks
+        .iter()
+        .map(|c| f32::from_bits(u32::from_le_bytes(*c)))
         .collect()
 }
 

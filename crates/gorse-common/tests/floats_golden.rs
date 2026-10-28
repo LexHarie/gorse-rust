@@ -60,7 +60,7 @@ impl Rng {
     fn float(&mut self) -> f32 {
         if self.specials {
             let k = self.next();
-            if k % 2 == 0 {
+            if k.is_multiple_of(2) {
                 let sign = (k >> 8) as u32 & 0x8000_0000;
                 let payload = (k >> 16) as u32 & 0x3f_ffff;
                 return f32::from_bits(match (k >> 1) % 4 {

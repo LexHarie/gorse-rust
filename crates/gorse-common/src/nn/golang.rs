@@ -250,19 +250,27 @@ mod tests {
             "runtime error: index out of range [3] with length 3"
         );
         assert_eq!(
-            msg(|| drop(slice(0, 7, 6))),
+            msg(|| {
+                slice(0, 7, 6);
+            }),
             "runtime error: slice bounds out of range [:7] with capacity 6"
         );
         assert_eq!(
-            msg(|| drop(slice(4, 2, 6))),
+            msg(|| {
+                slice(4, 2, 6);
+            }),
             "runtime error: slice bounds out of range [4:2]"
         );
         assert_eq!(
-            msg(|| drop(slice(-2, 0, 6))),
+            msg(|| {
+                slice(-2, 0, 6);
+            }),
             "runtime error: slice bounds out of range [-2:]"
         );
         assert_eq!(
-            msg(|| drop(slice(0, -1, 6))),
+            msg(|| {
+                slice(0, -1, 6);
+            }),
             "runtime error: slice bounds out of range [:-1]"
         );
         assert_eq!(slice(2, 6, 6), 2..6);

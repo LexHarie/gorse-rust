@@ -116,11 +116,11 @@ impl Message {
                 }
                 (3, BYTES) => {
                     let (v, n) = consume_bytes(b).ok_or(Error::InvalidWireFormat)?;
-                    let chunks = v.chunks_exact(4);
-                    if !chunks.remainder().is_empty() {
+                    let (chunks, rest) = v.as_chunks::<4>();
+                    if !rest.is_empty() {
                         return Err(Error::InvalidWireFormat);
                     }
-                    m.data.extend(chunks.map(f32_of));
+                    m.data.extend(chunks.iter().map(|c| f32_of(c)));
                     n
                 }
                 (3, FIXED32) => {

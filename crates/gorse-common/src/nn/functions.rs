@@ -147,8 +147,8 @@ pub fn pow(x: &Tensor, n: &Tensor) -> Tensor {
         );
     }
     let offset = golang::int(sn.len()) - golang::int(sx.len());
-    for i in 0..sn.len() {
-        if dim(&sn, offset + golang::int(i)) != sx[i] {
+    for (i, &dx) in sx.iter().enumerate().take(sn.len()) {
+        if dim(&sn, offset + golang::int(i)) != dx {
             panic!(
                 "the shape of the second tensor must be a suffix sequence of the shape of the first tensor"
             );
