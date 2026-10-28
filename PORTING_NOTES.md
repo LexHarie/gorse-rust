@@ -1705,12 +1705,12 @@ said otherwise), so the Rust result is Go's.
   query. Phase 3 (metric parity) decides whether that gap is acceptable, and
   whether xvec's index must be ported.
 
-- **O-31 GCS write cannot run on fake-gcs-server.** The XML `PUT` to the
+- **O-31 (closed by 3966bf6f) GCS write cannot run on fake-gcs-server.** The XML `PUT` to the
   emulator answers 400 `invalid uploadType` on 1.54.0, 1.56.1 and in the latest
   run. `test_gcs` is `#[ignore]`d with that reason. `test_gcs_read_list_remove`
   covers read, list and remove, with the seed uploaded through the JSON API. The
   write needs an emulator that serves the XML upload, or real GCS.
-  Integrator ruling (2026-10-28): the ignored test is not coverage of the write path. object_store's GCS put uses the XML API (`src/gcp/client.rs` in object_store 0.14.2), which fake-gcs-server does not serve, so no test runs the write. Before WP-2-10 is closed, the blob thread adds an in-process test that serves the XML PUT and the multipart calls on a local HTTP listener and checks the request line, headers and body that the store sends. The emulator test may stay ignored with this reason. Open until that merges.
+  Integrator ruling (2026-10-28): the ignored test is not coverage of the write path. object_store's GCS put uses the XML API (`src/gcp/client.rs` in object_store 0.14.2), which fake-gcs-server does not serve, so no test runs the write. Before WP-2-10 is closed, the blob thread adds an in-process test that serves the XML PUT and the multipart calls on a local HTTP listener and checks the request line, headers and body that the store sends. The emulator test stays ignored with this reason. Closed by e5b177c (merged as 3966bf6f): `test_gcs_xml_put_sends_one_request` and `test_gcs_xml_multipart_sends_parts_then_complete` serve the XML calls on a local listener and check each request.
 
 - **O-32 fake-gcs-server needs `-external-url` for path-style XML.** Without
   it, `GET /{bucket}?list-type=2` answers 404. This is an emulator setting, and the
