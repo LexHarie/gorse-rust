@@ -77,19 +77,15 @@ async fn local_backends(
     Ok((data_backend, cache_backend, xvec_backend))
 }
 
-/// Opens the live Qdrant store at `uri`, and deletes the "docs" collection that
-/// a run which stopped early may have left there.
+/// Opens the live Qdrant store at `uri`, and deletes every collection on it. The
+/// vector suite leaves its last collection behind, and the scenario's
+/// `list_collections` step expects the server to hold "docs" alone.
 async fn qdrant_backend(uri: &str) -> Result<Arc<dyn vectors::Database>> {
     let backend: Arc<dyn vectors::Database> = Arc::from(vectors::open(uri, "gorse_", &[]).await?);
     backend.init().await?;
     let ctx = Context::background();
-    if backend
-        .list_collections(&ctx)
-        .await?
-        .iter()
-        .any(|name| name == "docs")
-    {
-        backend.delete_collection(&ctx, "docs").await?;
+    for name in backend.list_collections(&ctx).await? {
+        backend.delete_collection(&ctx, &name).await?;
     }
     Ok(backend)
 }
