@@ -1740,7 +1740,7 @@ said otherwise), so the Rust result is Go's.
   left 1, right 2), and it passed alone three times and in the rerun. Owner: the util
   thread. The fix must keep the name format and the assertion unchanged. The test
   makes its rotations apart in time (for example a 2 ms sleep between writes). It must
-  not lower the count. Open until that merges.
+  not lower the count. Closed by 0842e4d (merged as 42f9f103): the test sleeps 2 ms before each write and keeps the name format and the count of 2.
 
 - **O-36 The suite is compiled and not run.** `data/database_test.rs` is called by no test in this crate. WP-2-2 (SQL) and WP-2-3 (MongoDB) run it against their stores. The acceptance command of this WP, `cargo test -p gorse-storage data::no_database`, runs only the NoDatabase case.
 
