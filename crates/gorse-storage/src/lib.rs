@@ -8,3 +8,5 @@
 
 pub mod cache;
 pub mod data;
+#[cfg(any(feature = "mysql", feature = "postgres", feature = "sqlite"))]
+pub mod sqlconn;
