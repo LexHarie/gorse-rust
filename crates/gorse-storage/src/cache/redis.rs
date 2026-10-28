@@ -92,37 +92,33 @@ struct SearchReply {
     docs: Vec<(String, HashMap<String, String>)>,
 }
 
-/// Registers the Redis schemes with a registry: `redis://` and `rediss://` open
-/// a standalone store, and the `+cluster` schemes open a cluster.
+/// Registers the four Redis schemes with a registry. All of them open through
+/// [`open`], which picks a standalone or a cluster store by the scheme, as Go's
+/// `Open` does after its `init` registrations.
 pub fn register(registry: &mut Registry) {
-    registry.register(&[REDIS_PREFIX, REDISS_PREFIX], create_standalone as Creator);
     registry.register(
-        &[REDIS_CLUSTER_PREFIX, REDISS_CLUSTER_PREFIX],
-        create_cluster as Creator,
+        &[
+            REDIS_PREFIX,
+            REDISS_PREFIX,
+            REDIS_CLUSTER_PREFIX,
+            REDISS_CLUSTER_PREFIX,
+        ],
+        create as Creator,
     );
 }
 
-/// Go's standalone creator, as a [`Creator`].
-fn create_standalone(
-    path: &str,
-    table_prefix: &str,
-    opts: &[Opt],
-) -> Result<Box<dyn Database>, Error> {
+/// Go's creator for the Redis schemes, as a [`Creator`].
+fn create(path: &str, table_prefix: &str, opts: &[Opt]) -> Result<Box<dyn Database>, Error> {
     Ok(Box::new(open(path, table_prefix, opts)?))
 }
 
-/// Go's cluster creator, as a [`Creator`].
-fn create_cluster(
-    path: &str,
-    table_prefix: &str,
-    opts: &[Opt],
-) -> Result<Box<dyn Database>, Error> {
-    Ok(Box::new(open_cluster(path, table_prefix, opts)?))
-}
-
-/// Opens a standalone store on a `redis://` or `rediss://` URL. Nothing is
-/// connected until the first call (go-redis's `NewClient` is lazy too).
+/// Opens a store on a Redis URL. A `+cluster` scheme opens a cluster, and the
+/// others open a standalone server. Nothing is connected until the first call,
+/// as go-redis's `NewClient` is lazy too.
 pub fn open(path: &str, table_prefix: &str, opts: &[Opt]) -> Result<Redis, Error> {
+    if path.starts_with(REDIS_CLUSTER_PREFIX) || path.starts_with(REDISS_CLUSTER_PREFIX) {
+        return open_cluster(path, table_prefix, opts);
+    }
     let client = redis::Client::open(path).map_err(backend)?;
     Ok(Redis::new(Backend::Standalone(client), table_prefix, opts))
 }

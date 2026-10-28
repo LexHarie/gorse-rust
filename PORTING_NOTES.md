@@ -1542,8 +1542,8 @@ said otherwise), so the Rust result is Go's.
 
 - **X-78 Cluster primaries come from one `CLUSTER NODES` reply.** Go's
   `ForEachMaster` walks the client's slot map. The port scans each node whose
-  flags include `master`. Untested: no cluster is reachable from this
-  environment.
+  flags include `master`. Run against a six-node Redis 8.10.3
+  cluster, see O-30.
 
 - **X-79 Cluster `addr` parameters take the base URL's credentials.** Go's
   `ParseClusterURL` does the same. The port does not decode percent escapes in
@@ -1563,13 +1563,23 @@ said otherwise), so the Rust result is Go's.
   a `DocumentSorter` adapter, and the local pdqsort copy is deleted. Go's
   `sort.Slice` and `sort.Sort` share one algorithm.
 
-- **O-30 The RediSearch and RedisTimeSeries paths are unrun.** The shared suite's
-  `Init` (`FT._LIST`), the search, update and delete paths, and the time series
-  paths need Redis 8 or Redis Stack, as `storage/docker-compose.yml` runs. This
-  environment has Redis 7.0.15 with no modules. `packages.redis.io` and
-  `download.redis.io` are denied by the network policy, and there is no docker
-  daemon. The gate is `REDIS_URI=<redis:8> cargo test -p gorse-storage --features
-  redis cache::redis` against redis:8.
+- **O-30 The Redis acceptance runs pass on Redis 8 and Kvrocks.** The
+  shared suite, the search, update and delete paths, and the time series paths
+  all run. The environment's Redis 7.0.15 has no modules, so it was not the
+  gate. `redis:8` (Redis 8.10.3, with the `search` and `timeseries` modules)
+  came from Docker Hub after one HTTP 429 retry. Each run was
+  `cargo test -p gorse-storage --features redis cache::redis`, and each passed
+  7 of 7:
+  - standalone, `REDIS_URI=redis://127.0.0.1:6391/`;
+  - a six-node Redis 8.10.3 cluster on the host network, ports 7001 to 7006,
+    one replica per primary, with `REDIS_URI=redis+cluster://127.0.0.1:7001`
+    and with the six-address `addr=` form the Go CI uses;
+  - `apache/kvrocks:nightly`, `REDIS_URI=redis://127.0.0.1:6666/`, which the
+    Go CI also runs.
+  A mutation check (the escape rule without `-`) made `escape_characters` fail,
+  then the file was restored.
 
-- **O-31 Cluster and Kvrocks are unrun.** The Go CI's compatibility job runs a
-  six-node Redis cluster and Kvrocks. Neither is reachable here.
+- **O-31 The Go CI's Redis jobs are covered for WP-2-5.** The standalone,
+  one-address cluster, six-address cluster and Kvrocks jobs in
+  `.github/workflows/build_test.yml` all run here (see O-30). The MariaDB job and
+  the rest of the Phase 2 exit gate belong to other work packages.
