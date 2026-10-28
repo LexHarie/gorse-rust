@@ -21,9 +21,6 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-# Reads the Go-generated golden `testdata/sparse_oracle.json`.
-serde = { workspace = true }
-serde_json = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
 

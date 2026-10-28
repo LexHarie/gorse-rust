@@ -35,14 +35,14 @@ struct SparseEntry {
 /// Go's `sparseVectorPruner`: keeps the `max_nnz` entries with the highest
 /// values, and of equal values the lowest indices. The entries sit in a
 /// min-heap, so the weakest kept entry is at the root.
-struct SparseVectorPruner {
+pub struct SparseVectorPruner {
     entries: Vec<SparseEntry>,
     max_nnz: usize,
 }
 
 impl SparseVectorPruner {
     /// Go's `newSparseVectorPruner`.
-    fn new(max_nnz: usize) -> Self {
+    pub fn new(max_nnz: usize) -> Self {
         Self {
             entries: Vec::with_capacity(max_nnz),
             max_nnz,
@@ -96,7 +96,7 @@ impl SparseVectorPruner {
     }
 
     /// Go's `Add`.
-    fn add(&mut self, index: u32, value: f32) {
+    pub fn add(&mut self, index: u32, value: f32) {
         if self.max_nnz == 0 {
             return;
         }
@@ -120,7 +120,7 @@ impl SparseVectorPruner {
     }
 
     /// Go's `Result`: the kept indices in ascending order, with their values.
-    fn result(&self) -> (Vec<u32>, Vec<f32>) {
+    pub fn result(&self) -> (Vec<u32>, Vec<f32>) {
         let mut entries = ByIndex(self.entries.clone());
         gosort::sort(&mut entries);
         entries.0.iter().map(|e| (e.index, e.value)).unzip()
@@ -497,77 +497,6 @@ mod tests {
                 "value {i}: expected sqrt(2), got {}",
                 vector.values[i]
             );
-        }
-    }
-
-    /// One case of `testdata/sparse_oracle.json`: 400 pruner cases and 20
-    /// `appendSparseVector` cases, made by Go on seeded random inputs that
-    /// include NaN, infinities, ties and duplicate indices. Values are FP32
-    /// bits, so NaN payloads compare exactly. The generator is
-    /// `contracts/tools/logicsgolden/sparse_oracle_test.go.txt`.
-    #[derive(serde::Deserialize)]
-    struct OracleCase {
-        kind: String,
-        #[serde(default)]
-        max_nnz: usize,
-        #[serde(default)]
-        adds: Vec<OracleAdd>,
-        #[serde(default)]
-        in_indices: Vec<u32>,
-        #[serde(default)]
-        in_values: Vec<u32>,
-        #[serde(default)]
-        ids: Vec<i32>,
-        #[serde(default)]
-        idf: Vec<u32>,
-        #[serde(default)]
-        offset: u32,
-        indices: Vec<u32>,
-        values: Vec<u32>,
-    }
-
-    #[derive(serde::Deserialize)]
-    struct OracleAdd {
-        index: u32,
-        value: u32,
-    }
-
-    fn floats(bits: &[u32]) -> Vec<f32> {
-        bits.iter().map(|&b| f32::from_bits(b)).collect()
-    }
-
-    /// The pruner and `appendSparseVector` agree with Go bit for bit on every
-    /// case, including the order of ties and the handling of NaN.
-    #[test]
-    fn test_sparse_vectors_match_go() {
-        let cases: Vec<OracleCase> =
-            serde_json::from_str(include_str!("../testdata/sparse_oracle.json"))
-                .expect("sparse_oracle.json");
-        assert_eq!(cases.len(), 420, "cases");
-        for (n, case) in cases.iter().enumerate() {
-            let (indices, values) = match case.kind.as_str() {
-                "pruner" => {
-                    let mut pruner = SparseVectorPruner::new(case.max_nnz);
-                    for add in &case.adds {
-                        pruner.add(add.index, f32::from_bits(add.value));
-                    }
-                    pruner.result()
-                }
-                "append" => {
-                    let vector = Vector {
-                        indices: case.in_indices.clone(),
-                        values: floats(&case.in_values),
-                        ..Vector::default()
-                    };
-                    let out =
-                        append_sparse_vector(vector, &case.ids, &floats(&case.idf), case.offset);
-                    (out.indices, out.values)
-                }
-                other => panic!("case {n}: unknown kind {other}"),
-            };
-            let bits: Vec<u32> = values.iter().map(|v| v.to_bits()).collect();
-            assert_eq!(indices, case.indices, "case {n} indices");
-            assert_eq!(bits, case.values, "case {n} values");
         }
     }
 

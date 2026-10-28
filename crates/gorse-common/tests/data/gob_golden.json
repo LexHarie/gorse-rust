@@ -612,5 +612,33 @@
     "value": "0001ff",
     "hex": "030000000001ff",
     "deterministic": true
+  },
+  {
+    "name": "time 0",
+    "kind": "time",
+    "value": "010000000ee273dac0075bcd15ffff",
+    "hex": "240000000f7f0501010454696d6501ff8000000013ff80000f010000000ee273dac0075bcd15ffff",
+    "deterministic": true
+  },
+  {
+    "name": "time 1",
+    "kind": "time",
+    "value": "010000000e76b97ed400000001003c",
+    "hex": "240000000f7f0501010454696d6501ff8000000013ff80000f010000000e76b97ed400000001003c",
+    "deterministic": true
+  },
+  {
+    "name": "time 2",
+    "kind": "time",
+    "value": "01000000000000000000000000ffff",
+    "hex": "240000000f7f0501010454696d6501ff8000000013ff80000f01000000000000000000000000ffff",
+    "deterministic": true
+  },
+  {
+    "name": "time 3",
+    "kind": "time",
+    "value": "010000000edce5e800000001f4feb6",
+    "hex": "240000000f7f0501010454696d6501ff8000000013ff80000f010000000edce5e800000001f4feb6",
+    "deterministic": true
   }
 ]

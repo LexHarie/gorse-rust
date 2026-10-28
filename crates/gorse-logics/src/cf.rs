@@ -10,7 +10,7 @@ use std::io::{Read, Write};
 use gorse_common::ann::{self, Hnsw, Index};
 use gorse_common::encoding;
 use gorse_common::floats;
-use gorse_common::gotime::{Time, TimeError};
+use gorse_common::gotime::Time;
 use gorse_storage::cache::Score;
 
 /// An error from reading or writing the embeddings.
@@ -22,9 +22,6 @@ pub enum Error {
     /// The HNSW index in the blob is malformed.
     #[error(transparent)]
     Index(#[from] ann::Error),
-    /// The timestamp in the blob is not a `time.Time` binary encoding.
-    #[error(transparent)]
-    Time(#[from] TimeError),
     /// A count read from the blob is negative, which Go's `make` panics on
     /// (`PORTING_NOTES.md` X-22).
     #[error("negative count {0}")]
@@ -106,16 +103,14 @@ impl MatrixFactorizationItems {
     /// Go's `Marshal`: the timestamp, the dimension, the index, then the
     /// item ids.
     ///
-    /// The timestamp is written as its `MarshalBinary` bytes with
-    /// [`encoding::write_bytes`], not as a gob `GobEncoder` value, because
-    /// the gob codec has no `time.Time` (`PORTING_NOTES.md` X-WP34-2). No Gorse
-    /// process reads this blob, so the difference is not visible.
+    /// The timestamp is a gob `time.Time` (its `MarshalBinary` bytes as a gob
+    /// `GobEncoder` value), so a Go process reads the blob as it reads its own.
     ///
     /// # Errors
     ///
     /// Fails when the writer fails.
     pub fn marshal(&self, w: &mut impl Write) -> Result<(), Error> {
-        encoding::write_bytes(w, &self.timestamp.marshal_binary()?)?;
+        encoding::write_gob(w, &self.timestamp)?;
         encoding::write_gob(w, &self.dimension)?;
         self.index.marshal(w)?;
         encoding::write_gob(w, &(self.items.len() as i64))?;
@@ -134,8 +129,7 @@ impl MatrixFactorizationItems {
     /// Fails when the input ends early or holds a malformed part, or a
     /// negative item count (where Go panics).
     pub fn unmarshal(&mut self, r: &mut impl Read) -> Result<(), Error> {
-        let mut timestamp = Time::default();
-        timestamp.unmarshal_binary(&encoding::read_bytes(r)?)?;
+        let timestamp: Time = encoding::read_gob(r)?;
         let dimension: i64 = encoding::read_gob(r)?;
         let mut index = Hnsw::new(distance);
         index.unmarshal(r)?;

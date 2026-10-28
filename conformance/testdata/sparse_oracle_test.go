@@ -1,9 +1,12 @@
 package logics
 
-// Differential oracle for crates/gorse-logics/src/vector_writer.rs. Copy this
-// file into logics/ (as sparse_oracle_test.go), run it with
-// WP34_ORACLE_OUT=<path> go test ./logics -run TestWP34SparseOracle, then delete
-// the copy. The output is crates/gorse-logics/testdata/sparse_oracle.json.
+// The Go side of conformance/tests/sparse_oracle.rs (WP-3-4). It is not part of
+// the Go tree: the test runs `go test -overlay` to add it to package logics as
+// sparse_oracle_conformance_test.go, so the unexported sparse pruner and
+// appendSparseVector are the Go ones, and the tree is not changed. The go tool
+// ignores testdata directories, so `go build ./...` and `go vet ./...` skip it.
+//
+// The test writes the cases as JSON to the file named by SPARSE_ORACLE_OUT.
 
 import (
 	"encoding/json"
@@ -45,10 +48,10 @@ func oracleBits(values []float32) []uint32 {
 	return out
 }
 
-func TestWP34SparseOracle(t *testing.T) {
-	path := os.Getenv("WP34_ORACLE_OUT")
+func TestSparseOracle(t *testing.T) {
+	path := os.Getenv("SPARSE_ORACLE_OUT")
 	if path == "" {
-		t.Skip("WP34_ORACLE_OUT not set")
+		t.Fatal("SPARSE_ORACLE_OUT is not set; run this through conformance/tests/sparse_oracle.rs")
 	}
 	r := rand.New(rand.NewSource(20261028))
 	var cases []oracleCase

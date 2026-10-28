@@ -2,7 +2,8 @@
 
 //! Recommendation pipeline logic shared by the master, worker and server nodes.
 //!
-//! Skeleton only (Phase 0): no Go code has been ported into this crate yet.
+//! The CF embeddings and the vector writer are ported (WP-3-4). The other files
+//! of the Go package are not yet.
 
 pub mod cf;
 pub mod vector_writer;
