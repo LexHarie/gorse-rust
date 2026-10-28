@@ -670,6 +670,11 @@ name = "gorse-model-core"
 version = "0.0.0"
 dependencies = [
  "gorse-common",
+ "reqwest",
+ "tempfile",
+ "thiserror",
+ "tracing",
+ "zip",
 ]
 
 [[package]]
