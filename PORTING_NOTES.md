@@ -1429,7 +1429,7 @@ said otherwise), so the Rust result is Go's.
   `cdn.gorse.io` (O-1). Ported with its path assertions as
   `locate_built_in_dataset_ml_1m`.
 
-- **O-25 `datautil` download has a 30 second timeout (WP-1-8).** Go's `http.Get` has none, and `datautil.rs` calls `reqwest::blocking::get`, which uses reqwest's 30 second default. Ruling: the timeout goes, as D-111 does for the model core. Owner: the util thread. Open until that fix merges.
+- **O-25 `datautil` download has a 30 second timeout (WP-1-8): closed.** Go's `http.Get` has none, and `datautil.rs` calls `reqwest::blocking::get`, which uses reqwest's 30 second default. Ruling: the timeout goes, as D-111 does for the model core. Owner: the util thread. Closed by af6d9caf: the dataset download sets no timeout (`download_from_url` uses a client with `timeout(None)`), and the test `download_from_url_waits_past_the_default_timeout` serves its body after 31 seconds.
 
 - **O-26 pdqsort's heapSort fallback is not reached by any golden case.**
   `gosort` calls `heap_sort` when pdqsort runs out of its partition budget. No
