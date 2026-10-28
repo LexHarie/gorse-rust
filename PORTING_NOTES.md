@@ -1474,6 +1474,20 @@ said otherwise), so the Rust result is Go's.
 - **X-88 ctx on every method.** `Store` and `BlobWriter` take `ctx`, as D-122
   requires. Go's blob API has no context.
 
+### Data store core (WP-2-1)
+
+- **X-89 Go's `NewScanOptions` skips nil options.** A `ScanOption` cannot be nil in Rust, so there is nothing to skip. Behaviour is the same for every value that can be built.
+
+- **X-90 The shared suite's faker labels are fixed strings.** Go's `faker` colour and genre names are replaced with fixed strings. The cases only check that a label round-trips, so the values do not matter.
+
+- **X-91 Go's `[]string` and `[]any` labels are one `Labels::Array`.** Go's conversions to `[]any` in the suite (`feedback[0].Labels = []any{"positive"}`, `[]any{"a", "b", "c"}`) are kept as the same value. The distinction is erased by `Labels`, which is the decision of D-117.
+
+- **X-92 The suite's type switches are a `Backend` trait.** Go's `suite.Database.(*SQLDatabase)` and `*MongoDB` checks become `Backend::analyze_tables` (Postgres runs `ANALYZE`) and `Backend::time_stamps` (Postgres rounds to a microsecond, SQLite is exact, MongoDB truncates to a millisecond, others skip). TestTimezone skips for `TimeStamps::Unknown`, as Go's `Skipf` does.
+
+- **X-93 Go's `TestSortFeedbacks` and `TestValidateLabels` are in `types.rs`.** WP-1-17 ported them, so the suite file does not repeat them.
+
+- **X-94 Go's `time.Sleep(time.Millisecond)` is `std::thread::sleep`** in the suite. The suite runs on the test's own thread.
+
 ## Open questions
 
 - **O-1** The Go CI's model tests read the datasets from `https://cdn.gorse.io`,
@@ -1664,3 +1678,15 @@ said otherwise), so the Rust result is Go's.
   thread. The fix must keep the name format and the assertion unchanged. The test
   makes its rotations apart in time (for example a 2 ms sleep between writes). It must
   not lower the count. Open until that merges.
+
+- **O-36 The suite is compiled and not run.** `data/database_test.rs` is called by no test in this crate. WP-2-2 (SQL) and WP-2-3 (MongoDB) run it against their stores. The acceptance command of this WP, `cargo test -p gorse-storage data::no_database`, runs only the NoDatabase case.
+
+- **O-37 (closed by the WP-2-1 merge) Merged with the integration head 9c89272 (f8b3662).** The cache and vector cores are in integration now. The `Cargo.toml` and `Cargo.lock` overlap is resolved: `async-trait` and `tokio` come from integration, and this WP adds `futures-core` and `futures-util` (0.3.34). The dev-dependency `tokio` already had `macros`, `rt` and `time`.
+
+- **O-38 Crate-selection rows.** `porting/crate-selection.md` needs rows for `async-trait` (0.1.92), `futures-core` and `futures-util` (0.3.34, Apache-2.0 or MIT), and `tokio` (1.54.1). The integrator adds them at fold.
+
+- **O-39 TestTimezone loads `Asia/Tokyo`** through `gotime::load_location`, which reads the system zoneinfo. The case needs the zone file on the test machine.
+
+- **O-40 Shared-suite cases that need a backend are untested here.** Every case in `database_test.rs` is unverified until WP-2-2 or WP-2-3 runs it. The gate for this WP does not run them.
+
+- **O-41 No callback in the data trait takes a `&str`.** The only `Fn` in this WP is `ScanOption`, which takes `&mut ScanOptions`. The cache core's E0597 comes from its `scan` callback, which this WP does not have. Stream methods return `BoxStream` and take no callbacks.

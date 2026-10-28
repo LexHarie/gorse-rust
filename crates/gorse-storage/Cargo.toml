@@ -14,6 +14,8 @@ gorse-protocol = { workspace = true }
 gorse-storage-core = { workspace = true }
 gorse-config = { workspace = true }
 gorse-model-core = { workspace = true }
+futures-core.workspace = true
+futures-util.workspace = true
 indexmap.workspace = true
 prost-types = { workspace = true }
 serde.workspace = true
@@ -33,12 +35,11 @@ percent-encoding = "2.3.2"
 bytes = { version = "1.12.1", optional = true }
 # Cloud stores, one feature per provider (`storage/blob/{s3,gcs,azure}.go`).
 object_store = { version = "0.14.2", default-features = false, optional = true }
-futures-util = { version = "0.3.34", default-features = false, optional = true }
 
 [features]
-s3 = ["dep:object_store", "dep:futures-util", "dep:bytes", "object_store/aws"]
-gcs = ["dep:object_store", "dep:futures-util", "dep:bytes", "object_store/gcp"]
-azure = ["dep:object_store", "dep:futures-util", "dep:bytes", "object_store/azure"]
+s3 = ["dep:object_store", "dep:bytes", "object_store/aws"]
+gcs = ["dep:object_store", "dep:bytes", "object_store/gcp"]
+azure = ["dep:object_store", "dep:bytes", "object_store/azure"]
 
 [dev-dependencies]
 hex.workspace = true

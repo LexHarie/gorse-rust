@@ -30,7 +30,7 @@ Every Rust module names the Go files it ports with a
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); config.schema.json and config.keys.md not generated (X-49). WP-1-18 is in progress (it follows WP-1-16 and WP-1-17, both merged). All in `porting/work-packages.md` |
-| 2. Storage | in progress | Done: WP-2-4 (cache core; its shared suite waits for the backends, O-28) and WP-2-8 (vector core, async per D-122, exact search, O-30). WP-2-10 (blob, async per D-122, merged; O-31 open until the XML-upload stub test merges). WP-2-1 to WP-2-3, 2-5 to 2-7, 2-9, 2-11 to 2-13 not merged |
+| 2. Storage | in progress | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 open until the XML-upload stub test merges). WP-2-2, 2-3, 2-5 to 2-7, 2-9, 2-11 to 2-13 not merged |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
@@ -1171,6 +1171,28 @@ or accepts a metric gap outside the Go tests' own tolerances.
   change is the signature only. Approved by the coordinator as a government decision
   (2026-10-28). Merged as `0c9bf1bb` (fix commit `9e3aa927`). The Redis and SQL
   threads take it by cherry-pick.
+
+- **D-146 The data `Database` trait is `#[async_trait]`, ctx first (D-122).** Methods that Go gives a `ctx` take `&Context` first. Lifecycle methods Go gives no `ctx` (`Close`, `Ping`, `Init`, `Reconcile`, `Optimize`, `Purge`) take none.
+
+- **D-147 Go's chan pairs are one `BoxStream<'a, Result<Vec<T>, Error>>`.** `GetUserStream`, `GetItemStream` and `GetFeedbackStream` return a stream of batches. An error is the last item, which matches the order Go's consumers see on the two channels. The stream is borrowed from `&self` and `&Context`, and dropping it stops the scan.
+
+- **D-148 Go's `int` counts are `i64`** (`n`, `batch_size`, the delete count, the counts), as the cache core uses `i64` for Go `int`. Go's `int` can be negative, and the backends must see the same value.
+
+- **D-149 The registry is the cache core's.** `Creator` is a sync `fn` that returns `Box<dyn Database>`, and `Registry::open` takes the longest matching prefix. Go's `Open` picks among matching prefixes in map order, which is random, so the longest is the only deterministic choice that matches every path a prefix can match unambiguously.
+
+- **D-150 `ScanOption` is a newtype over `Box<dyn Fn(&mut ScanOptions) + Send + Sync>`**, like storage-core's `Opt`. Each `with_*` function is a Go `With*` function.
+
+- **D-151 Async registries (ruling, applied in a later commit).** Every registry
+  whose `Creator` opens a store with I/O takes an async creator. The cache and data
+  registries (D-146 onward; the cache core's D-126) use
+  `pub type Creator = for<'a> fn(&'a str, &'a str, &'a [Opt]) -> BoxFuture<'a, Result<Box<dyn Database>, Error>>`,
+  with `BoxFuture` from `futures-util`, and `Registry::open` is `async`. Every
+  backend's creator wraps its async open. The vector and blob registries follow
+  the same rule where they have a creator. Reason: MongoDB, SQL and Redis open
+  their clients asynchronously, so a sync creator would need a blocking facade over
+  a network client, which D-122 forbids. `cache::open` stays the one entry point,
+  as Go's `Open` is. Until the applying commit lands, a store may build against
+  this signature. Integrator, 2026-10-28; the coordinator asked for it (O-WP27-1).
 
 ## Open questions for Ritchie
 
