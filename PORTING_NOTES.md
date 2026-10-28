@@ -1294,10 +1294,17 @@ said otherwise), so the Rust result is Go's.
 
 - **X-48 Log output: closed.** Until WP-1-8 merged, `LoadConfig` had a placeholder logger (D-84). The log-swap merge (0dfc872) replaces it with `tracing::info!` and `tracing::warn!` carrying the same text, and removes `log.rs`.
 
-- **X-49 `contracts/config/config.schema.json` and `config.keys.md` are not
+- **X-49 (closed 2026-10-28) `contracts/config/config.schema.json` and `config.keys.md` are not
   generated** by this port. They come from `contracts/tools/configschema`
   (`jsonschema` reflection and the walk over `GetDefaultConfig`). WP-1-15's
-  acceptance names only `meta-config.*.json` and `config.toml`.
+  acceptance names only `meta-config.*.json` and `config.toml`. Closed: the
+  integrator ran `go run ./configschema -out <tmp> -src ../../config` in
+  `contracts/tools` (go1.27.0). Its four outputs (`config.schema.json`,
+  `config.keys.md`, `meta-config.default.json`, `meta-config.sample.json`) are
+  byte-identical to the frozen files, so the frozen copies are current. The Rust
+  port has no generator and needs none: the master serves the frozen schema
+  (`porting/crate-selection.md`, the invopop row), and that WP checks it when it
+  lands.
 
 ### YAML decoder (WP-1-15, yaml.v3 port)
 
@@ -1681,11 +1688,11 @@ said otherwise), so the Rust result is Go's.
   which real data is unlikely to do, but the dataset and logics WPs sort large
   slices, so the gap should close before WP-3-x.
 
-- **O-27 The cache core copies Go's pdqsort (WP-2-4).** `cache/gosort.rs` is a
+- **O-27 (closed by f7ff3189) The cache core copies Go's pdqsort (WP-2-4).** `cache/gosort.rs` is a
   private port of `sort.Slice`'s pdqsort. `gorse-common::gosort` (WP-1-17) already
   ports the same algorithm for `sort.Sort`, so there are two copies. Owner: the
   cache thread. Before WP-2-5 merges, it becomes a closure adapter over
-  `gorse_common::gosort`, so Go's pdqsort is in one place. Open.
+  `gorse_common::gosort`, so Go's pdqsort is in one place. Closed by f7ff3189: `cache::sort_documents` calls `gorse_common::gosort::sort` through an adapter, and the local copy is deleted.
 
 - **O-28 The shared suite has not run against a backend.** No backend
   exists in this WP, and the acceptance command is `cache::no_database`. WP-2-5,
@@ -1705,12 +1712,12 @@ said otherwise), so the Rust result is Go's.
   query. Phase 3 (metric parity) decides whether that gap is acceptable, and
   whether xvec's index must be ported.
 
-- **O-31 GCS write cannot run on fake-gcs-server.** The XML `PUT` to the
+- **O-31 (closed by 3966bf6f) GCS write cannot run on fake-gcs-server.** The XML `PUT` to the
   emulator answers 400 `invalid uploadType` on 1.54.0, 1.56.1 and in the latest
   run. `test_gcs` is `#[ignore]`d with that reason. `test_gcs_read_list_remove`
   covers read, list and remove, with the seed uploaded through the JSON API. The
   write needs an emulator that serves the XML upload, or real GCS.
-  Integrator ruling (2026-10-28): the ignored test is not coverage of the write path. object_store's GCS put uses the XML API (`src/gcp/client.rs` in object_store 0.14.2), which fake-gcs-server does not serve, so no test runs the write. Before WP-2-10 is closed, the blob thread adds an in-process test that serves the XML PUT and the multipart calls on a local HTTP listener and checks the request line, headers and body that the store sends. The emulator test may stay ignored with this reason. Open until that merges.
+  Integrator ruling (2026-10-28): the ignored test is not coverage of the write path. object_store's GCS put uses the XML API (`src/gcp/client.rs` in object_store 0.14.2), which fake-gcs-server does not serve, so no test runs the write. Before WP-2-10 is closed, the blob thread adds an in-process test that serves the XML PUT and the multipart calls on a local HTTP listener and checks the request line, headers and body that the store sends. The emulator test stays ignored with this reason. Closed by e5b177c (merged as 3966bf6f): `test_gcs_xml_put_sends_one_request` and `test_gcs_xml_multipart_sends_parts_then_complete` serve the XML calls on a local listener and check each request.
 
 - **O-32 fake-gcs-server needs `-external-url` for path-style XML.** Without
   it, `GET /{bucket}?list-type=2` answers 404. This is an emulator setting, and the
@@ -1740,7 +1747,7 @@ said otherwise), so the Rust result is Go's.
   left 1, right 2), and it passed alone three times and in the rerun. Owner: the util
   thread. The fix must keep the name format and the assertion unchanged. The test
   makes its rotations apart in time (for example a 2 ms sleep between writes). It must
-  not lower the count. Open until that merges.
+  not lower the count. Closed by 0842e4d (merged as 42f9f103): the test sleeps 2 ms before each write and keeps the name format and the count of 2.
 
 - **O-36 The suite is compiled and not run.** `data/database_test.rs` is called by no test in this crate. WP-2-2 (SQL) and WP-2-3 (MongoDB) run it against their stores. The acceptance command of this WP, `cargo test -p gorse-storage data::no_database`, runs only the NoDatabase case.
 
@@ -1772,3 +1779,395 @@ said otherwise), so the Rust result is Go's.
 - **O-45 (closed by f7ff3189) `gosort` copy.** This store does not sort in Rust (MongoDB sorts
   on the server). The duplicate `pdqsort` in `cache/gosort.rs` is WP-2-4's and
   is not changed here (O-27, owned by the cache core).
+
+## WP-2-5 Redis cache store
+
+- **Q-202 `UpdateScores` checks, then writes, with no transaction.** Go's
+  `Watch` runs its function on one connection with no `MULTI`/`EXEC`, so the
+  watch guards nothing. `EXISTS` and then `HSET` are two commands another client
+  can interleave. The port sends the same two commands.
+
+- **Q-203 `ScanScores` fails on a key deleted between `SCAN` and `HGETALL`.**
+  Go's `redis.Nil` check, meant to skip such a key, never fires: `HGETALL` on a
+  missing key returns an empty map with no error. The empty `timestamp` then
+  fails to parse and the scan returns the error. The port does the same.
+
+- **Q-204 A search with `begin == end == 0` has no `LIMIT`.** go-redis sends
+  `LIMIT` only when the offset is positive or the limit is positive. A search
+  for `[0, 0)` therefore gets RediSearch's default of 10 results. The port keeps
+  that condition.
+
+- **Q-205 `Scan` and `Purge` also visit score documents and points.** Both match
+  `prefix*`, so they see the `documents:` and `time_series_points:` keys, with
+  the prefix stripped. The port does the same.
+
+- **Q-206 A category token that decodes to nothing panics in Go.**
+  `decodeCategory` slices `b[1:]` without a length check. The port returns an
+  error for that token.
+
+- **Q-207 A missing time series is matched by text.** Go checks for the
+  `TSDB: the key does not exist` and `key does not exist` prefixes. The port
+  checks for either text anywhere in the error, since the driver's message can
+  wrap the server's.
+
+- **X-104 `Close` drops the connection.** The `ConnectionManager` closes with the
+  store, which has the same effect as go-redis's `client.Close()`.
+
+- **X-105 Cancellation is checked at call boundaries.** go-redis aborts a command
+  in flight when its context is cancelled. The port checks the context when a
+  method starts and after each reply of a score scan, as Go's `ScanScores` does.
+  A command already sent runs to completion. Open for the WP-4 review.
+
+- **X-106 `CLIENT SETNAME` is sent once, on the first connection.** go-redis names
+  every connection it makes. A `ConnectionManager` reconnect does not resend the
+  name.
+
+- **X-107 A cluster sends pipelines one command at a time.** redis-rs refuses a
+  pipeline whose keys span slots (CROSSSLOT). Go's cluster client splits the
+  pipeline per node. The replies are the same. The port makes more round trips.
+  Not measured.
+
+- **X-108 Cluster primaries come from one `CLUSTER NODES` reply.** Go's
+  `ForEachMaster` walks the client's slot map. The port scans each node whose
+  flags include `master`. Run against a six-node Redis 8.10.3
+  cluster, see O-46.
+
+- **X-100 Cluster `addr` parameters take the base URL's credentials.** Go's
+  `ParseClusterURL` does the same. The port does not decode percent escapes in
+  the parameters.
+
+- **X-101 Each test owns a table prefix and purges it, not `FLUSHDB`.** Go's suite
+  flushes the whole database, which would make parallel Rust tests clobber each
+  other. The assertions are unchanged.
+
+- **X-102 `rediss://` connects through rustls, with the system roots (was X-81
+  before the merge with 7f23f5a).** The redis crate's `tokio-rustls-comp`
+  feature is on. In redis 1.8.0 it enables `tls-rustls`, so the feature set is
+  the one the coordinator named, and the TLS stack is the workspace's rustls.
+  The server certificate is checked against the system roots that
+  `rustls-native-certs` loads; on Linux `SSL_CERT_FILE` replaces them. Verified
+  against `redis:8` with TLS on (a self-signed CA, SAN `localhost`): all seven
+  tests pass with the CA in `SSL_CERT_FILE`. With `SSL_CERT_FILE` unset, the six
+  server tests fail with `invalid peer certificate: UnknownIssuer`, and the one
+  test that needs no server passes. In this sandbox the inherited
+  `SSL_CERT_FILE` is the proxy's CA bundle, which does not trust the test CA.
+
+- **X-103 `skip_verify=true` is honoured on `rediss://`, as go-redis does
+  (resolved; decided by the coordinator).** The default still verifies. The
+  port maps the parameter to redis-rs's `#insecure` URL fragment, which needs
+  the `tls-rustls-insecure` feature. Details and the reproduction are in Q-208.
+
+- **Q-208 go-redis's `skip_verify` turns verification off, and the port now does
+  too (reproduced).** go-redis's `ParseURL` reads `skip_verify` only when the
+  scheme is `rediss://`, and reads it with its own rules: `true` and `1` are on,
+  `false`, `0` and an empty value are off, and anything else is the error
+  `redis: invalid skip_verify boolean`. `strconv.ParseBool` is not used.
+  go-redis's `ParseClusterURL` (`osscluster.go`) never reads `skip_verify`, so a
+  `rediss+cluster://` URL verifies whatever its query says; the port does the
+  same, since its cluster nodes are built without the query. Reproduced against
+  the TLS server with its CA not trusted (`SSL_CERT_FILE` unset): the default
+  fails with `UnknownIssuer`, and `?skip_verify=true` runs the whole suite to
+  seven of seven. The cluster rule is from the go-redis v9.18.0 source, not run.
+  The tests: `skip_verify_is_read_as_go_reads_it`,
+  `skip_verify_sets_the_insecure_mode_of_rediss_only` (mutation-checked: the
+  mapping removed fails it), and the TLS tests `tls_skip_verify_connects_to_a_self_signed_server`
+  (`REDIS_TLS_URI`) and `tls_verifies_the_server_by_default` (`REDIS_TLS_URI` and
+  `REDIS_TLS_UNTRUSTED`, which asserts the CA is not trusted).
+
+- **O-46 The Redis acceptance runs pass on Redis 8 and Kvrocks.** The
+  shared suite, the search, update and delete paths, and the time series paths
+  all run. The environment's Redis 7.0.15 has no modules, so it was not the
+  gate. `redis:8` (Redis 8.10.3, with the `search` and `timeseries` modules)
+  came from Docker Hub after one HTTP 429 retry. Each run was
+  `cargo test -p gorse-storage --features redis cache::redis`, and each passed
+  7 of 7:
+  - standalone, `REDIS_URI=redis://127.0.0.1:6391/`;
+  - a six-node Redis 8.10.3 cluster on the host network, ports 7001 to 7006,
+    one replica per primary, with `REDIS_URI=redis+cluster://127.0.0.1:7001`
+    and with the six-address `addr=` form the Go CI uses;
+  - `apache/kvrocks:nightly`, `REDIS_URI=redis://127.0.0.1:6666/`, which the
+    Go CI also runs.
+  A mutation check (the escape rule without `-`) made `escape_characters` fail,
+  then the file was restored.
+
+- **O-47 The Go CI's Redis jobs are covered for WP-2-5.** The standalone,
+  one-address cluster, six-address cluster and Kvrocks jobs in
+  `.github/workflows/build_test.yml` all run here (see O-46). The MariaDB job and
+  the rest of the Phase 2 exit gate belong to other work packages.
+
+## WP-2-11 meta store
+
+- **X-109 A nil `Params` encodes as `{}`, not `null`.** `Params` is a
+  `BTreeMap`, which has no nil. Go writes `"Params":null` for a model with nil
+  params (golden: `int_score`, `nil_params`). Both are read back the same by Go.
+  The golden test checks this case explicitly (`NIL_PARAMS`), it is not skipped.
+
+- **X-110 `ToJSON` returns `Result`.** Go's `lo.Must1` panics. The
+  error cases are a score that `encoding/json` refuses (a NaN) and
+  `ParamValue::Other`, which Gorse never stores. Phase 4 callers decide what to
+  do with the error.
+
+- **X-111 `FromJSON` matches JSON keys case-sensitively.** Go's
+  `json.Unmarshal` matches `"id"` to `ID` and `"type"` to `Type`. serde does not.
+  Go's own writer always writes the exact names, so the rows of both
+  implementations match.
+
+- **X-112 A type mismatch stops the decode.** Go's `json.Unmarshal` keeps
+  decoding the other fields and returns the first type error. The port stops
+  at the first error, so a partly-set model can differ from Go's after an error.
+
+- **X-113 Error texts are not Go's.** `encoding/json` texts (syntax, type
+  errors) are serde's and gojson's. The `Scan` failure keeps Go's text
+  (`Error::UnsupportedScan`). Only the error/no-error outcome is golden-checked.
+
+- **X-114 `Open` connects now; Go's `sql.Open` connects on first use.** An
+  unusable file fails at `Open` here, and at `Init` in Go. Both fail the same
+  start-up path.
+
+- **X-115 The DSN's query string is not parsed.** The file is the part
+  before any `?`. The busy timeout (10 s) and WAL mode are set on the
+  connection, as Go's `_pragma` parameters set them. No caller passes another
+  parameter (`master.go:287` passes none).
+
+- **X-116 One connection, not a pool.** Calls are serialised, where Go's
+  `database/sql` pool can run them in parallel. Results match; the node has
+  one meta writer, so nothing waits on the lock in practice.
+
+- **Q-209 `Equal` does not panic on slice parameters.** Go's `maps.Equal`
+  compares `any` values with `!=`, which panics when both sides hold the same
+  uncomparable type (for example two `[]int`). The port returns a value and
+  does not panic.
+
+- **O-48 Resolved by D-166.** The coordinator approved a `ParamValue`
+  variant that holds a JSON value (2026-10-28 12:00Z). The change is in
+  `crates/gorse-model-core/src/params.rs` (`ParamValue::Json`), with one case
+  added to `tests/params_go.rs` for the accessor mismatch.
+
+- **O-49 Phase 3 must give `cf.Score` and `ctr.Score` Go's encoding.**
+  `Model<T>` writes its `Score` with `jsonutil::marshal`, which matches Go for
+  numbers and strings, and reads it with serde. A struct score needs serde
+  renames that match Go's field names (Go has no tags here), and Go's
+  encoding of a `float64` field must be checked against the golden data then.
+
+- **O-50 Node JSON for the REST API is not defined here.** Go's `[]meta.Node` in
+  `master/rest.go` is the REST shape. `Node` has no serde impl; Phase 4 adds it
+  with Go's field names and RFC 3339 time text.
+
+- Evidence (the integrator's fold of the WP's tests): - Ported from Go, unchanged cases: `TestNodes`, `TestKeyValues` (`sqlite_test.rs`, each on a new SQLite file in a temp dir), `TestModel_Equal` (`database_test.rs`). - Golden, from Go 1.27.0: `golden_test.rs`, 7 tests (`round_trip_matches_go` added with D-166). - Mutation checks (sources restored after each): `float32` written as `float64` fails `to_json_matches_go`; the TTL sign dropped fails `test_nodes` and `go_written_rows_are_listed_and_pruned`; an unsorted object encoder fails `round_trip_matches_go`. - No test is ignored. SQLite is embedded, so no service is needed.
+
+## WP-1-18 dataset
+
+- **Q-210 `floats.FromAny` on an empty list.** An empty `[]any` label is
+  numeric (`FromAny` returns `([]uint16{}, true)`), so it becomes FP16 bits, not
+  an empty ID list. Reproduced by `floats_from_any`.
+
+- **Q-211 Negative `FreqDict` indices panic.** `String`, `Freq` and the lock
+  methods index with a negative `int32`, which panics in Go. Rust panics too.
+
+- **Q-212 `Index.Unmarshal` drops repeated names.** It rebuilds with `Add`, so
+  a name repeated in the file keeps its first position and the index can hold
+  fewer names than its count. This is in `contracts/model-blobs.md`.
+
+- **Q-213 `SampleUserNegatives` caches.** The first call's samples are kept
+  whatever `numCandidates` or the excluded split a later call passes.
+
+- **Q-214 `SplitCF` with `numTestUsers <= 0`** selects every user as a test
+  user, as `>= CountUsers()` does.
+
+- **Q-215 `GetItems` of a `UnifiedDirectIndex`** logs an empty warning. Ported
+  as `tracing::warn!("")`.
+
+- **Q-216 The error text `wrong foramt`** keeps Go's misspelling.
+
+- **Q-217 Ties in `SplitLatest`.** Go's `sort.Slice` is the pdqsort that
+  `sort.Sort` runs. Ported as `gosort::sort` over a `less`/`swap` adapter
+  (`LatestFirst`), so equal timestamps end where Go puts them.
+
+- **X-117 `FreqDict.ToIndex` copies.** Go's `Index` shares the dictionary's
+  map, so writes to the returned index reach the dictionary. Rust returns a copy.
+  Nothing in Go relies on that aliasing on the paths this crate serves.
+
+- **X-118 Splits and the built-in test set copy the dictionaries.** Go shares
+  `users`, `items`, `userDict` and `itemDict` between a dataset and its splits,
+  and `LoadDataFromBuiltIn` shares the training dictionaries with the test set.
+  Rust copies them: the same values, at the cost of memory. `loadTrain` adds
+  every integer ID from 0 up to the largest one it reads, so the shared dictionary
+  already holds those. The test set's `loadTest` adds to the dictionary only a
+  name beyond that range, or a name that is not an integer. Go would then add it to
+  the training dictionary too, and Rust would not. Whether the ml-1m files name
+  such an ID is unknown here (O-1).
+
+- **X-119 `FreqDict` locks are not `sync.Mutex`.** Each index has a flag under
+  a `Mutex` with a `Condvar`, so the lock can be taken and released in separate
+  calls from any thread, as Go's can. Unlocking an unlocked index panics, as Go's
+  fatal error does. A clone gets new, unlocked locks.
+
+- **X-120 Label ID order inside one map.** Go iterates a `map[string]any` in
+  random order, so the IDs of label strings under different keys of one map vary
+  between Go runs. Rust assigns them in insertion order. Go's order is not
+  defined, so Rust's is one valid order.
+
+- **X-121 `strutil.Pool` is dropped.** `processLabels` interns map keys
+  through a pool that returns an equal string. Rust keeps the key strings as they
+  are. No value differs.
+
+- **X-122 Malformed dataset lines are errors, not panics.** A line with too
+  few fields, an empty test line, or a user ID outside the `negatives` table made
+  Go index a slice out of range. Rust returns `TooFewFields`, `WrongFormat` or
+  `UserOutOfRange`. A test line whose user is not in the training set still
+  panics in `add_feedback`, as Go does, because the feedback table is too short.
+
+- **X-123 A negative length in a serialised index is an error.** Go's
+  `Unmarshal` calls `make([]string, 0, n)` and panics on a negative `n`.
+  `NegativeLength` is returned instead.
+
+- **X-124 `bufio.Scanner`'s 64 KB line limit is not reproduced.** Go's
+  loaders fail on a longer line (`ErrTooLong`). Rust's `BufRead::lines` reads it.
+
+- **X-125 Nil receivers are `Option`s.** Go's `*Index` may be nil and then
+  has length 0. Rust has no nil index, so `Option<&Index>` with `map_or(0, Index::len)`
+  stands in. `UnifiedIndex` nil is `Option::None` too.
+
+- **X-126 Traits and concrete types.** `CFSplit` and `CTRSplit` are Rust
+  traits (`CfSplit`, `CtrSplit`). `Dataset` implements `CfSplit`, and
+  `split_cf` and `split_latest` return `Dataset`s, which Go returns as the
+  interface. `UnifiedIndex` is an enum (`Map(Box<_>)` or `Direct`) rather than an
+  interface, so the type switch in `MarshalUnifiedIndex` is a match.
+
+- **X-127 Dataset labels.** Go's `data.User` and `data.Item` hold `any`
+  labels, which a dataset fills with label IDs, FP16 vectors and the rest. Rust
+  has `DatasetUser` and `DatasetItem` with a `Value` label. Go's `int` and
+  `int32` labels become `Float64` in Rust, since the storage `Labels` has no integer.
+
+- **X-128 Names.** Go's `ID` is `Id`, `NotId` is `NOT_ID`, `CFSplit` is
+  `CfSplit` and `CTRSplit` is `CtrSplit`, so clippy's acronym lint is quiet.
+  Go's `Get*` methods keep the `get_` prefix, as `gorse-model-core` does.
+
+- **X-129 Go `int` parameters.** `numTestUsers` and `shots` are `i64`, which
+  keeps the negative values that Go's `int` allows.
+
+- **O-51 `floats.FromAny` is not in `gorse-common`.** Go's `FromAny` takes any
+  slice by reflection. Only its `[]any` `float64` case is ported, as the private
+  `floats_from_any` in `gorse-dataset`, because `gorse_common::floats` belongs to
+  another WP. `worker/pipeline.go`, `logics/user_to_user.go` and
+  `logics/item_to_item.go` call `FromAny` too. Their WPs should move the full
+  function into `gorse_common::floats` and let this crate use it.
+
+- **O-52 `CtrSplit` has no implementation.** Its implementations are in
+  `model/ctr` (WP-3-2). The trait is ported so that WP can use it.
+
+- Tests (the integrator's fold of the WP's notes): - `dataset/dict_test.go`, `index_test.go`, `unified_index_test.go` and `dataset_test.go` are ported in `src/{dict,index,unified_index,dataset}/tests.rs`, case for case. `TestDataset_LoadMovieLens1M` is ignored (O-1: it downloads ml-1m from cdn.gorse.io, which this container cannot reach). - Extra tests, not in Go: `index_unmarshal_drops_repeated_names`, `index_unmarshal_rejects_negative_length`, `unified_index_nil_round_trip`, `unified_index_unknown_type_tag`, `load_train_and_test_read_ncf_files` and `load_test_rejects_a_line_without_parentheses`. They cover the error paths and the file parsers, which only the ignored test reaches in Go.
+
+- Gates on the merge: - `cargo fmt --all --check`: exit 0. - `cargo clippy --workspace --all-targets -- -D warnings`: exit 0. - `cargo test --workspace --no-fail-fast`: exit 0. `gorse_dataset` unit tests: 18 passed, 0 failed, 1 ignored (`dataset_load_movie_lens_1m`, O-1). - `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps`: exit 0. - `cd contracts/tools && go vet ./...`: exit 0.
+
+## WP-2-3 MongoDB data store
+
+- **Q-218 `GetFeedback` with neither bound finds nothing.** Go always sets
+  the `timestamp` condition, to an empty document when both `beginTime` and
+  `endTime` are nil. An empty document matches only a time stamp equal to `{}`.
+  Probe against the Go store (MongoDB 6): `GetFeedback(nil, nil)` returned 0
+  records, `GetFeedback(nil, ts)` returned 2. The port always sets the
+  condition, as Go does.
+
+- **Q-219 `GetItemStream` keeps items strictly after `timeLimit`.** Go uses
+  `$gt`, where the SQL store uses `time_stamp >= ?` (`storage/data/sql.go:952`).
+  Probe: a limit equal to a stored time excluded that item, an earlier limit
+  included it. The port uses `$gt`.
+
+- **Q-220 The three streams ignore the context.** They run on
+  `context.Background()` in Go. The port does too: cancelling `ctx` does not stop
+  `GetUserStream`, `GetItemStream` or `GetFeedbackStream`.
+
+- **Q-221 Scan loops ignore cursor errors.** Go's loops never check `r.Err()`
+  (except `SearchItems`), so a cursor error ends the rows silently. The port
+  does the same, and returns the cursor error from `SearchItems` only.
+
+- **Q-222 `Reconcile` rebuilds the text index on every call.** `listIndexes`
+  reports a text index with the keys `_fts` and `_ftsx`
+  (`contracts/schema/data/mongodb.search.json`). `mongoSearchIndexKeysMatch`
+  compares the expected `field: "text"` keys with those, so it never matches:
+  Go drops `gorse_search_index` and creates it again on every call. The port
+  does the same.
+
+- **Q-223 JSON number labels are stored as numbers, not text.** The Go
+  driver's `JSONNumberEncodeValue` writes a `json.Number` as an int64 when its
+  text parses as one, and as a double otherwise. Probe: `n: 3` read back as
+  `int64`. `Labels::Number` is written the same way (`number_to_bson`).
+
+- **Q-224 Feedback cursor JSON.** The cursor is the base64 of
+  `json.Marshal(FeedbackKey)`, which escapes `<`, `>`, `&`, U+2028 and U+2029.
+  The port writes it with `go_json_quote`, so the bytes match Go's.
+
+- **Q-225 Cursors accept non-zero trailing bits.** Go's `StdEncoding` decodes
+  `QR==` to `A`. The crate's `STANDARD` engine rejects it, so the port uses its
+  own engine with `decode_allow_trailing_bits` (`GO_STANDARD`).
+
+- **Q-226 Upserts write whole structs.** `BatchInsertUsers` and
+  `BatchInsertItems` `$set` the whole struct, so a nil slice is `null` and a
+  nil label is `null`. `BatchInsertFeedback` inserts users and items with
+  `$setOnInsert` of the whole struct, so a new item has `categories: null`,
+  `labels: null`, `comment: ""` and the zero time stamp.
+
+- **Q-227 Feedback merge.** With `overwrite` false, the upsert uses `$inc`
+  on `value`, `$min` on `timestamp`, `$max` on `updated`, and `$set` on `labels`
+  and `comment`. The port uses the same operators.
+
+- **Q-228 Field names.** Go's BSON codec lower-cases the field names, so the
+  documents use `userid`, `itemid`, `ishidden`, `updateat` and
+  `feedbackkey.{feedbacktype,userid,itemid}`. The port writes the same names in
+  the same order.
+
+- **X-130 No `bulk_write`.** The Rust driver's `bulk_write` needs MongoDB 8.0,
+  and this store runs on 6.0 too (`mongo:6` in `storage/docker-compose.yml`).
+  Each write is sent on its own, in order, and the first error stops the batch,
+  as Go's ordered bulk write does. Batches cost one round trip per row. This is
+  the cache store's choice too (`cache/mongodb.rs`).
+
+- **X-131 `GetItems` and `GetUsers` with `n = 0`.** Go reads `items[n-1]` when
+  the page is full, so `n = 0` panics on an empty collection. The port returns an
+  empty cursor.
+
+- **X-132 Labels of an array's elements.** Go's `unpack` does not unpack the
+  elements of an array. The port unpacks them too. `ValidateLabels` keeps array
+  elements to strings and numbers, so Go's output is the same for every label
+  Gorse accepts.
+
+- **X-133 Labels that are int32 or int64.** Go keeps the typed value. `Labels`
+  has no integer variant, so the port holds it as `Labels::Number` with the same
+  JSON text.
+
+- **X-134 Labels of other BSON types.** A date, an ObjectId or a binary in a
+  label returns a backend error. Go returns the typed value. Gorse never writes
+  these, so only a document from another program can hold one.
+
+- **X-135 `ErrNotFound` text.** Go wraps `storage.ErrNotFound` as
+  `item <id> not found`. The port returns the sentinel with `Error::kind()`
+  matching `errors.Is`. The message text is not kept, as WP-2-1's `Error` has no
+  wrapped-text variant.
+
+- **X-136 Cursor keys match case-sensitively.** Go's `json.Unmarshal` matches
+  the `FeedbackKey` keys without regard to case. The port's `serde` matches them
+  exactly. Go's own cursors always use the exact names.
+
+- **X-137 `Close` returns `Ok` after shutdown.** The driver's `shutdown` gives
+  no error, where Go's `Disconnect` can return one.
+
+- **O-53 MongoDB 8.0 is not tested.** The suite ran on MongoDB 6.0.x, the
+  version in `storage/docker-compose.yml` and the schema dumps. The batch writes
+  do not use `bulk_write`, so 8.0 should behave the same, but this is not run.
+
+- **O-54 (closed at merge) The trait doc for `get_item_stream` was wrong for both stores.** It
+  says the stream skips items stamped after `time_limit`. Go's Mongo keeps them
+  (Q-219), and the SQL store skips items stamped before it. The doc in
+  `data/mod.rs` now states Go's behaviour for each store.
+
+- **O-55 The `connect` option mapping is copied.** `driver_uri` (the Go
+  `connect=direct` and `connect=automatic` options) and the BSON date helpers
+  are private copies of the ones in `cache/mongodb.rs`. They can move to one
+  shared module once the two stores are merged.
+
+- **O-56 (closed at merge) No built-in registration yet.** `mongodb::register` registers the
+  creator for both prefixes, as Go's `init` does. `data::register_builtin`, added at the merge,
+  registers it under the `mongodb` feature, as `cache::register_builtin` does.
+
+- Oracle evidence (the thread's run against MongoDB 6.0.28 and the Go TestMongo): - Go `TestMongo` at add21b5 against `mongo:6` (`MONGO_URI=mongodb://root:password@127.0.0.1:27017/`): 13 subtests PASS (`TestBatchGetItems` through `TestUsers`). - Go writes, Rust reads (`gorse_interop_go`): the user, both items (including the nil categories and labels), the feedback with its labels, and the three counts match the Go values. - Rust writes, Go reads (`gorse_interop_rs`): the same records read back in Go with the same values; the counts are 1, 2 and 2.

@@ -493,7 +493,7 @@ impl Database for SqlDatabase {
 
 /// Registers the SQL backends in the data registry. Go registers them in
 /// `init`; a node calls this once on the registry it builds (D-126).
-pub fn register_builtin(registry: &mut Registry) {
+pub fn register(registry: &mut Registry) {
     use gorse_storage_core::scheme::{
         MYSQL_PREFIX, POSTGRES_PREFIX, POSTGRESQL_PREFIX, SQLITE_PREFIX,
     };

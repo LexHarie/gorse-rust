@@ -26,6 +26,8 @@ use gorse_storage_core::options::Opt;
 
 use types::{Feedback, Item, ItemPatch, ScoredItem, User, UserPatch};
 
+#[cfg(feature = "mongodb")]
+pub mod mongodb;
 pub mod no_database;
 /// The SQL stores (MySQL, PostgreSQL, SQLite). Go links all three drivers into
 /// every binary, so the store is built only when all three features are on.
@@ -324,8 +326,9 @@ pub trait Database: Send + Sync {
         ctx: &'a Context,
         batch_size: i64,
     ) -> BoxStream<'a, Result<Vec<User>, Error>>;
-    /// Streams the items in batches of `batch_size`, skipping those
-    /// stamped after `time_limit` when it is set.
+    /// Streams the items in batches of `batch_size`. With `time_limit` set, a
+    /// store keeps the items stamped after it (MongoDB, `$gt`) or at or after
+    /// it (SQL, `>=`), as each Go store does.
     fn get_item_stream<'a>(
         &'a self,
         ctx: &'a Context,
@@ -352,6 +355,20 @@ pub trait Database: Send + Sync {
 /// the cache registry is (D-151).
 pub type Creator =
     for<'a> fn(&'a str, &'a str, &'a [Opt]) -> BoxFuture<'a, Result<Box<dyn Database>, Error>>;
+
+/// Registers the data stores this build was compiled with. Go registers its
+/// creators in `init`; a node calls this once on the registry it builds.
+pub fn register_builtin(registry: &mut Registry) {
+    #[cfg(feature = "mongodb")]
+    mongodb::register(registry);
+    #[cfg(all(feature = "mysql", feature = "postgres", feature = "sqlite"))]
+    sql::register(registry);
+    #[cfg(not(any(
+        feature = "mongodb",
+        all(feature = "mysql", feature = "postgres", feature = "sqlite")
+    )))]
+    let _ = registry;
+}
 
 /// Go's package-level `creators` map and its `Register` and `Open` functions,
 /// as a value a node builds at start-up. Go registers creators in `init`.
