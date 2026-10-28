@@ -718,6 +718,10 @@ dependencies = [
  "gorse-model-core",
  "gorse-protocol",
  "gorse-storage-core",
+ "hex",
+ "tempfile",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]
