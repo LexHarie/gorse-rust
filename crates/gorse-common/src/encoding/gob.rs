@@ -16,6 +16,7 @@
 //! | `[]int` | `Vec<i64>` |
 //! | `[]float32` | `Vec<f32>` (vectors in `common/ann` HNSW indexes) |
 //! | `model.Params` (`map[ParamName]any`) | [`Params`] |
+//! | `time.Time` (a `GobEncoder`, `MarshalBinary` bytes) | [`Time`] |
 //!
 //! The decoder follows Go's decoder step by step: message framing, type
 //! definitions (including the ones Go sends in the middle of a value when an
@@ -30,6 +31,8 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
+
+use crate::gotime::Time;
 
 /// Ids of the predefined gob types (`type.go`).
 const T_BOOL: i32 = 1;
@@ -446,17 +449,25 @@ impl<'a> Decoder<'a> {
         Ok(v as f32)
     }
 
-    /// `decString`: a length (checked by `getLength`) and the bytes.
-    fn decode_string_bytes(&mut self, what: &str) -> Result<&'a [u8]> {
+    /// `getLength` and the bytes it counts. `None` when the length is
+    /// negative, at or above Go's limit, or longer than the rest of the
+    /// message.
+    fn take_length_bytes(&mut self) -> Result<Option<&'a [u8]>> {
         let n = self.decode_uint_as_int()?;
         let len = self.buf.len();
         let n = match usize::try_from(n) {
             Ok(n) if n <= len && (n as u64) < TOO_BIG => n,
-            _ => return Err(invalid(format_args!("bad {what} slice length: 0"))),
+            _ => return Ok(None),
         };
         let (bytes, rest) = self.buf.split_at(n);
         self.buf = rest;
-        Ok(bytes)
+        Ok(Some(bytes))
+    }
+
+    /// `decString`: a length (checked by `getLength`) and the bytes.
+    fn decode_string_bytes(&mut self, what: &str) -> Result<&'a [u8]> {
+        self.take_length_bytes()?
+            .ok_or_else(|| invalid(format_args!("bad {what} slice length: 0")))
     }
 
     fn decode_string(&mut self, what: &str) -> Result<String> {
@@ -945,6 +956,15 @@ fn encode_slice_type(b: &mut Vec<u8>, id: i32, elem: i32) {
     encode_uint(b, 0);
 }
 
+/// `wireType{GobEncoderT: &gobEncoderType{CommonType{Name: name, Id: id}}}`.
+fn encode_gob_encoder_type(b: &mut Vec<u8>, name: &str, id: i32) {
+    encode_uint(b, 5);
+    encode_uint(b, 1);
+    encode_common_type(b, name, id);
+    encode_uint(b, 0);
+    encode_uint(b, 0);
+}
+
 /// `CommonType` of a definition: `Name` when not empty, then `Id`.
 fn encode_common_type(b: &mut Vec<u8>, name: &str, id: i32) {
     if name.is_empty() {
@@ -972,6 +992,7 @@ mod sealed {
     impl Sealed for Vec<i64> {}
     impl Sealed for Vec<f32> {}
     impl Sealed for super::Params {}
+    impl Sealed for crate::gotime::Time {}
 }
 
 /// A Rust type that stands for one Go type of the subset. Implemented for the
@@ -1169,6 +1190,42 @@ impl GobValue for Params {
     }
     fn decode_body(dec: &mut Decoder<'_>, _: &str) -> Result<Self> {
         dec.decode_params()
+    }
+}
+
+/// `time.Time` as a `GobEncoder`: its `MarshalBinary` bytes, length-prefixed,
+/// in the value's message.
+impl GobValue for Time {
+    const GO_TYPE: &'static str = "time.Time";
+    fn send_type(enc: &mut Encoder, b: &mut Vec<u8>) -> Result<i32> {
+        enc.define(b, Self::GO_TYPE, |b, id| {
+            encode_gob_encoder_type(b, "Time", id)
+        })
+    }
+    fn encode_body(&self, _: &mut Encoder, b: &mut Vec<u8>) -> Result<()> {
+        // Go sends the MarshalBinary error as it is, without the "gob: " prefix.
+        let data = self
+            .marshal_binary()
+            .map_err(|e| Error::Invalid(e.to_string()))?;
+        encode_uint(b, data.len() as u64);
+        b.extend_from_slice(&data);
+        Ok(())
+    }
+    fn compatible(dec: &Decoder<'_>, wire_id: i32) -> bool {
+        dec.wire_types
+            .get(&wire_id)
+            .is_some_and(|w| w.gob_encoder.is_some())
+    }
+    fn decode_body(dec: &mut Decoder<'_>, _: &str) -> Result<Self> {
+        let data = dec
+            .take_length_bytes()?
+            .ok_or_else(|| invalid("GobDecoder: length too large for buffer"))?;
+        let mut t = Time::default();
+        // Go returns the UnmarshalBinary error as it is, without the "gob: "
+        // prefix.
+        t.unmarshal_binary(data)
+            .map_err(|e| Error::Invalid(e.to_string()))?;
+        Ok(t)
     }
 }
 

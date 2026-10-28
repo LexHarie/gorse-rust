@@ -1234,6 +1234,7 @@ dependencies = [
  "futures-util",
  "gorse-common",
  "gorse-config",
+ "gorse-logics",
  "gorse-storage",
  "gorse-storage-core",
  "indexmap",
@@ -1282,6 +1283,10 @@ dependencies = [
  "gorse-dataset",
  "gorse-storage",
  "gorse-storage-core",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

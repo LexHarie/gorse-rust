@@ -37,6 +37,7 @@ import (
 	"os/exec"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/gorse-io/gorse/common/encoding"
 	"github.com/gorse-io/gorse/model"
@@ -179,7 +180,65 @@ func specs() []spec {
 			model.HiddenLayers: []int{8}, model.InitStdDev: float32(0.001),
 		}, false),
 	)
+	for i, t := range []time.Time{
+		time.Date(2026, 10, 28, 12, 0, 0, 123456789, time.UTC),
+		time.Date(1969, 7, 20, 20, 17, 40, 1, time.FixedZone("CET", 3600)),
+		{},
+		time.Unix(1700000000, 500).In(time.FixedZone("", -(5*3600 + 1800))),
+	} {
+		s = append(s, timeSpec("time "+strconv.Itoa(i), t))
+	}
 	return s
+}
+
+// timeSpec is a time.Time. Its gob value is the GobEncode bytes, which are
+// MarshalBinary's, so the golden value is that encoding.
+func timeSpec(name string, t time.Time) spec {
+	return spec{name: name, kind: "time", value: timeHex(t), describe: timeHex(t), deterministic: true,
+		write: func(w *bytes.Buffer) error { return encoding.WriteGob(w, t) }}
+}
+
+func timeHex(t time.Time) string {
+	b, err := t.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(b)
+}
+
+// timeDate is the GobEncode data (MarshalBinary) of a UTC time.
+func timeDate(year int, month time.Month, day, hour, min, sec, nsec int) []byte {
+	b, err := time.Date(year, month, day, hour, min, sec, nsec, time.UTC).MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+// gobStream is the gob stream of v, without the WriteGob length prefix.
+func gobStream(v any) string {
+	var b bytes.Buffer
+	if err := gob.NewEncoder(&b).Encode(v); err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(b.Bytes())
+}
+
+// timeDefinition is the definition message Go sends for time.Time when it is
+// the first user type: -64 (0x7f), then a GobEncoderT named "Time" with id 64.
+const timeDefinition = "0f7f0501010454696d6501ff80000000"
+
+// timeStream is a gob stream of a time.Time whose value message says the
+// GobEncode data is n bytes long and carries data. Only the length and the
+// data vary; the layout is checked against Go's own stream in decodeCases.
+func timeStream(n int, data []byte) string {
+	body := append([]byte{0xff, 0x80, 0x00, byte(n)}, data...)
+	message := append([]byte{byte(len(body))}, body...)
+	definition, err := hex.DecodeString(timeDefinition)
+	if err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(append(definition, message...))
 }
 
 func run(i int) string {
@@ -282,6 +341,14 @@ func decodeCases(renumberedHex string) []DecodeCase {
 		// Written by the Rust encoder (gorse_common::encoding::gob::encode):
 		// eleven entries in key order, one of each value type.
 		{Name: "rust encoder: params", Target: "params", Hex: rustParams},
+		// time.Time, a GobEncoder. These come last: decoding a time.Time makes
+		// its id a process-wide name, which changes the errors of later cases.
+		{Name: "time.Time into int64", Target: "int64", Hex: timeStream(15, timeDate(2026, 10, 28, 12, 0, 0, 123456789))},
+		{Name: "time stream into time", Target: "time", Hex: timeStream(15, timeDate(2026, 10, 28, 12, 0, 0, 123456789))},
+		{Name: "time with no data", Target: "time", Hex: timeStream(0, nil)},
+		{Name: "time with unsupported version", Target: "time", Hex: timeStream(1, []byte{9})},
+		{Name: "time with invalid length", Target: "time", Hex: timeStream(2, []byte{1, 0})},
+		{Name: "time length exceeds data", Target: "time", Hex: timeStream(5, []byte{1, 0})},
 	}
 	for i := range cases {
 		decodeOne(&cases[i])
@@ -333,6 +400,10 @@ func decodeOne(c *DecodeCase) {
 		var v []float32
 		err = dec.Decode(&v)
 		value = f32s(v)
+	case "time":
+		var v time.Time
+		err = dec.Decode(&v)
+		value = timeHex(v)
 	case "params":
 		var v model.Params
 		err = dec.Decode(&v)
