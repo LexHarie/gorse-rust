@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-7, WP-1-9, WP-1-10, WP-1-13, WP-1-14, WP-1-19. WP-1-11 part 1 (math32) merged; part 2 (nn) is in its own thread. WP-1-15: TOML, dotenv and config.go merged (D-78, D-82 to D-90); YAML part in its own thread (X-47); YAML part in its own thread, config core here. WP-1-6, WP-1-8 and WP-1-12 run in parallel threads (D-26). WP-1-16 to WP-1-18 follow WP-1-8 and WP-1-15. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-7, WP-1-9, WP-1-10, WP-1-13, WP-1-14, WP-1-19. WP-1-11 part 1 (math32) merged; part 2 (nn) is in its own thread. WP-1-15: TOML, dotenv, config.go and YAML merged (D-78, D-82 to D-95). Open: the log placeholder until WP-1-8 (X-48); config.schema.json and config.keys.md not generated (X-49); YAML part in its own thread, config core here. WP-1-6, WP-1-8 and WP-1-12 run in parallel threads (D-26). WP-1-16 to WP-1-18 follow WP-1-8 and WP-1-15. All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
@@ -785,6 +785,36 @@ or accepts a metric gap outside the Go tests' own tolerances.
 - **D-90 The TOML `TestUnmarshal` case runs from the text.** Go re-encodes the
   text through `yj` before decoding. The port decodes the text directly. The
   result is the same.
+
+- **D-91** (replaced the adapter): the WIP adapter over yaml-rust2
+  (e5f9b7d) is gone. The port follows yaml.v3's pipeline stage by stage:
+  readerc.go, scannerc.go, parserc.go, the composer, decode.go and resolve.go.
+  The adapter gave 518 golden mismatches (error texts, marks, the depth-255
+  limit that yaml.v3 does not have). yaml-rust2 is not in the workspace or the
+  lock. No crate-selection row named it, so none needs removing.
+
+- **D-92** (value model, accepted by the integrator): `decode` returns
+  `gorse_config::value::Map`, the model the TOML and dotenv decoders and the
+  config loader use. `gojson` stays JSON-only. The coordinator's earlier
+  `gorse_common::gojson::Value` note was a guess, not a requirement.
+
+- **D-93** (deep nesting, accepted): the conversion from decoded Go values to
+  `Value` (`formats/yaml.rs`, `value()`) grows the stack with
+  `stacker::maybe_grow`, as the composer does. Without it, a 9990-deep document
+  overflowed a 2 MiB thread. stacker is the crate-selection row's choice
+  (0.1.25, latest). The row now says the YAML path uses it too.
+
+- **D-94** (test thread, accepted): `golden_cases` replays on a 512 MiB
+  thread. Depth-10000 cases overflow a default test thread in debug builds.
+
+- **D-95** (iterative drop): `impl Drop for Value` (`value.rs`) moves each
+  container's children onto one stack and drops them in a loop, so dropping a
+  deep value does not recurse. The TOML decoder's `drop_deep` helper is gone,
+  since the `Drop` does its job for every caller. The two test-only helpers of
+  the same name (`toml_deep.rs`, `toml_golden.rs`) are removed, and their call
+  sites call `drop`. Matching a `Value` by value no longer compiles, so those
+  matches borrow instead (`toml.rs` `unmarshal`, `viper.rs` `insensitivise_val`,
+  `dotenv_golden.rs`); behaviour is unchanged.
 
 ## Open questions for Ritchie
 

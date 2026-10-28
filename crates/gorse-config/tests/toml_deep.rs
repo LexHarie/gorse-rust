@@ -20,19 +20,6 @@ fn serial() -> MutexGuard<'static, ()> {
     LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// Drops a decoded map without recursing (the compiler's drop of a `Value`
-/// recurses once per level).
-fn drop_deep(m: Map) {
-    let mut stack: Vec<Value> = m.into_iter().map(|(_, v)| v).collect();
-    while let Some(v) = stack.pop() {
-        match v {
-            Value::Slice(items) => stack.extend(items),
-            Value::Map(m) => stack.extend(m.into_iter().map(|(_, v)| v)),
-            _ => {}
-        }
-    }
-}
-
 /// The value under `key`, which must be the map's only key.
 fn only<'m>(m: &'m Map, key: &str) -> &'m Value {
     assert_eq!(m.keys().collect::<Vec<_>>(), vec![key]);
@@ -61,7 +48,7 @@ fn decode_ok(doc: &str) -> Map {
 fn decode_err(doc: &str) -> Error {
     match toml::unmarshal(doc.as_bytes()) {
         Ok(m) => {
-            drop_deep(m);
+            drop(m);
             panic!("decoded")
         }
         Err(err) => err,
@@ -91,7 +78,7 @@ fn deep_arrays() {
         }
     }
     assert_eq!(v, &Value::Slice(Vec::new()));
-    drop_deep(m);
+    drop(m);
 }
 
 #[test]
@@ -101,7 +88,7 @@ fn deep_inline_tables() {
     let m = decode_ok(&doc);
     let v = descend_maps(only(&m, "a"), "a", N);
     assert_eq!(v, &Value::Int64(1));
-    drop_deep(m);
+    drop(m);
 }
 
 #[test]
@@ -121,7 +108,7 @@ fn deep_arrays_of_inline_tables() {
         }
     }
     assert_eq!(v, &Value::Int64(1));
-    drop_deep(m);
+    drop(m);
 }
 
 #[test]
@@ -134,7 +121,7 @@ fn long_dotted_keys() {
         Value::Map(inner) => assert_eq!(only(inner, "b"), &Value::Int64(1)),
         other => panic!("{other:?}"),
     }
-    drop_deep(m);
+    drop(m);
 
     let doc = format!("x={{{}b=1}}", "a.".repeat(N));
     let m = decode_ok(&doc);
@@ -143,7 +130,7 @@ fn long_dotted_keys() {
         Value::Map(inner) => assert_eq!(only(inner, "b"), &Value::Int64(1)),
         other => panic!("{other:?}"),
     }
-    drop_deep(m);
+    drop(m);
 }
 
 #[test]
@@ -169,7 +156,7 @@ fn long_table_keys() {
         }
         other => panic!("{other:?}"),
     }
-    drop_deep(m);
+    drop(m);
 }
 
 #[test]
@@ -245,5 +232,5 @@ fn deeper_than_go_stack_limit() {
         }
     }
     assert_eq!(depth, n);
-    drop_deep(m);
+    drop(m);
 }

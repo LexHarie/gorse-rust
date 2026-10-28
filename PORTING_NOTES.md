@@ -791,6 +791,25 @@ said otherwise), so the Rust result is Go's.
 - **Durations** are integer nanoseconds in the JSON form and Go duration strings
   in TOML.
 
+### YAML decoder (WP-1-15, yaml.v3 port)
+
+- **Q-147**: an unmarshal error for a `!!map` or `!!seq` tag includes the raw
+  value text, as yaml.v3's `terror` does (`decoder.rs`). Four golden error
+  texts depend on it.
+
+- **Q-148**: a latched scanner error is reported on parser entry and again
+  after the state machine, which is yaml.v3's `peek` behaviour (`parser.rs`).
+
+- **Q-149**: a reader error is raised only when the scanner needs characters
+  past the decoded window. Decoding keeps the characters before that window
+  (`reader.rs`, `scanner.rs` `ensure`).
+
+- **Q-150**: a scanner error message gets one extra line, as yaml.v3's
+  `fail()` gives it.
+
+- **Q-151**: comment marks decide where BLOCK-END tokens fall
+  (`scanner.rs` `unroll_indent`). Ported as in `scannerc.go`.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -1025,10 +1044,9 @@ said otherwise), so the Rust result is Go's.
   exporter from `TracingConfig`. No work package in `porting/work-packages.md`
   owns tracing. See O-17, and its decision there.
 
-- **X-47 YAML cases are ignored**, with `#[ignore = "needs WP-1-15 yaml"]`:
-  `config::tests::test_unmarshal_yaml` and the golden `load_yaml_cases`. The
-  YAML decoder is `formats::yaml::decode(&[u8]) -> Result<Map, String>`, already
-  dispatched at `viper.rs:146`. Un-ignore both when the YAML branch merges.
+- **X-47 YAML cases were ignored, now un-ignored: closed.** `config::tests::test_unmarshal_yaml`
+  and the golden `load_yaml_cases` ran as ignored until the YAML decoder merged
+  (WP-1-15, YAML part). They pass now.
 
 - **X-48 Log output is missing** until WP-1-8 merges (D-84).
 
@@ -1036,6 +1054,16 @@ said otherwise), so the Rust result is Go's.
   generated** by this port. They come from `contracts/tools/configschema`
   (`jsonschema` reflection and the walk over `GetDefaultConfig`). WP-1-15's
   acceptance names only `meta-config.*.json` and `config.toml`.
+
+### YAML decoder (WP-1-15, yaml.v3 port)
+
+- **X-50** (non-UTF-8 bytes): a Go string is bytes. Only a `!!binary`
+  scalar, or a percent-escape in a tag, can make it non-UTF-8. Rust `String`
+  cannot hold those bytes, so each run of invalid bytes becomes one U+FFFD
+  (`lossy_runs`). Tags use `from_utf8_lossy`. In the golden, 33 cases differed
+  only in their `hex` and `k_hex` fields, which give the raw bytes. The replay
+  therefore compares the lossy text and does not compare those two fields.
+  Checked by stripping `hex` from the Go outcome and comparing the rest.
 
 ## Open questions
 
@@ -1081,6 +1109,9 @@ said otherwise), so the Rust result is Go's.
   and mapstructure's decoding recurse too. The viper part of WP-1-15 should
   decide whether `Value` (shared `value.rs`) gets an iterative `Drop`; the
   tests here drop iteratively.
+  Closed on 2026-10-28: `Value` now has an iterative `Drop` (D-95, the YAML
+  merge). viper's merging and mapstructure's decoding still recurse per level;
+  O-20 tracks that.
 
 - **O-9 `gostrconv::parse_float` and Go's 800-digit decimal: closed.**
   The go1.27 port (D-52) reproduces `decimal.set`'s point placement, so the
@@ -1122,3 +1153,18 @@ said otherwise), so the Rust result is Go's.
   drafts, to keep that change to the bug fix (C-26).
 
 - **O-17 Who owns `NewTracerProvider`?** Decided by the integrator on 2026-10-28. The Go method is `config/config.go:596`, and its call sites are `server/server.go:257` (WP-4-3) and `master/master.go:123` (the master work package after WP-4-3). The exporter is ported with the first of those work packages, into a tracing module of `gorse-config`, and no WP is assigned before then. Still open.
+
+- **O-18**: yaml.v3 compacts its token queue when the backing array is
+  full. `scan_comments` looks at `tokens[len-2]`, so in rare cases Go could
+  see a different token. Not emulated. No golden case has shown it.
+
+- **O-19**: `is_bom` checks the BOM at the start of the decode window
+  (`buffer_start`). yaml.v3's `is_bom` reads `buffer[0..3]` and ignores its
+  index argument, so the two agree only when the window starts at the stream
+  start. No golden case differs.
+
+- **O-20** (not exercised): the derived `Clone`, `PartialEq` and `Debug` of
+  `Value` still recurse once per level, and so do `viper.rs`'s
+  `insensitivise_val` and `cast_to_string_map`, which clones values. A
+  10000-deep config could overflow there. No test here exercises that, and it
+  is not changed here.

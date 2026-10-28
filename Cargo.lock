@@ -473,6 +473,7 @@ dependencies = [
  "md-5",
  "regex",
  "serde_json",
+ "sha2",
  "stacker",
  "thiserror",
 ]

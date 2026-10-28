@@ -273,19 +273,24 @@ fn insensitivise_map(m: &mut Map) {
 
 /// `insensitiviseVal`: maps (after `cast.ToStringMap`) and the maps in slices
 /// are lower-cased; other values are kept.
-fn insensitivise_val(val: Value) -> Value {
-    match val {
+fn insensitivise_val(mut val: Value) -> Value {
+    match &mut val {
         Value::AnyMap(entries) => {
-            let mut m = cast_to_string_map(&entries);
+            let mut m = cast_to_string_map(entries);
             insensitivise_map(&mut m);
             Value::Map(m)
         }
-        Value::Map(mut m) => {
-            insensitivise_map(&mut m);
-            Value::Map(m)
+        Value::Map(m) => {
+            insensitivise_map(m);
+            val
         }
-        Value::Slice(items) => Value::Slice(items.into_iter().map(insensitivise_val).collect()),
-        other => other,
+        Value::Slice(items) => Value::Slice(
+            std::mem::take(items)
+                .into_iter()
+                .map(insensitivise_val)
+                .collect(),
+        ),
+        _ => val,
     }
 }
 

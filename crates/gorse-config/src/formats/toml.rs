@@ -89,8 +89,8 @@ pub fn unmarshal(input: &[u8]) -> Result<Map, Error> {
     let result = d.decode(&mut root);
     let err = match result {
         Ok(()) => {
-            return match root {
-                Value::Map(m) => Ok(m),
+            return match &mut root {
+                Value::Map(m) => Ok(std::mem::take(m)),
                 // The decoder only changes the entries of the root map.
                 other => unreachable!("the root became a {}", other.type_name()),
             };
@@ -100,28 +100,7 @@ pub fn unmarshal(input: &[u8]) -> Result<Map, Error> {
         }
         Err(DecoderError::Other(text)) => Error::Other(text),
     };
-    // What was decoded before the error may nest deeply.
-    drop_deep(root);
     Err(err)
-}
-
-/// Drops `v` without recursing: the compiler's drop of a [`Value`] recurses
-/// once per level of nesting, Go's garbage collector does not.
-fn drop_deep(v: Value) {
-    let mut stack = vec![v];
-    while let Some(v) = stack.pop() {
-        match v {
-            Value::Slice(items) => stack.extend(items),
-            Value::Map(m) | Value::Struct(_, m) => stack.extend(m.into_iter().map(|(_, v)| v)),
-            Value::AnyMap(entries) => {
-                for (k, v) in entries {
-                    stack.push(k);
-                    stack.push(v);
-                }
-            }
-            _ => {}
-        }
-    }
 }
 
 /// viper's TOML codec: `toml.Unmarshal(b, &v)` into a `map[string]any`, or

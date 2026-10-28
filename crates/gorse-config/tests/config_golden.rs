@@ -8,8 +8,7 @@
 //! over the default config, then `Validate`); the hash cases; and the default
 //! config's JSON.
 //!
-//! Load cases whose file is YAML wait for the YAML decoder and are run by the
-//! ignored test [`load_yaml_cases`].
+//! Load cases whose file is YAML are run by `load_yaml_cases`.
 
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
@@ -339,7 +338,6 @@ fn load_cases_match_go() {
 }
 
 #[test]
-#[ignore = "needs WP-1-15 yaml"]
 fn load_yaml_cases() {
     let failures = check_load_cases(true);
     assert!(

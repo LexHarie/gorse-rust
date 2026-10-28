@@ -57,6 +57,38 @@ pub enum Value {
     Struct(&'static str, Map),
 }
 
+impl Drop for Value {
+    /// Drops the nested values without recursion. The drop glue recurses once
+    /// per level, and a document can nest 10000 levels, which overflows a
+    /// 2 MiB stack in a debug build. Each container's children move onto
+    /// `pending`, and the loop drops them one at a time. A value taken this way
+    /// has no children left, so its own drop returns at once.
+    fn drop(&mut self) {
+        let mut pending = Vec::new();
+        take_children(self, &mut pending);
+        while let Some(mut v) = pending.pop() {
+            take_children(&mut v, &mut pending);
+        }
+    }
+}
+
+/// Moves the values `v` holds into `out`, leaving `v` with none.
+fn take_children(v: &mut Value, out: &mut Vec<Value>) {
+    match v {
+        Value::Slice(items) => out.append(items),
+        Value::Map(m) | Value::Struct(_, m) => {
+            out.extend(std::mem::take(&mut m.0).into_iter().map(|(_, v)| v));
+        }
+        Value::AnyMap(entries) => {
+            for (k, v) in std::mem::take(entries) {
+                out.push(k);
+                out.push(v);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// go-toml's `LocalDate`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LocalDate {
@@ -347,5 +379,35 @@ impl IntoIterator for Map {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A value nested `depth` levels deep, alternating slices and maps.
+    fn nested(depth: usize) -> Value {
+        let mut v = Value::Nil;
+        for i in 0..depth {
+            v = if i % 2 == 0 {
+                Value::Slice(vec![v])
+            } else {
+                Value::Map(Map::from(vec![("k".to_string(), v)]))
+            };
+        }
+        v
+    }
+
+    /// Dropping a 10000-deep value must not recurse. The drop glue alone
+    /// overflows a 2 MiB stack at this depth in a debug build.
+    #[test]
+    fn deep_value_drops_on_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(2 << 20)
+            .spawn(|| drop(nested(10_000)))
+            .expect("spawn the test thread")
+            .join()
+            .expect("drop the nested value");
     }
 }

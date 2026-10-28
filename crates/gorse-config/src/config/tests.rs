@@ -318,10 +318,8 @@ fn test_unmarshal_json() {
     assert_unmarshal_config(&config);
 }
 
-/// The YAML encoding of `TestUnmarshal`; needs the YAML decoder (WP-1-15, the
-/// YAML part).
+/// The YAML encoding of `TestUnmarshal`.
 #[test]
-#[ignore = "needs WP-1-15 yaml"]
 fn test_unmarshal_yaml() {
     isolate_root();
     let text = golden_load_text("TestUnmarshal yaml");
