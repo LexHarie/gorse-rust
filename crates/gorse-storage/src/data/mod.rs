@@ -26,6 +26,8 @@ use gorse_storage_core::options::Opt;
 
 use types::{Feedback, Item, ItemPatch, ScoredItem, User, UserPatch};
 
+#[cfg(feature = "mongodb")]
+pub mod mongodb;
 pub mod no_database;
 pub mod types;
 
