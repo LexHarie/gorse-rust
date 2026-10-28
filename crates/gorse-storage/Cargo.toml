@@ -59,7 +59,7 @@ s3 = ["dep:object_store", "dep:bytes", "object_store/aws"]
 gcs = ["dep:object_store", "dep:bytes", "object_store/gcp"]
 azure = ["dep:object_store", "dep:bytes", "object_store/azure"]
 mongodb = ["dep:mongodb", "dep:base64"]
-mysql = ["dep:sqlx", "sqlx/mysql", "dep:base64"]
+mysql = ["dep:sqlx", "sqlx/mysql", "sqlx/mysql-rsa", "dep:base64"]
 postgres = ["dep:sqlx", "sqlx/postgres", "dep:base64"]
 sqlite = ["dep:sqlx", "sqlx/sqlite", "dep:libsqlite3-sys", "dep:base64"]
 

@@ -1390,6 +1390,18 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
 - **D-181 `AssertSqlSafe` and the audit.** See D-178. No request data is ever written into SQL text. Every user value is bound.
 
+- **D-182 A pre-release RSA crate for MySQL cold logins (integrator).** The
+  `mysql` feature enables `sqlx/mysql-rsa` (X-144, which matches Go's cold
+  `caching_sha2_password` login over plain TCP). That feature pulls `rsa`
+  0.10.0-rc.19, a pre-release, with its `pkcs1`, `pkcs8` and `crypto-bigint` 0.7
+  line, and the lock moves `ctutils` 0.4.3 to 0.4.6. The latest-stable rule cannot
+  hold on this path: `rsa` 0.10.0-rc.19 is the newest release of the 0.10 line on
+  the index, and sqlx 0.9.0 requires it. The client only encrypts the password with
+  the server's public key and never decrypts with a private key, so the timing
+  issue in the 0.9 line (RUSTSEC-2023-0071) is not on this path. Accepted as a
+  logged deviation (X-153). Revisit when `rsa` 0.10 has a stable release, and run
+  `cargo audit` when it is installed.
+
 ## Open questions for Ritchie
 
 - **Datasets.** The network policy of this environment blocks

@@ -2205,14 +2205,23 @@ said otherwise), so the Rust result is Go's.
 - **X-143 One SQLite connection.** Go's pool of connections is one connection
   behind a mutex. Writes serialise; reads see the same data.
 
-- **X-144 MySQL full authentication over plaintext.** MySQL 8 authenticates
-  `caching_sha2_password` over TCP in full only when TLS is on or the server's public
-  key is fetched (sqlx's `mysql-rsa` feature). The port does not enable `mysql-rsa`.
-  A login succeeds only when the server's authentication cache is warm. After the
-  MySQL container restarted during this merge, every login from the test failed with
-  `RSA auth backend disabled` until a login from inside the container, requesting the
-  public key, warmed the cache. Go's driver covers the same case with TLS or its
-  `allowPublicKeyRetrieval` DSN option; that was not re-run here to confirm.
+- **X-144 MySQL full authentication over plaintext (resolved, matches Go).** On a
+  non-TLS connection, `caching_sha2_password` full authentication needs the server's
+  public key. Go's driver requests it (`go-sql-driver/mysql` v1.9.3, `auth.go`, request
+  byte `0x02`) and encrypts the password with it. Go connects to a freshly started MySQL
+  8.0.46 with the Gorse DSN and no TLS, cold: `cache.Open` on
+  `mysql://root:password@tcp(127.0.0.1:3306)/` returns, and `TestMySQL` passes. The port
+  did not: without `mysql-rsa` sqlx fails with `RSA auth backend disabled`. The `mysql`
+  feature now enables `sqlx/mysql-rsa`, which requests the key the same way (sqlx-mysql
+  `connection/auth.rs`). `mysql_cold_full_authentication_connects` creates a fresh
+  account, so its first login is the cold full authentication, and drops the account.
+- **X-153 Pre-release RSA dependency (D-182).** `mysql-rsa` pulls `rsa` 0.10.0-rc.19, and its
+  `pkcs1`, `pkcs8` and `crypto-bigint` 0.7 line, all pre-release. `rsa` 0.10.0-rc.19 is the
+  newest release on the index, and sqlx 0.9.0 requires that line, so the latest-stable rule
+  cannot be met on this path. Enabling it also moved `ctutils` 0.4.3 to 0.4.6 (the latest
+  0.4.x) in the lock: `crypto-bigint` 0.7 needs `ctutils` 0.4.5 or newer, and the locked
+  0.4.3 could not satisfy both. `libsqlite3-sys` is still one copy (0.37.0). `cargo audit`
+  was not run here.
 
 - **Q-229 Schema equality.** The tables this store creates are not compared
   with `contracts/schema/cache/{mysql,postgres,sqlite}.sql`. WP-2-13 owns that
@@ -2223,14 +2232,13 @@ said otherwise), so the Rust result is Go's.
 - **Q-231 Shared glue.** WP-2-2 may land its own `sqlconn`. Reconcile at merge
   (D-174).
 
-- **Q-232 MySQL auth parity (X-144).** Decide between enabling `mysql-rsa` and
-  reading `allowPublicKeyRetrieval`, which the DSN parser would then have to accept
-  instead of setting it as a session variable, or keeping the port TLS-only. Until
-  then the MySQL store needs TLS on the server or a warm authentication cache.
+- **Q-232 MySQL auth parity (X-144).** Resolved by the coordinator's decision: match Go.
+  The `mysql` feature enables `sqlx/mysql-rsa`; see X-144.
+
 
 - Go oracle: `go test` on `storage/cache` at add21b5 passes against MySQL 8.0.46, PostgreSQL 10.0 and SQLite, with `MYSQL_URI` and `POSTGRES_URI` set.
 
-- `MYSQL_URI=... POSTGRES_URI=... cargo test -p gorse-storage --features mysql,postgres,sqlite cache::sql`: 9 passed, 0 failed, 0 ignored. The MySQL and Postgres suites run against the live servers (no skips).
+- `MYSQL_URI=... POSTGRES_URI=... cargo test -p gorse-storage --features mysql,postgres,sqlite cache::sql`: 10 passed, 0 failed, 0 ignored. The MySQL and Postgres suites run against the live servers (no skips).
 
 - `cargo clippy -p gorse-storage` with `-D warnings` is clean for: no features, `sqlite`, `mysql`, `postgres`, `mongodb`, `mongodb,mysql`, and all three.
 

@@ -1612,6 +1612,50 @@ mod tests {
         assert_eq!(json_string_array(&[]), "[]");
     }
 
+    /// A MySQL account nobody has logged in to, so its first login is the full
+    /// `caching_sha2_password` authentication over plaintext with no warm server
+    /// cache. Go's `TestMySQL` makes the same first login (X-144, Q-232).
+    #[cfg(feature = "mysql")]
+    #[tokio::test]
+    async fn mysql_cold_full_authentication_connects() {
+        let Some(dsn) = dsn_from_env("MYSQL_URI") else {
+            eprintln!("skipped: MYSQL_URI is not set");
+            return;
+        };
+        let body = dsn
+            .strip_prefix(MYSQL_PREFIX)
+            .expect("MYSQL_URI has the mysql:// prefix");
+        let (_, address) = body.split_once('@').expect("MYSQL_URI names a host");
+        let account = format!("gorse_cold_{}", std::process::id());
+        let mut admin = mysql_admin_connection(body).await;
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "DROP USER IF EXISTS '{account}'@'%'"
+        )))
+        .execute(&mut admin)
+        .await
+        .unwrap();
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "CREATE USER '{account}'@'%' IDENTIFIED WITH caching_sha2_password BY 'cold-pass'"
+        )))
+        .execute(&mut admin)
+        .await
+        .unwrap();
+        let cold = format!("{MYSQL_PREFIX}{account}:cold-pass@{address}");
+        let outcome = match SqlDatabase::mysql(&cold, "gorse_", &[]) {
+            Ok(db) => {
+                let outcome = db.ping().await;
+                db.close().await.unwrap();
+                outcome
+            }
+            Err(err) => Err(err),
+        };
+        sqlx::query(sqlx::AssertSqlSafe(format!("DROP USER '{account}'@'%'")))
+            .execute(&mut admin)
+            .await
+            .unwrap();
+        outcome.unwrap();
+    }
+
     /// The MySQL suite. Go's `MySQLTestSuite.TestInit` reads back the isolation
     /// level the connection was opened with.
     #[cfg(feature = "mysql")]
