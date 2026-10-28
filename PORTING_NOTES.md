@@ -2171,3 +2171,73 @@ said otherwise), so the Rust result is Go's.
   registers it under the `mongodb` feature, as `cache::register_builtin` does.
 
 - Oracle evidence (the thread's run against MongoDB 6.0.28 and the Go TestMongo): - Go `TestMongo` at add21b5 against `mongo:6` (`MONGO_URI=mongodb://root:password@127.0.0.1:27017/`): 13 subtests PASS (`TestBatchGetItems` through `TestUsers`). - Go writes, Rust reads (`gorse_interop_go`): the user, both items (including the nil categories and labels), the feedback with its labels, and the three counts match the Go values. - Rust writes, Go reads (`gorse_interop_rs`): the same records read back in Go with the same values; the counts are 1, 2 and 2.
+
+## WP-2-6 SQL cache store
+
+- Categories are written with Go's `json.Marshal` escapes: `<`, `>`, `&`, U+2028 and U+2029 become `<`, `>`, `&`, ` ` and ` `.
+
+- SQLite timestamps are written as `time.Time.String()`, including the sub-second digits Go keeps.
+
+- `Purge` keeps `time_series_points` (Go quirk, D-172).
+
+- An empty `AddScores` returns nil without a query.
+
+- **X-138 DSN options with no effect.** Timeouts, `charset` and `loc` are
+  parsed and ignored. Unknown parameters become session variables, as Go's driver
+  does.
+
+- **X-139 TLS.** `sqlx`'s default TLS differs from `lib/pq`'s
+  `sslmode=require`. The DSN `tls` values map as follows: `""` and `false` mean
+  disabled, `preferred` means preferred, `skip-verify` means required without
+  verification, and `true` means verify identity. A registered TLS configuration
+  is an error, not a silent plain connection.
+
+- **X-140 Sub-microsecond timestamps.** Postgres rounds in `lib/pq`; `sqlx`
+  truncates. Postgres numerics are bound as their shortest decimal text, as
+  `lib/pq` does.
+
+- **X-141 Buffered scans.** `scan` and `scan_scores` read all rows before the
+  first callback, and check the context before each callback. Go streams rows.
+
+- **X-142 NULL decodes to zero.** A NULL in a non-pointer column reads as the
+  zero value, as Go's scan does.
+
+- **X-143 One SQLite connection.** Go's pool of connections is one connection
+  behind a mutex. Writes serialise; reads see the same data.
+
+- **X-144 MySQL full authentication over plaintext.** MySQL 8 authenticates
+  `caching_sha2_password` over TCP in full only when TLS is on or the server's public
+  key is fetched (sqlx's `mysql-rsa` feature). The port does not enable `mysql-rsa`.
+  A login succeeds only when the server's authentication cache is warm. After the
+  MySQL container restarted during this merge, every login from the test failed with
+  `RSA auth backend disabled` until a login from inside the container, requesting the
+  public key, warmed the cache. Go's driver covers the same case with TLS or its
+  `allowPublicKeyRetrieval` DSN option; that was not re-run here to confirm.
+
+- **Q-229 Schema equality.** The tables this store creates are not compared
+  with `contracts/schema/cache/{mysql,postgres,sqlite}.sql`. WP-2-13 owns that
+  check.
+
+- **Q-230 rusqlite version.** Resolved by D-160: keep 0.39.0.
+
+- **Q-231 Shared glue.** WP-2-2 may land its own `sqlconn`. Reconcile at merge
+  (D-174).
+
+- **Q-232 MySQL auth parity (X-144).** Decide between enabling `mysql-rsa` and
+  reading `allowPublicKeyRetrieval`, which the DSN parser would then have to accept
+  instead of setting it as a session variable, or keeping the port TLS-only. Until
+  then the MySQL store needs TLS on the server or a warm authentication cache.
+
+- Go oracle: `go test` on `storage/cache` at add21b5 passes against MySQL 8.0.46, PostgreSQL 10.0 and SQLite, with `MYSQL_URI` and `POSTGRES_URI` set.
+
+- `MYSQL_URI=... POSTGRES_URI=... cargo test -p gorse-storage --features mysql,postgres,sqlite cache::sql`: 9 passed, 0 failed, 0 ignored. The MySQL and Postgres suites run against the live servers (no skips).
+
+- `cargo clippy -p gorse-storage` with `-D warnings` is clean for: no features, `sqlite`, `mysql`, `postgres`, `mongodb`, `mongodb,mysql`, and all three.
+
+- `cargo fmt --all --check` is clean.
+
+- `cargo clippy --workspace --all-targets -- -D warnings` is clean.
+
+- `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` is clean.
+
+- `MYSQL_URI=... POSTGRES_URI=... cargo test --workspace --no-fail-fast`: 905 passed, 0 failed, 13 ignored. The ignored tests are the dataset tests that need `cdn.gorse.io`, `math32_exhaustive` and `deeper_than_go_stack_limit` (release only, about 5 GB), and the two `godebug_child` tests, which their parent tests run. The Redis and MongoDB suites return early without `REDIS_URI` or `MONGO_URI`, so this gate does not exercise them.

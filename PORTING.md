@@ -30,7 +30,7 @@ Every Rust module names the Go files it ports with a
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-18, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); the frozen config.schema.json and config.keys.md match a fresh run of the Go generator byte for byte (X-49, closed 2026-10-28). WP-1-18 (dataset) is merged: Q-210 to Q-217, X-117 to X-129, O-51 and O-52 open, and the ml-1m test is ignored (O-1). Every Phase 1 WP is merged. All in `porting/work-packages.md` |
-| 2. Storage | in progress | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-3 (MongoDB data store, feature `mongodb`, MongoDB 6.0.28; O-53 open for 8.0; the `get_item_stream` doc is corrected, O-54). WP-2-11 (meta store, SQLite through rusqlite 0.39.0, D-160 to D-166; O-48 closed, O-49 and O-50 open for Phases 3 and 4). WP-2-2, 2-6, 2-9, 2-12, 2-13 not merged |
+| 2. Storage | in progress | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-3 (MongoDB data store, feature `mongodb`, MongoDB 6.0.28; O-53 open for 8.0; the `get_item_stream` doc is corrected, O-54). WP-2-11 (meta store, SQLite through rusqlite 0.39.0, D-160 to D-166; O-48 closed, O-49 and O-50 open for Phases 3 and 4). WP-2-6 (SQL cache store: MySQL and Postgres on sqlx 0.9.0, SQLite on rusqlite 0.39.0; D-167 to D-175; Q-232 MySQL auth open). WP-2-2, 2-9, 2-12, 2-13 not merged |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
@@ -1304,6 +1304,50 @@ or accepts a metric gap outside the Go tests' own tolerances.
   `json.Marshal`. The accessors treat it as a type mismatch, as Go's do for a
   `[]any`. Golden: `round_trip_matches_go` (8 cases, Go's bytes), and
   `from_json_matches_go` compares the array values too.
+
+- **D-167 Drivers.** MySQL and Postgres run on `sqlx` 0.9.0 with explicit SQL
+  per dialect. SQLite runs on `rusqlite` on `tokio`'s blocking pool, behind
+  `Arc<Mutex<Option<Connection>>>`; the mutex is held only inside the blocking
+  closure, never across an `.await`. The trait is the async D-122 trait.
+
+- **D-168 rusqlite is 0.39.0, not the latest 0.41.0.** `sqlx` 0.9.0 (the
+  latest) resolves `sqlx-sqlite`, which needs `libsqlite3-sys` below 0.38. The
+  `links = "sqlite3"` rule allows one `libsqlite3-sys` per graph, so `rusqlite`
+  0.41 cannot resolve with it. This departs from the latest-versions rule for
+  `rusqlite` only. Ruled by D-160 (integrator). After the merge of f74ce29b the
+  `sqlite` feature is empty, since the meta store links `rusqlite` unconditionally.
+
+- **D-169 SQL is written out per dialect.** The statements copy the ones GORM
+  issues: `ON DUPLICATE KEY UPDATE ... VALUES()` on MySQL, `ON CONFLICT ... DO
+  UPDATE SET ... excluded.x` on Postgres and SQLite, `JSON_CONTAINS` on MySQL and
+  SQLite (a deterministic `json_contains` registered on each SQLite connection,
+  Q-25), and `@>` on Postgres `text[]`.
+
+- **D-170 Init is not GORM AutoMigrate.** Init runs `CREATE TABLE IF NOT
+  EXISTS` for the three tables, and on MySQL `ALTER TABLE ... ADD INDEX`, ignoring
+  duplicate-index error 1061 as Go does. MariaDB cannot index `CAST(... AS CHAR
+  ARRAY)`, so that index is skipped there as in Go. Postgres adds `btree_gin` and a
+  GIN index on `(collection, subset, categories)`. Column alterations that GORM
+  would make on an existing table are not reproduced.
+
+- **D-171 Categories.** A nil list writes NULL; an empty list writes `"[]"` on
+  MySQL and SQLite and `'{}'` on Postgres. An empty patch writes `"[]"`.
+
+- **D-172 Purge.** Purge deletes values and documents only. Time-series points
+  survive, as in Go.
+
+- **D-173 Pool.** `ApplySQLPool` sets the maximum open connections and the
+  connection lifetime. Go's `MaxIdleConns` has no sqlx counterpart and is read and
+  dropped. When no maximum is set, sqlx uses its default of 10; Go's default is
+  unlimited.
+
+- **D-174 Connection glue.** `sqlconn` holds the MySQL DSN parsing, the
+  per-connection session variables, the pool options and `json_contains`. The SQL
+  data store (WP-2-2) shares it; reconcile at merge if that store lands its own.
+
+- **D-175 Async registry creators.** The integrator applied D-151 on integration
+  (1a14f9c, D-157). The SQL creators use the async `Creator` and register in
+  `cache::register_builtin`, which the merge commit wires.
 
 ## Open questions for Ritchie
 
