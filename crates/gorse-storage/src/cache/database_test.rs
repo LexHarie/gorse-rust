@@ -40,6 +40,20 @@ pub async fn run(db: &dyn Database) {
     test_timestamp_precision(db).await;
 }
 
+/// Runs the cases of Go's proxy suite (`storage/cache/proxy_test.go`): every
+/// case of [`run`] except `TestInit`, `TestPurge` and `TestScan`, which Go
+/// skips there because the proxy client refuses `Init`, `Purge` and `Scan`.
+/// The cases keep the order of [`run`].
+pub(crate) async fn run_through_proxy(db: &dyn Database) {
+    test_meta(db).await;
+    test_exists(db).await;
+    test_document(db).await;
+    test_subset_document(db).await;
+    test_scan_scores(db).await;
+    test_time_series(db).await;
+    test_timestamp_precision(db).await;
+}
+
 /// Go's `SetupTest`: pings the store and purges it.
 async fn setup(db: &dyn Database) {
     db.ping().await.unwrap();

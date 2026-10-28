@@ -5,8 +5,16 @@
 //! and a timestamp, and the [`Database`] trait every store implements.
 //!
 //! The `xvec://` store is ported as Rust's own file format ([`xvec`], see
-//! `PORTING.md` D-6). Qdrant, Milvus and Weaviate arrive with WP-2-9.
+//! `PORTING.md` D-6). The network stores are `qdrant` (feature `qdrant`),
+//! `milvus` (feature `milvus`) and `weaviate` (feature `weaviate`).
 
+#[cfg(feature = "milvus")]
+pub mod milvus;
+pub mod proxy;
+#[cfg(feature = "qdrant")]
+pub mod qdrant;
+#[cfg(feature = "weaviate")]
+pub mod weaviate;
 pub mod xvec;
 
 #[cfg(test)]
@@ -22,7 +30,13 @@ use gorse_common::gocontext::{Context, ContextError};
 use gorse_common::gotime::Time;
 use gorse_storage_core::errors::Error as StorageError;
 use gorse_storage_core::options::Opt;
+#[cfg(feature = "milvus")]
+use gorse_storage_core::scheme::MILVUS_PREFIX;
+#[cfg(feature = "qdrant")]
+use gorse_storage_core::scheme::QDRANT_PREFIX;
 use gorse_storage_core::scheme::XVEC_PREFIX;
+#[cfg(feature = "weaviate")]
+use gorse_storage_core::scheme::{WEAVIATE_PREFIX, WEAVIATES_PREFIX};
 
 /// Go's `Distance`: how similarity between two vectors is measured.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -226,6 +240,16 @@ pub(crate) fn not_found(name: &str) -> Error {
     }
 }
 
+#[cfg(any(feature = "milvus", feature = "qdrant", feature = "weaviate"))]
+/// Go's `fmt.Errorf("... %w", storage.ErrNotSupported)`: the text Go wraps around
+/// the sentinel, which `errors.Is` finds.
+pub(crate) fn not_supported(message: &str) -> Error {
+    Error::Storage {
+        kind: StorageError::NotSupported,
+        message: format!("{message} {}", StorageError::NotSupported),
+    }
+}
+
 /// Go's `storage.ErrAlreadyExists` wrapped as `collection <name> already exists`.
 pub(crate) fn already_exists(name: &str) -> Error {
     Error::Storage {
@@ -390,6 +414,18 @@ pub async fn open(
     // The xvec store takes no options: exact search has no job count and no
     // index to skip (`PORTING_NOTES.md` X-WP28-2).
     let _ = opts;
+    #[cfg(feature = "qdrant")]
+    if path.starts_with(QDRANT_PREFIX) {
+        return Ok(Box::new(qdrant::connect(path)?));
+    }
+    #[cfg(feature = "milvus")]
+    if path.starts_with(MILVUS_PREFIX) {
+        return Ok(Box::new(milvus::connect(path)?));
+    }
+    #[cfg(feature = "weaviate")]
+    if path.starts_with(WEAVIATE_PREFIX) || path.starts_with(WEAVIATES_PREFIX) {
+        return Ok(Box::new(weaviate::connect(path)?));
+    }
     match path.strip_prefix(XVEC_PREFIX) {
         Some(root) => {
             let (root, table_prefix) = (root.to_owned(), table_prefix.to_owned());
