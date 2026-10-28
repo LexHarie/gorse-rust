@@ -15,7 +15,6 @@
 //! window that holds the error; the scanner raises the error when it needs a
 //! character past them.
 
-
 /// libyaml's `input_raw_buffer_size`: the raw bytes one refill reads.
 const RAW_BUFFER_SIZE: usize = 512;
 
@@ -65,7 +64,11 @@ pub(crate) fn decode(input: &[u8]) -> Decoded {
             match decode_one(input, pos, window_end, encoding) {
                 Step::Char(value, width) => {
                     if !allowed(value) {
-                        return failed(chars, "control characters are not allowed", window_start_chars);
+                        return failed(
+                            chars,
+                            "control characters are not allowed",
+                            window_start_chars,
+                        );
                     }
                     chars.push(if value == 0x85 { '\n' } else { char_of(value) });
                     pos += width;
@@ -100,7 +103,10 @@ pub(crate) fn decode(input: &[u8]) -> Decoded {
 
 fn failed(mut chars: Vec<char>, problem: &'static str, at: usize) -> Decoded {
     chars.truncate(at);
-    Decoded { chars, error: Some((problem, at)) }
+    Decoded {
+        chars,
+        error: Some((problem, at)),
+    }
 }
 
 enum Step {

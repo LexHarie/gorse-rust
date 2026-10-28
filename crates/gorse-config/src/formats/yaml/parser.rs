@@ -8,9 +8,10 @@
 //! its error texts and marks.
 //!
 //! yaml.v3's parser also attaches comments to events; comments never change
-//! what the decoder produces, so the port leaves them out (the scanner of
-//! `yaml-rust2` drops them). yaml.v3 emits a TAIL-COMMENT event only for
-//! comments, so it never appears here either.
+//! what the decoder produces, so the port leaves them out: the scanner keeps
+//! the comment marks that place block-end tokens, and nothing else. yaml.v3
+//! emits a TAIL-COMMENT event only for comments, so it never appears here
+//! either.
 
 use super::scanner::{ErrorKind, Mark, ScalarStyle, Scanner, SyntaxError, Token, TokenKind};
 
@@ -91,11 +92,21 @@ pub(crate) struct Parser {
 type ParseResult = Result<Event, SyntaxError>;
 
 fn parser_error(problem: &str, problem_mark: Mark) -> SyntaxError {
-    SyntaxError { kind: ErrorKind::Parser, problem: problem.to_owned(), context_mark: Mark::default(), problem_mark }
+    SyntaxError {
+        kind: ErrorKind::Parser,
+        problem: problem.to_owned(),
+        context_mark: Mark::default(),
+        problem_mark,
+    }
 }
 
 fn parser_error_context(context_mark: Mark, problem: &str, problem_mark: Mark) -> SyntaxError {
-    SyntaxError { kind: ErrorKind::Parser, problem: problem.to_owned(), context_mark, problem_mark }
+    SyntaxError {
+        kind: ErrorKind::Parser,
+        problem: problem.to_owned(),
+        context_mark,
+        problem_mark,
+    }
 }
 
 fn event(kind: EventKind, start: Mark) -> Event {
@@ -105,7 +116,12 @@ fn event(kind: EventKind, start: Mark) -> Event {
 /// `yaml_parser_process_empty_scalar`.
 fn empty_scalar(mark: Mark) -> ParseResult {
     Ok(event(
-        EventKind::Scalar { anchor: None, tag: String::new(), value: String::new(), style: ScalarStyle::Plain },
+        EventKind::Scalar {
+            anchor: None,
+            tag: String::new(),
+            value: String::new(),
+            style: ScalarStyle::Plain,
+        },
         mark,
     ))
 }
@@ -202,7 +218,10 @@ impl Parser {
     fn parse_stream_start(&mut self) -> ParseResult {
         let token = self.peek()?;
         if token.kind != TokenKind::StreamStart {
-            return Err(parser_error("did not find expected <stream-start>", token.start));
+            return Err(parser_error(
+                "did not find expected <stream-start>",
+                token.start,
+            ));
         }
         self.state = State::ImplicitDocumentStart;
         self.skip();
@@ -220,7 +239,10 @@ impl Parser {
         }
         let directive_or_start = matches!(
             token.kind,
-            TokenKind::VersionDirective(..) | TokenKind::TagDirective(..) | TokenKind::DocumentStart | TokenKind::StreamEnd
+            TokenKind::VersionDirective(..)
+                | TokenKind::TagDirective(..)
+                | TokenKind::DocumentStart
+                | TokenKind::StreamEnd
         );
         if implicit && !directive_or_start {
             // Parse an implicit document.
@@ -234,7 +256,10 @@ impl Parser {
             self.process_directives()?;
             let token = self.peek()?;
             if token.kind != TokenKind::DocumentStart {
-                return Err(parser_error("did not find expected <document start>", token.start));
+                return Err(parser_error(
+                    "did not find expected <document start>",
+                    token.start,
+                ));
             }
             self.states.push(State::DocumentEnd);
             self.state = State::DocumentContent;
@@ -319,45 +344,101 @@ impl Parser {
                     tag = format!("{prefix}{suffix}");
                 }
                 if tag.is_empty() {
-                    return Err(parser_error_context(start_mark, "found undefined tag handle", tag_mark));
+                    return Err(parser_error_context(
+                        start_mark,
+                        "found undefined tag handle",
+                        tag_mark,
+                    ));
                 }
             }
         }
 
         if indentless_sequence && token.kind == TokenKind::BlockEntry {
             self.state = State::IndentlessSequenceEntry;
-            return Ok(event(EventKind::SequenceStart { anchor, tag, flow: false }, start_mark));
+            return Ok(event(
+                EventKind::SequenceStart {
+                    anchor,
+                    tag,
+                    flow: false,
+                },
+                start_mark,
+            ));
         }
         match token.kind {
             TokenKind::Scalar(value, style) => {
                 self.pop_state();
                 self.skip();
-                Ok(event(EventKind::Scalar { anchor, tag, value, style }, start_mark))
+                Ok(event(
+                    EventKind::Scalar {
+                        anchor,
+                        tag,
+                        value,
+                        style,
+                    },
+                    start_mark,
+                ))
             }
             TokenKind::FlowSequenceStart => {
                 self.state = State::FlowSequenceFirstEntry;
-                Ok(event(EventKind::SequenceStart { anchor, tag, flow: true }, start_mark))
+                Ok(event(
+                    EventKind::SequenceStart {
+                        anchor,
+                        tag,
+                        flow: true,
+                    },
+                    start_mark,
+                ))
             }
             TokenKind::FlowMappingStart => {
                 self.state = State::FlowMappingFirstKey;
-                Ok(event(EventKind::MappingStart { anchor, tag, flow: true }, start_mark))
+                Ok(event(
+                    EventKind::MappingStart {
+                        anchor,
+                        tag,
+                        flow: true,
+                    },
+                    start_mark,
+                ))
             }
             TokenKind::BlockSequenceStart if block => {
                 self.state = State::BlockSequenceFirstEntry;
-                Ok(event(EventKind::SequenceStart { anchor, tag, flow: false }, start_mark))
+                Ok(event(
+                    EventKind::SequenceStart {
+                        anchor,
+                        tag,
+                        flow: false,
+                    },
+                    start_mark,
+                ))
             }
             TokenKind::BlockMappingStart if block => {
                 self.state = State::BlockMappingFirstKey;
-                Ok(event(EventKind::MappingStart { anchor, tag, flow: false }, start_mark))
+                Ok(event(
+                    EventKind::MappingStart {
+                        anchor,
+                        tag,
+                        flow: false,
+                    },
+                    start_mark,
+                ))
             }
             _ if anchor.is_some() || !tag.is_empty() => {
                 self.pop_state();
                 Ok(event(
-                    EventKind::Scalar { anchor, tag, value: String::new(), style: ScalarStyle::Plain },
+                    EventKind::Scalar {
+                        anchor,
+                        tag,
+                        value: String::new(),
+                        style: ScalarStyle::Plain,
+                    },
                     start_mark,
                 ))
             }
-            _ => Err(parser_error_context(start_mark, "did not find expected node content", token.start)),
+            _ => Err(parser_error_context(
+                start_mark,
+                "did not find expected node content",
+                token.start,
+            )),
         }
     }
 
@@ -386,7 +467,11 @@ impl Parser {
             return Ok(event(EventKind::SequenceEnd, token.start));
         }
         let context_mark = self.pop_mark();
-        Err(parser_error_context(context_mark, "did not find expected '-' indicator", token.start))
+        Err(parser_error_context(
+            context_mark,
+            "did not find expected '-' indicator",
+            token.start,
+        ))
     }
 
     fn parse_indentless_sequence_entry(&mut self) -> ParseResult {
@@ -395,7 +480,10 @@ impl Parser {
             let mark = token.end;
             self.skip();
             let token = self.peek()?;
-            if !matches!(token.kind, TokenKind::BlockEntry | TokenKind::Key | TokenKind::Value | TokenKind::BlockEnd) {
+            if !matches!(
+                token.kind,
+                TokenKind::BlockEntry | TokenKind::Key | TokenKind::Value | TokenKind::BlockEnd
+            ) {
                 self.states.push(State::IndentlessSequenceEntry);
                 return self.parse_node(true, false);
             }
@@ -417,7 +505,10 @@ impl Parser {
             let mark = token.end;
             self.skip();
             let token = self.peek()?;
-            if !matches!(token.kind, TokenKind::Key | TokenKind::Value | TokenKind::BlockEnd) {
+            if !matches!(
+                token.kind,
+                TokenKind::Key | TokenKind::Value | TokenKind::BlockEnd
+            ) {
                 self.states.push(State::BlockMappingValue);
                 return self.parse_node(true, true);
             }
@@ -431,7 +522,11 @@ impl Parser {
             return Ok(event(EventKind::MappingEnd, token.start));
         }
         let context_mark = self.pop_mark();
-        Err(parser_error_context(context_mark, "did not find expected key", token.start))
+        Err(parser_error_context(
+            context_mark,
+            "did not find expected key",
+            token.start,
+        ))
     }
 
     fn parse_block_mapping_value(&mut self) -> ParseResult {
@@ -440,7 +535,10 @@ impl Parser {
             let mark = token.end;
             self.skip();
             let token = self.peek()?;
-            if !matches!(token.kind, TokenKind::Key | TokenKind::Value | TokenKind::BlockEnd) {
+            if !matches!(
+                token.kind,
+                TokenKind::Key | TokenKind::Value | TokenKind::BlockEnd
+            ) {
                 self.states.push(State::BlockMappingKey);
                 return self.parse_node(true, true);
             }
@@ -465,13 +563,24 @@ impl Parser {
                     token = self.peek()?;
                 } else {
                     let context_mark = self.pop_mark();
-                    return Err(parser_error_context(context_mark, "did not find expected ',' or ']'", token.start));
+                    return Err(parser_error_context(
+                        context_mark,
+                        "did not find expected ',' or ']'",
+                        token.start,
+                    ));
                 }
             }
             if token.kind == TokenKind::Key {
                 self.state = State::FlowSequenceEntryMappingKey;
                 self.skip();
-                return Ok(event(EventKind::MappingStart { anchor: None, tag: String::new(), flow: true }, token.start));
+                return Ok(event(
+                    EventKind::MappingStart {
+                        anchor: None,
+                        tag: String::new(),
+                        flow: true,
+                    },
+                    token.start,
+                ));
             } else if token.kind != TokenKind::FlowSequenceEnd {
                 self.states.push(State::FlowSequenceEntry);
                 return self.parse_node(false, false);
@@ -485,7 +594,10 @@ impl Parser {
 
     fn parse_flow_sequence_entry_mapping_key(&mut self) -> ParseResult {
         let token = self.peek()?;
-        if !matches!(token.kind, TokenKind::Value | TokenKind::FlowEntry | TokenKind::FlowSequenceEnd) {
+        if !matches!(
+            token.kind,
+            TokenKind::Value | TokenKind::FlowEntry | TokenKind::FlowSequenceEnd
+        ) {
             self.states.push(State::FlowSequenceEntryMappingValue);
             return self.parse_node(false, false);
         }
@@ -500,7 +612,10 @@ impl Parser {
         if token.kind == TokenKind::Value {
             self.skip();
             token = self.peek()?;
-            if !matches!(token.kind, TokenKind::FlowEntry | TokenKind::FlowSequenceEnd) {
+            if !matches!(
+                token.kind,
+                TokenKind::FlowEntry | TokenKind::FlowSequenceEnd
+            ) {
                 self.states.push(State::FlowSequenceEntryMappingEnd);
                 return self.parse_node(false, false);
             }
@@ -529,13 +644,20 @@ impl Parser {
                     token = self.peek()?;
                 } else {
                     let context_mark = self.pop_mark();
-                    return Err(parser_error_context(context_mark, "did not find expected ',' or '}'", token.start));
+                    return Err(parser_error_context(
+                        context_mark,
+                        "did not find expected ',' or '}'",
+                        token.start,
+                    ));
                 }
             }
             if token.kind == TokenKind::Key {
                 self.skip();
                 token = self.peek()?;
-                if !matches!(token.kind, TokenKind::Value | TokenKind::FlowEntry | TokenKind::FlowMappingEnd) {
+                if !matches!(
+                    token.kind,
+                    TokenKind::Value | TokenKind::FlowEntry | TokenKind::FlowMappingEnd
+                ) {
                     self.states.push(State::FlowMappingValue);
                     return self.parse_node(false, false);
                 }
@@ -581,7 +703,10 @@ impl Parser {
                         return Err(parser_error("found duplicate %YAML directive", token.start));
                     }
                     if *major != 1 || *minor != 1 {
-                        return Err(parser_error("found incompatible YAML document", token.start));
+                        return Err(parser_error(
+                            "found incompatible YAML document",
+                            token.start,
+                        ));
                     }
                     version_seen = true;
                 }
@@ -599,14 +724,21 @@ impl Parser {
     }
 
     /// `yaml_parser_append_tag_directive`.
-    fn append_tag_directive(&mut self, handle: &str, prefix: &str, allow_duplicates: bool, mark: Mark) -> Result<(), SyntaxError> {
+    fn append_tag_directive(
+        &mut self,
+        handle: &str,
+        prefix: &str,
+        allow_duplicates: bool,
+        mark: Mark,
+    ) -> Result<(), SyntaxError> {
         if self.tag_directives.iter().any(|(h, _)| h == handle) {
             if allow_duplicates {
                 return Ok(());
             }
             return Err(parser_error("found duplicate %TAG directive", mark));
         }
-        self.tag_directives.push((handle.to_owned(), prefix.to_owned()));
+        self.tag_directives
+            .push((handle.to_owned(), prefix.to_owned()));
         Ok(())
     }
 }

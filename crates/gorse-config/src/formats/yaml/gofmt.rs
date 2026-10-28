@@ -165,7 +165,12 @@ pub(crate) fn format_float_g(v: f64) -> String {
         // Digit `i` of the number, counting from the first significant one
         // at position `dp - 1` before the point.
         let dp = exp + 1;
-        let digit = |i: i32| usize::try_from(i).ok().and_then(|i| digits.get(i)).map_or('0', |&b| char::from(b));
+        let digit = |i: i32| {
+            usize::try_from(i)
+                .ok()
+                .and_then(|i| digits.get(i))
+                .map_or('0', |&b| char::from(b))
+        };
         if dp > 0 {
             out.extend((0..dp).map(digit));
         } else {
@@ -262,7 +267,10 @@ fn decode_quantum(dst: &mut Vec<u8>, src: &[u8], mut si: usize) -> (usize, bool)
         dlen = j;
         break;
     }
-    let val = (u32::from(dbuf[0]) << 18) | (u32::from(dbuf[1]) << 12) | (u32::from(dbuf[2]) << 6) | u32::from(dbuf[3]);
+    let val = (u32::from(dbuf[0]) << 18)
+        | (u32::from(dbuf[1]) << 12)
+        | (u32::from(dbuf[2]) << 6)
+        | u32::from(dbuf[3]);
     let bytes = [(val >> 16) as u8, (val >> 8) as u8, val as u8];
     // StdEncoding is not strict: the unused bits are not checked.
     dst.extend_from_slice(&bytes[..dlen - 1]);

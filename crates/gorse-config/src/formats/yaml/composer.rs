@@ -62,7 +62,8 @@ impl Tree {
     pub(crate) fn indicated_string(&self, id: NodeId) -> bool {
         let n = self.node(id);
         n.kind == Kind::Scalar
-            && (short_tag(&n.tag) == STR_TAG || ((n.tag.is_empty() || n.tag == "!") && n.style.quoted_or_block))
+            && (short_tag(&n.tag) == STR_TAG
+                || ((n.tag.is_empty() || n.tag == "!") && n.style.quoted_or_block))
     }
 
     /// `(*Node).ShortTag`. Alias cycles cannot occur here: an alias names a
@@ -77,7 +78,9 @@ impl Tree {
                 Kind::Mapping => MAP_TAG.to_owned(),
                 Kind::Sequence => SEQ_TAG.to_owned(),
                 Kind::Alias => n.alias.map(|a| self.short_tag(a)).unwrap_or_default(),
-                Kind::Scalar => resolve("", &n.value).map(|(tag, _)| tag).unwrap_or_default(),
+                Kind::Scalar => resolve("", &n.value)
+                    .map(|(tag, _)| tag)
+                    .unwrap_or_default(),
                 Kind::Document => String::new(),
             };
         }
@@ -87,7 +90,9 @@ impl Tree {
     /// `isMerge`.
     pub(crate) fn is_merge(&self, id: NodeId) -> bool {
         let n = self.node(id);
-        n.kind == Kind::Scalar && n.value == "<<" && (n.tag.is_empty() || n.tag == "!" || short_tag(&n.tag) == MERGE_TAG)
+        n.kind == Kind::Scalar
+            && n.value == "<<"
+            && (n.tag.is_empty() || n.tag == "!" || short_tag(&n.tag) == MERGE_TAG)
     }
 
     /// Whether a node is a null for `prepare` and the mapping value rule:
@@ -121,7 +126,12 @@ type Compose<T> = Result<T, ComposeError>;
 
 impl Composer {
     pub(crate) fn new(parser: Parser) -> Self {
-        Composer { parser, event: None, tree: Tree::default(), anchors: HashMap::new() }
+        Composer {
+            parser,
+            event: None,
+            tree: Tree::default(),
+            anchors: HashMap::new(),
+        }
     }
 
     /// `newParser(...).parse()` for the root: the tree and its root node, or
@@ -139,20 +149,30 @@ impl Composer {
             // yaml_parser_parse yields no event after the stream end; yaml.v3
             // then sees yaml_NO_EVENT, which no caller expects.
             let e = self.parser.parse()?;
-            self.event = Some(e.unwrap_or(Event { kind: EventKind::StreamEnd, start: Default::default() }));
+            self.event = Some(e.unwrap_or(Event {
+                kind: EventKind::StreamEnd,
+                start: Default::default(),
+            }));
         }
         // Set just above.
-        self.event.as_ref().ok_or_else(|| ComposeError::Fail("internal error: no event".to_owned()))
+        self.event
+            .as_ref()
+            .ok_or_else(|| ComposeError::Fail("internal error: no event".to_owned()))
     }
 
     /// `p.expect(e)` for the event kind `want` names.
     fn expect(&mut self, want: fn(&EventKind) -> bool, name: &str) -> Compose<()> {
         let event = self.peek()?;
         if event.kind == EventKind::StreamEnd && !want(&event.kind) {
-            return Err(ComposeError::Fail("attempted to go past the end of stream; corrupted value?".to_owned()));
+            return Err(ComposeError::Fail(
+                "attempted to go past the end of stream; corrupted value?".to_owned(),
+            ));
         }
         if !want(&event.kind) {
-            return Err(ComposeError::Fail(format!("expected {name} event but got {}", event_name(&event.kind))));
+            return Err(ComposeError::Fail(format!(
+                "expected {name} event but got {}",
+                event_name(&event.kind)
+            )));
         }
         self.event = None;
         Ok(())
@@ -218,7 +238,9 @@ impl Composer {
         // A child is never the stream end: the parser always yields a node
         // inside a document or collection.
         let child = self.parse()?.ok_or_else(|| {
-            ComposeError::Fail("attempted to go past the end of stream; corrupted value?".to_owned())
+            ComposeError::Fail(
+                "attempted to go past the end of stream; corrupted value?".to_owned(),
+            )
         })?;
         self.tree.nodes[parent].content.push(child);
         Ok(child)
@@ -241,7 +263,9 @@ impl Composer {
         let target = self.anchors.get(&name).copied();
         self.tree.nodes[n].alias = target;
         if target.is_none() {
-            return Err(ComposeError::Fail(format!("unknown anchor '{name}' referenced")));
+            return Err(ComposeError::Fail(format!(
+                "unknown anchor '{name}' referenced"
+            )));
         }
         self.expect(|k| matches!(k, EventKind::Alias(_)), "ALIAS")?;
         Ok(n)
@@ -249,7 +273,12 @@ impl Composer {
 
     fn scalar(&mut self) -> Compose<NodeId> {
         let (anchor, tag, value, style) = match &self.peek()?.kind {
-            EventKind::Scalar { anchor, tag, value, style } => (anchor.clone(), tag.clone(), value.clone(), *style),
+            EventKind::Scalar {
+                anchor,
+                tag,
+                value,
+                style,
+            } => (anchor.clone(), tag.clone(), value.clone(), *style),
             _ => (None, String::new(), String::new(), ScalarStyle::Plain),
         };
         let quoted_or_block = style != ScalarStyle::Plain;
@@ -272,7 +301,10 @@ impl Composer {
         };
         let n = self.node(Kind::Sequence, SEQ_TAG, &tag, String::new());
         self.anchor(n, anchor);
-        self.expect(|k| matches!(k, EventKind::SequenceStart { .. }), "SEQUENCE_START")?;
+        self.expect(
+            |k| matches!(k, EventKind::SequenceStart { .. }),
+            "SEQUENCE_START",
+        )?;
         while self.peek()?.kind != EventKind::SequenceEnd {
             self.parse_child(n)?;
         }
@@ -287,7 +319,10 @@ impl Composer {
         };
         let n = self.node(Kind::Mapping, MAP_TAG, &tag, String::new());
         self.anchor(n, anchor);
-        self.expect(|k| matches!(k, EventKind::MappingStart { .. }), "MAPPING_START")?;
+        self.expect(
+            |k| matches!(k, EventKind::MappingStart { .. }),
+            "MAPPING_START",
+        )?;
         while self.peek()?.kind != EventKind::MappingEnd {
             self.parse_child(n)?;
             self.parse_child(n)?;

@@ -3,7 +3,10 @@
 //! The directives, anchors, aliases and tags of a stream: libyaml's lexemes
 //! other than scalars.
 
-use super::{Mark, Scanner, SyntaxError, Token, TokenKind, is_alpha, is_blank, is_blankz, is_break, is_breakz, is_hex};
+use super::{
+    Mark, Scanner, SyntaxError, Token, TokenKind, is_alpha, is_blank, is_blankz, is_break,
+    is_breakz, is_hex,
+};
 
 /// The longest number a version directive may hold (`max_number_length`).
 const MAX_NUMBER_LENGTH: usize = 2;
@@ -36,13 +39,19 @@ impl Scanner {
             }
         }
         if !is_breakz(self.at(0)) {
-            return Err(self.scanner_error(start_mark, "did not find expected comment or line break"));
+            return Err(
+                self.scanner_error(start_mark, "did not find expected comment or line break")
+            );
         }
         if is_break(self.at(0)) {
             self.ensure(2)?;
             self.skip_break();
         }
-        Ok(Token { kind, start: start_mark, end: end_mark })
+        Ok(Token {
+            kind,
+            start: start_mark,
+            end: end_mark,
+        })
     }
 
     /// `yaml_parser_scan_directive_name`.
@@ -57,13 +66,18 @@ impl Scanner {
             return Err(self.scanner_error(start_mark, "could not find expected directive name"));
         }
         if !is_blankz(self.at(0)) {
-            return Err(self.scanner_error(start_mark, "found unexpected non-alphabetical character"));
+            return Err(
+                self.scanner_error(start_mark, "found unexpected non-alphabetical character")
+            );
         }
         Ok(s)
     }
 
     /// `yaml_parser_scan_version_directive_value`: the major and minor numbers.
-    fn scan_version_directive_value(&mut self, start_mark: Mark) -> Result<(u32, u32), SyntaxError> {
+    fn scan_version_directive_value(
+        &mut self,
+        start_mark: Mark,
+    ) -> Result<(u32, u32), SyntaxError> {
         self.ensure(1)?;
         while is_blank(self.at(0)) {
             self.skip_char();
@@ -71,7 +85,9 @@ impl Scanner {
         }
         let major = self.scan_version_directive_number(start_mark)?;
         if self.at(0) != '.' {
-            return Err(self.scanner_error(start_mark, "did not find expected digit or '.' character"));
+            return Err(
+                self.scanner_error(start_mark, "did not find expected digit or '.' character")
+            );
         }
         self.skip_char();
         let minor = self.scan_version_directive_number(start_mark)?;
@@ -99,7 +115,10 @@ impl Scanner {
     }
 
     /// `yaml_parser_scan_tag_directive_value`: the handle and the prefix.
-    fn scan_tag_directive_value(&mut self, start_mark: Mark) -> Result<(String, String), SyntaxError> {
+    fn scan_tag_directive_value(
+        &mut self,
+        start_mark: Mark,
+    ) -> Result<(String, String), SyntaxError> {
         self.ensure(1)?;
         while is_blank(self.at(0)) {
             self.skip_char();
@@ -117,7 +136,9 @@ impl Scanner {
         let prefix = self.scan_tag_uri("", start_mark)?;
         self.ensure(1)?;
         if !is_blankz(self.at(0)) {
-            return Err(self.scanner_error(start_mark, "did not find expected whitespace or line break"));
+            return Err(
+                self.scanner_error(start_mark, "did not find expected whitespace or line break")
+            );
         }
         Ok((handle, prefix))
     }
@@ -134,11 +155,24 @@ impl Scanner {
         }
         let end_mark = self.mark;
         let c = self.at(0);
-        if s.is_empty() || !(is_blankz(c) || matches!(c, '?' | ':' | ',' | ']' | '}' | '%' | '@' | '`')) {
-            return Err(self.scanner_error(start_mark, "did not find expected alphabetic or numeric character"));
+        if s.is_empty()
+            || !(is_blankz(c) || matches!(c, '?' | ':' | ',' | ']' | '}' | '%' | '@' | '`'))
+        {
+            return Err(self.scanner_error(
+                start_mark,
+                "did not find expected alphabetic or numeric character",
+            ));
         }
-        let kind = if alias { TokenKind::Alias(s) } else { TokenKind::Anchor(s) };
-        Ok(Token { kind, start: start_mark, end: end_mark })
+        let kind = if alias {
+            TokenKind::Alias(s)
+        } else {
+            TokenKind::Anchor(s)
+        };
+        Ok(Token {
+            kind,
+            start: start_mark,
+            end: end_mark,
+        })
     }
 
     /// `yaml_parser_scan_tag`: a tag, verbatim (`!<uri>`), shorthand
@@ -172,15 +206,25 @@ impl Scanner {
         }
         self.ensure(1)?;
         if !is_blankz(self.at(0)) {
-            return Err(self.scanner_error(start_mark, "did not find expected whitespace or line break"));
+            return Err(
+                self.scanner_error(start_mark, "did not find expected whitespace or line break")
+            );
         }
         let end_mark = self.mark;
-        Ok(Token { kind: TokenKind::Tag(handle, suffix), start: start_mark, end: end_mark })
+        Ok(Token {
+            kind: TokenKind::Tag(handle, suffix),
+            start: start_mark,
+            end: end_mark,
+        })
     }
 
     /// `yaml_parser_scan_tag_handle`: `!`, `!!`, `!name!`, or for a
     /// directive the handle with its closing `!`.
-    fn scan_tag_handle(&mut self, directive: bool, start_mark: Mark) -> Result<String, SyntaxError> {
+    fn scan_tag_handle(
+        &mut self,
+        directive: bool,
+        start_mark: Mark,
+    ) -> Result<String, SyntaxError> {
         self.ensure(1)?;
         if self.at(0) != '!' {
             return Err(self.scanner_error(start_mark, "did not find expected '!'"));
@@ -241,10 +285,14 @@ impl Scanner {
             if w == 1024 {
                 w = utf8_width(octet);
                 if w == 0 {
-                    return Err(self.scanner_error(start_mark, "found an incorrect leading UTF-8 octet"));
+                    return Err(
+                        self.scanner_error(start_mark, "found an incorrect leading UTF-8 octet")
+                    );
                 }
             } else if octet & 0xC0 != 0x80 {
-                return Err(self.scanner_error(start_mark, "found an incorrect trailing UTF-8 octet"));
+                return Err(
+                    self.scanner_error(start_mark, "found an incorrect trailing UTF-8 octet")
+                );
             }
             s.push(octet);
             self.skip_char();
@@ -261,7 +309,27 @@ fn is_uri_char(c: char) -> bool {
     c.is_ascii_alphanumeric()
         || matches!(
             c,
-            '_' | '-' | ';' | '/' | '?' | ':' | '@' | '&' | '=' | '+' | '$' | ',' | '.' | '!' | '~' | '*' | '\'' | '(' | ')' | '[' | ']' | '%'
+            '_' | '-'
+                | ';'
+                | '/'
+                | '?'
+                | ':'
+                | '@'
+                | '&'
+                | '='
+                | '+'
+                | '$'
+                | ','
+                | '.'
+                | '!'
+                | '~'
+                | '*'
+                | '\''
+                | '('
+                | ')'
+                | '['
+                | ']'
+                | '%'
         )
 }
 

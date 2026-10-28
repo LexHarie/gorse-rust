@@ -47,7 +47,10 @@ pub(crate) fn short_tag(tag: &str) -> String {
 
 /// `resolvableTag`.
 fn resolvable_tag(tag: &str) -> bool {
-    matches!(tag, "" | STR_TAG | BOOL_TAG | INT_TAG | FLOAT_TAG | NULL_TAG | TIMESTAMP_TAG)
+    matches!(
+        tag,
+        "" | STR_TAG | BOOL_TAG | INT_TAG | FLOAT_TAG | NULL_TAG | TIMESTAMP_TAG
+    )
 }
 
 /// `resolveTable`: the hint for the first byte of a scalar.
@@ -71,7 +74,9 @@ fn resolve_map(s: &str) -> Option<(&'static str, Resolved)> {
         "false" | "False" | "FALSE" => (BOOL_TAG, Resolved::Bool(false)),
         "" | "~" | "null" | "Null" | "NULL" => (NULL_TAG, Resolved::Null),
         ".nan" | ".NaN" | ".NAN" => (FLOAT_TAG, Resolved::Float64(GO_NAN)),
-        ".inf" | ".Inf" | ".INF" | "+.inf" | "+.Inf" | "+.INF" => (FLOAT_TAG, Resolved::Float64(f64::INFINITY)),
+        ".inf" | ".Inf" | ".INF" | "+.inf" | "+.Inf" | "+.INF" => {
+            (FLOAT_TAG, Resolved::Float64(f64::INFINITY))
+        }
         "-.inf" | "-.Inf" | "-.INF" => (FLOAT_TAG, Resolved::Float64(f64::NEG_INFINITY)),
         "<<" => (MERGE_TAG, Resolved::String("<<".to_owned())),
         _ => return None,
@@ -127,12 +132,18 @@ pub(crate) fn resolve(tag: &str, input: &str) -> Result<(String, Resolved), Stri
     if tag.is_empty() || tag == rtag || tag == STR_TAG || tag == BINARY_TAG {
         return Ok((rtag.to_owned(), out));
     }
-    if tag == FLOAT_TAG && rtag == INT_TAG {
-        if let Resolved::Int(v) = out {
-            return Ok((FLOAT_TAG.to_owned(), Resolved::Float64(v as f64)));
-        }
+    if tag == FLOAT_TAG
+        && rtag == INT_TAG
+        && let Resolved::Int(v) = out
+    {
+        return Ok((FLOAT_TAG.to_owned(), Resolved::Float64(v as f64)));
     }
-    Err(format!("cannot decode {} `{}` as a {}", short_tag(rtag), input, short_tag(&tag)))
+    Err(format!(
+        "cannot decode {} `{}` as a {}",
+        short_tag(rtag),
+        input,
+        short_tag(&tag)
+    ))
 }
 
 fn int_result(v: i64) -> (&'static str, Resolved) {
@@ -154,10 +165,10 @@ fn resolve_value(tag: &str, input: &str) -> (&'static str, Resolved) {
                 }
             }
             b'D' | b'S' => {
-                if tag.is_empty() || tag == TIMESTAMP_TAG {
-                    if let Some(t) = parse_timestamp(input) {
-                        return (TIMESTAMP_TAG, Resolved::Time(t));
-                    }
+                if (tag.is_empty() || tag == TIMESTAMP_TAG)
+                    && let Some(t) = parse_timestamp(input)
+                {
+                    return (TIMESTAMP_TAG, Resolved::Time(t));
                 }
                 let plain = input.replace('_', "");
                 let (v, err) = parse_int(&plain, 0, 64);
@@ -229,7 +240,9 @@ fn parse_timestamp(s: &str) -> Option<Time> {
     if i != 4 || i == b.len() || b[i] != b'-' {
         return None;
     }
-    TIMESTAMP_FORMATS.iter().find_map(|layout| gotime::parse(layout, s).ok())
+    TIMESTAMP_FORMATS
+        .iter()
+        .find_map(|layout| gotime::parse(layout, s).ok())
 }
 
 #[cfg(test)]

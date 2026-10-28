@@ -121,8 +121,16 @@ impl SyntaxError {
                 line += 1;
             }
         }
-        let problem = if self.problem.is_empty() { "unknown problem parsing YAML content" } else { &self.problem };
-        if line != 0 { format!("line {line}: {problem}") } else { problem.to_owned() }
+        let problem = if self.problem.is_empty() {
+            "unknown problem parsing YAML content"
+        } else {
+            &self.problem
+        };
+        if line != 0 {
+            format!("line {line}: {problem}")
+        } else {
+            problem.to_owned()
+        }
     }
 }
 
@@ -332,14 +340,30 @@ impl Scanner {
         if column_zero && c == '%' {
             return self.fetch_directive();
         }
-        if column_zero && self.at(0) == '-' && self.at(1) == '-' && self.at(2) == '-' && is_blankz(self.at(3)) {
+        if column_zero
+            && self.at(0) == '-'
+            && self.at(1) == '-'
+            && self.at(2) == '-'
+            && is_blankz(self.at(3))
+        {
             return self.fetch_document_indicator(TokenKind::DocumentStart);
         }
-        if column_zero && self.at(0) == '.' && self.at(1) == '.' && self.at(2) == '.' && is_blankz(self.at(3)) {
+        if column_zero
+            && self.at(0) == '.'
+            && self.at(1) == '.'
+            && self.at(2) == '.'
+            && is_blankz(self.at(3))
+        {
             return self.fetch_document_indicator(TokenKind::DocumentEnd);
         }
         self.fetch_token()?;
-        if matches!(self.tokens.last(), Some(Token { kind: TokenKind::BlockEntry, .. })) {
+        if matches!(
+            self.tokens.last(),
+            Some(Token {
+                kind: TokenKind::BlockEntry,
+                ..
+            })
+        ) {
             return Ok(());
         }
         self.scan_line_comment()
@@ -405,7 +429,24 @@ impl Scanner {
         let c = self.at(0);
         let indicator = matches!(
             c,
-            '-' | '?' | ':' | ',' | '[' | ']' | '{' | '}' | '#' | '&' | '*' | '!' | '|' | '>' | '\'' | '"' | '%' | '@' | '`'
+            '-' | '?'
+                | ':'
+                | ','
+                | '['
+                | ']'
+                | '{'
+                | '}'
+                | '#'
+                | '&'
+                | '*'
+                | '!'
+                | '|'
+                | '>'
+                | '\''
+                | '"'
+                | '%'
+                | '@'
+                | '`'
         );
         !(is_blankz(c) || indicator)
             || (c == '-' && !is_blank(self.at(1)))
@@ -473,8 +514,9 @@ impl Scanner {
         self.flow_level += 1;
         if self.flow_level > MAX_FLOW_LEVEL {
             let context = self.simple_keys[self.simple_keys.len() - 1].mark;
-            return Err(self
-                .scanner_error(context, &format!("exceeded max depth of {MAX_FLOW_LEVEL}")));
+            return Err(
+                self.scanner_error(context, &format!("exceeded max depth of {MAX_FLOW_LEVEL}"))
+            );
         }
         Ok(())
     }
@@ -491,7 +533,13 @@ impl Scanner {
 
     /// `yaml_parser_roll_indent`: opens a block collection at `column`,
     /// queuing its start token at token number `at` (or at the end).
-    fn roll_indent(&mut self, column: usize, at: Option<usize>, kind: TokenKind, mark: Mark) -> Result<(), SyntaxError> {
+    fn roll_indent(
+        &mut self,
+        column: usize,
+        at: Option<usize>,
+        kind: TokenKind,
+        mark: Mark,
+    ) -> Result<(), SyntaxError> {
         if self.flow_level > 0 {
             return Ok(());
         }
@@ -500,10 +548,18 @@ impl Scanner {
             self.indent = column as isize;
             if self.indents.len() > MAX_INDENTS {
                 let context = self.simple_keys[self.simple_keys.len() - 1].mark;
-                return Err(self
-                    .scanner_error(context, &format!("exceeded max depth of {MAX_INDENTS}")));
+                return Err(
+                    self.scanner_error(context, &format!("exceeded max depth of {MAX_INDENTS}"))
+                );
             }
-            self.insert_token(at, Token { kind, start: mark, end: mark });
+            self.insert_token(
+                at,
+                Token {
+                    kind,
+                    start: mark,
+                    end: mark,
+                },
+            );
         }
         Ok(())
     }
@@ -528,7 +584,14 @@ impl Scanner {
                 }
                 stop_index = comment.scan_mark.index;
             }
-            self.insert_token(None, Token { kind: TokenKind::BlockEnd, start: block_mark, end: block_mark });
+            self.insert_token(
+                None,
+                Token {
+                    kind: TokenKind::BlockEnd,
+                    start: block_mark,
+                    end: block_mark,
+                },
+            );
             self.indent = self.indents.pop().unwrap_or(-1);
         }
     }
@@ -620,9 +683,17 @@ impl Scanner {
     fn fetch_block_entry(&mut self) -> Result<(), SyntaxError> {
         if self.flow_level == 0 {
             if !self.simple_key_allowed {
-                return Err(self.scanner_error(self.mark, "block sequence entries are not allowed in this context"));
+                return Err(self.scanner_error(
+                    self.mark,
+                    "block sequence entries are not allowed in this context",
+                ));
             }
-            self.roll_indent(self.mark.column, None, TokenKind::BlockSequenceStart, self.mark)?;
+            self.roll_indent(
+                self.mark.column,
+                None,
+                TokenKind::BlockSequenceStart,
+                self.mark,
+            )?;
         }
         self.remove_simple_key()?;
         self.simple_key_allowed = true;
@@ -635,9 +706,16 @@ impl Scanner {
     fn fetch_key(&mut self) -> Result<(), SyntaxError> {
         if self.flow_level == 0 {
             if !self.simple_key_allowed {
-                return Err(self.scanner_error(self.mark, "mapping keys are not allowed in this context"));
+                return Err(
+                    self.scanner_error(self.mark, "mapping keys are not allowed in this context")
+                );
             }
-            self.roll_indent(self.mark.column, None, TokenKind::BlockMappingStart, self.mark)?;
+            self.roll_indent(
+                self.mark.column,
+                None,
+                TokenKind::BlockMappingStart,
+                self.mark,
+            )?;
         }
         self.remove_simple_key()?;
         self.simple_key_allowed = self.flow_level == 0;
@@ -653,18 +731,35 @@ impl Scanner {
             let key = self.simple_keys[top];
             self.insert_token(
                 Some(key.token_number),
-                Token { kind: TokenKind::Key, start: key.mark, end: key.mark },
+                Token {
+                    kind: TokenKind::Key,
+                    start: key.mark,
+                    end: key.mark,
+                },
             );
-            self.roll_indent(key.mark.column, Some(key.token_number), TokenKind::BlockMappingStart, key.mark)?;
+            self.roll_indent(
+                key.mark.column,
+                Some(key.token_number),
+                TokenKind::BlockMappingStart,
+                key.mark,
+            )?;
             self.simple_keys[top].possible = false;
             self.simple_keys_by_tok.remove(&key.token_number);
             self.simple_key_allowed = false;
         } else {
             if self.flow_level == 0 {
                 if !self.simple_key_allowed {
-                    return Err(self.scanner_error(self.mark, "mapping values are not allowed in this context"));
+                    return Err(self.scanner_error(
+                        self.mark,
+                        "mapping values are not allowed in this context",
+                    ));
                 }
-                self.roll_indent(self.mark.column, None, TokenKind::BlockMappingStart, self.mark)?;
+                self.roll_indent(
+                    self.mark.column,
+                    None,
+                    TokenKind::BlockMappingStart,
+                    self.mark,
+                )?;
             }
             self.simple_key_allowed = self.flow_level == 0;
         }
@@ -724,7 +819,9 @@ impl Scanner {
                 self.skip_char();
             }
             self.ensure(1)?;
-            while self.at(0) == ' ' || ((self.flow_level > 0 || !self.simple_key_allowed) && self.at(0) == '\t') {
+            while self.at(0) == ' '
+                || ((self.flow_level > 0 || !self.simple_key_allowed) && self.at(0) == '\t')
+            {
                 self.skip_char();
                 self.ensure(1)?;
             }

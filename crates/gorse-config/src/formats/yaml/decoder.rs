@@ -228,7 +228,8 @@ impl Decoder<'_> {
             }
             if self.alias_count > 100
                 && self.decode_count > 1000
-                && self.alias_count as f64 / self.decode_count as f64 > allowed_alias_ratio(self.decode_count)
+                && self.alias_count as f64 / self.decode_count as f64
+                    > allowed_alias_ratio(self.decode_count)
             {
                 return Err(Fail("document contains excessive aliasing".to_owned()));
             }
@@ -256,7 +257,10 @@ impl Decoder<'_> {
     fn alias(&mut self, n: NodeId, out: Out<'_>) -> Decode<bool> {
         let node = self.tree.node(n);
         if self.aliases.contains(&n) {
-            return Err(Fail(format!("anchor '{}' value contains itself", node.value)));
+            return Err(Fail(format!(
+                "anchor '{}' value contains itself",
+                node.value
+            )));
         }
         self.aliases.insert(n);
         self.alias_depth += 1;
@@ -286,13 +290,20 @@ impl Decoder<'_> {
     fn scalar(&mut self, n: NodeId, out: Out<'_>) -> Decode<bool> {
         let node = self.tree.node(n);
         let (tag, resolved) = if self.tree.indicated_string(n) {
-            (STR_TAG.to_owned(), Some(GoValue::String(node.value.clone().into_bytes())))
+            (
+                STR_TAG.to_owned(),
+                Some(GoValue::String(node.value.clone().into_bytes())),
+            )
         } else {
             let (tag, resolved) = resolve(&node.tag, &node.value).map_err(Fail)?;
             let value = match resolved {
                 Resolved::String(s) if tag == BINARY_TAG => match base64_decode(s.as_bytes()) {
                     Some(data) => Some(GoValue::String(data)),
-                    None => return Err(Fail("!!binary value contains invalid base64 data".to_owned())),
+                    None => {
+                        return Err(Fail(
+                            "!!binary value contains invalid base64 data".to_owned(),
+                        ));
+                    }
                 },
                 Resolved::Null => None,
                 Resolved::Bool(b) => Some(GoValue::Bool(b)),
@@ -472,21 +483,24 @@ impl Decoder<'_> {
             let content = &self.tree.node(parent).content;
             for &key in content.iter().step_by(2) {
                 let mut k = GoValue::Nil;
-                if self.unmarshal(key, Out::Iface(&mut k))? {
-                    if let Some(fields) = &mut self.merged_fields {
-                        set_possibly_unhashable_key(fields, k)?;
-                    }
+                if self.unmarshal(key, Out::Iface(&mut k))?
+                    && let Some(fields) = &mut self.merged_fields
+                {
+                    set_possibly_unhashable_key(fields, k)?;
                 }
             }
         }
-        let want_map = || Fail("map merge requires map or sequence of maps as the value".to_owned());
+        let want_map =
+            || Fail("map merge requires map or sequence of maps as the value".to_owned());
         let m = self.tree.node(merge);
         match m.kind {
             Kind::Mapping => {
                 self.unmarshal(merge, Out::Map(reborrow(&mut out)))?;
             }
             Kind::Alias => {
-                if m.alias.is_some_and(|a| self.tree.node(a).kind != Kind::Mapping) {
+                if m.alias
+                    .is_some_and(|a| self.tree.node(a).kind != Kind::Mapping)
+                {
                     return Err(want_map());
                 }
                 self.unmarshal(merge, Out::Map(reborrow(&mut out)))?;
@@ -495,7 +509,10 @@ impl Decoder<'_> {
                 for &ni in &m.content {
                     let node = self.tree.node(ni);
                     if node.kind == Kind::Alias {
-                        if node.alias.is_some_and(|a| self.tree.node(a).kind != Kind::Mapping) {
+                        if node
+                            .alias
+                            .is_some_and(|a| self.tree.node(a).kind != Kind::Mapping)
+                        {
                             return Err(want_map());
                         }
                     } else if node.kind != Kind::Mapping {
@@ -515,7 +532,11 @@ impl Decoder<'_> {
     /// `d.terror(n, tag, out)`.
     fn terror(&mut self, n: NodeId, tag: &str, out_type: &str) {
         let node = self.tree.node(n);
-        let tag = if node.tag.is_empty() { tag } else { node.tag.as_str() };
+        let tag = if node.tag.is_empty() {
+            tag
+        } else {
+            node.tag.as_str()
+        };
         let v = node.value.as_bytes();
         let mut value = Vec::new();
         if tag != SEQ_TAG && tag != MAP_TAG {

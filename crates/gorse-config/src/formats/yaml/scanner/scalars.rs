@@ -3,7 +3,10 @@
 //! The scalars of a stream: block scalars (`|` and `>`), quoted scalars
 //! (`'` and `"`) and plain scalars, with their line folding.
 
-use super::{Mark, ScalarStyle, Scanner, SyntaxError, Token, TokenKind, is_blank, is_blankz, is_break, is_breakz, is_hex};
+use super::{
+    Mark, ScalarStyle, Scanner, SyntaxError, Token, TokenKind, is_blank, is_blankz, is_break,
+    is_breakz, is_hex,
+};
 
 impl Scanner {
     /// `yaml_parser_scan_block_scalar`: a literal (`|`) or folded (`>`)
@@ -20,14 +23,18 @@ impl Scanner {
             self.ensure(1)?;
             if self.at(0).is_ascii_digit() {
                 if self.at(0) == '0' {
-                    return Err(self.scanner_error(start_mark, "found an indentation indicator equal to 0"));
+                    return Err(
+                        self.scanner_error(start_mark, "found an indentation indicator equal to 0")
+                    );
                 }
                 increment = self.at(0).to_digit(10).unwrap_or(0) as isize;
                 self.skip_char();
             }
         } else if self.at(0).is_ascii_digit() {
             if self.at(0) == '0' {
-                return Err(self.scanner_error(start_mark, "found an indentation indicator equal to 0"));
+                return Err(
+                    self.scanner_error(start_mark, "found an indentation indicator equal to 0")
+                );
             }
             increment = self.at(0).to_digit(10).unwrap_or(0) as isize;
             self.skip_char();
@@ -50,7 +57,9 @@ impl Scanner {
             }
         }
         if !is_breakz(self.at(0)) {
-            return Err(self.scanner_error(start_mark, "did not find expected comment or line break"));
+            return Err(
+                self.scanner_error(start_mark, "did not find expected comment or line break")
+            );
         }
         if is_break(self.at(0)) {
             self.ensure(2)?;
@@ -59,12 +68,21 @@ impl Scanner {
         let mut end_mark = self.mark;
         let mut indent: isize = 0;
         if increment > 0 {
-            indent = if self.indent >= 0 { self.indent + increment } else { increment };
+            indent = if self.indent >= 0 {
+                self.indent + increment
+            } else {
+                increment
+            };
         }
         let mut s = String::new();
         let mut leading_break = String::new();
         let mut trailing_breaks = String::new();
-        self.scan_block_scalar_breaks(&mut indent, &mut trailing_breaks, start_mark, &mut end_mark)?;
+        self.scan_block_scalar_breaks(
+            &mut indent,
+            &mut trailing_breaks,
+            start_mark,
+            &mut end_mark,
+        )?;
         self.ensure(1)?;
         let mut leading_blank = false;
         while self.mark.column as isize == indent && !self.at_end() {
@@ -86,7 +104,12 @@ impl Scanner {
             }
             self.ensure(2)?;
             self.take_break(&mut leading_break);
-            self.scan_block_scalar_breaks(&mut indent, &mut trailing_breaks, start_mark, &mut end_mark)?;
+            self.scan_block_scalar_breaks(
+                &mut indent,
+                &mut trailing_breaks,
+                start_mark,
+                &mut end_mark,
+            )?;
         }
         if chomping != -1 {
             s.push_str(&leading_break);
@@ -94,8 +117,16 @@ impl Scanner {
         if chomping == 1 {
             s.push_str(&trailing_breaks);
         }
-        let style = if literal { ScalarStyle::Literal } else { ScalarStyle::Folded };
-        Ok(Token { kind: TokenKind::Scalar(s, style), start: start_mark, end: end_mark })
+        let style = if literal {
+            ScalarStyle::Literal
+        } else {
+            ScalarStyle::Folded
+        };
+        Ok(Token {
+            kind: TokenKind::Scalar(s, style),
+            start: start_mark,
+            end: end_mark,
+        })
     }
 
     /// `yaml_parser_scan_block_scalar_breaks`: the empty lines before a
@@ -172,9 +203,7 @@ impl Scanner {
                     s.push('\'');
                     self.skip_char();
                     self.skip_char();
-                } else if single && c == '\'' {
-                    break;
-                } else if !single && c == '"' {
+                } else if (single && c == '\'') || (!single && c == '"') {
                     break;
                 } else if !single && c == '\\' && is_break(self.at(1)) {
                     self.ensure(3)?;
@@ -255,7 +284,11 @@ impl Scanner {
                         'x' => 2,
                         'u' => 4,
                         'U' => 8,
-                        _ => return Err(self.scanner_error(start_mark, "found unknown escape character")),
+                        _ => {
+                            return Err(
+                                self.scanner_error(start_mark, "found unknown escape character")
+                            );
+                        }
                     };
                     self.skip_char();
                     self.skip_char();
@@ -264,12 +297,18 @@ impl Scanner {
                         let mut value: u32 = 0;
                         for k in 0..code_length {
                             if !is_hex(self.at(k)) {
-                                return Err(self.scanner_error(start_mark, "did not find expected hexdecimal number"));
+                                return Err(self.scanner_error(
+                                    start_mark,
+                                    "did not find expected hexdecimal number",
+                                ));
                             }
                             value = (value << 4) + self.at(k).to_digit(16).unwrap_or(0);
                         }
                         let Some(ch) = char::from_u32(value) else {
-                            return Err(self.scanner_error(start_mark, "found invalid Unicode character escape code"));
+                            return Err(self.scanner_error(
+                                start_mark,
+                                "found invalid Unicode character escape code",
+                            ));
                         };
                         s.push(ch);
                         for _ in 0..code_length {
@@ -324,8 +363,16 @@ impl Scanner {
         }
         self.skip_char();
         let end_mark = self.mark;
-        let style = if single { ScalarStyle::SingleQuoted } else { ScalarStyle::DoubleQuoted };
-        Ok(Token { kind: TokenKind::Scalar(s, style), start: start_mark, end: end_mark })
+        let style = if single {
+            ScalarStyle::SingleQuoted
+        } else {
+            ScalarStyle::DoubleQuoted
+        };
+        Ok(Token {
+            kind: TokenKind::Scalar(s, style),
+            start: start_mark,
+            end: end_mark,
+        })
     }
 
     /// `yaml_parser_scan_plain_scalar`: a plain scalar, which may run over
@@ -388,8 +435,12 @@ impl Scanner {
             self.ensure(1)?;
             while is_blank(self.at(0)) || is_break(self.at(0)) {
                 if is_blank(self.at(0)) {
-                    if leading_blanks && (self.mark.column as isize) < indent && self.at(0) == '\t' {
-                        return Err(self.scanner_error(start_mark, "found a tab character that violates indentation"));
+                    if leading_blanks && (self.mark.column as isize) < indent && self.at(0) == '\t'
+                    {
+                        return Err(self.scanner_error(
+                            start_mark,
+                            "found a tab character that violates indentation",
+                        ));
                     }
                     if !leading_blanks {
                         self.take_char(&mut whitespaces);
@@ -415,6 +466,10 @@ impl Scanner {
         if leading_blanks {
             self.simple_key_allowed = true;
         }
-        Ok(Token { kind: TokenKind::Scalar(s, ScalarStyle::Plain), start: start_mark, end: end_mark })
+        Ok(Token {
+            kind: TokenKind::Scalar(s, ScalarStyle::Plain),
+            start: start_mark,
+            end: end_mark,
+        })
     }
 }

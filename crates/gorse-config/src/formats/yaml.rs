@@ -8,9 +8,8 @@
 //! viper's YAML codec: `yaml.Unmarshal(b, &v)` into a `map[string]any`.
 //!
 //! The pipeline is yaml.v3's: libyaml's reader ([`reader`]), its scanner
-//! (the `yaml-rust2` scanner behind an adapter, [`scanner`]) and parser
-//! ([`parser`]), then yaml.v3's composer ([`composer`]), decoder
-//! ([`decoder`]) and tag resolution ([`resolve`]). Only the first document
+//! ([`scanner`]) and parser ([`parser`]), then yaml.v3's composer
+//! ([`composer`]), decoder ([`decoder`]) and tag resolution ([`resolve`]). Only the first document
 //! of a stream is decoded. The differences from Go are listed in
 //! `porting/notes/WP-1-15-yaml.md`.
 
@@ -47,7 +46,12 @@ pub fn decode(input: &[u8]) -> Result<Map, String> {
     if let Some(root) = root {
         match decode_root(&tree, root, &mut out) {
             Ok(outcome) if outcome.terrors.is_empty() => {}
-            Ok(outcome) => return Err(format!("yaml: unmarshal errors:\n  {}", outcome.terrors.join("\n  "))),
+            Ok(outcome) => {
+                return Err(format!(
+                    "yaml: unmarshal errors:\n  {}",
+                    outcome.terrors.join("\n  ")
+                ));
+            }
             Err(decoder::Fail(message)) => return Err(format!("yaml: {message}")),
         }
     }
@@ -55,7 +59,12 @@ pub fn decode(input: &[u8]) -> Result<Map, String> {
 }
 
 fn string_map(m: StringMap) -> Map {
-    Map::from(m.into_entries().into_iter().map(|(k, v)| (lossy_runs(&k), value(v))).collect::<Vec<_>>())
+    Map::from(
+        m.into_entries()
+            .into_iter()
+            .map(|(k, v)| (lossy_runs(&k), value(v)))
+            .collect::<Vec<_>>(),
+    )
 }
 
 /// The [`Value`] of a decoded Go value.
@@ -72,6 +81,11 @@ fn value(v: GoValue) -> Value {
         GoValue::Time(t) => Value::Time(t),
         GoValue::Slice(items) => Value::Slice(items.into_iter().map(value).collect()),
         GoValue::StringMap(m) => Value::Map(string_map(m)),
-        GoValue::AnyMap(m) => Value::AnyMap(m.into_entries().into_iter().map(|(k, v)| (value(k), value(v))).collect()),
+        GoValue::AnyMap(m) => Value::AnyMap(
+            m.into_entries()
+                .into_iter()
+                .map(|(k, v)| (value(k), value(v)))
+                .collect(),
+        ),
     })
 }

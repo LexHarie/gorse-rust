@@ -101,13 +101,23 @@ impl Scanner {
                 if close_flow || !recent_empty {
                     let foot_here = start_mark.line as isize == foot_line && !token_is_value;
                     let indented = start_mark.column as isize - 1 < next_indent;
-                    if close_flow || (first_empty && (foot_here || indented)) {
-                        if has_text {
-                            let end_mark = Mark { index: self.mark.index + peek, line, column };
-                            self.comments.push(Comment { scan_mark, start_mark, end_mark });
-                            scan_mark = Mark { index: self.mark.index + peek, line, column };
-                            has_text = false;
-                        }
+                    if (close_flow || (first_empty && (foot_here || indented))) && has_text {
+                        let end_mark = Mark {
+                            index: self.mark.index + peek,
+                            line,
+                            column,
+                        };
+                        self.comments.push(Comment {
+                            scan_mark,
+                            start_mark,
+                            end_mark,
+                        });
+                        scan_mark = Mark {
+                            index: self.mark.index + peek,
+                            line,
+                            column,
+                        };
+                        has_text = false;
                     }
                 }
                 if !is_break(self.at(peek)) {
@@ -120,17 +130,36 @@ impl Scanner {
                 peek += 1;
                 continue;
             }
-            if has_text && (close_flow || (column as isize - 1 < next_indent && column != start_mark.column)) {
-                let end_mark = Mark { index: self.mark.index + peek, line, column };
-                self.comments.push(Comment { scan_mark, start_mark, end_mark });
-                scan_mark = Mark { index: self.mark.index + peek, line, column };
+            if has_text
+                && (close_flow
+                    || (column as isize - 1 < next_indent && column != start_mark.column))
+            {
+                let end_mark = Mark {
+                    index: self.mark.index + peek,
+                    line,
+                    column,
+                };
+                self.comments.push(Comment {
+                    scan_mark,
+                    start_mark,
+                    end_mark,
+                });
+                scan_mark = Mark {
+                    index: self.mark.index + peek,
+                    line,
+                    column,
+                };
                 has_text = false;
             }
             if self.at(peek) != '#' {
                 break;
             }
             if !has_text {
-                start_mark = Mark { index: self.mark.index + peek, line, column };
+                start_mark = Mark {
+                    index: self.mark.index + peek,
+                    line,
+                    column,
+                };
             }
             recent_empty = false;
             let seen = self.mark.index + peek;

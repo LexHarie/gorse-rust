@@ -20,8 +20,11 @@ use sha2::{Digest, Sha256};
 static LOCAL: Mutex<()> = Mutex::new(());
 
 fn golden() -> Json {
-    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/yaml_golden.json"))
-        .expect("read yaml_golden.json");
+    let text = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/yaml_golden.json"
+    ))
+    .expect("read yaml_golden.json");
     serde_json::from_str(&text).expect("parse yaml_golden.json")
 }
 
@@ -46,7 +49,9 @@ fn input_of(case: &Json) -> Vec<u8> {
 
 /// Decodes `input` with `time.Local` set as the case says.
 fn run(input: &[u8], local: Option<&str>) -> Result<gorse_config::value::Map, String> {
-    let _guard = LOCAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _guard = LOCAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     match local {
         Some("CET") => gotime::set_local(gotime::fixed_zone("CET", 3600)),
         _ => gotime::set_local(gotime::utc()),
@@ -121,7 +126,8 @@ fn enc(v: &Value) -> Enc {
         Value::Time(t) => Enc::Scalar("time.Time", t.string()),
         Value::Slice(items) => Enc::List(items.iter().map(enc).collect()),
         Value::Map(m) => {
-            let mut entries: Vec<(String, Enc)> = m.iter().map(|(k, v)| (k.to_owned(), enc(v))).collect();
+            let mut entries: Vec<(String, Enc)> =
+                m.iter().map(|(k, v)| (k.to_owned(), enc(v))).collect();
             entries.sort_by(|a, b| a.0.as_bytes().cmp(b.0.as_bytes()));
             Enc::StringMap(entries)
         }
@@ -343,7 +349,11 @@ fn case_ids(cases: &[Json]) -> Vec<String> {
             let name = c["name"].as_str().expect("name").to_owned();
             let n = seen.entry(name.clone()).or_default();
             *n += 1;
-            if *n == 1 { name } else { format!("{name}#{}", *n - 1) }
+            if *n == 1 {
+                name
+            } else {
+                format!("{name}#{}", *n - 1)
+            }
         })
         .collect()
 }
@@ -378,9 +388,18 @@ fn replay() {
     if let Ok(path) = std::env::var("YAML_GOLDEN_REPORT") {
         let mut report = String::new();
         for (id, want, got) in &mismatches {
-            let _ = writeln!(report, "{}", serde_json::json!({"id": id, "want": want, "got": got}));
+            let _ = writeln!(
+                report,
+                "{}",
+                serde_json::json!({"id": id, "want": want, "got": got})
+            );
         }
         std::fs::write(path, report).expect("write the report");
     }
-    assert!(mismatches.is_empty(), "{} of {} cases differ", mismatches.len(), cases.len());
+    assert!(
+        mismatches.is_empty(),
+        "{} of {} cases differ",
+        mismatches.len(),
+        cases.len()
+    );
 }
