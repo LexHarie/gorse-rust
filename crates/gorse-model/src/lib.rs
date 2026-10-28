@@ -2,4 +2,6 @@
 
 //! Collaborative-filtering (BPR, ALS) and click-through-rate (factorization machine) models.
 //!
-//! Skeleton only (Phase 0): no Go code has been ported into this crate yet.
+//! Click-through-rate models are ported in [`ctr`].
+
+pub mod ctr;
