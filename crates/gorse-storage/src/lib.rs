@@ -1,7 +1,10 @@
 // Ports: storage/data/*.go, storage/cache/*.go, storage/vectors/*.go, storage/blob/*.go, storage/meta/*.go @ add21b5
 
-//! Data, cache, vector, blob and meta stores, one feature per backend.
+//! Ports of the Go `storage` packages.
 //!
-//! Skeleton only (Phase 0): no Go code has been ported into this crate yet.
+//! The blob stores are in [`blob`], and the data store's record types are in
+//! [`data::types`]. The cache, vector and meta stores are Phase 2 work and are
+//! not ported yet.
 
 pub mod blob;
+pub mod data;

@@ -855,6 +855,112 @@ said otherwise), so the Rust result is Go's.
   `sizeof` tests come from a Go 1.27.0 program run on the same values; that
   program is in the scratch directory and is not committed.
 
+### HTTP mocks and clients (WP-1-12)
+
+- **Q-161 The decision client accepts any 2xx; the reranker client accepts only 200.**
+  `common/decision/client.go` checks `200 <= status < 300`. `common/reranker/client.go` checks `!= 200`.
+
+- **Q-162 Error texts are Go's.** Decision: `jev request failed with status N: <body, trimmed>`.
+  Reranker: `rerank request failed with status: N, body: <body>`.
+
+- **Q-163 Optional request fields are omitted as in Go.** `top_n` is left out when zero
+  (`omitempty`). A criteria with neither outcome encodes as `{}`, and a question without criteria
+  leaves the field out.
+
+- **Q-164 The chat mock prefixes replies for model `deepseek-r1` with a `<think>` block**
+  (`common/mock/openai.go`, the same branch as Go).
+
+- **Q-165 Stream pieces are cut by bytes, as Go cuts them.** Eight bytes per piece. A piece can
+  end inside a multi-byte character. JSON encoding then writes each invalid byte as U+FFFD, which
+  `mock::go_string` reproduces.
+
+- **Q-166 Embedding input must be a string.** Go answers 400 with `invalid input type`, and the
+  Rust mock does the same.
+
+### Model core (WP-1-16)
+
+- **Q-167 `GetString` panics on any other type.** Go's `val.(string)` panics
+  with `interface conversion: interface {} is float64, not string`. The Rust
+  `get_string` panics with the same text (it does not log and return the
+  default as the other getters do). Test:
+  `get_string_panics_on_another_type_as_go_does`.
+
+- **Q-168 The download keeps any body.** `http.Get` does not check the
+  status, so an HTTP 404 page is saved as the zip. Here no status check is made.
+  Test: `download_saves_the_body_of_an_error_status`.
+
+- **Q-169 A failed download reports the unzip error.**
+  `LocateBuiltInDataset` ignores the download's error. The file is left empty,
+  and the unzip then fails. Here the same. Test:
+  `failed_download_leaves_an_empty_file_and_returns_its_path`.
+
+- **Q-170 Only a missing file downloads.** `os.IsNotExist(err)` on the
+  training file is the only trigger. Any other stat error returns the paths with
+  no download. Here `fs::metadata` with `ErrorKind::NotFound`.
+
+- **Q-171 The format error.** The message is `format not matchs %v != %v`
+  (the typo is Go's), and `%v` prints the `iota` numbers: `format not matchs
+  0 != 1`. Test: `locate_rejects_a_format_mismatch_with_go_s_message`.
+
+- **Q-172 Absolute entry names stay inside the destination.** Go's
+  `filepath.Join(dst, "/abs/x")` is `dst/abs/x`, so the entry is extracted
+  there and the ZipSlip check passes. The Rust `unzip` strips the leading `/`
+  before joining. Test: `unzip_writes_an_absolute_entry_name_under_the_destination`.
+
+- **Q-173 `Params` type mismatch log.** Q-16 applies: the log names
+  `ParamName`, not the value's type. Reproduced in `type_mismatch`.
+
+- The JSON-float case of Q-15 is reproduced: Reproduced through `ParamValue::Float64` and the
+  exact-type `get_int`. Test: `get_int_does_not_accept_an_int64_or_a_float_from_json`.
+
+### Data types (WP-1-17)
+
+- **Q-174 JSON names are the Go field names.** The records have no JSON tags,
+  so `ItemId`, `IsHidden`, `FeedbackType` and the rest are written as Go names.
+  Embedded `FeedbackKey` and `Item` are flattened. `UpdateAt` is skipped
+  (`json:"-"`). Serde's `rename_all = "PascalCase"` gives these names. Go's
+  decoder matches names without case; serde does not (see Q-177).
+
+- **Q-175 Map names are written sorted.** `encoding/json` sorts a map's names,
+  so `Labels::Object` marshals in sorted order even though it keeps insertion
+  order. The golden has an object whose input order differs from its output.
+
+- **Q-176 An error text lists the labels as JSON.**
+  `unsupported labels: [1,"2"]` and `unsupported type in labels: bool` are
+  returned to REST callers as the 400 body, so they match Go byte for byte.
+  The golden covers HTML escaping inside the list (`<`).
+
+- **Q-177 Key matching is case-sensitive, and duplicate names are an error.**
+  Go's decoder matches `{"itemid": ...}` to `ItemId`, and takes the last value of
+  a repeated name. serde matches exactly and rejects a repeated name. The REST
+  decoder (WP-4-x) must handle both, probably with a hand-written `Deserialize`
+  on the record types. This WP does not change it.
+
+- **Q-178 REST labels need a `UseNumber` decode.** `Deserialize` gives
+  `Float64`, which is right for the database path. The server WP must decode
+  request bodies so numbers become `Labels::Number` with their text, as go-restful
+  does, since `ValidateLabels` rejects `float64`. `gojson` and serde do not keep
+  number text (`serde_json` would need `arbitrary_precision`).
+
+- **Q-179 Nesting depth.** Go's `encoding/json` allows 10,000 levels of
+  nesting; serde_json stops at 128. Deep labels from a request or a stored row
+  fail to decode in Rust.
+
+- **Q-180 Go's map order in `ValidateLabels`.** Go checks map entries in
+  random order, so with several invalid entries Go's error text varies between
+  runs. The port reports the first invalid entry in insertion order. The golden
+  has at most one invalid entry per map.
+
+- **Q-181 Go's native `int` labels.** Go code can put an `int` into labels,
+  and `ValidateLabels` then says `unsupported type in labels: int`. JSON never
+  produces an `int`, so `Labels` has no integer variant. Such values are not
+  reachable from the wire or the database.
+
+- **Q-182 `mapstructure` tags are not ported.** The record types carry
+  `mapstructure` tags. The only non-test `mapstructure` decoder in Go that
+  touches the data types is in `master/rest.go`, and it decodes config. No
+  Rust code needs the tags yet. The stores (WP-2-x) decide if they need them.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -1093,7 +1199,7 @@ said otherwise), so the Rust result is Go's.
   and the golden `load_yaml_cases` ran as ignored until the YAML decoder merged
   (WP-1-15, YAML part). They pass now.
 
-- **X-48 Log output is missing** until WP-1-8 merges (D-84).
+- **X-48 Log output: closed.** Until WP-1-8 merged, `LoadConfig` had a placeholder logger (D-84). The log-swap merge (0dfc872) replaces it with `tracing::info!` and `tracing::warn!` carrying the same text, and removes `log.rs`.
 
 - **X-49 `contracts/config/config.schema.json` and `config.keys.md` are not
   generated** by this port. They come from `contracts/tools/configschema`
@@ -1149,6 +1255,63 @@ said otherwise), so the Rust result is Go's.
   mutex and the maps with mutexes; Go uses `sync.Map` and unlocked updates.
   The same sequence of calls gives the same results, and there are no data
   races.
+
+### HTTP mocks and clients (WP-1-12)
+
+- **X-58 The OpenAI mock listens on 127.0.0.1, not on every interface.** Go's
+  `net.Listen("tcp", "")` listens on all interfaces. Go's reranker mock already binds `127.0.0.1:0`,
+  and the Rust reranker mock matches it. Tests connect only to loopback, so the Rust mock keeps
+  itself off the network.
+
+- **X-59 The mock's JSON leaves out two fields.** Go writes `content_filter_results` and the
+  unnamed `MultiContent` field on chat messages. The Rust mock writes neither. No Gorse code reads
+  either.
+
+- **X-60 `start()` returns `Ok(())` after `close()`.** Go returns `http.ErrServerClosed`.
+
+- **X-61 Chunked request bodies get a 400.** Go's server reads them. The Gorse clients send
+  `Content-Length` bodies, so no test reaches this path.
+
+- **X-62 `"answers": null` is a decode error.** Go's nil map accepts it. Serde rejects `null` for
+  a `BTreeMap`. No Gorse caller sends null.
+
+- **X-63 Float32 embeddings are written as `139.0`.** serde_json writes an `f32` with a fraction;
+  Go writes `139`. The values are equal, and the Go test compares parsed float32s.
+
+- **X-64 An empty `messages` list gets a 500.** Go indexes `Messages[0]` without a check, and
+  net/http then drops the connection. The Rust mock answers 500 with Go's index-panic text, so the
+  failure is visible.
+
+### Model core (WP-1-16)
+
+- **X-65 `SuggestParams` is not in the `Model` trait.** Go's
+  `SuggestParams(trial goptuna.Trial) Params` needs goptuna's `Trial`, which is
+  part of the tuning port (WP-3-3, `model/cf/optimize.go` and
+  `model/ctr/optimize.go`). WP-3-3 adds it to the trait, and the models implement
+  it there. The other `Model` methods are here.
+
+- **X-66 `init` side effect.** Go's `init` creates `~/.gorse/dataset` and
+  `~/.gorse/temp` when any binary starts, and stops the process if that fails.
+  The Rust library creates nothing on load. `create_built_in_dirs` does the
+  same work and returns the error. The binaries (WP-4-7) call it at startup.
+  `locate_built_in_dataset` makes the directories it writes into, as Go's
+  download path does.
+
+- **X-67 File permissions on unzip.** Unzipped files get default
+  permissions, not `f.Mode()`. Same as X-56 for `datautil`.
+
+- **X-68 `GetRandomGenerator` before `SetParams`.** Go returns a zero
+  generator that panics on first use. Here the getter panics. No caller
+  reaches it before `SetParams`, since every model calls `SetParams` in its
+  constructor (WP-3-*).
+
+- **X-69 `Copy` does not share slices.** Go's `Copy` is shallow, so an
+  `IntSlice` value is shared between the copies. `GetIntSlice` has no caller
+  in the Go tree (only its definition), so the sharing is not reachable.
+
+- **X-70 `unzip` returns only the error.** Go returns the names it wrote
+  before an error, together with the error. No caller reads those names, so
+  `unzip` returns the error alone.
 
 ## Open questions
 
@@ -1218,8 +1381,8 @@ said otherwise), so the Rust result is Go's.
   conflicts were resolved when the dotenv part merged into the integration
   branch. Later parts add their own lines by hand.
 
-- **O-13 `parallel.For` stand-in.** `deps::parallel_for` (see For the
-  integrator) stays until WP-1-6 is on the integration branch. WP-1-6 is merged (2026-10-28), so `gorse_common::parallel::for_` exists; the switch is the nn thread's next merge.
+- **O-13 `parallel.For` stand-in: closed.** `deps::parallel_for` (see For the
+  integrator) stays until WP-1-6 is on the integration branch. WP-1-6 is merged (2026-10-28), so `gorse_common::parallel::for_` exists; closed by the O-13 merge (30e24d9): batch matmul calls `parallel::for_`, and `deps::parallel_for` is deleted.
 
 - **O-14 `GODEBUG` and `util::rand::math`.** `util::rand::math::use_fma`
   reads the CPU directly, without `GODEBUG`. Go's `math.Exp` takes the FMA path
@@ -1257,3 +1420,25 @@ said otherwise), so the Rust result is Go's.
 - **O-21 `TestLoadIris` is ignored (WP-1-8).** It downloads from `cdn.gorse.io`, which is blocked here, as with O-1. It is ported with the Go test's assertions (150 rows, 4 values per row, 150 targets) and `#[ignore]`d. Offline tests cover the CSV parse and the unzip, including a ZipSlip archive. Run it when the CDN is reachable.
 
 - **O-22 A test flake and a `detachable` race (WP-1-6): closed.** `for_and_detachable_panics_resume_on_the_caller` failed about 1 run in 10 under load: the panic hook took longer than the 1000 jobs of 1 ms, so every job started before the stop flag. The test now holds the other jobs until job 0 has unwound; the bound `< 1000` is unchanged. In `detachable`, a panicked job released its slot before recording the panic, so the scheduler could start one more job first; the panic is now recorded first. The same test also hung when job 0 started late (the other jobs filled both detached slots). Job 0 now detaches first and says so, and the other jobs wait for it. Every assertion is unchanged.
+
+- **O-23 `TestUnzip` ignored.** It downloads `yelp.zip` from
+  `cdn.gorse.io`, which this container cannot reach (O-1). Ported with its
+  assertions (2 files) as `unzip_downloaded_yelp_archive`.
+
+- **O-24 `TestLocateBuiltInDataset` ignored.** It downloads `ml-1m` from
+  `cdn.gorse.io` (O-1). Ported with its path assertions as
+  `locate_built_in_dataset_ml_1m`.
+
+- **O-25 `datautil` download has a 30 second timeout (WP-1-8).** Go's `http.Get` has none, and `datautil.rs` calls `reqwest::blocking::get`, which uses reqwest's 30 second default. Ruling: the timeout goes, as D-111 does for the model core. Owner: the util thread. Open until that fix merges.
+
+- **O-26 pdqsort's heapSort fallback is not reached by any golden case.**
+  `gosort` calls `heap_sort` when pdqsort runs out of its partition budget. No
+  golden case gets there. A seeded search of 400,000 random slices of 13 to 24
+  keys, and eight structured families up to 400 long, produced no hit. So the
+  call from pdqsort is not covered: removing it (the slice is then left unsorted
+  on that path) passes every test. `heap_sort` itself matches Go on 1000 cases
+  through a verbatim copy of Go's code. To close the gap, an adaptive adversary
+  (McIlroy's "killer" for pdqsort) would need to build an input that exhausts the
+  budget. Only feedback that defeats pdqsort's pivot choices reaches that path,
+  which real data is unlikely to do, but the dataset and logics WPs sort large
+  slices, so the gap should close before WP-3-x.

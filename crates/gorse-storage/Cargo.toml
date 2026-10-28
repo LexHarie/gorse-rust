@@ -14,9 +14,13 @@ gorse-protocol = { workspace = true }
 gorse-storage-core = { workspace = true }
 gorse-config = { workspace = true }
 gorse-model-core = { workspace = true }
+indexmap.workspace = true
 prost-types = { workspace = true }
+serde.workspace = true
+# `raw_value` writes a `json.Number`'s text as it is, as Go's `json.Marshal` does.
+serde_json = { workspace = true, features = ["raw_value"] }
 tempfile = { workspace = true }
-thiserror = { workspace = true }
+thiserror.workspace = true
 tonic = { workspace = true }
 tracing = { workspace = true }
 # The gRPC master store runs its async client and server on a tokio runtime

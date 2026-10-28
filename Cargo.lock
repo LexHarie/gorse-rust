@@ -672,6 +672,7 @@ dependencies = [
  "sha2",
  "stacker",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -742,6 +743,11 @@ name = "gorse-model-core"
 version = "0.0.0"
 dependencies = [
  "gorse-common",
+ "reqwest",
+ "tempfile",
+ "thiserror",
+ "tracing",
+ "zip",
 ]
 
 [[package]]
@@ -792,10 +798,13 @@ dependencies = [
  "gorse-model-core",
  "gorse-protocol",
  "gorse-storage-core",
+ "indexmap",
  "object_store",
  "percent-encoding",
  "prost-types",
  "reqwest",
+ "serde",
+ "serde_json",
  "tempfile",
  "thiserror",
  "tokio",

@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-13, WP-1-14, WP-1-19. WP-1-11 part 1 (math32) merged; part 2 (nn) is in its own thread. WP-1-15: TOML, dotenv, config.go and YAML merged (D-78, D-82 to D-95). Open: the log placeholder is swapped for WP-1-8's log in a follow-up (X-48); config.schema.json and config.keys.md not generated (X-49); YAML part in its own thread, config core here. WP-1-6, WP-1-8 and WP-1-12 run in parallel threads (D-26). WP-1-16 to WP-1-18 follow WP-1-8 and WP-1-15. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); config.schema.json and config.keys.md not generated (X-49). WP-1-18 is in progress (it follows WP-1-16 and WP-1-17, both merged). All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
@@ -936,6 +936,112 @@ or accepts a metric gap outside the Go tests' own tolerances.
   `rustls`), `zip` 9.1.3 (`deflate`). Their rows are in
   `porting/crate-selection.md`; the statik row's `zip` is bumped from 9.0.4 to
   9.1.3 so both uses agree.
+
+- **D-108 The test servers use `std::net`, not go-restful or axum.** Go's mocks answer through
+  go-restful over `net/http`. The Rust mocks answer through a small HTTP/1.1 server on `std::net`
+  (`http.rs`). It serves one request per connection, reads `Content-Length` bodies, and answers with
+  `Connection: close`. The mocks serve two routes each. `gorse-common` has no async runtime, so axum
+  and tokio would add two dependencies to serve two routes.
+
+- **D-109 Client calls end when their context does.** `http::post` runs the request on its own
+  thread and checks the context every 10 ms. A context that is done returns `Error::Context`, as Go's
+  cancelled request does. The request thread finishes unobserved and its reply is dropped.
+
+- **D-110 The clients use reqwest's blocking client with rustls.** Go's `http.DefaultClient` is
+  shared across requests, and so is the Rust `OnceLock` client. Both honour the proxy environment
+  variables. No Phase 1 caller is async.
+
+- **D-111 Param value type.** `ParamValue` has one variant per Go dynamic
+  type Gorse stores: `Nil`, `Int` (Go `int`, `i64`), `Int32`, `Int64`,
+  `Float32`, `Float64`, `Bool`, `String`, `IntSlice` (`Vec<i64>`). The accessors
+  switch on the variant, which keeps Q-15 (JSON gives `float64`, so `get_int`
+  falls back to its default). `Other(&'static str)` stands for any other Go
+  type, named as Go prints it. The Go test uses `[]string{"hello"}` as its wrong
+  type, so the Rust test uses `Other("[]string")`. `gob::Value`
+  (`gorse_common::encoding::gob`) was not reused: it has no `Other`, and it
+  belongs to another crate. The gob
+  codec for model blobs and the meta store (WP-2-11) convert to and from
+  `ParamValue` where they read and write `Params`.
+
+- **D-112 Names.** Go's `ParamName` is a string type. Here names are `&str`
+  arguments, `String` map keys, and the predefined names are `&str` constants
+  with SCREAMING_SNAKE names (`N_EPOCHS` for `NEpochs`). Entries are in a
+  `BTreeMap`, so iteration is by name.
+
+- **D-113 Copy.** Go's `Params.Copy` is `Clone` here. `Overwrite` returns a
+  new map and takes `&Params`.
+
+- **D-114 Random generator.** `BaseModel` stores
+  `Option<RandomGenerator>`, so `BaseModel` has `Default`. `SetParams` seeds it
+  from `RandomState` (0 when missing or not an `int64`), as Go does.
+
+- **D-115 Downloads.** The download uses a `reqwest` blocking client with
+  its timeout turned off. Go's `http.Get` has no timeout, and reqwest's blocking
+  client gives up after 30 seconds (`reqwest` 0.13.5,
+  `src/blocking/client.rs`, `Timeout::default`). Integrator ruling (2026-10-28): accepted. `datautil.rs` must match, which is O-25.
+
+- **D-116 Home directory.** `gorse_dir`, `dataset_dir` and `temp_dir` are
+  functions that read `$HOME` on each call (X-55). Go computes them once in
+  `init`. Tests use `locate_built_in_dataset_in` and `create_dirs` with
+  temporary directories, because setting `$HOME` in a test is `unsafe` in
+  edition 2024 and the workspace denies `unsafe`.
+
+- **D-117 `Labels` is Go's `any` as a Rust enum.** Labels reach Gorse as two
+  Go types. The REST decoder (go-restful v3.13.0, `entity_accessors.go:138`)
+  calls `UseNumber`, so its numbers are `json.Number`. gorm's JSON serializer
+  (gorm v1.31.1, `schema/serializer.go:95`) calls `json.Unmarshal`, so values read
+  from the database are `float64`. `ValidateLabels` treats the two differently
+  (it accepts `json.Number`, rejects `float64` and `bool`), so the enum keeps
+  `Number(String)` (text) and `Float64(f64)` apart. `Deserialize` gives
+  `Float64`, which is `json.Unmarshal`'s default. The REST path needs its own
+  `UseNumber` decode (Q-178).
+
+- **D-118 `Categories` is `Option<Vec<String>>`.** Go's nil slice marshals
+  as `null`, and an empty slice as `[]`. Both occur: a REST body without
+  `Categories` gives nil, and `sql.go` writes nil as `"null"`. A `Vec` would
+  change the wire output. `ItemPatch.Categories` uses the same type, because
+  `patch.Categories != nil` is how Go decides to update.
+
+- **D-119 `Labels::Nil` means unset in patches.** `ItemPatch.Labels` and
+  `UserPatch.Labels` are not `Option`. Go's `patch.Labels != nil` treats a nil
+  `any` as unset, and `Labels::Nil` is that value.
+
+- **D-120 Go's `sort.Sort` is ported, not Rust's sort.** `sort.Sort` is
+  pattern-defeating quicksort and not stable. `SortFeedbacks` decides which
+  feedback is latest when timestamps are equal, and `logics/recommend.go`,
+  `worker/pipeline.go`, `server/rest.go` and `master/rest.go` all sort with it.
+  Up to 12 elements it is an insertion sort, which is stable, but above that the
+  tie order depends on the exact sequence of Less and Swap calls. So
+  `gorse_common::gosort` is a port of go1.27.0's `sort.go` and
+  `zsortinterface.go` (`Sort`, pdqsort and its helpers). It is a shared module
+  for later packages, which also call `sort.Sort`.
+
+- **D-121 `ScanOptions`, `ScanOption`, `GetOptions` are not in this WP.**
+  They are query options of the `Database` interface, not record types, and
+  WP-2-1 ports them with the interface. `NewScanOptions` and the `With*`
+  functions go there too.
+
+- **D-122 Storage traits are `async`.** Every storage family (cache, vectors,
+  blob, data, meta) exposes an `async` trait. Traits used as `dyn` (`Open`
+  returns one) use `async-trait` (`porting/crate-selection.md`). Reason: the
+  network stores (Redis, MySQL, Postgres, MongoDB, Qdrant, Milvus, S3-style blob)
+  need async clients, and `tokio` is already the runtime that `tonic`, `axum`
+  and `sqlx` require. One rule for every family keeps the callers the same.
+  Rules that follow:
+  - No sync facade over a network driver. A blocking wrapper would hide the cost
+    and nest runtimes.
+  - Each method keeps Go's `ctx` as its first parameter, `&gocontext::Context`.
+    It checks `ctx.err()` on entry and between units of work. Dropping the
+    future cancels the rest. Each store records this in its X-entries.
+  - In-process stores (sqlite through `rusqlite`, the xvec file log) run their
+    blocking work in `tokio::task::spawn_blocking`. A `std` lock is never held
+    across an `.await`.
+  - `tokio` joins the library's dependencies when the first backend needs it.
+    WP-2-4 keeps it a dev-dependency until then.
+  Accepted from the cache core (WP-2-4), which already follows this. The vector
+  core (WP-2-8) keeps a sync trait in its notes (C-WP28-2), which this decision
+  overrides: it must be converted before it merges. Decided by the integrator on
+  the coordinator's request (2026-10-28). It binds WP-2-1 to WP-2-13.
 
 ## Open questions for Ritchie
 
