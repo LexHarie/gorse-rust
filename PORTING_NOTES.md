@@ -1004,6 +1004,19 @@ said otherwise), so the Rust result is Go's.
 - **Q-192 `NoDatabase.Optimize` succeeds.** Every other `NoDatabase` method
   returns `storage.ErrNoDatabase`.
 
+### Blob stores (WP-2-10)
+
+- **Q-193 one timestamp per chunk.** Go stamps every chunk with its own time,
+  so the server rejects a second chunk of one upload (`inconsistent timestamp`).
+  The port keeps this: the blob is not created and `Close` returns Ok. Test
+  `quirk_second_chunk_is_rejected`. A temporary Go probe, since deleted, showed the
+  same result.
+
+- **Q-194 4 MiB chunks exceed the gRPC limit.** A 4 MiB chunk plus its framing
+  is larger than gRPC's default 4 MiB receive limit. The server refuses it
+  (`received message larger than max (4194332 vs. 4194304)`) and no blob is created.
+  A 3 MiB write is accepted. Test `quirk_full_size_chunk_exceeds_grpc_limit`.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -1421,6 +1434,46 @@ said otherwise), so the Rust result is Go's.
   not keep `Bits`, and it rejects any quantization other than none with Go's
   text `quantization type sq for xvec not supported`.
 
+### Blob stores (WP-2-10)
+
+- **X-79 S3 close returns the upload error.** Go's `S3.Create` runs
+  `PutObject` on a goroutine behind an `io.Pipe`. Its error is logged and the
+  pipe's `Close` returns nil. The port returns the upload error from `close` and
+  logs it. The caller can see the failure. GCS already returns its writer's error
+  in Go, and the port matches that.
+
+- **X-80 list strips the prefix the same way.** Go's S3 `List` slices
+  `Key[len(prefix):]` and drops one leading `/`. The port does the same with
+  `strip_prefix`. The prefix is trimmed of slashes first, as the `Path` join is.
+
+- **X-81 temp file removed on failure.** A failed master upload deletes its
+  temp file. Go leaves an `upload-*` file behind (its `os.Rename` runs only after a
+  full read).
+
+- **X-82 write errors are returned.** POSIX and master writes return their
+  I/O errors. Go's `io.Pipe` writes block or fail the copy goroutine instead.
+
+- **X-83 EOF on the next read.** Go's minio reader returns `io.EOF` with the
+  last bytes. The Rust readers report the end on the following read. The tests
+  assert that second read returns 0.
+
+- **X-84 missing env panics.** The cloud tests panic when a required variable
+  is missing (`required_env`). Go's tests skip. A silent skip would look like a pass.
+
+- **X-85 buckets are created out of band.** object_store has no
+  `CreateBucket`, so `gorse-test` (and the Azure container) must exist before the
+  cloud tests run. Go creates them in the test.
+
+- **X-86 constructors return a Result.** `MasterStoreServer::new` returns
+  `io::Result` where Go calls `log.Logger().Fatal`. The caller decides.
+
+- **X-87 cancelled cloud multipart.** A cancelled write leaves an unfinished
+  multipart upload, which the provider's lifecycle rule must clear. A cancelled
+  POSIX write leaves the partial file, as Go does when its copy fails.
+
+- **X-88 ctx on every method.** `Store` and `BlobWriter` take `ctx`, as D-122
+  requires. Go's blob API has no context.
+
 ## Open questions
 
 - **O-1** The Go CI's model tests read the datasets from `https://cdn.gorse.io`,
@@ -1574,3 +1627,40 @@ said otherwise), so the Rust result is Go's.
   identical, since the graph build differs. The exact scan costs O(n·d) per
   query. Phase 3 (metric parity) decides whether that gap is acceptable, and
   whether xvec's index must be ported.
+
+- **O-31 GCS write cannot run on fake-gcs-server.** The XML `PUT` to the
+  emulator answers 400 `invalid uploadType` on 1.54.0, 1.56.1 and in the latest
+  run. `test_gcs` is `#[ignore]`d with that reason. `test_gcs_read_list_remove`
+  covers read, list and remove, with the seed uploaded through the JSON API. The
+  write needs an emulator that serves the XML upload, or real GCS.
+  Integrator ruling (2026-10-28): the ignored test is not coverage of the write path. object_store's GCS put uses the XML API (`src/gcp/client.rs` in object_store 0.14.2), which fake-gcs-server does not serve, so no test runs the write. Before WP-2-10 is closed, the blob thread adds an in-process test that serves the XML PUT and the multipart calls on a local HTTP listener and checks the request line, headers and body that the store sends. The emulator test may stay ignored with this reason. Open until that merges.
+
+- **O-32 fake-gcs-server needs `-external-url` for path-style XML.** Without
+  it, `GET /{bucket}?list-type=2` answers 404. This is an emulator setting, and the
+  code is unchanged. Run it as `-scheme http -port 5051 -public-host 127.0.0.1:5051
+  -external-url http://127.0.0.1:5051 -backend memory`.
+
+- **O-33 live emulators.** RustFS runs as the `rustfs/rustfs:alpha` container
+  on port 9000. Azurite runs from the npm `azurite` package on port 10000 with
+  `--skipApiVersionCheck`. Buckets and the container are created before the test
+  run. The environment variables are `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`,
+  `S3_SECRET_ACCESS_KEY`, `AZURE_STORAGE_CONNECTION_STRING` and
+  `GCS_EMULATOR_ENDPOINT`. The S3 keys are development-only and are not recorded here.
+
+- **O-34 a missing blob over gRPC is `Unknown`.** Go's server returns the
+  `os.Open` error as a plain error, which gRPC reports as code `Unknown`. The master
+  client therefore cannot map it to `NotFound`. The integrator needs to choose: a
+  status code on the server side, or matching the error text.
+  Integrator ruling (2026-10-28): keep Go's wire behaviour. The gRPC error stays code `Unknown`, and the master client does not map it to `NotFound`. This is faithful to Go. Revisit only if a caller needs `NotFound`.
+
+- **O-35 `log` rotation can overwrite a backup within one millisecond (WP-1-8).** Backup
+  names carry milliseconds (`gorse-<time>.log`). Two rotations in the same millisecond
+  give the same name, and the second rename replaces the first backup. Go's lumberjack
+  names its backups the same way, so this is the Go behaviour, not a port bug.
+  The test `log::tests::rotation_keeps_the_backups_the_flags_allow` writes 8 chunks
+  that rotate 4 times, and it expects 2 backups. It failed once in the full workspace
+  run on 2026-10-28 (gate18: `assertion left == right failed: ["gorse-2026-10-28T11-29-14.070.log", "gorse.log"]`,
+  left 1, right 2), and it passed alone three times and in the rerun. Owner: the util
+  thread. The fix must keep the name format and the assertion unchanged. The test
+  makes its rotations apart in time (for example a 2 ms sleep between writes). It must
+  not lower the count. Open until that merges.

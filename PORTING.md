@@ -30,7 +30,7 @@ Every Rust module names the Go files it ports with a
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); config.schema.json and config.keys.md not generated (X-49). WP-1-18 is in progress (it follows WP-1-16 and WP-1-17, both merged). All in `porting/work-packages.md` |
-| 2. Storage | in progress | Done: WP-2-4 (cache core; its shared suite waits for the backends, O-28) and WP-2-8 (vector core, async per D-122, exact search, O-30). WP-2-10 (blob) is not merged. WP-2-1 to WP-2-3, 2-5 to 2-7, 2-9, 2-11 to 2-13 not merged |
+| 2. Storage | in progress | Done: WP-2-4 (cache core; its shared suite waits for the backends, O-28) and WP-2-8 (vector core, async per D-122, exact search, O-30). WP-2-10 (blob, async per D-122, merged; O-31 open until the XML-upload stub test merges). WP-2-1 to WP-2-3, 2-5 to 2-7, 2-9, 2-11 to 2-13 not merged |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
@@ -1125,6 +1125,42 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
 - **D-136 Exact search.** The store scans every live vector and keeps the
   best `topK`. HNSW, which Go uses, is not ported (X-75).
+
+- **D-137 async stores, ctx first (D-122).** `Store` and `BlobWriter` are
+  `#[async_trait]`. Every method takes `ctx: &gocontext::Context` first and checks
+  `ctx.err()` on entry and between units of work (each write, each list entry).
+  No store holds a runtime and nothing calls `block_on`. No sync facade.
+
+- **D-138 `done` is a oneshot.** `create` returns a
+  `tokio::sync::oneshot::Receiver<()>`. Go closes `done`; the port sees a
+  `RecvError` because the sender is dropped when the writer is closed or dropped.
+
+- **D-139 POSIX IO through `tokio::fs`.** Each `tokio::fs` call runs on the
+  blocking pool, which is the `spawn_blocking` the ruling asks for. The gRPC
+  server's temp-file creation and rename call `spawn_blocking` directly.
+
+- **D-140 cloud writes.** A writer buffers up to 5 MiB (the S3 minimum part
+  size). Data up to that size goes up in one request on close. More starts a
+  multipart upload with at most 4 parts in flight.
+
+- **D-141 cancelled master uploads are aborted.** The master client runs each
+  upload on its own task. A cancelled context aborts that task, so the stream is
+  reset instead of ended. The server persists only a stream that ends normally,
+  so a cancelled upload creates no blob (test `cancelled_upload_persists_nothing`).
+
+- **D-142 NotFound.** `BlobError::kind()` maps POSIX `ErrorKind::NotFound`
+  and object_store `NotFound` to `gorse_storage_core::errors::Error::NotFound`.
+  gRPC missing-blob errors are not mapped (O-34).
+
+- **D-143 crates.** `async-trait` 0.1.92 (dyn-compatible async methods, the
+  crate-selection row), `tokio` 1.54.1 (the latest; this WP moved the crate from
+  1.53.3 to 1.54.1 to match that row) with `fs`, `io-util` and `time`,
+  `object_store` 0.14.2 (`aws`, `gcp`, `azure`), `tokio-stream` 0.1.19,
+  `futures-util` 0.3.34, `bytes` 1.12.1, `url` 2.5.8, `percent-encoding` 2.3.2.
+  Dev: `reqwest` (workspace) to seed the GCS emulator. `tokio-util` is not used.
+
+- **D-144 gRPC list uses a background context.** The gRPC `ListBlobs` call
+  carries no Go context. A dropped call is the only cancellation.
 
 ## Open questions for Ritchie
 
