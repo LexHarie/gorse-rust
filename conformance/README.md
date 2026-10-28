@@ -7,6 +7,7 @@ build, and compare the outputs. They decide the exit gates of Phases 2 to 5.
 | Test file | Work package | Compares |
 |---|---|---|
 | `tests/schema.rs` | WP-2-13 | Databases initialised by the Rust stores, dumped with `contracts/tools/schemadump`, against `contracts/schema` |
+| `tests/proxy_wire.rs` | WP-2-12 | The proxy stores over gRPC: Go's proxy clients against the Rust servers, and the Rust clients against Go's servers, on one 66-step scenario and the golden transcript in `crates/gorse-storage/tests/data/proxy_transcript.txt` |
 | `tests/metrics.rs` | WP-3-8 | NDCG, precision, recall and AUC of the Rust and Go models on the same dataset files |
 | `tests/mixed_cluster.rs` | WP-4-7 | The Go SDK suite (`client/client_test.go`) against Go master + Rust workers, + Rust servers, then all Rust |
 | `tests/rest_golden.rs` | WP-5-1 | Every REST route in `contracts/rest/*.routes.md`: status, headers that matter, and body against recorded Go responses |

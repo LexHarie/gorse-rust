@@ -12,14 +12,19 @@ publish = false
 gorse-common = { workspace = true }
 gorse-config = { workspace = true }
 gorse-storage = { workspace = true, features = ["mysql", "postgres", "sqlite", "mongodb", "redis"] }
+futures-core.workspace = true
+futures-util.workspace = true
 indexmap.workspace = true
 mongodb.workspace = true
 redis.workspace = true
 rusqlite.workspace = true
+serde_json.workspace = true
 sqlx = { workspace = true, features = ["mysql", "postgres"] }
 tempfile.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros", "net"] }
+tokio-stream = { version = "0.1.19", features = ["net"] }
+tonic.workspace = true
 
 [lints]
 workspace = true

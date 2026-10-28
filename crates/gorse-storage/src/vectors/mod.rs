@@ -14,6 +14,7 @@ pub mod milvus;
 pub mod qdrant;
 #[cfg(feature = "weaviate")]
 pub mod weaviate;
+pub mod proxy;
 pub mod xvec;
 
 #[cfg(test)]

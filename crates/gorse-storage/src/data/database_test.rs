@@ -90,6 +90,24 @@ pub async fn run(db: &dyn Backend) {
     test_purge(db).await;
 }
 
+/// Runs the cases of Go's proxy suite (`storage/data/proxy_test.go`): every
+/// case of [`run`] except `TestInit` and `TestPurge`, which Go skips there
+/// because the proxy client refuses `Init` and `Purge`. The cases keep the
+/// order of [`run`].
+pub(crate) async fn run_through_proxy(db: &dyn Backend) {
+    test_users(db).await;
+    test_feedback(db).await;
+    test_items(db).await;
+    test_batch_get_items(db).await;
+    test_delete_user(db).await;
+    test_delete_item(db).await;
+    test_delete_feedback(db).await;
+    test_time_limit(db).await;
+    test_timezone(db).await;
+    test_collation(db).await;
+    test_search(db).await;
+}
+
 /// Go's `SetupTest`: pings the store and purges it.
 async fn setup(db: &dyn Backend) {
     db.ping().await.unwrap();

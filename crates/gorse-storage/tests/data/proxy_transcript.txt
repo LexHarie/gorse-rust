@@ -1,0 +1,66 @@
+d.ping	{"ok":null}
+d.init	{"err":"method Init is not allowed in ProxyClient"}
+d.purge	{"err":"method Purge is not allowed in ProxyClient"}
+d.batch_insert_items	{"ok":null}
+d.get_item_i1	{"ok":{"Categories":["a","b"],"Comment":"first","IsHidden":false,"ItemId":"i1","Labels":["x","y"],"Timestamp":{"nanos":600000000,"unix":1704164645}}}
+d.get_item_missing	{"err":"item missing not found"}
+d.batch_get_items	{"ok":[{"Categories":["a","b"],"Comment":"first","IsHidden":false,"ItemId":"i1","Labels":["x","y"],"Timestamp":{"nanos":600000000,"unix":1704164645}}]}
+d.count_items	{"ok":2}
+d.get_items	{"ok":{"cursor":"","items":[{"Categories":["a","b"],"Comment":"first","IsHidden":false,"ItemId":"i1","Labels":["x","y"],"Timestamp":{"nanos":600000000,"unix":1704164645}},{"Categories":null,"Comment":"second","IsHidden":true,"ItemId":"i2","Labels":{"k":"v","n":2.5},"Timestamp":{"nanos":0,"unix":1704164700}}]}}
+d.modify_item_i1	{"ok":null}
+d.get_item_i1_modified	{"ok":{"Categories":["z"],"Comment":"changed","IsHidden":true,"ItemId":"i1","Labels":["x","y"],"Timestamp":{"nanos":600000000,"unix":1704164645}}}
+d.modify_item_missing	{"ok":null}
+d.batch_insert_users	{"ok":null}
+d.get_user_u1	{"ok":{"Comment":"vip","Labels":{"tier":"gold"},"UserId":"u1"}}
+d.get_user_missing	{"err":"user missing not found"}
+d.count_users	{"ok":2}
+d.get_users	{"ok":{"cursor":"","users":[{"Comment":"vip","Labels":{"tier":"gold"},"UserId":"u1"},{"Comment":"","Labels":null,"UserId":"u2"}]}}
+d.modify_user_u1	{"ok":null}
+d.batch_insert_feedback	{"ok":null}
+d.get_item_feedback_i1	{"ok":[{"Comment":"f1","FeedbackType":"like","ItemId":"i1","Labels":null,"Timestamp":{"nanos":600000000,"unix":1704164645},"Updated":{"nanos":600000000,"unix":1704164645},"UserId":"u1","Value":1.5},{"Comment":"","FeedbackType":"like","ItemId":"i1","Labels":null,"Timestamp":{"nanos":0,"unix":1704000000},"Updated":{"nanos":0,"unix":1704000000},"UserId":"u2","Value":2.25}]}
+d.get_user_feedback_u1	{"ok":[{"Comment":"f1","FeedbackType":"like","ItemId":"i1","Labels":null,"Timestamp":{"nanos":600000000,"unix":1704164645},"Updated":{"nanos":600000000,"unix":1704164645},"UserId":"u1","Value":1.5},{"Comment":"","FeedbackType":"read","ItemId":"i2","Labels":["seen"],"Timestamp":{"nanos":0,"unix":1704164700},"Updated":{"nanos":0,"unix":1704164700},"UserId":"u1","Value":0.5}]}
+d.get_user_item_feedback	{"ok":[{"Comment":"f1","FeedbackType":"like","ItemId":"i1","Labels":null,"Timestamp":{"nanos":600000000,"unix":1704164645},"Updated":{"nanos":600000000,"unix":1704164645},"UserId":"u1","Value":1.5}]}
+d.count_feedback	{"ok":3}
+d.get_feedback	{"ok":{"cursor":"","feedback":[{"Comment":"f1","FeedbackType":"like","ItemId":"i1","Labels":null,"Timestamp":{"nanos":600000000,"unix":1704164645},"Updated":{"nanos":600000000,"unix":1704164645},"UserId":"u1","Value":1.5},{"Comment":"","FeedbackType":"like","ItemId":"i1","Labels":null,"Timestamp":{"nanos":0,"unix":1704000000},"Updated":{"nanos":0,"unix":1704000000},"UserId":"u2","Value":2.25},{"Comment":"","FeedbackType":"read","ItemId":"i2","Labels":["seen"],"Timestamp":{"nanos":0,"unix":1704164700},"Updated":{"nanos":0,"unix":1704164700},"UserId":"u1","Value":0.5}]}}
+d.get_user_stream	{"ok":[[{"Comment":"changed","Labels":{"tier":"gold"},"UserId":"u1"}],[{"Comment":"","Labels":null,"UserId":"u2"}]]}
+d.get_item_stream	{"ok":[[{"Categories":["z"],"Comment":"changed","IsHidden":true,"ItemId":"i1","Labels":["x","y"],"Timestamp":{"nanos":600000000,"unix":1704164645}}],[{"Categories":null,"Comment":"second","IsHidden":true,"ItemId":"i2","Labels":{"k":"v","n":2.5},"Timestamp":{"nanos":0,"unix":1704164700}}]]}
+d.get_feedback_stream	{"ok":[[{"Comment":"f1","FeedbackType":"like","ItemId":"i1","Labels":null,"Timestamp":{"nanos":600000000,"unix":1704164645},"Updated":{"nanos":600000000,"unix":1704164645},"UserId":"u1","Value":1.5},{"Comment":"","FeedbackType":"like","ItemId":"i1","Labels":null,"Timestamp":{"nanos":0,"unix":1704000000},"Updated":{"nanos":0,"unix":1704000000},"UserId":"u2","Value":2.25}],[{"Comment":"","FeedbackType":"read","ItemId":"i2","Labels":["seen"],"Timestamp":{"nanos":0,"unix":1704164700},"Updated":{"nanos":0,"unix":1704164700},"UserId":"u1","Value":0.5}]]}
+d.delete_user_item_feedback	{"ok":1}
+d.delete_item_i2	{"ok":null}
+d.get_item_i2_deleted	{"err":"item i2 not found"}
+d.delete_user_u2	{"ok":null}
+d.count_feedback_after_delete	{"ok":1}
+c.ping	{"ok":null}
+c.init	{"err":"init is not allowed in proxy client"}
+c.purge	{"err":"purge is not allowed in proxy client"}
+c.scan	{"err":"scan is not allowed in proxy client"}
+c.set	{"ok":null}
+c.get_a	{"ok":{"exists":true,"value":"1"}}
+c.get_missing	{"ok":{"exists":false,"value":""}}
+c.get_n	{"ok":7}
+c.get_t	{"ok":{"nanos":600000000,"unix":1704164645}}
+c.delete_b	{"ok":null}
+c.get_b_deleted	{"ok":{"exists":false,"value":""}}
+c.add_scores	{"ok":null}
+c.search_scores	{"ok":[{"Categories":[],"Id":"y","IsHidden":false,"Score":2.25,"Timestamp":{"nanos":0,"unix":1704164700}},{"Categories":["g"],"Id":"x","IsHidden":false,"Score":1.5,"Timestamp":{"nanos":600000000,"unix":1704164645}}]}
+c.update_scores	{"ok":null}
+c.search_scores_updated	{"ok":[{"Categories":["g"],"Id":"x","IsHidden":false,"Score":3.75,"Timestamp":{"nanos":600000000,"unix":1704164645}},{"Categories":[],"Id":"y","IsHidden":false,"Score":2.25,"Timestamp":{"nanos":0,"unix":1704164700}}]}
+c.delete_scores	{"ok":null}
+c.scan_scores	{"ok":[{"collection":"rec","id":"x","subset":"pop","timestamp":{"nanos":600000000,"unix":1704164645}},{"collection":"rec","id":"y","subset":"pop","timestamp":{"nanos":0,"unix":1704164700}}]}
+c.add_time_series	{"ok":null}
+c.get_time_series	{"ok":[{"Name":"ts","Timestamp":{"nanos":0,"unix":1704164400},"Value":2.25},{"Name":"ts","Timestamp":{"nanos":0,"unix":1704168000},"Value":4.5}]}
+v.init	{"ok":null}
+v.add_collection	{"ok":null}
+v.list_collections	{"ok":["docs"]}
+v.describe_docs	{"ok":{"Bits":0,"Dimension":2,"Distance":"dot","Name":"docs","Type":""}}
+v.describe_missing	{"err":"collection missing: not found"}
+v.add_vectors	{"ok":null}
+v.count_vectors	{"ok":3}
+v.get_vectors	{"ok":[{"Categories":["c"],"Id":"a","IsHidden":false,"Timestamp":{"nanos":600000000,"unix":1704164645},"Values":[1.5,0.5]},{"Categories":[],"Id":"c","IsHidden":true,"Timestamp":{"nanos":0,"unix":1704164700},"Values":[3.5,1.5]}]}
+v.query_vectors	{"ok":[{"Id":"a","Score":2.5},{"Id":"b","Score":2}]}
+v.delete_vectors	{"ok":null}
+v.count_vectors_after_delete	{"ok":2}
+v.optimize	{"ok":null}
+v.delete_collection	{"ok":null}
+v.list_collections_after_delete	{"ok":[]}
+v.close	{"ok":null}

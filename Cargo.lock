@@ -1230,6 +1230,8 @@ dependencies = [
 name = "gorse-conformance"
 version = "0.0.0"
 dependencies = [
+ "futures-core",
+ "futures-util",
  "gorse-common",
  "gorse-config",
  "gorse-storage",
@@ -1237,10 +1239,13 @@ dependencies = [
  "mongodb",
  "redis",
  "rusqlite",
+ "serde_json",
  "sqlx",
  "tempfile",
  "thiserror",
  "tokio",
+ "tokio-stream",
+ "tonic",
 ]
 
 [[package]]
