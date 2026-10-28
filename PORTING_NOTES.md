@@ -1294,10 +1294,17 @@ said otherwise), so the Rust result is Go's.
 
 - **X-48 Log output: closed.** Until WP-1-8 merged, `LoadConfig` had a placeholder logger (D-84). The log-swap merge (0dfc872) replaces it with `tracing::info!` and `tracing::warn!` carrying the same text, and removes `log.rs`.
 
-- **X-49 `contracts/config/config.schema.json` and `config.keys.md` are not
+- **X-49 (closed 2026-10-28) `contracts/config/config.schema.json` and `config.keys.md` are not
   generated** by this port. They come from `contracts/tools/configschema`
   (`jsonschema` reflection and the walk over `GetDefaultConfig`). WP-1-15's
-  acceptance names only `meta-config.*.json` and `config.toml`.
+  acceptance names only `meta-config.*.json` and `config.toml`. Closed: the
+  integrator ran `go run ./configschema -out <tmp> -src ../../config` in
+  `contracts/tools` (go1.27.0). Its four outputs (`config.schema.json`,
+  `config.keys.md`, `meta-config.default.json`, `meta-config.sample.json`) are
+  byte-identical to the frozen files, so the frozen copies are current. The Rust
+  port has no generator and needs none: the master serves the frozen schema
+  (`porting/crate-selection.md`, the invopop row), and that WP checks it when it
+  lands.
 
 ### YAML decoder (WP-1-15, yaml.v3 port)
 
