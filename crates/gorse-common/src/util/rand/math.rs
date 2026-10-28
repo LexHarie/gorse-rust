@@ -23,7 +23,8 @@
 //!
 //! Go's `Exp` takes an FMA path when the CPU has AVX and FMA, and a plain
 //! path otherwise, and the two round differently (`PORTING_NOTES.md`,
-//! WP-1-4 notes). [`exp`] picks the path the same way Go does.
+//! WP-1-4 notes). [`exp`] picks the path the same way Go does, `GODEBUG`
+//! included.
 //!
 //! The constants keep the decimal text of Go's assembly, which, like a Rust
 //! literal, rounds to the nearest `f64`; a test checks the bits.
@@ -59,11 +60,14 @@ const NEG_INF: u64 = 0xFFF0_0000_0000_0000;
 const NAN: u64 = 0x7FF8_0000_0000_0001;
 
 /// Whether Go would take the FMA path of `Exp` on this CPU
-/// (`useFMA = cpu.X86.HasAVX && cpu.X86.HasFMA`).
+/// (`useFMA = cpu.X86.HasAVX && cpu.X86.HasFMA`). The features are read the way
+/// Go reads them, so `GODEBUG=cpu.avx=off` and `cpu.fma=off` turn the path off.
 fn use_fma() -> bool {
     #[cfg(target_arch = "x86_64")]
     {
-        std::arch::is_x86_feature_detected!("avx") && std::arch::is_x86_feature_detected!("fma")
+        let features = crate::floats::Feature::current();
+        features.contains(crate::floats::Feature::AVX)
+            && features.contains(crate::floats::Feature::FMA)
     }
     #[cfg(not(target_arch = "x86_64"))]
     {
@@ -279,15 +283,15 @@ mod tests {
         u64::from_str_radix(v.as_str().expect("string"), 16).expect("hex")
     }
 
-    /// Both `Exp` paths and `Log` against Go's outputs on both paths
-    /// (`GODEBUG=cpu.fma=off` for the plain one), written by
-    /// `contracts/tools/randgolden`.
+    /// Both `Exp` paths and `Log` against Go's outputs on each variant: `fma`,
+    /// and `nofma` and `avx_off` (`GODEBUG=cpu.fma=off` and `cpu.avx=off`), written
+    /// by `contracts/tools/randgolden`.
     #[test]
     fn util_rand_exp_and_log_match_go() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/rand_golden.json");
         let golden: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(path).expect("read")).expect("parse");
-        for (variant, fma) in [("fma", true), ("nofma", false)] {
+        for (variant, fma) in [("fma", true), ("nofma", false), ("avx_off", false)] {
             let m = &golden["math"][variant];
             for c in m["exp"].as_array().expect("exp") {
                 let x = f64::from_bits(hex(&c["in"]));
@@ -336,6 +340,74 @@ mod tests {
     #[test]
     fn util_rand_exp_follows_the_cpu_like_go() {
         assert_eq!(exp(-0.3).to_bits(), exp_with(-0.3, use_fma()).to_bits());
+    }
+
+    /// The `GODEBUG` settings that change `Exp` on amd64, each with the golden
+    /// variant that holds Go's outputs under it.
+    const GODEBUG_CHILDREN: [(&str, &str); 2] =
+        [("cpu.fma=off", "nofma"), ("cpu.avx=off", "avx_off")];
+
+    /// `Exp` and `Log` follow `GODEBUG` as Go's do: under each setting in
+    /// [`GODEBUG_CHILDREN`] the process takes the non-FMA path, and `exp` and
+    /// `log` match Go's outputs under that setting. Each setting runs in a child
+    /// process of this test binary, since Go reads `GODEBUG` once per process.
+    /// The FMA path only exists on x86-64.
+    #[test]
+    fn exp_and_log_follow_godebug_in_child_processes() {
+        if cfg!(target_arch = "x86_64") {
+            for (godebug, variant) in GODEBUG_CHILDREN {
+                run_godebug_child(godebug, variant);
+            }
+        }
+    }
+
+    /// Runs `godebug_child` in a child process of this test binary, with
+    /// `GODEBUG` set to `godebug`, and asserts that it ran and passed.
+    fn run_godebug_child(godebug: &str, variant: &str) {
+        let output = std::process::Command::new(std::env::current_exe().expect("test binary"))
+            .args([
+                "--exact",
+                "util::rand::math::tests::godebug_child",
+                "--ignored",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env("GODEBUG", godebug)
+            .env("GORSE_GODEBUG_VARIANT", variant)
+            .output()
+            .expect("run the child");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            output.status.success() && stdout.contains("1 passed"),
+            "GODEBUG={godebug} child did not pass:\n{stdout}\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    /// The child of [`exp_and_log_follow_godebug_in_child_processes`]. It is
+    /// ignored so that a normal run does not count it; the parent runs it with
+    /// `--ignored` under the `GODEBUG` setting named by `GORSE_GODEBUG_VARIANT`.
+    #[test]
+    #[ignore = "run by exp_and_log_follow_godebug_in_child_processes"]
+    fn godebug_child() {
+        let variant = std::env::var("GORSE_GODEBUG_VARIANT").expect("set by the parent");
+        assert!(
+            !use_fma(),
+            "GODEBUG={:?} must take the non-FMA path",
+            std::env::var("GODEBUG")
+        );
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/rand_golden.json");
+        let golden: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).expect("read")).expect("parse");
+        let m = &golden["math"][variant.as_str()];
+        for c in m["exp"].as_array().expect("exp") {
+            let x = f64::from_bits(hex(&c["in"]));
+            assert_eq!(exp(x).to_bits(), hex(&c["out"]), "{variant} Exp({x:e})");
+        }
+        for c in m["log"].as_array().expect("log") {
+            let x = f64::from_bits(hex(&c["in"]));
+            assert_eq!(log(x).to_bits(), hex(&c["out"]), "{variant} Log({x:e})");
+        }
     }
 
     #[test]

@@ -84,7 +84,9 @@ go run ./contracts/tools/math32golden -out crates/gorse-common/tests/data/math32
 go run ./contracts/tools/exprparsegolden -out-dir crates/gorse-expr/tests/data
 go run ./contracts/tools/exprunicode -out crates/gorse-expr/src/unicode_tables.rs
 # common/util (WP-1-4): Go's math/rand streams and tables, util and strconv
-# parsers, and the TLS credential cases (gorse-common)
+# parsers, and the TLS credential cases (gorse-common). The math.Exp outputs
+# are recorded per GODEBUG setting: fma, nofma (cpu.fma=off) and avx_off
+# (cpu.avx=off), O-14.
 go run ./contracts/tools/randgolden \
   -tables-out crates/gorse-common/src/util/rand/tables.rs \
   -out crates/gorse-common/tests/data/rand_golden.json
