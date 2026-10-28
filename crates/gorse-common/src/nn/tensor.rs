@@ -9,7 +9,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::floats;
+use crate::gocontext;
 use crate::math32;
+use crate::parallel;
 
 use super::golang;
 use super::op::Node;
@@ -664,7 +666,8 @@ impl Tensor {
                 chunks.push(Mutex::new(c));
                 rest = tail;
             }
-            deps::parallel_for(b, jobs, |i| {
+            // Go discards the error: a background context is never done.
+            let _ = parallel::for_(&gocontext::Context::background(), b, jobs, |i| {
                 let a = &x[i * m * k..(i + 1) * m * k];
                 let bb = &y[i * n * k..(i + 1) * n * k];
                 floats::mm(

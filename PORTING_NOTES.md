@@ -1266,8 +1266,8 @@ said otherwise), so the Rust result is Go's.
   conflicts were resolved when the dotenv part merged into the integration
   branch. Later parts add their own lines by hand.
 
-- **O-13 `parallel.For` stand-in.** `deps::parallel_for` (see For the
-  integrator) stays until WP-1-6 is on the integration branch. WP-1-6 is merged (2026-10-28), so `gorse_common::parallel::for_` exists; the switch is the nn thread's next merge.
+- **O-13 `parallel.For` stand-in: closed.** `deps::parallel_for` (see For the
+  integrator) stays until WP-1-6 is on the integration branch. WP-1-6 is merged (2026-10-28), so `gorse_common::parallel::for_` exists; closed by the O-13 merge (30e24d9): batch matmul calls `parallel::for_`, and `deps::parallel_for` is deleted.
 
 - **O-14 `GODEBUG` and `util::rand::math`.** `util::rand::math::use_fma`
   reads the CPU directly, without `GODEBUG`. Go's `math.Exp` takes the FMA path
