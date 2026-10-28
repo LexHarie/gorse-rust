@@ -24,17 +24,21 @@ tracing = { workspace = true }
 tokio = { version = "1.53.3", features = ["rt-multi-thread", "sync", "macros", "net"] }
 tokio-stream = { version = "0.1.19", features = ["net"] }
 url = "2.5.8"
+percent-encoding = "2.3.2"
+bytes = { version = "1.12.1", optional = true }
 # Cloud stores, one feature per provider (`storage/blob/{s3,gcs,azure}.go`).
 object_store = { version = "0.14.2", default-features = false, optional = true }
 futures-util = { version = "0.3.34", default-features = false, optional = true }
 
 [features]
-s3 = ["dep:object_store", "dep:futures-util", "object_store/aws"]
-gcs = ["dep:object_store", "dep:futures-util", "object_store/gcp"]
-azure = ["dep:object_store", "dep:futures-util", "object_store/azure"]
+s3 = ["dep:object_store", "dep:futures-util", "dep:bytes", "object_store/aws"]
+gcs = ["dep:object_store", "dep:futures-util", "dep:bytes", "object_store/gcp"]
+azure = ["dep:object_store", "dep:futures-util", "dep:bytes", "object_store/azure"]
 
 [dev-dependencies]
 tempfile = { workspace = true }
+# Seeds the GCS emulator through its JSON upload API in `gcs::tests`.
+reqwest = { workspace = true }
 
 [lints]
 workspace = true

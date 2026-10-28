@@ -2,22 +2,92 @@
 
 //! Azure Blob Storage: `blob.uri` = `az://container/prefix`.
 
-use gorse_config::config::schema::AzureBlobConfig;
+use std::sync::Arc;
 
-use super::cloud::CloudStore;
+use gorse_config::config::schema::AzureBlobConfig;
+use object_store::azure::MicrosoftAzureBuilder;
+
 use super::BlobError;
+use super::cloud::CloudStore;
 
 /// Opens `container` under `prefix` (Go's `NewAzureBlob`). A connection string
 /// takes precedence over the account name and key.
 pub fn new(cfg: &AzureBlobConfig, container: &str, prefix: &str) -> Result<CloudStore, BlobError> {
-    unimplemented!("RED: azure new {container:?} {prefix:?} conn {:?}", cfg.connection_string.len())
+    let mut builder = MicrosoftAzureBuilder::new().with_container_name(container);
+    if !cfg.connection_string.is_empty() {
+        let connection = parse_connection_string(&cfg.connection_string)?;
+        // object_store only speaks HTTPS unless told otherwise; an emulator's
+        // connection string says http://, which the Azure SDK also accepts.
+        let allow_http = connection.blob_endpoint.starts_with("http://");
+        builder = builder
+            .with_account(connection.account_name)
+            .with_access_key(connection.access_key)
+            .with_endpoint(connection.blob_endpoint)
+            .with_allow_http(allow_http);
+    } else {
+        if cfg.account_name.is_empty() || cfg.account_key.is_empty() {
+            return Err(BlobError::Config(
+                "azure blob requires account_name and account_key or connection_string".to_string(),
+            ));
+        }
+        builder = builder
+            .with_account(&cfg.account_name)
+            .with_access_key(&cfg.account_key);
+        if !cfg.endpoint.is_empty() {
+            builder = builder.with_endpoint(cfg.endpoint.clone());
+        }
+    }
+    CloudStore::new(Arc::new(builder.build()?), prefix, "Azure Blob")
+}
+
+/// The settings of an Azure storage connection string that the blob client
+/// needs.
+struct Connection {
+    account_name: String,
+    access_key: String,
+    blob_endpoint: String,
+}
+
+/// Reads `key=value;` pairs. Without `BlobEndpoint`, the endpoint is
+/// `protocol://account.blob.suffix`, as in the Azure SDK.
+fn parse_connection_string(connection_string: &str) -> Result<Connection, BlobError> {
+    let (mut account_name, mut account_key, mut blob_endpoint) = (None, None, None);
+    let mut protocol = "https".to_string();
+    let mut suffix = "core.windows.net".to_string();
+    for pair in connection_string.split(';').filter(|pair| !pair.is_empty()) {
+        // Keys are case-insensitive; account keys are base64 and may end in '='.
+        let Some((key, value)) = pair.split_once('=') else {
+            continue;
+        };
+        match key.to_ascii_lowercase().as_str() {
+            "accountname" => account_name = Some(value.to_string()),
+            "accountkey" => account_key = Some(value.to_string()),
+            "blobendpoint" => blob_endpoint = Some(value.trim_end_matches('/').to_string()),
+            "defaultendpointsprotocol" => protocol = value.to_string(),
+            "endpointsuffix" => suffix = value.to_string(),
+            _ => {}
+        }
+    }
+    let account_name = account_name.ok_or_else(|| {
+        BlobError::Config("azure connection string has no AccountName".to_string())
+    })?;
+    let access_key = account_key.ok_or_else(|| {
+        BlobError::Config("azure connection string has no AccountKey".to_string())
+    })?;
+    let blob_endpoint =
+        blob_endpoint.unwrap_or_else(|| format!("{protocol}://{account_name}.blob.{suffix}"));
+    Ok(Connection {
+        account_name,
+        access_key,
+        blob_endpoint,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::blob::cloud::required_env;
     use crate::blob::Store;
+    use crate::blob::cloud::required_env;
     use std::io::{Read, Write};
     use std::sync::mpsc::RecvTimeoutError;
     use std::time::Duration;

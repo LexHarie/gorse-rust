@@ -84,7 +84,10 @@ pub enum BlobError {
 /// Rejects names that would leave the store's directory: empty names, names
 /// containing `/` or `\`, and `.` and `..` (decision D-12, quirk X-2).
 pub fn check_name(name: &str) -> Result<(), BlobError> {
-    unimplemented!("RED: check_name {name:?}")
+    if name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\']) {
+        return Err(BlobError::InvalidName);
+    }
+    Ok(())
 }
 
 /// Returns the store for `cfg.uri` (Go's `blob.NewStore`).
@@ -92,7 +95,84 @@ pub fn check_name(name: &str) -> Result<(), BlobError> {
 /// A URI with a scheme selects a cloud store. Otherwise the store is the
 /// master's gRPC service when `master` is given, or a local directory.
 pub fn new_store(cfg: &BlobConfig, master: Option<Channel>) -> Result<Box<dyn Store>, BlobError> {
-    unimplemented!("RED: new_store {:?} {}", cfg.uri, master.is_some())
+    if !cfg.uri.contains("://") {
+        return match master {
+            Some(channel) => Ok(Box::new(master::MasterStoreClient::new(channel)?)),
+            None => Ok(Box::new(posix::Posix::new(&cfg.uri))),
+        };
+    }
+    let parsed = url::Url::parse(&cfg.uri)?;
+    // Go's url.Parse keeps the host's port and the decoded path.
+    let host = match (parsed.host_str(), parsed.port()) {
+        (Some(host), Some(port)) => format!("{host}:{port}"),
+        (Some(host), None) => host.to_string(),
+        (None, _) => String::new(),
+    };
+    let path = percent_encoding::percent_decode_str(parsed.path())
+        .decode_utf8_lossy()
+        .trim_start_matches('/')
+        .to_string();
+    match parsed.scheme() {
+        "s3" => {
+            if host.is_empty() {
+                return Err(BlobError::Config(
+                    "blob.uri must include bucket for s3://".to_string(),
+                ));
+            }
+            s3_store(cfg, &host, &path)
+        }
+        "gs" => {
+            if host.is_empty() {
+                return Err(BlobError::Config(
+                    "blob.uri must include bucket for gs://".to_string(),
+                ));
+            }
+            gcs_store(cfg, &host, &path)
+        }
+        "az" => {
+            if host.is_empty() {
+                return Err(BlobError::Config(
+                    "blob.uri must include container for az://".to_string(),
+                ));
+            }
+            azure_store(cfg, &host, &path)
+        }
+        scheme => Err(BlobError::UnsupportedScheme(scheme.to_string())),
+    }
+}
+
+#[cfg(feature = "s3")]
+fn s3_store(cfg: &BlobConfig, bucket: &str, prefix: &str) -> Result<Box<dyn Store>, BlobError> {
+    Ok(Box::new(s3::new(&cfg.s3, bucket, prefix)?))
+}
+
+#[cfg(not(feature = "s3"))]
+fn s3_store(_: &BlobConfig, _: &str, _: &str) -> Result<Box<dyn Store>, BlobError> {
+    Err(BlobError::UnsupportedScheme("s3".to_string()))
+}
+
+#[cfg(feature = "gcs")]
+fn gcs_store(cfg: &BlobConfig, bucket: &str, prefix: &str) -> Result<Box<dyn Store>, BlobError> {
+    Ok(Box::new(gcs::new(&cfg.gcs, bucket, prefix)?))
+}
+
+#[cfg(not(feature = "gcs"))]
+fn gcs_store(_: &BlobConfig, _: &str, _: &str) -> Result<Box<dyn Store>, BlobError> {
+    Err(BlobError::UnsupportedScheme("gs".to_string()))
+}
+
+#[cfg(feature = "azure")]
+fn azure_store(
+    cfg: &BlobConfig,
+    container: &str,
+    prefix: &str,
+) -> Result<Box<dyn Store>, BlobError> {
+    Ok(Box::new(azure::new(&cfg.azure, container, prefix)?))
+}
+
+#[cfg(not(feature = "azure"))]
+fn azure_store(_: &BlobConfig, _: &str, _: &str) -> Result<Box<dyn Store>, BlobError> {
+    Err(BlobError::UnsupportedScheme("az".to_string()))
 }
 
 #[cfg(test)]

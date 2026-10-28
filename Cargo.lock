@@ -785,6 +785,7 @@ dependencies = [
 name = "gorse-storage"
 version = "0.0.0"
 dependencies = [
+ "bytes",
  "futures-util",
  "gorse-common",
  "gorse-config",
@@ -792,7 +793,9 @@ dependencies = [
  "gorse-protocol",
  "gorse-storage-core",
  "object_store",
+ "percent-encoding",
  "prost-types",
+ "reqwest",
  "tempfile",
  "thiserror",
  "tokio",
