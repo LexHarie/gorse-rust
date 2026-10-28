@@ -114,9 +114,10 @@ mod tests {
         assert_eq!(r.read(&mut buf).ok(), Some(4));
         assert_eq!(r.read(&mut buf).ok(), Some(0));
         // 4 free tokens, then 2 and 4 owed: ticks 2 and 6.
-        assert_eq!(*clock.slept.lock().unwrap_or_else(|e| e.into_inner()), [
-            2_000_000, 6_000_000
-        ]);
+        assert_eq!(
+            *clock.slept.lock().unwrap_or_else(|e| e.into_inner()),
+            [2_000_000, 6_000_000]
+        );
         assert_eq!(bucket.available(), -6);
     }
 
@@ -129,8 +130,9 @@ mod tests {
         assert_eq!(w.write(b"defg").ok(), Some(4));
         assert!(w.flush().is_ok());
         assert_eq!(out, b"abcdefg");
-        assert_eq!(*clock.slept.lock().unwrap_or_else(|e| e.into_inner()), [
-            3_000_000
-        ]);
+        assert_eq!(
+            *clock.slept.lock().unwrap_or_else(|e| e.into_inner()),
+            [3_000_000]
+        );
     }
 }

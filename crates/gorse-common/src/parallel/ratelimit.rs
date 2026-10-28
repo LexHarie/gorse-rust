@@ -97,7 +97,7 @@ pub fn embedding_tokens_limiter() -> Arc<dyn RateLimiter> {
     read(&EMBEDDING, |l| Arc::clone(&l.tokens))
 }
 
-/// `InitChatCompletionLimiters(rpm, tpm)`: see [`init_limiters`].
+/// `InitChatCompletionLimiters(rpm, tpm)`: see `init_limiters`.
 ///
 /// # Panics
 ///
@@ -106,7 +106,7 @@ pub fn init_chat_completion_limiters(rpm: i64, tpm: i64) {
     init_limiters(&CHAT_COMPLETION, rpm, tpm);
 }
 
-/// `InitEmbeddingLimiters(rpm, tpm)`: see [`init_limiters`].
+/// `InitEmbeddingLimiters(rpm, tpm)`: see `init_limiters`.
 ///
 /// # Panics
 ///
@@ -191,7 +191,11 @@ pub(crate) mod tests {
         let _globals = GLOBALS.lock().unwrap_or_else(PoisonError::into_inner);
         init_chat_completion_limiters(120, 180);
         assert_eq!(Duration(0), chat_completion_requests_limiter().take(1));
-        in_delta(SECOND, chat_completion_requests_limiter().take(2), 1_000_000);
+        in_delta(
+            SECOND,
+            chat_completion_requests_limiter().take(2),
+            1_000_000,
+        );
         assert_eq!(Duration(0), chat_completion_tokens_limiter().take(2));
         in_delta(
             Duration(2 * SECOND.0),

@@ -35,7 +35,7 @@ pub fn format_g(f: f64) -> String {
     let dp = exponent.parse::<i64>().unwrap_or(0) + 1;
 
     let exp = dp - 1;
-    if exp < -4 || exp >= 6 {
+    if !(-4..6).contains(&exp) {
         // fmtE with prec nd-1.
         dst.push(char::from(digits[0]));
         if nd > 1 {

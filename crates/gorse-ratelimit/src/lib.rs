@@ -365,7 +365,8 @@ impl Bucket {
         // endTime := tb.startTime.Add(time.Duration(endTick) * tb.fillInterval)
         // waitTime := endTime.Sub(now)
         let wait_time = clamp_i64(
-            i128::from(end_tick.wrapping_mul(self.fill_interval)) - nanos_since(now, self.start_time),
+            i128::from(end_tick.wrapping_mul(self.fill_interval))
+                - nanos_since(now, self.start_time),
         );
         if wait_time > max_wait {
             return (0, false);
@@ -558,7 +559,11 @@ mod tests {
                 about: "sub-quantum time",
                 fill_interval: 10 * ms,
                 capacity: 10,
-                reqs: vec![req(0, 10, 0), req(7 * ms, 1, 3 * ms), req(8 * ms, 1, 12 * ms)],
+                reqs: vec![
+                    req(0, 10, 0),
+                    req(7 * ms, 1, 3 * ms),
+                    req(8 * ms, 1, 12 * ms),
+                ],
             },
             TakeTest {
                 about: "within capacity",
@@ -607,7 +612,8 @@ mod tests {
     fn test_take_available() {
         let ms = MILLISECOND;
         // (about, fillInterval, capacity, [(time, count, expect)])
-        let tests: [(&str, i64, i64, &[(i64, i64, i64)]); 4] = [
+        type Case<'a> = (&'a str, i64, i64, &'a [(i64, i64, i64)]);
+        let tests: [Case<'_>; 4] = [
             (
                 "serial requests",
                 250 * ms,
@@ -620,7 +626,12 @@ mod tests {
                 10,
                 &[(0, 5, 5), (0, 2, 2), (0, 5, 3), (0, 1, 0)],
             ),
-            ("more than capacity", ms, 10, &[(0, 10, 10), (20 * ms, 15, 10)]),
+            (
+                "more than capacity",
+                ms,
+                10,
+                &[(0, 10, 10), (20 * ms, 15, 10)],
+            ),
             (
                 "within capacity",
                 10 * ms,
@@ -678,11 +689,23 @@ mod tests {
     #[test]
     fn test_rate() {
         let tb = Bucket::new(1, 1);
-        assert!(is_close_to(tb.rate(), 1e9, 0.00001), "got {} want 1e9", tb.rate());
+        assert!(
+            is_close_to(tb.rate(), 1e9, 0.00001),
+            "got {} want 1e9",
+            tb.rate()
+        );
         let tb = Bucket::new(2 * SECOND, 1);
-        assert!(is_close_to(tb.rate(), 0.5, 0.00001), "got {} want 0.5", tb.rate());
+        assert!(
+            is_close_to(tb.rate(), 0.5, 0.00001),
+            "got {} want 0.5",
+            tb.rate()
+        );
         let tb = Bucket::with_quantum(100 * MILLISECOND, 1, 5);
-        assert!(is_close_to(tb.rate(), 50.0, 0.00001), "got {} want 50", tb.rate());
+        assert!(
+            is_close_to(tb.rate(), 50.0, 0.00001),
+            "got {} want 50",
+            tb.rate()
+        );
     }
 
     fn check_rate(rate: f64) {
@@ -740,9 +763,33 @@ mod tests {
     fn test_available() {
         // (about, capacity, fillInterval, take, sleep, afterTake, afterSleep)
         let tests = [
-            ("should fill tokens after interval", 5, SECOND, 5, SECOND, 0, 1),
-            ("should fill tokens plus existing count", 2, SECOND, 1, SECOND, 1, 2),
-            ("shouldn't fill before interval", 2, 2 * SECOND, 1, SECOND, 1, 1),
+            (
+                "should fill tokens after interval",
+                5,
+                SECOND,
+                5,
+                SECOND,
+                0,
+                1,
+            ),
+            (
+                "should fill tokens plus existing count",
+                2,
+                SECOND,
+                1,
+                SECOND,
+                1,
+                2,
+            ),
+            (
+                "shouldn't fill before interval",
+                2,
+                2 * SECOND,
+                1,
+                SECOND,
+                1,
+                1,
+            ),
             (
                 "should fill only once after 1*interval before 2*interval",
                 2,
@@ -796,8 +843,11 @@ mod tests {
         assert_eq!(go_f64_to_i64(-1.9), -1);
         assert_eq!(go_f64_to_i64(f64::NAN), i64::MIN);
         assert_eq!(go_f64_to_i64(f64::INFINITY), i64::MIN);
-        assert_eq!(go_f64_to_i64(9.223_372_036_854_775_808e18), i64::MIN);
-        assert_eq!(go_f64_to_i64(9.223_372_036_854_774_784e18), 9_223_372_036_854_774_784);
-        assert_eq!(go_f64_to_i64(-9.223_372_036_854_775_808e18), i64::MIN);
+        assert_eq!(go_f64_to_i64(9.223_372_036_854_776e18), i64::MIN);
+        assert_eq!(
+            go_f64_to_i64(9.223_372_036_854_775e18),
+            9_223_372_036_854_774_784
+        );
+        assert_eq!(go_f64_to_i64(-9.223_372_036_854_776e18), i64::MIN);
     }
 }

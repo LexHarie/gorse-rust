@@ -2,7 +2,7 @@
 
 //! Gorse's parallel schedulers: [`parallel()`], [`for_`], [`for_each`],
 //! [`detachable`] and [`split`], plus the OpenAI rate limiters
-//! ([`ratelimit`], re-exported here as in Go's package).
+//! (`ratelimit`, re-exported here as in Go's package).
 //!
 //! Go runs each worker as a goroutine fed by a channel of job ids; here each
 //! worker is a scoped thread taking the next job id from a shared counter, so
@@ -441,25 +441,33 @@ mod tests {
         let b = cells(a.len());
         let worker_ids = cells(a.len());
         // multiple threads
-        let result: Result<(), TestError> =
-            parallel(&gocontext::Context::background(), a.len(), 4, |worker_id, job_id| {
+        let result: Result<(), TestError> = parallel(
+            &gocontext::Context::background(),
+            a.len(),
+            4,
+            |worker_id, job_id| {
                 b[job_id].store(a[job_id], Ordering::SeqCst);
                 worker_ids[job_id].store(worker_id, Ordering::SeqCst);
                 thread::sleep(Duration::from_micros(1));
                 Ok(())
-            });
+            },
+        );
         assert_eq!(result, Ok(()));
         let workers_set: HashSet<usize> = values(&worker_ids).into_iter().collect();
         assert_eq!(values(&b), a);
         assert!(4 >= workers_set.len());
         assert!(1 < workers_set.len());
         // single thread
-        let result: Result<(), TestError> =
-            parallel(&gocontext::Context::background(), a.len(), 1, |worker_id, job_id| {
+        let result: Result<(), TestError> = parallel(
+            &gocontext::Context::background(),
+            a.len(),
+            1,
+            |worker_id, job_id| {
                 b[job_id].store(a[job_id], Ordering::SeqCst);
                 worker_ids[job_id].store(worker_id, Ordering::SeqCst);
                 Ok(())
-            });
+            },
+        );
         assert_eq!(result, Ok(()));
         let workers_set: HashSet<usize> = values(&worker_ids).into_iter().collect();
         assert_eq!(values(&b), a);
@@ -593,17 +601,11 @@ mod tests {
     #[test]
     fn test_detachable() {
         let start = Instant::now();
-        let err = detachable(
-            &gocontext::Context::background(),
-            100,
-            1,
-            100,
-            |ctx, _| {
-                ctx.detach();
-                thread::sleep(Duration::from_secs(1));
-                ctx.attach();
-            },
-        );
+        let err = detachable(&gocontext::Context::background(), 100, 1, 100, |ctx, _| {
+            ctx.detach();
+            thread::sleep(Duration::from_secs(1));
+            ctx.attach();
+        });
         assert_eq!(err, Ok(()));
         assert!(start.elapsed() < Duration::from_secs(2));
 

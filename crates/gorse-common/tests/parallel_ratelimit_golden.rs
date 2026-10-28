@@ -115,7 +115,11 @@ fn init_limiters_match_go() {
         assert_eq!(limiter(tokens()).kind, "unlimited");
         for call in calls {
             let at = format!("{name}({}, {})", call.rpm, call.tpm);
-            assert_eq!(catch(|| init(call.rpm, call.tpm)), call.panic, "{at}: panic");
+            assert_eq!(
+                catch(|| init(call.rpm, call.tpm)),
+                call.panic,
+                "{at}: panic"
+            );
             assert_eq!(backoff(), Duration(call.backoff), "{at}: backoff");
             assert_eq!(limiter(requests()), call.requests, "{at}: requests limiter");
             assert_eq!(limiter(tokens()), call.tokens, "{at}: tokens limiter");

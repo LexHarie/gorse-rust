@@ -73,7 +73,10 @@ struct Format {
 }
 
 fn golden() -> Golden {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/ratelimit_golden.json");
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/ratelimit_golden.json"
+    );
     let text = std::fs::read_to_string(path).expect("read the golden file");
     serde_json::from_str(&text).expect("parse the golden file")
 }
@@ -115,7 +118,9 @@ impl FakeClock {
         let now = self.now();
         match now.checked_duration_since(self.start) {
             Some(d) => i64::try_from(d.as_nanos()).unwrap_or(i64::MAX),
-            None => i64::try_from(self.start.duration_since(now).as_nanos()).map_or(i64::MIN, |n| -n),
+            None => {
+                i64::try_from(self.start.duration_since(now).as_nanos()).map_or(i64::MIN, |n| -n)
+            }
         }
     }
 }
@@ -241,7 +246,12 @@ fn rates_match_go() {
         .collect();
     let mut panics = 0;
     for (want, got) in golden.rates.iter().zip(&got) {
-        let at = format!("rate {} ({:e}) capacity {}", want.rate, float(&want.rate), want.capacity);
+        let at = format!(
+            "rate {} ({:e}) capacity {}",
+            want.rate,
+            float(&want.rate),
+            want.capacity
+        );
         assert_eq!(got.panic, want.panic, "{at}: panic");
         assert_eq!(got.rate_out, want.rate_out, "{at}: Rate()");
         assert_eq!(got.fill_interval, want.fill_interval, "{at}: fill interval");
