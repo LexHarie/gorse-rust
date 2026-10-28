@@ -2,6 +2,7 @@
 
 //! Collaborative-filtering (BPR, ALS) and click-through-rate (factorization machine) models.
 //!
-//! [`cf`] holds the collaborative-filtering models. `ctr` is added by WP-3-2.
+//! [`cf`] holds the collaborative-filtering models, and [`ctr`] the click-through-rate models.
 
 pub mod cf;
+pub mod ctr;

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Command modelreplay writes the replay goldens that the Rust port of
-// model/cf (and, later, model/ctr) is checked against.
+// Command modelreplay writes the replay goldens that the Rust ports of
+// model/cf and model/ctr are checked against.
 //
 // It fits the Go models on small synthetic datasets with one job and fixed
 // seeds, so the output is a deterministic function of the Go code:
@@ -28,6 +28,13 @@
 // Usage, from the repository root:
 //
 //	go run ./contracts/tools/modelreplay -mode cf -out crates/gorse-model/testdata/cf
+//	go run ./contracts/tools/modelreplay -mode ctr -out crates/gorse-model/testdata/ctr
+//
+// The ctr mode (ctr.go) fits the factorization machine with attention on a
+// synthetic dataset and writes afm_replay.json: the dataset, the score after
+// every epoch and the final parameters. Go's Fit returns only its last score,
+// and the initial weights come from the process-wide math/rand, so each epoch
+// count is fitted in a child process (-fit-epochs) with GODEBUG=randautoseed=0.
 package main
 
 import (
@@ -80,10 +87,19 @@ type golden struct {
 }
 
 func main() {
-	mode := flag.String("mode", "cf", "the model family to generate: cf")
+	mode := flag.String("mode", "cf", "the model family to generate: cf or ctr")
 	out := flag.String("out", "", "the directory to write into")
 	epochs := flag.Int("epochs", 5, "the number of epochs of the final fit")
+	fitEpochs := flag.Int("fit-epochs", 0, "internal, ctr mode: fit this many epochs in this process")
+	fitOut := flag.String("fit-out", "", "internal, ctr mode: the file the fit result is written to")
 	flag.Parse()
+	if *mode == "ctr" && *fitEpochs > 0 {
+		// A child process of writeCTR, which fits one epoch count on its own.
+		if err := fitCTR(*fitEpochs, *fitOut); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if *out == "" {
 		log.Fatal("-out is required")
 	}
@@ -93,6 +109,10 @@ func main() {
 	switch *mode {
 	case "cf":
 		if err := generateCF(*out, *epochs); err != nil {
+			log.Fatal(err)
+		}
+	case "ctr":
+		if err := writeCTR(*out, *epochs); err != nil {
 			log.Fatal(err)
 		}
 	default:
