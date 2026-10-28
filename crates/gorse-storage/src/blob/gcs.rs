@@ -70,10 +70,9 @@ mod tests {
 
     /// Go writes through the emulator here. object_store writes through the GCS
     /// XML API, which fake-gcs-server does not serve (v1.54.0 and v1.56.1 both
-    /// answer 400 "invalid uploadType"), and it answers the XML list and read
-    /// with 404 (O-62). The emulator cannot run this sequence, so the in-process
-    /// round trip below covers it instead.
-    #[ignore = "fake-gcs-server does not serve the XML write, list or read that object_store uses (O-31, O-62)"]
+    /// answer 400 "invalid uploadType"). The in-process round trip below covers
+    /// the same sequence instead.
+    #[ignore = "fake-gcs-server refuses the XML upload that object_store uses (O-31, O-62)"]
     #[tokio::test]
     async fn test_gcs() {
         let ctx = Context::background();
@@ -117,8 +116,9 @@ mod tests {
 
     /// Not in Go. The object is seeded through the emulator's JSON upload API,
     /// which fake-gcs-server does serve, and then listed, read and removed
-    /// through object_store. Against fake-gcs-server 1.50 to 1.56 this passes
-    /// only with `-external-url` set (O-62).
+    /// through object_store. It needs fake-gcs-server 1.56.1 started with both
+    /// `-external-url` and `-public-host` set to its own address. Without
+    /// `-public-host` the server answers 404 for XML list and read (O-62).
     #[tokio::test]
     async fn test_gcs_read_list_remove() {
         let ctx = Context::background();

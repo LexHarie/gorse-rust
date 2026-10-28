@@ -2321,9 +2321,14 @@ said otherwise), so the Rust result is Go's.
 - **O-62 GCS read-side coverage.** The read side is covered in process and checked request by
   request, with no emulator: `test_gcs_xml_round_trip` (write, list, read, remove, list; the five
   requests in order), `test_gcs_xml_missing_object_is_not_found` (a 404 maps to NotFound), and
-  the put and multipart tests. The live `test_gcs_read_list_remove` passes against the running
-  fake-gcs-server, which was started with `-external-url http://127.0.0.1:5051`. The 404s
-  recorded under D-184 came before `-external-url` was set. The emulator round trip `test_gcs`
+  the put and multipart tests. The live `test_gcs_read_list_remove` passes against
+  fake-gcs-server 1.56.1 (`go install` at v1.56.1, not a Docker image), started as
+  `-scheme http -port 5051 -public-host 127.0.0.1:5051 -external-url http://127.0.0.1:5051
+  -backend memory`. Both `-public-host` and `-external-url` matter: on a spare port, the same
+  build answers 200 for the XML list and read with `-public-host` set, and 404 without it,
+  even with `-external-url` set (16:53 run). The list then appears in the server's log as
+  `GET /gorse%2Dtest?list-type=2 ... 200` (16:52:07). The 404s recorded under D-184 fit the
+  missing `-public-host`, but their flags were not recorded. The emulator round trip `test_gcs`
   stays `#[ignore]` under O-62 and O-31, because fake-gcs-server refuses object_store's XML upload
   (400, `invalid uploadType`). Opened under D-184. Open for `test_gcs` only.
 
@@ -2346,9 +2351,10 @@ said otherwise), so the Rust result is Go's.
   2. The list filters on the raw prefix, as Go does, so a listing under `blob` also returns
      `blobs/x` as `s/x` (Q-240). The request carries no prefix, so the whole bucket is listed.
      Resolved by the coordinator's ruling; the cost is noted in Q-240.
-  3. Go's read gets 404 from the running fake-gcs-server. The emulator matches the request's
-     `Host` header against its `-external-url`. The same path and Go's headers return 200 with
-     `Host: 127.0.0.1:5051` and 404 with `Host: localhost:5050` or `Host: storage.googleapis.com`.
+  3. Go's read gets 404 from the running fake-gcs-server. Path-style XML answers only for the
+     host named by `-public-host`; `-external-url` alone does not do it. The same path and Go's
+     headers return 200 with `Host: 127.0.0.1:5051` and 404 with `Host: localhost:5050` or
+     `Host: storage.googleapis.com`.
      The probe's own `Host` was not recorded, so this is the likely cause, confirmed for those
      Host values only. Real GCS is not checked.
   4. The in-process listener decodes paths, so it cannot see raw encoding differences. The live

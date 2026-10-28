@@ -1442,8 +1442,9 @@ or accepts a metric gap outside the Go tests' own tolerances.
     the XML list request (`GET /gorse-test?list-type=2`), so the read path is not
     run here (O-62). `test_gcs` is `#[ignore]` (O-31).
   - Blob, GCS, re-run for O-62 on this head: `--features gcs blob` with
-    `GCS_EMULATOR_ENDPOINT=http://127.0.0.1:5051`, the fake-gcs-server started with
-    `-external-url`. `test_gcs_read_list_remove` passes against it. The in-process
+    `GCS_EMULATOR_ENDPOINT=http://127.0.0.1:5051`, the fake-gcs-server 1.56.1 started with
+    `-public-host` and `-external-url` both set to `127.0.0.1:5051`. `test_gcs_read_list_remove`
+    passes against it. The in-process
     `test_gcs_xml_round_trip` and `test_gcs_xml_missing_object_is_not_found` pass, as do the
     put and multipart tests. `test_gcs` stays `#[ignore]` (O-31, O-62). The list filters on
     the raw prefix as Go does (Q-240), tested by `test_gcs_xml_list_matches_go_raw_prefix`.
