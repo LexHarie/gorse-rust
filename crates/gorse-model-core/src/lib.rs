@@ -5,4 +5,10 @@
 //! This is the Go `model` root package. It is a separate crate because `dataset`
 //! and `storage/meta` import it while `model/cf` and `model/ctr` import them.
 //!
-//! Skeleton only (Phase 0): no Go code has been ported into this crate yet.
+//! [`params`] holds `Params` and `ParamsGrid`, [`model`] the `Model` interface
+//! and `BaseModel`, and [`built_in`] the built-in datasets and `~/.gorse`
+//! directories.
+
+pub mod built_in;
+pub mod model;
+pub mod params;

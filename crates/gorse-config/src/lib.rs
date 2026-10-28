@@ -12,5 +12,3 @@ pub mod formats;
 pub mod mapstructure;
 pub mod value;
 pub mod viper;
-
-mod log;

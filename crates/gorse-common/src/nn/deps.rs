@@ -1,9 +1,8 @@
 // Ports: math/rand rand.go (Float64, Float32) @ go1.27.0
-// Ports: common/parallel/parallel.go (For) @ add21b5
 // Ports: math/exp_amd64.s, math/exp_amd64.go @ go1.27.0 (through util::rand::math)
 
-//! Stand-ins for three dependencies of `common/nn` whose ports are not on the
-//! integration branch yet (`PORTING_NOTES.md`, Open):
+//! Dependencies of `common/nn` that have no port of their own, and the
+//! wrapper that picks the path of one of them:
 //!
 //! - [`exp`]: Go's `math.Exp` on amd64, which is the `exp_with` of WP-1-4's
 //!   `util::rand::math`. This wrapper only chooses the FMA path the way Go
@@ -15,11 +14,9 @@
 //!   depend on its values; this one is splitmix64 with a random seed, with
 //!   Go's `Float32`, and a Box-Muller `NormFloat64` (the same standard normal
 //!   distribution, not Go's ziggurat).
-//! - [`parallel_for`]: `parallel.For` with a background context.
 
 use std::collections::hash_map::RandomState;
 use std::hash::BuildHasher;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{LazyLock, Mutex, PoisonError};
 
 use crate::floats::Feature;
@@ -89,30 +86,4 @@ static GLOBAL: LazyLock<Mutex<Global>> =
 /// Runs `f` with the global source, as Go's top-level functions use theirs.
 pub(crate) fn global<R>(f: impl FnOnce(&mut dyn Rng) -> R) -> R {
     f(&mut *GLOBAL.lock().unwrap_or_else(PoisonError::into_inner))
-}
-
-/// `parallel.For(context.Background(), n_jobs, n_workers, worker)`: every
-/// job runs once, on the calling thread when `n_workers <= 1`, otherwise on
-/// `n_workers` threads that take the next job as they finish one (Go hands
-/// them out through a channel).
-pub(crate) fn parallel_for(n_jobs: usize, n_workers: usize, worker: impl Fn(usize) + Sync) {
-    if n_workers <= 1 {
-        (0..n_jobs).for_each(worker);
-        return;
-    }
-    let next = AtomicUsize::new(0);
-    std::thread::scope(|s| {
-        // Workers beyond the number of jobs would find the channel closed.
-        for _ in 0..n_workers.min(n_jobs) {
-            s.spawn(|| {
-                loop {
-                    let i = next.fetch_add(1, Ordering::Relaxed);
-                    if i >= n_jobs {
-                        break;
-                    }
-                    worker(i);
-                }
-            });
-        }
-    });
 }
