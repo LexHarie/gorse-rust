@@ -55,7 +55,10 @@ async fn proxy_vectors_match_go_transcript() {
     backend.init().await.expect("init");
     let router = Server::builder().add_service(ProxyServer::new(backend).into_service());
     let channel = connect(router).await;
-    assert_eq!(proxy_scenario::vectors_section(channel).await, golden("v."));
+    assert_eq!(
+        proxy_scenario::vectors_section(channel, "v").await,
+        golden("v.")
+    );
 }
 
 #[cfg(feature = "sqlite")]
@@ -87,6 +90,10 @@ async fn proxy_data_matches_go_transcript() {
     let backend: Arc<dyn data::Database> =
         Arc::from(registry.open(&path, "gorse_", &[]).await.expect("open"));
     backend.init().await.expect("init");
+    backend
+        .reconcile(&proxy_scenario::search_config())
+        .await
+        .expect("reconcile");
     let router = Server::builder().add_service(ProxyServer::new(backend).into_service());
     let channel = connect(router).await;
     assert_eq!(proxy_scenario::data_section(channel).await, golden("d."));

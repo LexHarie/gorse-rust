@@ -15,12 +15,32 @@ use gorse_storage::cache::proxy::ProxyClient as CacheClient;
 use gorse_storage::cache::{self, ReturnValue, Score, ScoreCondition, ScorePatch, TimeSeriesPoint};
 use gorse_storage::data::GetOptions;
 use gorse_storage::data::proxy::ProxyClient as DataClient;
-use gorse_storage::data::types::{Feedback, FeedbackKey, Item, ItemPatch, Labels, User, UserPatch};
+use gorse_storage::data::types::{
+    Feedback, FeedbackKey, Item, ItemPatch, Labels, ScoredItem, User, UserPatch,
+};
 use gorse_storage::vectors::proxy::ProxyClient as VectorsClient;
 use gorse_storage::vectors::{CollectionInfo, Distance, ScoredVector, Vector, VectorConfig};
 use indexmap::IndexMap;
 use serde_json::{Value, json};
 use tonic::transport::Channel;
+
+/// The search configuration of Go's TestSearch (`storage/data/database_test.go`).
+/// Search needs it reconciled before it runs, so each data store the wire check
+/// serves is reconciled with it first.
+pub fn search_config() -> gorse_config::config::SearchConfig {
+    gorse_config::config::SearchConfig {
+        columns: Some(
+            [
+                "item.ItemId",
+                "item.Categories",
+                "item.Labels.brand",
+                "item.Comment",
+            ]
+            .map(String::from)
+            .to_vec(),
+        ),
+    }
+}
 
 /// The data store, through the proxy client on `channel`.
 pub async fn data_section(channel: Channel) -> String {
@@ -280,6 +300,60 @@ pub async fn data_section(channel: Channel) -> String {
         batches_json(feedback_list_json),
     );
 
+    let t3 = gotime::unix(1704168000, 0).utc();
+    let searchable = Item {
+        item_id: "i3".into(),
+        categories: Some(vec!["a".into()]),
+        timestamp: t3.clone(),
+        labels: Labels::Array(vec![Labels::String("news".into())]),
+        comment: "searchable notes".into(),
+        ..Default::default()
+    };
+    step(
+        &mut out,
+        "d.batch_insert_item_i3",
+        client.batch_insert_items(&ctx, &[searchable]).await,
+        unit,
+    );
+    step(
+        &mut out,
+        "d.search_items_searchable",
+        client.search_items(&ctx, "searchable", 10).await,
+        scored_items_json,
+    );
+    step(
+        &mut out,
+        "d.search_items_changed",
+        client.search_items(&ctx, "changed", 10).await,
+        scored_items_json,
+    );
+    step(
+        &mut out,
+        "d.search_items_none",
+        client.search_items(&ctx, "nothing", 10).await,
+        scored_items_json,
+    );
+    step(
+        &mut out,
+        "d.get_latest_items",
+        client.get_latest_items(&ctx, 10, &[], None).await,
+        items_json,
+    );
+    step(
+        &mut out,
+        "d.get_latest_items_category",
+        client.get_latest_items(&ctx, 10, &["a".into()], None).await,
+        items_json,
+    );
+    step(
+        &mut out,
+        "d.get_latest_items_after",
+        client
+            .get_latest_items(&ctx, 10, &[], Some(t3.clone()))
+            .await,
+        items_json,
+    );
+
     step(
         &mut out,
         "d.delete_user_item_feedback",
@@ -473,20 +547,22 @@ pub async fn cache_section(channel: Channel) -> String {
     out
 }
 
-/// The vector store, through the proxy client on `channel`.
-pub async fn vectors_section(channel: Channel) -> String {
+/// The vector store, through the proxy client on `channel`. The step names start
+/// with `prefix`: "v" for the xvec store and "q" for the Qdrant store.
+pub async fn vectors_section(channel: Channel, prefix: &str) -> String {
     use gorse_storage::vectors::Database;
 
+    let name = |step: &str| format!("{prefix}.{step}");
     let client = VectorsClient::new(channel);
     let ctx = Context::background();
     let t1 = gotime::unix(1704164645, 600_000_000).utc();
     let t2 = gotime::unix(1704164700, 0).utc();
     let mut out = String::new();
 
-    step(&mut out, "v.init", client.init().await, unit);
+    step(&mut out, &name("init"), client.init().await, unit);
     step(
         &mut out,
-        "v.add_collection",
+        &name("add_collection"),
         client
             .add_collection(&ctx, "docs", 2, Distance::Dot, VectorConfig::default())
             .await,
@@ -494,19 +570,19 @@ pub async fn vectors_section(channel: Channel) -> String {
     );
     step(
         &mut out,
-        "v.list_collections",
+        &name("list_collections"),
         client.list_collections(&ctx).await,
         Value::from,
     );
     step(
         &mut out,
-        "v.describe_docs",
+        &name("describe_docs"),
         client.describe_collection(&ctx, "docs").await,
         |info| collection_json(&info),
     );
     step(
         &mut out,
-        "v.describe_missing",
+        &name("describe_missing"),
         client.describe_collection(&ctx, "missing").await,
         |info| collection_json(&info),
     );
@@ -535,19 +611,19 @@ pub async fn vectors_section(channel: Channel) -> String {
     ];
     step(
         &mut out,
-        "v.add_vectors",
+        &name("add_vectors"),
         client.add_vectors(&ctx, "docs", &vectors).await,
         unit,
     );
     step(
         &mut out,
-        "v.count_vectors",
+        &name("count_vectors"),
         client.count_vectors(&ctx, "docs").await,
         Value::from,
     );
     step(
         &mut out,
-        "v.get_vectors",
+        &name("get_vectors"),
         client
             .get_vectors(&ctx, "docs", &["a", "c", "missing"])
             .await,
@@ -559,41 +635,41 @@ pub async fn vectors_section(channel: Channel) -> String {
     };
     step(
         &mut out,
-        "v.query_vectors",
+        &name("query_vectors"),
         client.query_vectors(&ctx, "docs", &query, &[], 2).await,
         scored_json,
     );
     step(
         &mut out,
-        "v.delete_vectors",
+        &name("delete_vectors"),
         client.delete_vectors(&ctx, "docs", &t2).await,
         unit,
     );
     step(
         &mut out,
-        "v.count_vectors_after_delete",
+        &name("count_vectors_after_delete"),
         client.count_vectors(&ctx, "docs").await,
         Value::from,
     );
     step(
         &mut out,
-        "v.optimize",
+        &name("optimize"),
         client.optimize(&ctx, "docs").await,
         unit,
     );
     step(
         &mut out,
-        "v.delete_collection",
+        &name("delete_collection"),
         client.delete_collection(&ctx, "docs").await,
         unit,
     );
     step(
         &mut out,
-        "v.list_collections_after_delete",
+        &name("list_collections_after_delete"),
         client.list_collections(&ctx).await,
         Value::from,
     );
-    step(&mut out, "v.close", client.close().await, unit);
+    step(&mut out, &name("close"), client.close().await, unit);
     out
 }
 
@@ -653,6 +729,20 @@ fn item_json(item: &Item) -> Value {
 
 fn items_json(items: Vec<Item>) -> Value {
     Value::Array(items.iter().map(item_json).collect())
+}
+
+/// A search result: the item's fields, with its score.
+fn scored_items_json(items: Vec<ScoredItem>) -> Value {
+    Value::Array(
+        items
+            .iter()
+            .map(|scored| {
+                let mut value = item_json(&scored.item);
+                value["Score"] = json!(scored.score);
+                value
+            })
+            .collect(),
+    )
 }
 
 fn user_json(user: &User) -> Value {

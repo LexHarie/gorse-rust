@@ -25,6 +25,13 @@ d.get_feedback	{"ok":{"cursor":"","feedback":[{"Comment":"f1","FeedbackType":"li
 d.get_user_stream	{"ok":[[{"Comment":"changed","Labels":{"tier":"gold"},"UserId":"u1"}],[{"Comment":"","Labels":null,"UserId":"u2"}]]}
 d.get_item_stream	{"ok":[[{"Categories":["z"],"Comment":"changed","IsHidden":true,"ItemId":"i1","Labels":["x","y"],"Timestamp":{"nanos":600000000,"unix":1704164645}}],[{"Categories":null,"Comment":"second","IsHidden":true,"ItemId":"i2","Labels":{"k":"v","n":2.5},"Timestamp":{"nanos":0,"unix":1704164700}}]]}
 d.get_feedback_stream	{"ok":[[{"Comment":"f1","FeedbackType":"like","ItemId":"i1","Labels":null,"Timestamp":{"nanos":600000000,"unix":1704164645},"Updated":{"nanos":600000000,"unix":1704164645},"UserId":"u1","Value":1.5},{"Comment":"","FeedbackType":"like","ItemId":"i1","Labels":null,"Timestamp":{"nanos":0,"unix":1704000000},"Updated":{"nanos":0,"unix":1704000000},"UserId":"u2","Value":2.25}],[{"Comment":"","FeedbackType":"read","ItemId":"i2","Labels":["seen"],"Timestamp":{"nanos":0,"unix":1704164700},"Updated":{"nanos":0,"unix":1704164700},"UserId":"u1","Value":0.5}]]}
+d.batch_insert_item_i3	{"ok":null}
+d.search_items_searchable	{"ok":[{"Categories":["a"],"Comment":"searchable notes","IsHidden":false,"ItemId":"i3","Labels":["news"],"Score":0.4495265489140719,"Timestamp":{"nanos":0,"unix":1704168000}}]}
+d.search_items_changed	{"ok":[{"Categories":["z"],"Comment":"changed","IsHidden":true,"ItemId":"i1","Labels":["x","y"],"Score":0.5108256237659907,"Timestamp":{"nanos":600000000,"unix":1704164645}}]}
+d.search_items_none	{"ok":[]}
+d.get_latest_items	{"ok":[{"Categories":["a"],"Comment":"searchable notes","IsHidden":false,"ItemId":"i3","Labels":["news"],"Timestamp":{"nanos":0,"unix":1704168000}}]}
+d.get_latest_items_category	{"ok":[{"Categories":["a"],"Comment":"searchable notes","IsHidden":false,"ItemId":"i3","Labels":["news"],"Timestamp":{"nanos":0,"unix":1704168000}}]}
+d.get_latest_items_after	{"ok":[]}
 d.delete_user_item_feedback	{"ok":1}
 d.delete_item_i2	{"ok":null}
 d.get_item_i2_deleted	{"err":"item i2 not found"}
@@ -64,3 +71,18 @@ v.optimize	{"ok":null}
 v.delete_collection	{"ok":null}
 v.list_collections_after_delete	{"ok":[]}
 v.close	{"ok":null}
+q.init	{"ok":null}
+q.add_collection	{"ok":null}
+q.list_collections	{"ok":["docs"]}
+q.describe_docs	{"ok":{"Bits":0,"Dimension":2,"Distance":"dot","Name":"docs","Type":""}}
+q.describe_missing	{"err":"collection missing: not found"}
+q.add_vectors	{"ok":null}
+q.count_vectors	{"ok":3}
+q.get_vectors	{"ok":[{"Categories":["c"],"Id":"a","IsHidden":false,"Timestamp":{"nanos":600000000,"unix":1704164645},"Values":[1.5,0.5]},{"Categories":[],"Id":"c","IsHidden":true,"Timestamp":{"nanos":0,"unix":1704164700},"Values":[3.5,1.5]}]}
+q.query_vectors	{"ok":[{"Id":"a","Score":2.5},{"Id":"b","Score":2}]}
+q.delete_vectors	{"ok":null}
+q.count_vectors_after_delete	{"ok":2}
+q.optimize	{"ok":null}
+q.delete_collection	{"ok":null}
+q.list_collections_after_delete	{"ok":[]}
+q.close	{"ok":null}
