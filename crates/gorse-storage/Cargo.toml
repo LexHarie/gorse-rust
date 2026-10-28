@@ -36,10 +36,15 @@ bytes = { version = "1.12.1", optional = true }
 # Cloud stores, one feature per provider (`storage/blob/{s3,gcs,azure}.go`).
 object_store = { version = "0.14.2", default-features = false, optional = true }
 
+# The MongoDB driver, for `cache::mongodb`. Optional, so a build that needs no
+# MongoDB store does not link it.
+mongodb = { workspace = true, optional = true }
+
 [features]
 s3 = ["dep:object_store", "dep:bytes", "object_store/aws"]
 gcs = ["dep:object_store", "dep:bytes", "object_store/gcp"]
 azure = ["dep:object_store", "dep:bytes", "object_store/azure"]
+mongodb = ["dep:mongodb"]
 
 [dev-dependencies]
 hex.workspace = true

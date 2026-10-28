@@ -25,6 +25,8 @@ use gorse_storage_core::errors::Error as StorageError;
 use gorse_storage_core::options::Opt;
 
 mod gosort;
+#[cfg(feature = "mongodb")]
+pub mod mongodb;
 pub mod no_database;
 
 #[cfg(test)]
