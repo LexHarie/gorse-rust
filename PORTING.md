@@ -1834,7 +1834,7 @@ or accepts a metric gap outside the Go tests' own tolerances.
   - The integrator's fix, `718a0bc7`, has the oracle delete every collection on its own live server
     before the scenario. The Go-client-against-Rust-server check then failed the same way, because
     the Rust peer (`proxy_peer serve`) also deleted only `docs`. The peer now deletes every
-    collection too, in the same commit as this entry. The golden is unchanged, and the three checks
+    collection too, in `d9b779b9`. The golden is unchanged, and the three checks
     pass with a leftover collection present.
   - The gate that covers this merge is recorded in D-224.
 
@@ -1855,6 +1855,30 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
 - **D-223 Context label ids are absolute, and user and item label ids are local (WP-3-2,
   D-WP32-5).** Go's `Dataset.Get` treats them so, and the port does the same in the unified index.
+
+- **D-224 Court acceptance for WP-3-2 on the final head `6f67b01a` (integrator, 2026-10-28).** The
+  branch `claude/project-thread-jto4gb` is merged as `00b4431f` at head `08a1d04`. The first head,
+  `e365efb`, was not merged, because its generator conflicted with WP-3-1's. The thread then merged
+  `b688fd34` and kept both modes in one generator.
+  - The Go replay golden is checked in conformance. `ctr_oracle_matches_golden` runs
+    `GODEBUG=randautoseed=0 go run ./contracts/tools/modelreplay -mode ctr` and requires the output
+    to equal `crates/gorse-model/testdata/ctr/afm_replay.json` byte for byte. It fails without Go. The
+    replay's largest difference from Go is 0, against the tolerance of 1e-5 (D-195), and the thread's
+    mutation of 1e-4 fails it.
+  - The gate on `6f67b01a`, all URIs set: `cargo fmt --check`, `cargo clippy --workspace --all-targets
+    -D warnings`, rustdoc with `-D warnings`, the config and YAML goldens, `go vet`, the cloud and
+    Mongo clippy runs all exit 0. `cargo test --workspace --no-fail-fast`: TEST section 1036 passed, 0
+    failed, 54 ignored. The vector acceptance (`--include-ignored`), the vector cross-read and the
+    proxy checks (`proxy_wire` 3 of 3, and the storage proxy tests) pass. The Redis TLS cases fail with
+    `REDIS_TLS_URI is not set` under `--include-ignored`, as O-66 requires.
+  - The `schema` tests, the backend suites and the vector suites all ran with their servers up, after
+    the Docker daemon was restarted, so the 20 backend failures seen on the thread's container do not
+    arise here.
+  - The gate covers the D-218 proxy fixes. The oracle and the Rust peer both delete every Qdrant
+    collection before the scenario (`718a0bc7`, `d9b779b9`).
+  - The contracts README names the CTR replay command. `O-72` stays open: the metrics test needs the
+    datasets, as O-70 and O-71 do.
+  - Verdict: accepted.
 
 ## Open questions for Ritchie
 
