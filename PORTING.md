@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-13, WP-1-14, WP-1-19. WP-1-11 part 1 (math32) merged; part 2 (nn) is in its own thread. WP-1-15: TOML, dotenv, config.go and YAML merged (D-78, D-82 to D-95). Open: config.schema.json and config.keys.md not generated (X-49). The log placeholder is closed (X-48); YAML part in its own thread, config core here. WP-1-6, WP-1-8 and WP-1-12 run in parallel threads (D-26). WP-1-16 to WP-1-18 follow WP-1-8 and WP-1-15. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); config.schema.json and config.keys.md not generated (X-49). WP-1-17 and WP-1-18 are in progress (WP-1-18 follows WP-1-16 and WP-1-17). All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
@@ -950,6 +950,41 @@ or accepts a metric gap outside the Go tests' own tolerances.
 - **D-110 The clients use reqwest's blocking client with rustls.** Go's `http.DefaultClient` is
   shared across requests, and so is the Rust `OnceLock` client. Both honour the proxy environment
   variables. No Phase 1 caller is async.
+
+- **D-111 Param value type.** `ParamValue` has one variant per Go dynamic
+  type Gorse stores: `Nil`, `Int` (Go `int`, `i64`), `Int32`, `Int64`,
+  `Float32`, `Float64`, `Bool`, `String`, `IntSlice` (`Vec<i64>`). The accessors
+  switch on the variant, which keeps Q-15 (JSON gives `float64`, so `get_int`
+  falls back to its default). `Other(&'static str)` stands for any other Go
+  type, named as Go prints it. The Go test uses `[]string{"hello"}` as its wrong
+  type, so the Rust test uses `Other("[]string")`. `gob::Value`
+  (`gorse_common::encoding::gob`) was not reused: it has no `Other`, and it
+  belongs to another crate. The gob
+  codec for model blobs and the meta store (WP-2-11) convert to and from
+  `ParamValue` where they read and write `Params`.
+
+- **D-112 Names.** Go's `ParamName` is a string type. Here names are `&str`
+  arguments, `String` map keys, and the predefined names are `&str` constants
+  with SCREAMING_SNAKE names (`N_EPOCHS` for `NEpochs`). Entries are in a
+  `BTreeMap`, so iteration is by name.
+
+- **D-113 Copy.** Go's `Params.Copy` is `Clone` here. `Overwrite` returns a
+  new map and takes `&Params`.
+
+- **D-114 Random generator.** `BaseModel` stores
+  `Option<RandomGenerator>`, so `BaseModel` has `Default`. `SetParams` seeds it
+  from `RandomState` (0 when missing or not an `int64`), as Go does.
+
+- **D-115 Downloads.** The download uses a `reqwest` blocking client with
+  its timeout turned off. Go's `http.Get` has no timeout, and reqwest's blocking
+  client gives up after 30 seconds (`reqwest` 0.13.5,
+  `src/blocking/client.rs`, `Timeout::default`). Integrator ruling (2026-10-28): accepted. `datautil.rs` must match, which is O-25.
+
+- **D-116 Home directory.** `gorse_dir`, `dataset_dir` and `temp_dir` are
+  functions that read `$HOME` on each call (X-55). Go computes them once in
+  `init`. Tests use `locate_built_in_dataset_in` and `create_dirs` with
+  temporary directories, because setting `$HOME` in a test is `unsafe` in
+  edition 2024 and the workspace denies `unsafe`.
 
 ## Open questions for Ritchie
 

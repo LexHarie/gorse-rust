@@ -877,6 +877,42 @@ said otherwise), so the Rust result is Go's.
 - **Q-166 Embedding input must be a string.** Go answers 400 with `invalid input type`, and the
   Rust mock does the same.
 
+### Model core (WP-1-16)
+
+- **Q-167 `GetString` panics on any other type.** Go's `val.(string)` panics
+  with `interface conversion: interface {} is float64, not string`. The Rust
+  `get_string` panics with the same text (it does not log and return the
+  default as the other getters do). Test:
+  `get_string_panics_on_another_type_as_go_does`.
+
+- **Q-168 The download keeps any body.** `http.Get` does not check the
+  status, so an HTTP 404 page is saved as the zip. Here no status check is made.
+  Test: `download_saves_the_body_of_an_error_status`.
+
+- **Q-169 A failed download reports the unzip error.**
+  `LocateBuiltInDataset` ignores the download's error. The file is left empty,
+  and the unzip then fails. Here the same. Test:
+  `failed_download_leaves_an_empty_file_and_returns_its_path`.
+
+- **Q-170 Only a missing file downloads.** `os.IsNotExist(err)` on the
+  training file is the only trigger. Any other stat error returns the paths with
+  no download. Here `fs::metadata` with `ErrorKind::NotFound`.
+
+- **Q-171 The format error.** The message is `format not matchs %v != %v`
+  (the typo is Go's), and `%v` prints the `iota` numbers: `format not matchs
+  0 != 1`. Test: `locate_rejects_a_format_mismatch_with_go_s_message`.
+
+- **Q-172 Absolute entry names stay inside the destination.** Go's
+  `filepath.Join(dst, "/abs/x")` is `dst/abs/x`, so the entry is extracted
+  there and the ZipSlip check passes. The Rust `unzip` strips the leading `/`
+  before joining. Test: `unzip_writes_an_absolute_entry_name_under_the_destination`.
+
+- **Q-173 `Params` type mismatch log.** Q-16 applies: the log names
+  `ParamName`, not the value's type. Reproduced in `type_mismatch`.
+
+- The JSON-float case of Q-15 is reproduced: Reproduced through `ParamValue::Float64` and the
+  exact-type `get_int`. Test: `get_int_does_not_accept_an_int64_or_a_float_from_json`.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -1198,6 +1234,37 @@ said otherwise), so the Rust result is Go's.
   net/http then drops the connection. The Rust mock answers 500 with Go's index-panic text, so the
   failure is visible.
 
+### Model core (WP-1-16)
+
+- **X-65 `SuggestParams` is not in the `Model` trait.** Go's
+  `SuggestParams(trial goptuna.Trial) Params` needs goptuna's `Trial`, which is
+  part of the tuning port (WP-3-3, `model/cf/optimize.go` and
+  `model/ctr/optimize.go`). WP-3-3 adds it to the trait, and the models implement
+  it there. The other `Model` methods are here.
+
+- **X-66 `init` side effect.** Go's `init` creates `~/.gorse/dataset` and
+  `~/.gorse/temp` when any binary starts, and stops the process if that fails.
+  The Rust library creates nothing on load. `create_built_in_dirs` does the
+  same work and returns the error. The binaries (WP-4-7) call it at startup.
+  `locate_built_in_dataset` makes the directories it writes into, as Go's
+  download path does.
+
+- **X-67 File permissions on unzip.** Unzipped files get default
+  permissions, not `f.Mode()`. Same as X-56 for `datautil`.
+
+- **X-68 `GetRandomGenerator` before `SetParams`.** Go returns a zero
+  generator that panics on first use. Here the getter panics. No caller
+  reaches it before `SetParams`, since every model calls `SetParams` in its
+  constructor (WP-3-*).
+
+- **X-69 `Copy` does not share slices.** Go's `Copy` is shallow, so an
+  `IntSlice` value is shared between the copies. `GetIntSlice` has no caller
+  in the Go tree (only its definition), so the sharing is not reachable.
+
+- **X-70 `unzip` returns only the error.** Go returns the names it wrote
+  before an error, together with the error. No caller reads those names, so
+  `unzip` returns the error alone.
+
 ## Open questions
 
 - **O-1** The Go CI's model tests read the datasets from `https://cdn.gorse.io`,
@@ -1305,3 +1372,13 @@ said otherwise), so the Rust result is Go's.
 - **O-21 `TestLoadIris` is ignored (WP-1-8).** It downloads from `cdn.gorse.io`, which is blocked here, as with O-1. It is ported with the Go test's assertions (150 rows, 4 values per row, 150 targets) and `#[ignore]`d. Offline tests cover the CSV parse and the unzip, including a ZipSlip archive. Run it when the CDN is reachable.
 
 - **O-22 A test flake and a `detachable` race (WP-1-6): closed.** `for_and_detachable_panics_resume_on_the_caller` failed about 1 run in 10 under load: the panic hook took longer than the 1000 jobs of 1 ms, so every job started before the stop flag. The test now holds the other jobs until job 0 has unwound; the bound `< 1000` is unchanged. In `detachable`, a panicked job released its slot before recording the panic, so the scheduler could start one more job first; the panic is now recorded first. The same test also hung when job 0 started late (the other jobs filled both detached slots). Job 0 now detaches first and says so, and the other jobs wait for it. Every assertion is unchanged.
+
+- **O-23 `TestUnzip` ignored.** It downloads `yelp.zip` from
+  `cdn.gorse.io`, which this container cannot reach (O-1). Ported with its
+  assertions (2 files) as `unzip_downloaded_yelp_archive`.
+
+- **O-24 `TestLocateBuiltInDataset` ignored.** It downloads `ml-1m` from
+  `cdn.gorse.io` (O-1). Ported with its path assertions as
+  `locate_built_in_dataset_ml_1m`.
+
+- **O-25 `datautil` download has a 30 second timeout (WP-1-8).** Go's `http.Get` has none, and `datautil.rs` calls `reqwest::blocking::get`, which uses reqwest's 30 second default. Ruling: the timeout goes, as D-111 does for the model core. Owner: the util thread. Open until that fix merges.
