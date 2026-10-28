@@ -75,8 +75,8 @@ fn use_fma() -> bool {
     }
 }
 
-/// Go's `math.Exp(x)` on amd64.
-pub(crate) fn exp(x: f64) -> f64 {
+/// Go's `math.Exp(x)` on amd64, taking the FMA or the plain path as Go does on this CPU.
+pub fn exp(x: f64) -> f64 {
     exp_with(x, use_fma())
 }
 
@@ -169,7 +169,7 @@ const L6: f64 = 1.531_383_769_920_937_332e-01;
 const L7: f64 = 1.479_819_860_511_658_591e-01;
 
 /// Go's `math.Log(x)` on amd64 (`archLog`).
-pub(crate) fn log(x: f64) -> f64 {
+pub fn log(x: f64) -> f64 {
     let bits = x.to_bits();
     if bits & !(1 << 63) == 0 {
         return f64::NEG_INFINITY;

@@ -9,17 +9,33 @@ use gorse_common::util::RandomGenerator;
 
 use crate::params::{Params, RANDOM_STATE};
 
-/// Go's `Model` interface.
+/// The part of goptuna's `Trial` that a model's `SuggestParams` calls.
 ///
-/// Go's interface also has `SuggestParams(trial goptuna.Trial) Params`. It is
-/// added with the tuning port (WP-3-3), which brings the `Trial` type it needs
-/// (`PORTING_NOTES.md`).
+/// Go's `SuggestParams` takes a `goptuna.Trial`. That type lives in
+/// `gorse-model`, which depends on this crate, so the models here see only this
+/// trait. `gorse_model::tpe::Trial` implements it (`PORTING_NOTES.md`, X-65).
+///
+/// Both methods return the suggested value and panic when goptuna would return
+/// an error, as Go's `lo.Must` around them does.
+pub trait SuggestTrial {
+    /// Go's `lo.Must(trial.SuggestLogFloat(name, low, high))`.
+    fn suggest_log_float(&mut self, name: &str, low: f64, high: f64) -> f64;
+
+    /// Go's `lo.Must(trial.SuggestDiscreteFloat(name, low, high, q))`.
+    fn suggest_discrete_float(&mut self, name: &str, low: f64, high: f64, q: f64) -> f64;
+}
+
+/// Go's `Model` interface.
 pub trait Model {
     /// Go's `SetParams`.
     fn set_params(&mut self, params: Params);
 
     /// Go's `GetParams`.
     fn get_params(&self) -> &Params;
+
+    /// Go's `SuggestParams`: the hyper-parameters a tuning trial tries. Each
+    /// model suggests its own ranges through `trial`.
+    fn suggest_params(&self, trial: &mut dyn SuggestTrial) -> Params;
 
     /// Go's `Clear`: drops the fitted state, so [`Model::invalid`] reports true.
     fn clear(&mut self);

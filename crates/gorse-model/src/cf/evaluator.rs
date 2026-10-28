@@ -195,7 +195,7 @@ mod tests {
 
     use gorse_common::gotime;
     use gorse_dataset::dataset::Dataset;
-    use gorse_model_core::model::{BaseModel, Model as CoreModel};
+    use gorse_model_core::model::{BaseModel, Model as CoreModel, SuggestTrial};
     use gorse_model_core::params::Params;
     use gorse_storage::data::types as data;
 
@@ -268,6 +268,10 @@ mod tests {
 
         fn get_params(&self) -> &Params {
             self.base.get_params()
+        }
+
+        fn suggest_params(&self, _trial: &mut dyn SuggestTrial) -> Params {
+            unimplemented!("implement me")
         }
 
         fn clear(&mut self) {

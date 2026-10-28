@@ -100,6 +100,11 @@ go run ./contracts/tools/utilgolden -out crates/gorse-common/tests/data/util_gol
 go run ./contracts/tools/tlsgolden \
   -dir crates/gorse-common/tests/data/tls \
   -out crates/gorse-common/tests/data/tls_golden.json
+# goptuna v0.9.0 TPE (WP-3-3): math.Erf, math.Max and math.Min, and a seeded
+# 60-trial study (gorse-model). GODEBUG=randautoseed=0 seeds the global math/rand
+# source that goptuna reads with 1, as the Rust test assumes.
+GODEBUG=randautoseed=0 go run ./contracts/tools/tpegolden \
+  -out crates/gorse-model/testdata/tpe/golden.json
 # juju/ratelimit (WP-1-6): the bucket, and the limiter set-up that master
 # reaches. Regenerating gives byte-identical files.
 go run ./contracts/tools/ratelimitgolden \
