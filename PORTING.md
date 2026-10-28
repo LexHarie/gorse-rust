@@ -1613,6 +1613,10 @@ or accepts a metric gap outside the Go tests' own tolerances.
     `model/cf/model.go`) becomes `fixedbitset` 0.5.7, unless the thread shows a behaviour
     difference. `golang-set` becomes `std::collections::HashSet`, with no crate.
   - goptuna's TPE sampler is a hand port (`crate-selection.md`), as WP-3-3 says.
+  - Dependency correction. `work-packages.md` lists WP-3-5 after WP-3-4 only, but
+    `logics/item_to_item.go` compiles expressions with the expr-lang VM (line 130). WP-3-5
+    therefore also waits for WP-3-6. The `SuggestParams` methods that take a goptuna `Trial`
+    (`model/cf/model.go` lines 397 and 588, `model/ctr/fm.go` line 79) are ported in WP-3-3.
 
 ## Open questions for Ritchie
 
