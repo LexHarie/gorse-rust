@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use async_trait::async_trait;
+use futures_util::future::BoxFuture;
 #[cfg(feature = "sqlite")]
 use gorse_common::dateparse;
 use gorse_common::gocontext::Context;
@@ -1268,18 +1269,36 @@ pub fn register(registry: &mut Registry) {
 }
 
 #[cfg(feature = "postgres")]
-fn open_postgres(path: &str, table_prefix: &str, opts: &[Opt]) -> Result<Box<dyn Database>, Error> {
-    Ok(Box::new(SqlDatabase::postgres(path, table_prefix, opts)?))
+fn open_postgres<'a>(
+    path: &'a str,
+    table_prefix: &'a str,
+    opts: &'a [Opt],
+) -> BoxFuture<'a, Result<Box<dyn Database>, Error>> {
+    Box::pin(async move {
+        SqlDatabase::postgres(path, table_prefix, opts).map(|db| Box::new(db) as Box<dyn Database>)
+    })
 }
 
 #[cfg(feature = "mysql")]
-fn open_mysql(path: &str, table_prefix: &str, opts: &[Opt]) -> Result<Box<dyn Database>, Error> {
-    Ok(Box::new(SqlDatabase::mysql(path, table_prefix, opts)?))
+fn open_mysql<'a>(
+    path: &'a str,
+    table_prefix: &'a str,
+    opts: &'a [Opt],
+) -> BoxFuture<'a, Result<Box<dyn Database>, Error>> {
+    Box::pin(async move {
+        SqlDatabase::mysql(path, table_prefix, opts).map(|db| Box::new(db) as Box<dyn Database>)
+    })
 }
 
 #[cfg(feature = "sqlite")]
-fn open_sqlite(path: &str, table_prefix: &str, opts: &[Opt]) -> Result<Box<dyn Database>, Error> {
-    Ok(Box::new(SqlDatabase::sqlite(path, table_prefix, opts)?))
+fn open_sqlite<'a>(
+    path: &'a str,
+    table_prefix: &'a str,
+    opts: &'a [Opt],
+) -> BoxFuture<'a, Result<Box<dyn Database>, Error>> {
+    Box::pin(async move {
+        SqlDatabase::sqlite(path, table_prefix, opts).map(|db| Box::new(db) as Box<dyn Database>)
+    })
 }
 
 #[cfg(test)]

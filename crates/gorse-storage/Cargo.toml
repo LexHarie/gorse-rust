@@ -14,26 +14,51 @@ gorse-protocol = { workspace = true }
 gorse-storage-core = { workspace = true }
 gorse-config = { workspace = true }
 gorse-model-core = { workspace = true }
+futures-core.workspace = true
+futures-util.workspace = true
 indexmap.workspace = true
+prost-types = { workspace = true }
 serde.workspace = true
 # `raw_value` writes a `json.Number`'s text as it is, as Go's `json.Marshal` does.
 serde_json = { workspace = true, features = ["raw_value"] }
+tempfile = { workspace = true }
 thiserror.workspace = true
+tonic = { workspace = true }
+tracing.workspace = true
 async-trait.workspace = true
 # The SQL drivers are optional, one feature each (D-18). `sqlx` serves MySQL and
 # Postgres; `rusqlite` serves SQLite, on `tokio`'s blocking pool.
 rusqlite = { workspace = true, optional = true }
 sqlx = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true, features = ["rt"] }
+
+# The blob stores are async (decision D-122). POSIX file calls run through
+# `tokio::fs`, which uses the blocking pool.
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "sync", "macros", "net", "fs", "io-util", "time"] }
+tokio-stream = { version = "0.1.19", features = ["net"] }
+url = "2.5.8"
+percent-encoding = "2.3.2"
+bytes = { version = "1.12.1", optional = true }
+# Cloud stores, one feature per provider (`storage/blob/{s3,gcs,azure}.go`).
+object_store = { version = "0.14.2", default-features = false, optional = true }
+
+# The MongoDB driver, for `cache::mongodb`. Optional, so a build that needs no
+# MongoDB store does not link it.
+mongodb = { workspace = true, optional = true }
 
 [features]
+s3 = ["dep:object_store", "dep:bytes", "object_store/aws"]
+gcs = ["dep:object_store", "dep:bytes", "object_store/gcp"]
+azure = ["dep:object_store", "dep:bytes", "object_store/azure"]
+mongodb = ["dep:mongodb"]
 mysql = ["dep:sqlx", "sqlx/mysql"]
 postgres = ["dep:sqlx", "sqlx/postgres"]
-sqlite = ["dep:rusqlite", "dep:tokio"]
+sqlite = ["dep:rusqlite"]
 
 [dev-dependencies]
+hex.workspace = true
+# Seeds the GCS emulator through its JSON upload API in `gcs::tests`.
+reqwest = { workspace = true }
 tempfile.workspace = true
-tokio = { workspace = true, features = ["macros", "rt", "time"] }
 
 [lints]
 workspace = true

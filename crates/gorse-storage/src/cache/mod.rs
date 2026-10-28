@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures_util::future::BoxFuture;
 use gorse_common::dateparse;
 use gorse_common::gocontext::{Context, ContextError};
 use gorse_common::gosort;
@@ -24,7 +25,11 @@ use gorse_common::gostrconv;
 use gorse_common::gotime::{self, Duration, Time};
 use gorse_storage_core::errors::Error as StorageError;
 use gorse_storage_core::options::Opt;
+#[cfg(feature = "mongodb")]
+use gorse_storage_core::scheme::{MONGO_PREFIX, MONGO_SRV_PREFIX};
 
+#[cfg(feature = "mongodb")]
+pub mod mongodb;
 pub mod no_database;
 #[cfg(any(feature = "mysql", feature = "postgres", feature = "sqlite"))]
 pub mod sql;
@@ -275,16 +280,18 @@ pub struct Score {
 /// Go's `cache.SortDocuments`: sorts by score, highest first, with Go's
 /// `sort.Slice`. The sort is not stable, so documents with equal scores come
 /// out in the order Go's pattern-defeating quicksort gives, not in input order.
+/// `gorse_common::gosort` ports `sort.Sort`, which runs the same algorithm as
+/// `sort.Slice` behind a different interface, so the comparisons and swaps are
+/// the same.
 pub fn sort_documents(documents: &mut [Score]) {
-    gosort::sort(&mut DocumentSorter(documents));
+    gosort::sort(&mut ByScore(documents));
 }
 
-/// Orders score documents by score, highest first, as `sort.Slice` does with
-/// Go's `func(i, j int) bool`. `gosort::sort` runs the same pdqsort for
-/// `sort.Sort` and `sort.Slice`, so the two orderings agree.
-struct DocumentSorter<'a>(&'a mut [Score]);
+/// The documents as the `sort.Interface` that `gosort` sorts: `less` compares
+/// scores, as the closure does in Go's `SortDocuments`.
+struct ByScore<'a>(&'a mut [Score]);
 
-impl gosort::Interface for DocumentSorter<'_> {
+impl gosort::Interface for ByScore<'_> {
     fn len(&self) -> usize {
         self.0.len()
     }
@@ -478,9 +485,10 @@ pub trait Database: Send + Sync {
     ) -> Result<Vec<TimeSeriesPoint>, Error>;
 }
 
-/// Go's `cache.Creator`: opens a store for a path and table prefix.
+/// Go's `cache.Creator`: opens a store for a path and table prefix. Async,
+/// because the network stores open their clients asynchronously (D-151).
 pub type Creator =
-    fn(path: &str, table_prefix: &str, opts: &[Opt]) -> Result<Box<dyn Database>, Error>;
+    for<'a> fn(&'a str, &'a str, &'a [Opt]) -> BoxFuture<'a, Result<Box<dyn Database>, Error>>;
 
 /// Go's package-level `creators` map and its `Register` and `Open` functions,
 /// as a value a node builds at start-up. Go registers creators in `init`.
@@ -502,7 +510,7 @@ impl Registry {
     /// Go's `Open`: opens the store whose registered prefix matches `path`.
     /// Go picks among matching prefixes in map order; this takes the longest,
     /// which is the only one a path can match unambiguously.
-    pub fn open(
+    pub async fn open(
         &self,
         path: &str,
         table_prefix: &str,
@@ -515,10 +523,21 @@ impl Registry {
             .max_by_key(|(prefix, _)| prefix.len())
             .map(|(_, creator)| *creator);
         match creator {
-            Some(creator) => creator(path, table_prefix, opts),
+            Some(creator) => creator(path, table_prefix, opts).await,
             None => Err(Error::UnknownDatabase(path.to_owned())),
         }
     }
+}
+
+/// Registers the cache backends this build was compiled with. Go registers them
+/// in `init`; a node calls this once on the registry it builds (D-126).
+pub fn register_builtin(registry: &mut Registry) {
+    #[cfg(feature = "mongodb")]
+    registry.register(&[MONGO_PREFIX, MONGO_SRV_PREFIX], mongodb::creator);
+    #[cfg(any(feature = "mysql", feature = "postgres", feature = "sqlite"))]
+    sql::register(registry);
+    #[cfg(not(feature = "mongodb"))]
+    let _ = registry;
 }
 
 #[cfg(test)]
@@ -605,87 +624,109 @@ mod tests {
 
     /// Stands in for a backend's creator: it reports the arguments it was
     /// given, in its error text.
-    fn short(path: &str, table_prefix: &str, _: &[Opt]) -> Result<Box<dyn Database>, Error> {
-        Err(Error::Backend(Arc::new(std::io::Error::other(format!(
-            "short {table_prefix}{path}"
-        )))))
+    fn short<'a>(
+        path: &'a str,
+        table_prefix: &'a str,
+        _: &'a [Opt],
+    ) -> BoxFuture<'a, Result<Box<dyn Database>, Error>> {
+        Box::pin(async move {
+            Err(Error::Backend(Arc::new(std::io::Error::other(format!(
+                "short {table_prefix}{path}"
+            )))))
+        })
     }
 
-    fn long(path: &str, table_prefix: &str, _: &[Opt]) -> Result<Box<dyn Database>, Error> {
-        Err(Error::Backend(Arc::new(std::io::Error::other(format!(
-            "long {table_prefix}{path}"
-        )))))
+    fn long<'a>(
+        path: &'a str,
+        table_prefix: &'a str,
+        _: &'a [Opt],
+    ) -> BoxFuture<'a, Result<Box<dyn Database>, Error>> {
+        Box::pin(async move {
+            Err(Error::Backend(Arc::new(std::io::Error::other(format!(
+                "long {table_prefix}{path}"
+            )))))
+        })
     }
 
     /// Go's `Open` hands the path to the creator whose prefix matches. With
     /// two matches this takes the longer prefix.
-    #[test]
-    fn registry_opens_by_prefix() {
+    #[tokio::test]
+    async fn registry_opens_by_prefix() {
+        async fn message(registry: &Registry, path: &str) -> String {
+            match registry.open(path, "t_", &[]).await {
+                Ok(_) => panic!("{path} must not open"),
+                Err(err) => err.to_string(),
+            }
+        }
         let mut registry = Registry::default();
         registry.register(&["x://"], short);
         registry.register(&["x://y/"], long);
-        let message = |path: &str| match registry.open(path, "t_", &[]) {
-            Ok(_) => panic!("{path} must not open"),
-            Err(err) => err.to_string(),
-        };
-        assert_eq!(message("x://q"), "short t_x://q");
-        assert_eq!(message("x://y/z"), "long t_x://y/z");
-        assert_eq!(message("w://"), "Unknown database: w://");
+        assert_eq!(message(&registry, "x://q").await, "short t_x://q");
+        assert_eq!(message(&registry, "x://y/z").await, "long t_x://y/z");
+        assert_eq!(message(&registry, "w://").await, "Unknown database: w://");
     }
 
-    /// A document is its score and its input position, so ties are visible.
-    struct Pairs<'a>(&'a mut [(u8, usize)]);
-
-    impl gosort::Interface for Pairs<'_> {
-        fn len(&self) -> usize {
-            self.0.len()
-        }
-
-        fn less(&self, i: usize, j: usize) -> bool {
-            self.0[i].0 > self.0[j].0
-        }
-
-        fn swap(&mut self, i: usize, j: usize) {
-            self.0.swap(i, j);
-        }
+    /// Score documents whose ids are their input positions, so the order
+    /// `sort_documents` gives shows in the ids.
+    fn scored(scores: &[u8]) -> Vec<Score> {
+        scores
+            .iter()
+            .enumerate()
+            .map(|(i, s)| Score {
+                id: i.to_string(),
+                score: f64::from(*s),
+                is_hidden: false,
+                categories: Vec::new(),
+                timestamp: Time::default(),
+            })
+            .collect()
     }
 
-    /// Sorts the scores with the comparator `sort_documents` uses, and returns
-    /// each document's score and input position.
-    fn order(scores: &[u8]) -> Vec<(u8, usize)> {
-        let mut docs: Vec<(u8, usize)> = scores.iter().copied().zip(0..).collect();
-        gosort::sort(&mut Pairs(&mut docs));
-        docs
+    /// The input positions of the documents, in the order they are in.
+    fn positions(documents: &[Score]) -> Vec<usize> {
+        documents.iter().map(|d| d.id.parse().unwrap()).collect()
     }
 
     #[test]
-    fn sorts_descending() {
-        let scores: Vec<u8> = (0..200).map(|i| (i * 37 % 101) as u8).collect();
-        let sorted = order(&scores);
-        assert!(sorted.windows(2).all(|w| w[0].0 >= w[1].0));
-        let mut expected = scores.clone();
-        expected.sort_unstable_by(|a, b| b.cmp(a));
-        let got: Vec<u8> = sorted.iter().map(|d| d.0).collect();
-        assert_eq!(got, expected);
+    fn sort_documents_sorts_highest_first() {
+        let scores: Vec<u8> = (0..200u32).map(|i| ((i * 37) % 101) as u8).collect();
+        let mut documents = scored(&scores);
+        sort_documents(&mut documents);
+        assert!(documents.windows(2).all(|w| w[0].score >= w[1].score));
     }
 
-    /// `sort.Slice` output (Go 1.27.0) for the 40 scores `(i * 7) % 5`:
-    /// the input positions, highest score first.
     #[test]
-    fn ties_come_out_in_go_order_of_40_items() {
+    fn sort_documents_handles_short_and_empty_slices() {
+        let mut documents = scored(&[]);
+        sort_documents(&mut documents);
+        assert!(documents.is_empty());
+        let mut documents = scored(&[3]);
+        sort_documents(&mut documents);
+        assert_eq!(positions(&documents), [0]);
+        let mut documents = scored(&[1, 2]);
+        sort_documents(&mut documents);
+        assert_eq!(positions(&documents), [1, 0]);
+    }
+
+    /// `sort.Slice` output (Go 1.27.0) for the 40 scores `(i * 7) % 5`: the
+    /// input positions, highest score first.
+    #[test]
+    fn sort_documents_breaks_ties_as_go_does_for_40_items() {
         let scores: Vec<u8> = (0..40u32).map(|i| ((i * 7) % 5) as u8).collect();
-        let got: Vec<usize> = order(&scores).iter().map(|d| d.1).collect();
-        assert_eq!(got, GO_40);
+        let mut documents = scored(&scores);
+        sort_documents(&mut documents);
+        assert_eq!(positions(&documents), GO_40);
     }
 
     /// `sort.Slice` output (Go 1.27.0) for the 200 scores `(i * 37) % 101`,
-    /// which are mostly ties. This input takes the pattern-breaking and
-    /// heap paths that the 40-item input does not.
+    /// which are mostly ties. It takes the pattern-breaking and heap paths
+    /// that the 40-item input does not.
     #[test]
-    fn ties_come_out_in_go_order_of_200_items() {
+    fn sort_documents_breaks_ties_as_go_does_for_200_items() {
         let scores: Vec<u8> = (0..200u32).map(|i| ((i * 37) % 101) as u8).collect();
-        let got: Vec<usize> = order(&scores).iter().map(|d| d.1).collect();
-        assert_eq!(got, GO_200);
+        let mut documents = scored(&scores);
+        sort_documents(&mut documents);
+        assert_eq!(positions(&documents), GO_200);
     }
 
     const GO_40: [usize; 40] = [
@@ -705,31 +746,4 @@ mod tests {
         137, 66, 167, 96, 197, 25, 126, 55, 156, 186, 85, 115, 14, 145, 44, 74, 175, 104, 3, 33,
         134, 164, 63, 93, 194, 123, 22, 52, 153, 82, 183, 11, 112, 142, 41, 71, 172, 0, 101,
     ];
-
-    /// `SortDocuments` on the 40-item input gives Go's order too, so the
-    /// comparator it passes is the one the golden was made with.
-    #[test]
-    fn sort_documents_breaks_ties_as_go_does() {
-        use gorse_common::gotime::Time;
-        let mut documents: Vec<Score> = (0..40u32)
-            .map(|i| Score {
-                id: i.to_string(),
-                score: ((i * 7) % 5) as f64,
-                is_hidden: false,
-                categories: Vec::new(),
-                timestamp: Time::default(),
-            })
-            .collect();
-        sort_documents(&mut documents);
-        let got = convert_documents_to_values(&documents);
-        let want: Vec<String> = GO_40.iter().map(|i| i.to_string()).collect();
-        assert_eq!(got, want);
-    }
-
-    #[test]
-    fn handles_short_and_empty_slices() {
-        assert!(order(&[]).is_empty());
-        assert_eq!(order(&[3]), vec![(3, 0)]);
-        assert_eq!(order(&[1, 2]), vec![(2, 1), (1, 0)]);
-    }
 }
