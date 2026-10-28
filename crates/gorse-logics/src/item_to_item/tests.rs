@@ -15,7 +15,7 @@ use gorse_dataset::dataset::{DatasetItem, Id, Value as ProcessedLabels};
 use gorse_storage::data::types::Labels;
 use gorse_storage::vectors::{self, Database, Distance, Vector, VectorConfig};
 
-use super::{ItemToItemOptions, new_item_to_item, query_item_to_item};
+use super::{ItemToItem, ItemToItemOptions, new_item_to_item, query_item_to_item};
 
 /// Go's `SetupTest`: a new xvec store in a temporary directory.
 async fn open_store() -> (tempfile::TempDir, Arc<dyn Database>) {
@@ -83,6 +83,14 @@ fn ids(id: i32) -> ProcessedLabels {
 /// Go's `[]float32{1, 1, ..., 1}` of `n` values.
 fn ones(n: usize) -> Vec<f32> {
     vec![1.0; n]
+}
+
+/// The recommenders are `Send` and `Sync`, so the master can share them between
+/// its workers (Q-254, D-232). This is checked when the test compiles.
+#[test]
+fn recommender_is_send_and_sync() {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<ItemToItem>();
 }
 
 #[tokio::test]

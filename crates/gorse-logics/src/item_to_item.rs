@@ -11,11 +11,10 @@
 //! sees the same values Go's does: a label string is its ID, and a numeric list
 //! is FP16 bits. `item_value` builds that view of an item.
 //!
-//! The recommenders hold compiled programs, which use `Rc`s, so they are not
-//! `Send` or `Sync` (Q-254, open).
+//! The recommenders hold compiled programs, whose payloads are `Arc`s, so they
+//! are `Send` and `Sync` (Q-254, closed by D-232), which a test checks.
 
 use std::collections::BTreeSet;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use gorse_common::floats;
@@ -452,7 +451,7 @@ pub(crate) fn field(name: &str, ty: Ty) -> Field {
 pub(crate) fn item_value(item: &DatasetItem) -> Value {
     Value::Struct(
         item_type(),
-        Rc::new(vec![
+        Arc::new(vec![
             Value::str(&item.item_id),
             Value::Bool(item.is_hidden),
             string_slice(item.categories.as_deref()),
@@ -470,7 +469,7 @@ pub(crate) fn string_slice(items: Option<&[String]>) -> Value {
     let items = items.unwrap_or(&[]);
     Value::Array(
         Ty::slice(Ty::string()),
-        Rc::new(items.iter().map(|item| Value::str(item)).collect()),
+        Arc::new(items.iter().map(|item| Value::str(item)).collect()),
     )
 }
 
@@ -481,7 +480,7 @@ pub(crate) fn processed_value(labels: &ProcessedLabels) -> Value {
         ProcessedLabels::Plain(labels) => labels_value(labels),
         ProcessedLabels::Object(entries) => Value::Map(
             Ty::map(Ty::string(), Ty::any()),
-            Rc::new(
+            Arc::new(
                 entries
                     .iter()
                     .map(|(name, value)| (Value::str(name), processed_value(value)))
@@ -490,7 +489,7 @@ pub(crate) fn processed_value(labels: &ProcessedLabels) -> Value {
         ),
         ProcessedLabels::Floats(bits) => Value::Array(
             Ty::slice(Ty::basic(Kind::Uint16)),
-            Rc::new(
+            Arc::new(
                 bits.iter()
                     .map(|&bits| Value::Integer(Ty::basic(Kind::Uint16), i64::from(bits)))
                     .collect(),
@@ -498,7 +497,7 @@ pub(crate) fn processed_value(labels: &ProcessedLabels) -> Value {
         ),
         ProcessedLabels::Ids(ids) => Value::Array(
             Ty::slice(id_type()),
-            Rc::new(
+            Arc::new(
                 ids.iter()
                     .map(|id| Value::Integer(id_type(), i64::from(id.0)))
                     .collect(),
@@ -528,7 +527,7 @@ fn labels_value(labels: &Labels) -> Value {
         Labels::Array(items) => Value::any_array(items.iter().map(labels_value).collect()),
         Labels::Object(entries) => Value::Map(
             Ty::map(Ty::string(), Ty::any()),
-            Rc::new(
+            Arc::new(
                 entries
                     .iter()
                     .map(|(name, value)| (Value::str(name), labels_value(value)))

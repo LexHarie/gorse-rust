@@ -7,11 +7,10 @@
 //! As in [`crate::item_to_item`], Go's `UserToUser` interface is the
 //! [`UserToUser`] enum, the column expressions run on the `gorse-expr` VM with
 //! `user` typed as Go's `data.User`, and the users arrive with their labels
-//! processed as the dataset gives them. The recommenders are not `Send` or
-//! `Sync` either (Q-254, open).
+//! processed as the dataset gives them. The recommenders hold `Arc` payloads,
+//! so they are `Send` and `Sync` (Q-254, closed by D-232), which a test checks.
 
 use std::collections::BTreeSet;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use gorse_common::gocontext::Context;
@@ -379,7 +378,7 @@ fn user_environment(user: &DatasetUser) -> Value {
 fn user_value(user: &DatasetUser) -> Value {
     Value::Struct(
         user_type(),
-        Rc::new(vec![
+        Arc::new(vec![
             Value::str(&user.user_id),
             processed_value(&user.labels),
             Value::str(&user.comment),
