@@ -1452,7 +1452,30 @@ or accepts a metric gap outside the Go tests' own tolerances.
     is not closed by this entry; see O-61, and the coordinator rules on it.
   - Verdict: the head is accepted for Redis (Kvrocks and the cluster) and for the
     data and cache stores on MySQL 8.0 and PostgreSQL 10.0. The blob S3 and Azure
-    tests pass. The GCS read path and the MariaDB cache case are open.
+    tests pass. The GCS read path and the MariaDB cache case are open. D-185 rules on
+    both.
+
+- **D-185 Coordinator rulings on O-61 and O-62 (coordinator, 2026-10-28; applied by the
+  integrator).**
+  - O-61, approved with one addition. The cold-login test asks the server whether
+    `caching_sha2_password` exists (`information_schema.PLUGINS`). If it does, as on
+    MySQL 8, the case is unchanged. If it does not, as on MariaDB 10.2, the same
+    cold-login case runs with an account on the server's default plugin, and the path
+    is printed as `cold login path: ...` (shown with `--nocapture`). The test then
+    reads the account's `mysql.user.plugin` and checks that it is the printed plugin.
+    MariaDB stores its default plugin as an empty string, so an empty value counts as
+    `mysql_native_password`. The test is not skipped on either server, and it never
+    passes silently. The change is in `crates/gorse-storage/src/cache/sql.rs`.
+    Evidence: `cache::sql` on MariaDB 10.2.44 gives 10 of 10, with the native path
+    printed. On MySQL 8.0.46 and PostgreSQL 10.0 it gives 10 of 10, with the
+    `caching_sha2_password` path printed. Clippy with `-D warnings` and `cargo fmt
+    --check` exit 0. O-61 is closed.
+  - O-62, open. The in-process XML listener must also cover the GCS list and read
+    requests, checked against what Go's client sends, so the read path has runnable
+    evidence. The emulator test stays open under O-62 for a run with a working
+    emulator or real GCS. The blob thread is merged and not reused, so the work needs a
+    new brief. It does not block Phase 3 prep, but it must close before the Phase 2
+    exit is declared.
 
 ## Open questions for Ritchie
 

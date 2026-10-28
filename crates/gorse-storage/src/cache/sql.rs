@@ -1389,6 +1389,20 @@ mod tests {
         sqlx::MySqlConnection::connect_with(&options).await.unwrap()
     }
 
+    /// Whether the MySQL server has the authentication plugin `name`, read from
+    /// `information_schema`. MariaDB 10.2 has no `caching_sha2_password`.
+    #[cfg(feature = "mysql")]
+    async fn mysql_has_plugin(admin: &mut sqlx::MySqlConnection, name: &str) -> bool {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM information_schema.PLUGINS WHERE PLUGIN_NAME = ?",
+        )
+        .bind(name)
+        .fetch_one(admin)
+        .await
+        .unwrap();
+        count > 0
+    }
+
     /// A PostgreSQL connection to the default database of the server, as Go's
     /// suite does.
     #[cfg(feature = "postgres")]
@@ -1615,6 +1629,10 @@ mod tests {
     /// A MySQL account nobody has logged in to, so its first login is the full
     /// `caching_sha2_password` authentication over plaintext with no warm server
     /// cache. Go's `TestMySQL` makes the same first login (X-144, Q-232).
+    ///
+    /// A server without `caching_sha2_password` (MariaDB 10.2) runs the same
+    /// cold-login case with a fresh `mysql_native_password` account instead.
+    /// The path that ran is printed, so the run shows which one it was (O-61).
     #[cfg(feature = "mysql")]
     #[tokio::test]
     async fn mysql_cold_full_authentication_connects() {
@@ -1634,12 +1652,37 @@ mod tests {
         .execute(&mut admin)
         .await
         .unwrap();
+        // Without the plugin, `IDENTIFIED BY` gives the server's default
+        // account plugin, mysql_native_password on MariaDB 10.2.
+        let (plugin, clause) = if mysql_has_plugin(&mut admin, "caching_sha2_password").await {
+            (
+                "caching_sha2_password",
+                "IDENTIFIED WITH caching_sha2_password BY 'cold-pass'",
+            )
+        } else {
+            ("mysql_native_password", "IDENTIFIED BY 'cold-pass'")
+        };
+        eprintln!("cold login path: {plugin}");
         sqlx::query(sqlx::AssertSqlSafe(format!(
-            "CREATE USER '{account}'@'%' IDENTIFIED WITH caching_sha2_password BY 'cold-pass'"
+            "CREATE USER '{account}'@'%' {clause}"
         )))
         .execute(&mut admin)
         .await
         .unwrap();
+        // The printed path must be the one the account has, or the run is not
+        // the case it claims to be. MariaDB stores its default plugin,
+        // mysql_native_password, as an empty `plugin` column.
+        let account_plugin: String =
+            sqlx::query_scalar("SELECT plugin FROM mysql.user WHERE User = ? AND Host = '%'")
+                .bind(&account)
+                .fetch_one(&mut admin)
+                .await
+                .unwrap();
+        assert!(
+            account_plugin == plugin
+                || (plugin == "mysql_native_password" && account_plugin.is_empty()),
+            "the account authenticates as printed: {account_plugin:?}"
+        );
         let cold = format!("{MYSQL_PREFIX}{account}:cold-pass@{address}");
         let outcome = match SqlDatabase::mysql(&cold, "gorse_", &[]) {
             Ok(db) => {

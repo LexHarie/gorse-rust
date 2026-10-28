@@ -2314,13 +2314,18 @@ said otherwise), so the Rust result is Go's.
   coordinator: run the case only when the server is MySQL 8 (skipped with a printed reason on
   MariaDB, as Go does for `TestTimezone`), with the reasoning in a D-entry; or record the MariaDB
   run as a known exception. The test is not to be skipped without that ruling (the no-cheating
-  rule). Open. Evidence: D-184.
+  rule). Closed by D-185: the test runs on both servers. On a server without
+  `caching_sha2_password`, it runs the same case with the server's default plugin, and it prints
+  the path. Evidence: D-184 and D-185.
 
 - **O-62 The GCS read path is not run against an emulator.** `test_gcs_read_list_remove` and
   `test_gcs` need `GCS_EMULATOR_ENDPOINT`. fake-gcs-server 1.50.2, 1.52.3 and 1.56.1 all answer
   404 for the XML list request (`GET /gorse-test?list-type=2&prefix=blob/`), so the read path
   cannot pass here. The XML put and multipart tests pass in process. Real GCS needs credentials
-  this environment does not have. Open. Evidence: D-184. Also see O-31.
+  this environment does not have. Open. Ruled on by D-185: the in-process XML listener must
+  also cover the GCS list and read requests, checked against what Go's client sends, and the
+  emulator test stays open until a run with a working emulator or real GCS. It must close
+  before the Phase 2 exit is declared. Evidence: D-184. Also see O-31.
 
 Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
 version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does
