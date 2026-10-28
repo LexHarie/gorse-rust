@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-7, WP-1-9, WP-1-10, WP-1-13, WP-1-14, WP-1-19. WP-1-11 part 1 (math32) merged; part 2 (nn) is in its own thread. WP-1-15: TOML and dotenv parts merged (D-78); YAML part in its own thread, config core here. WP-1-6, WP-1-8 and WP-1-12 run in parallel threads (D-26). WP-1-16 to WP-1-18 follow WP-1-8 and WP-1-15. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-7, WP-1-9, WP-1-10, WP-1-13, WP-1-14, WP-1-19. WP-1-11 part 1 (math32) merged; part 2 (nn) is in its own thread. WP-1-15: TOML, dotenv and config.go merged (D-78, D-82 to D-90); YAML part in its own thread (X-47); YAML part in its own thread, config core here. WP-1-6, WP-1-8 and WP-1-12 run in parallel threads (D-26). WP-1-16 to WP-1-18 follow WP-1-8 and WP-1-15. All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
@@ -744,6 +744,47 @@ or accepts a metric gap outside the Go tests' own tolerances.
   `rand.NormFloat64` and `rand.Perm` without a generator (`TestSaveAndLoad`'s
   spiral, and `rand(None, ..)` and `normal_init(None, ..)`). Go seeds that source
   randomly, so no test depends on its values, and nothing else uses it.
+
+- **D-82 Validate is explicit ordered checks.** The Go validator tags
+  (`gte=0`, `gt=0`, `oneof=`, and the `item_expr` and store checks) are coded
+  as functions in `config/validate.rs`, run in struct field order, and the first
+  failure wins. The messages match the golden file
+  (`test_validate_messages_match_the_golden`, 36 validate cases). The
+  go-playground validator is not a dependency.
+
+- **D-83 Injected environment.** `load_config_with_env(path, lookup)` takes the
+  environment lookup. `load_config(path)` reads the process environment. The
+  crate forbids `unsafe`, and edition 2024 makes `std::env::set_var` unsafe, so
+  the tests do not mutate the environment.
+
+- **D-84 Logging is a placeholder** (`src/log.rs`, `TODO(WP-1-8)`). Go's
+  `LoadConfig` warns when the file is missing, and the port does not print that
+  warning yet. The util thread's API is `tracing` directly:
+  `tracing::warn!("message")`, with no wrapper. Swap the placeholder when WP-1-8
+  merges (X-48).
+
+- **D-85 `go_json_quote` is public** in `gorse-common/src/expression.rs`. It was
+  private. Config's JSON writer needs Go's string escaping.
+
+- **D-86 `md-5` and `hex` are direct dependencies.** `gorse_common::util::md5`
+  sorts its input, but Go's `md5.New()` hashes stream the parts in order
+  (`NonPersonalized`, `External`, `ItemToItem`, `UserToUser` and `Collaborative`
+  hashes). `md5_of_sorted` uses `util::md5` only for `RecommendConfig::hash`.
+
+- **D-87 `serde_json` is a normal dependency** (it was a dev-dependency). It
+  parses `Meta.config` in `config/json.rs`.
+
+- **D-88 `TracingConfig::equal` takes `&TracingConfig`.** Go's nil receiver
+  returns false, and a Rust reference cannot be nil.
+
+- **D-89 JSON decode stops at the first type mismatch.** Go's `json.Unmarshal`
+  records the first mismatch and keeps decoding, so fields after it are still
+  set in Go. The port returns the first mismatch at once. No golden case reaches
+  this, and the inputs Gorse decodes are its own `json.Marshal` output.
+
+- **D-90 The TOML `TestUnmarshal` case runs from the text.** Go re-encodes the
+  text through `yj` before decoding. The port decodes the text directly. The
+  result is the same.
 
 ## Open questions for Ritchie
 
