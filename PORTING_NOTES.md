@@ -1845,15 +1845,27 @@ said otherwise), so the Rust result is Go's.
   test that needs no server passes. In this sandbox the inherited
   `SSL_CERT_FILE` is the proxy's CA bundle, which does not trust the test CA.
 
-- **X-103 `skip_verify=true` is not honoured (open, a decision for the
-  coordinator).** go-redis's `ParseURL` reads `skip_verify=true` and turns
-  certificate verification off (go-redis v9.18.0, `options.go`). This port
-  ignores the parameter, so `rediss://...?skip_verify=true` still fails with
-  `UnknownIssuer`, as the run against the TLS container shows. No Go test,
-  workflow or document in this repository uses the parameter (grep over `.go`,
-  `.yml`, `.yaml` and `.md`). Honouring it needs redis-rs's `#insecure` URL
-  fragment and its `tls-rustls-insecure` feature. That turns certificate checks
-  off, so the port leaves it to the coordinator.
+- **X-103 `skip_verify=true` is honoured on `rediss://`, as go-redis does
+  (resolved; decided by the coordinator).** The default still verifies. The
+  port maps the parameter to redis-rs's `#insecure` URL fragment, which needs
+  the `tls-rustls-insecure` feature. Details and the reproduction are in Q-202.
+
+- **Q-202 go-redis's `skip_verify` turns verification off, and the port now does
+  too (reproduced).** go-redis's `ParseURL` reads `skip_verify` only when the
+  scheme is `rediss://`, and reads it with its own rules: `true` and `1` are on,
+  `false`, `0` and an empty value are off, and anything else is the error
+  `redis: invalid skip_verify boolean`. `strconv.ParseBool` is not used.
+  go-redis's `ParseClusterURL` (`osscluster.go`) never reads `skip_verify`, so a
+  `rediss+cluster://` URL verifies whatever its query says; the port does the
+  same, since its cluster nodes are built without the query. Reproduced against
+  the TLS server with its CA not trusted (`SSL_CERT_FILE` unset): the default
+  fails with `UnknownIssuer`, and `?skip_verify=true` runs the whole suite to
+  seven of seven. The cluster rule is from the go-redis v9.18.0 source, not run.
+  The tests: `skip_verify_is_read_as_go_reads_it`,
+  `skip_verify_sets_the_insecure_mode_of_rediss_only` (mutation-checked: the
+  mapping removed fails it), and the TLS tests `tls_skip_verify_connects_to_a_self_signed_server`
+  (`REDIS_TLS_URI`) and `tls_verifies_the_server_by_default` (`REDIS_TLS_URI` and
+  `REDIS_TLS_UNTRUSTED`, which asserts the CA is not trusted).
 
 - **O-27 closed.** `cache::sort_documents` uses `gorse_common::gosort::sort` with
   a `DocumentSorter` adapter, and the local pdqsort copy is deleted. Go's
