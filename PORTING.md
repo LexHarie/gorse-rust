@@ -1227,6 +1227,15 @@ or accepts a metric gap outside the Go tests' own tolerances.
   `collection_1_subset_1_id_1`, `collection_1_subset_1_categories_1_is_hidden_1_score_-1`
   and `name_1_timestamp_1`.
 
+- **D-157 D-151 applied (integration).** `cache::Creator` and `data::Creator` are
+  `for<'a> fn(&'a str, &'a str, &'a [Opt]) -> BoxFuture<'a, Result<Box<dyn Database>, Error>>`,
+  and `Registry::open` is `async` in both. `vectors::open` is `async` too; its xvec
+  directory reads run through `xvec::blocking` (spawn_blocking). The registry test is
+  `#[tokio::test]`. `cache::register_builtin` registers the backends this build was
+  compiled with (`mongodb://` and `mongodb+srv://` with the `mongodb` feature), as
+  Go's `init` does; a node calls it once on the registry it builds. Backends in
+  WP-2-2, 2-3, 2-5, 2-6 and 2-9 write their creators to this signature.
+
 ## Open questions for Ritchie
 
 - **Datasets.** The network policy of this environment blocks

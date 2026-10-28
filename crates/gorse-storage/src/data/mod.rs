@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures_core::stream::BoxStream;
+use futures_util::future::BoxFuture;
 use gorse_common::expression::FeedbackTypeExpression;
 use gorse_common::gocontext::{Context, ContextError};
 use gorse_common::gotime::Time;
@@ -343,9 +344,10 @@ pub trait Database: Send + Sync {
     async fn count_feedback(&self, ctx: &Context) -> Result<i64, Error>;
 }
 
-/// Go's `data.Creator`: opens a store for a path and table prefix.
+/// Go's `data.Creator`: opens a store for a path and table prefix. Async, as
+/// the cache registry is (D-151).
 pub type Creator =
-    fn(path: &str, table_prefix: &str, opts: &[Opt]) -> Result<Box<dyn Database>, Error>;
+    for<'a> fn(&'a str, &'a str, &'a [Opt]) -> BoxFuture<'a, Result<Box<dyn Database>, Error>>;
 
 /// Go's package-level `creators` map and its `Register` and `Open` functions,
 /// as a value a node builds at start-up. Go registers creators in `init`.
@@ -367,7 +369,7 @@ impl Registry {
     /// Go's `Open`: opens the store whose registered prefix matches `path`.
     /// Go picks among matching prefixes in map order; this takes the longest,
     /// which is the only one a path can match unambiguously.
-    pub fn open(
+    pub async fn open(
         &self,
         path: &str,
         table_prefix: &str,
@@ -380,7 +382,7 @@ impl Registry {
             .max_by_key(|(prefix, _)| prefix.len())
             .map(|(_, creator)| *creator);
         match creator {
-            Some(creator) => creator(path, table_prefix, opts),
+            Some(creator) => creator(path, table_prefix, opts).await,
             None => Err(Error::UnknownDatabase(path.to_owned())),
         }
     }

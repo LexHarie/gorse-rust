@@ -1769,6 +1769,6 @@ said otherwise), so the Rust result is Go's.
   commented `mongo:4.0`, and the Go CI's compatibility job is not run here. The
   driver's minimum server version is not checked.
 
-- **O-45 `gosort` copy.** This store does not sort in Rust (MongoDB sorts
+- **O-45 (closed by f7ff3189) `gosort` copy.** This store does not sort in Rust (MongoDB sorts
   on the server). The duplicate `pdqsort` in `cache/gosort.rs` is WP-2-4's and
   is not changed here (O-27, owned by the cache core).

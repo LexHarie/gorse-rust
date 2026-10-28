@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures_util::future::BoxFuture;
 use gorse_common::dateparse;
 use gorse_common::gocontext::{Context, ContextError};
 use gorse_common::gosort;
@@ -24,6 +25,8 @@ use gorse_common::gostrconv;
 use gorse_common::gotime::{self, Duration, Time};
 use gorse_storage_core::errors::Error as StorageError;
 use gorse_storage_core::options::Opt;
+#[cfg(feature = "mongodb")]
+use gorse_storage_core::scheme::{MONGO_PREFIX, MONGO_SRV_PREFIX};
 
 #[cfg(feature = "mongodb")]
 pub mod mongodb;
@@ -480,9 +483,10 @@ pub trait Database: Send + Sync {
     ) -> Result<Vec<TimeSeriesPoint>, Error>;
 }
 
-/// Go's `cache.Creator`: opens a store for a path and table prefix.
+/// Go's `cache.Creator`: opens a store for a path and table prefix. Async,
+/// because the network stores open their clients asynchronously (D-151).
 pub type Creator =
-    fn(path: &str, table_prefix: &str, opts: &[Opt]) -> Result<Box<dyn Database>, Error>;
+    for<'a> fn(&'a str, &'a str, &'a [Opt]) -> BoxFuture<'a, Result<Box<dyn Database>, Error>>;
 
 /// Go's package-level `creators` map and its `Register` and `Open` functions,
 /// as a value a node builds at start-up. Go registers creators in `init`.
@@ -504,7 +508,7 @@ impl Registry {
     /// Go's `Open`: opens the store whose registered prefix matches `path`.
     /// Go picks among matching prefixes in map order; this takes the longest,
     /// which is the only one a path can match unambiguously.
-    pub fn open(
+    pub async fn open(
         &self,
         path: &str,
         table_prefix: &str,
@@ -517,10 +521,19 @@ impl Registry {
             .max_by_key(|(prefix, _)| prefix.len())
             .map(|(_, creator)| *creator);
         match creator {
-            Some(creator) => creator(path, table_prefix, opts),
+            Some(creator) => creator(path, table_prefix, opts).await,
             None => Err(Error::UnknownDatabase(path.to_owned())),
         }
     }
+}
+
+/// Registers the cache backends this build was compiled with. Go registers them
+/// in `init`; a node calls this once on the registry it builds (D-126).
+pub fn register_builtin(registry: &mut Registry) {
+    #[cfg(feature = "mongodb")]
+    registry.register(&[MONGO_PREFIX, MONGO_SRV_PREFIX], mongodb::creator);
+    #[cfg(not(feature = "mongodb"))]
+    let _ = registry;
 }
 
 #[cfg(test)]
@@ -607,32 +620,46 @@ mod tests {
 
     /// Stands in for a backend's creator: it reports the arguments it was
     /// given, in its error text.
-    fn short(path: &str, table_prefix: &str, _: &[Opt]) -> Result<Box<dyn Database>, Error> {
-        Err(Error::Backend(Arc::new(std::io::Error::other(format!(
-            "short {table_prefix}{path}"
-        )))))
+    fn short<'a>(
+        path: &'a str,
+        table_prefix: &'a str,
+        _: &'a [Opt],
+    ) -> BoxFuture<'a, Result<Box<dyn Database>, Error>> {
+        Box::pin(async move {
+            Err(Error::Backend(Arc::new(std::io::Error::other(format!(
+                "short {table_prefix}{path}"
+            )))))
+        })
     }
 
-    fn long(path: &str, table_prefix: &str, _: &[Opt]) -> Result<Box<dyn Database>, Error> {
-        Err(Error::Backend(Arc::new(std::io::Error::other(format!(
-            "long {table_prefix}{path}"
-        )))))
+    fn long<'a>(
+        path: &'a str,
+        table_prefix: &'a str,
+        _: &'a [Opt],
+    ) -> BoxFuture<'a, Result<Box<dyn Database>, Error>> {
+        Box::pin(async move {
+            Err(Error::Backend(Arc::new(std::io::Error::other(format!(
+                "long {table_prefix}{path}"
+            )))))
+        })
     }
 
     /// Go's `Open` hands the path to the creator whose prefix matches. With
     /// two matches this takes the longer prefix.
-    #[test]
-    fn registry_opens_by_prefix() {
+    #[tokio::test]
+    async fn registry_opens_by_prefix() {
+        async fn message(registry: &Registry, path: &str) -> String {
+            match registry.open(path, "t_", &[]).await {
+                Ok(_) => panic!("{path} must not open"),
+                Err(err) => err.to_string(),
+            }
+        }
         let mut registry = Registry::default();
         registry.register(&["x://"], short);
         registry.register(&["x://y/"], long);
-        let message = |path: &str| match registry.open(path, "t_", &[]) {
-            Ok(_) => panic!("{path} must not open"),
-            Err(err) => err.to_string(),
-        };
-        assert_eq!(message("x://q"), "short t_x://q");
-        assert_eq!(message("x://y/z"), "long t_x://y/z");
-        assert_eq!(message("w://"), "Unknown database: w://");
+        assert_eq!(message(&registry, "x://q").await, "short t_x://q");
+        assert_eq!(message(&registry, "x://y/z").await, "long t_x://y/z");
+        assert_eq!(message(&registry, "w://").await, "Unknown database: w://");
     }
 
     /// Score documents whose ids are their input positions, so the order
