@@ -17,7 +17,7 @@
 //! Go wraps here. `time.Date`, `time.Unix` and friends are free functions
 //! ([`date`], [`unix`]); Go's mutable `time.Local` is [`local`] and
 //! [`set_local`]. The Go source is the specification; where this code differs
-//! it says so, and `porting/notes/WP-1-9.md` lists every difference.
+//! it says so, and `PORTING_NOTES.md` lists every difference.
 
 mod duration;
 mod errno;

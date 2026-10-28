@@ -463,7 +463,7 @@ fn meta_config_matches_contracts() {
 
 /// Where Go's output depends on its random map order, the port takes the
 /// second recorded outcome every time. The choice and its reason are Q-145
-/// and Q-146 in `porting/notes/WP-1-15-config.md`.
+/// and Q-146 in `PORTING_NOTES.md`.
 #[test]
 fn pinned_alternatives() {
     let golden = golden();

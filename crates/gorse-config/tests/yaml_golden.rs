@@ -2,7 +2,7 @@
 
 //! Replays every case of `tests/data/yaml_golden.json` against
 //! `formats::yaml::decode`. Every case must match Go, with one deviation (X-1
-//! in `porting/notes/WP-1-15-yaml.md`): a Go string that is not UTF-8 is held
+//! in `PORTING_NOTES.md`): a Go string that is not UTF-8 is held
 //! as its lossy text, so the golden's `hex` and `k_hex` fields, which give the
 //! raw bytes, are not compared. The golden's `v` text is the lossy text.
 

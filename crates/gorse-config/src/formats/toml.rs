@@ -25,7 +25,7 @@
 //! The port follows go-toml's code: `parser` (the `unstable` package),
 //! `decode` (numbers and dates), `tracker` (`internal/tracker`, which
 //! rejects keys defined twice) and `unmarshaler` (the decoder), with
-//! `errors` for the error texts. `porting/notes/WP-1-15-toml.md` lists the
+//! `errors` for the error texts. `PORTING_NOTES.md` lists the
 //! quirks it keeps.
 
 mod ast;

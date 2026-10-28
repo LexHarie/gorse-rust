@@ -24,9 +24,12 @@
 //     util.RandomGenerator and util.NewRand.
 //
 // On amd64, math.Exp has two code paths, with and without FMA, that round
-// differently, so the outputs are produced twice: in this process (FMA, which
-// the generating machine must have) and in a child process run with
-// GODEBUG=cpu.fma=off.
+// differently, so the outputs are produced three times: in this process (FMA,
+// which the generating machine must have) and in child processes run with
+// GODEBUG=cpu.fma=off and with GODEBUG=cpu.avx=off. Math needs both AVX and
+// FMA for its FMA path, so cpu.avx=off takes the non-FMA path too; the child
+// outputs must agree with each other, and every section must agree on the
+// rand outputs (NormFloat64 and ExpFloat64 among them).
 //
 // Numbers are written as the hex of their 64-bit pattern: integers two's
 // complement, float64 by math.Float64bits, float32 by math.Float32bits. Long
@@ -68,7 +71,7 @@ type Golden struct {
 	Rand      *Section         `json:"rand"`
 }
 
-// Child is what the GODEBUG=cpu.fma=off child process prints.
+// Child is what a GODEBUG child process prints.
 type Child struct {
 	Math *Math    `json:"math"`
 	Rand *Section `json:"rand"`
@@ -745,10 +748,27 @@ func eval(e ast.Expr) constant.Value {
 	return nil
 }
 
+// runChild runs this program in -section mode with GODEBUG set to godebug,
+// and returns what it printed.
+func runChild(godebug string) *Child {
+	cmd := exec.Command(os.Args[0], "-section")
+	cmd.Env = append(os.Environ(), "GODEBUG="+godebug)
+	cmd.Stderr = os.Stderr
+	stdout, err := cmd.Output()
+	if err != nil {
+		log.Fatal(err)
+	}
+	var child Child
+	if err = json.Unmarshal(stdout, &child); err != nil {
+		log.Fatal(err)
+	}
+	return &child
+}
+
 func main() {
 	tablesOut := flag.String("tables-out", "", "write the math/rand tables as Rust to this file")
 	out := flag.String("out", "", "write the golden JSON to this file")
-	child := flag.Bool("section", false, "print one section as JSON (used for the GODEBUG=cpu.fma=off child)")
+	child := flag.Bool("section", false, "print one section as JSON (used for the GODEBUG children)")
 	flag.Parse()
 	if *child {
 		if err := json.NewEncoder(os.Stdout).Encode(section()); err != nil {
@@ -766,32 +786,32 @@ func main() {
 		log.Fatal("generate on an amd64 machine with AVX and FMA, so both math.Exp paths are recorded")
 	}
 	fma := section()
-	cmd := exec.Command(os.Args[0], "-section")
-	cmd.Env = append(os.Environ(), "GODEBUG=cpu.fma=off")
-	cmd.Stderr = os.Stderr
-	stdout, err := cmd.Output()
+	randJSON, err := json.Marshal(fma.Rand)
 	if err != nil {
 		log.Fatal(err)
 	}
-	var nofma Child
-	if err = json.Unmarshal(stdout, &nofma); err != nil {
-		log.Fatal(err)
+	g := Golden{GoVersion: runtime.Version(), Math: map[string]*Math{"fma": fma.Math}, Rand: fma.Rand}
+	// The GODEBUG settings that change the math.Exp path, each recorded under its own variant.
+	for _, v := range []struct{ variant, godebug string }{
+		{"nofma", "cpu.fma=off"},
+		{"avx_off", "cpu.avx=off"},
+	} {
+		child := runChild(v.godebug)
+		if reflect.DeepEqual(fma.Math, child.Math) {
+			log.Fatalf("math.Exp gave the same outputs with and without FMA; is GODEBUG=%s honoured?", v.godebug)
+		}
+		childJSON, err := json.Marshal(child.Rand)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if !bytes.Equal(randJSON, childJSON) {
+			log.Fatalf("the generators gave different outputs with GODEBUG=%s; record both in the golden file", v.godebug)
+		}
+		g.Math[v.variant] = child.Math
 	}
-	if reflect.DeepEqual(fma.Math, nofma.Math) {
-		log.Fatal("math.Exp gave the same outputs with and without FMA; is GODEBUG=cpu.fma=off honoured?")
+	if !reflect.DeepEqual(g.Math["nofma"], g.Math["avx_off"]) {
+		log.Fatal("cpu.avx=off and cpu.fma=off gave different math.Exp outputs, though both take the non-FMA path")
 	}
-	a, err := json.Marshal(fma.Rand)
-	if err != nil {
-		log.Fatal(err)
-	}
-	b, err := json.Marshal(nofma.Rand)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if !bytes.Equal(a, b) {
-		log.Fatal("the generators gave different outputs with and without FMA; record both in the golden file")
-	}
-	g := Golden{GoVersion: runtime.Version(), Math: map[string]*Math{"fma": fma.Math, "nofma": nofma.Math}, Rand: fma.Rand}
 	data, err := json.MarshalIndent(g, "", " ")
 	if err != nil {
 		log.Fatal(err)

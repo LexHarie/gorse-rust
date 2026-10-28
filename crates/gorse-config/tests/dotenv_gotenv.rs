@@ -8,7 +8,7 @@
 //! expectations. The fixtures in `tests/data/gotenv/` are gotenv's files.
 //! Tests of `Load`, `OverLoad`, `Apply`, `Must`, `Marshal` and viper's
 //! `Encode` are not ported: the codec only parses (see
-//! `porting/notes/WP-1-15-dotenv.md` for the list).
+//! `PORTING_NOTES.md` for the list).
 
 use std::collections::BTreeMap;
 

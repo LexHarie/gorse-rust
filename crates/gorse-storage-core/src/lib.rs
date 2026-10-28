@@ -16,6 +16,7 @@
 pub mod errors;
 pub mod gorm_naming;
 pub mod json_contains;
-pub mod mysql_dsn;
+/// The MySQL DSN parser lives in `gorse-common`, where `log` needs it too.
+pub use gorse_common::mysql_dsn;
 pub mod options;
 pub mod scheme;

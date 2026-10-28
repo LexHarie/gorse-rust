@@ -23,7 +23,7 @@
 //! Every module names the Go files it ports; behaviour, error texts and
 //! printed trees follow Go exactly, quirks included (the tests compare them
 //! with what Go gives for a large corpus). The deliberate differences are
-//! listed in `porting/notes/WP-1-19.md`.
+//! listed in `PORTING_NOTES.md`.
 //!
 //! expr-lang is Copyright (c) 2018 Anton Medvedev and is distributed under the
 //! MIT licence, reproduced in `LICENSE-expr-lang`.

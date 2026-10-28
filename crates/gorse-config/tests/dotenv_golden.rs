@@ -347,7 +347,7 @@ fn decode_matches_go_except_listed_invalid_utf8() {
     );
 }
 
-/// The quirks `porting/notes/WP-1-15-dotenv.md` names, as Go recorded them:
+/// The quirks `PORTING_NOTES.md` names, as Go recorded them:
 /// each named case must be in the golden with this outcome, and the port
 /// must give it too.
 #[test]

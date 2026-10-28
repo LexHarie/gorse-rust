@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-7, WP-1-9, WP-1-10, WP-1-13, WP-1-14, WP-1-19. WP-1-11 part 1 (math32) merged; part 2 (nn) is in its own thread. WP-1-15: TOML, dotenv, config.go and YAML merged (D-78, D-82 to D-95). Open: the log placeholder until WP-1-8 (X-48); config.schema.json and config.keys.md not generated (X-49); YAML part in its own thread, config core here. WP-1-6, WP-1-8 and WP-1-12 run in parallel threads (D-26). WP-1-16 to WP-1-18 follow WP-1-8 and WP-1-15. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-13, WP-1-14, WP-1-19. WP-1-11 part 1 (math32) merged; part 2 (nn) is in its own thread. WP-1-15: TOML, dotenv, config.go and YAML merged (D-78, D-82 to D-95). Open: the log placeholder is swapped for WP-1-8's log in a follow-up (X-48); config.schema.json and config.keys.md not generated (X-49); YAML part in its own thread, config core here. WP-1-6, WP-1-8 and WP-1-12 run in parallel threads (D-26). WP-1-16 to WP-1-18 follow WP-1-8 and WP-1-15. All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
@@ -248,6 +248,40 @@ correction below states the evidence.
   `gorse-expr` depends on `gorse-common` for it. `expression_golden.json` gained 2^-25
   (format cases) and its decimal form (parse cases); the old code fails them. Found
   by the config-drafts thread's ftoa work.
+
+- **C-27 juju/ratelimit is its own LGPL crate.** juju/ratelimit is LGPLv3
+  with a static-linking exception, and a port is a modified version of it, so
+  the plan's "hand port (~100 lines)" inside the Apache-2.0 `gorse-common`
+  would have put LGPL code in an Apache crate. Ritchie chose a separate crate
+  on 2026-10-19 (decision card "Choose how to port the LGPL-licensed rate
+  limiter Gorse uses for OpenAI calls", option "Own LGPL crate"; the
+  integrator's later suggestion of a clean-room Apache rewrite came after the
+  card was answered). `crates/gorse-ratelimit` carries juju's `LICENSE`
+  verbatim (exception and LGPLv3 text), the GPLv3 text the LGPL supplements
+  as `COPYING` (identical to the GNU project's own copy: sha256
+  `3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986`, the
+  same as automake's `COPYING`), and a dated modification notice in
+  `README.md` and every source header (LGPLv3 section 2 via GPLv3 section
+  5a). Its `license` is
+  `(LGPL-3.0-only WITH LGPL-3.0-linking-exception) AND BSD-3-Clause`: the
+  SPDX exception `LGPL-3.0-linking-exception` is juju's text word for word
+  (SPDX lists juju/errors as a source), and the BSD part is
+  `src/format.rs`, a few lines of Go's `strconv` (with `licenses/GO-LICENSE`).
+  `porting/crate-selection.md`'s row is updated.
+
+- **C-28 Nothing calls `Take` in add21b5.** The crate-selection row said
+  "exact refill semantics matter for the 429 behaviour". The only use of
+  `ratelimit.go` is `master/master.go:137-138`, which calls the two init
+  functions; no code reads the limiters or the backoffs. What a Rust master
+  must reproduce today is the start-up panic for a limit of 1 to 59 per
+  minute (Q-152) and the arithmetic; the whole bucket is ported anyway
+  (juju's tests, and future callers) and checked against Go.
+
+- **C-29 A Go `context` port.** The schedulers take a `context.Context`;
+  the plan had no row for it. `gorse_common::gocontext` ports the
+  cancellation tree; `porting/crate-selection.md` gains a row
+  (`tokio-util`'s `CancellationToken` is async only, and the schedulers'
+  callers block on the context from plain threads).
 
 ## Decision log
 
@@ -815,6 +849,93 @@ or accepts a metric gap outside the Go tests' own tolerances.
   sites call `drop`. Matching a `Value` by value no longer compiles, so those
   matches borrow instead (`toml.rs` `unmarshal`, `viper.rs` `insensitivise_val`,
   `dotenv_golden.rs`); behaviour is unchanged.
+
+- **D-96 Scoped threads and a job counter.** Go's `Parallel`, `For` and
+  `ForEach` start `nWorkers` goroutines reading job ids from a 1024-slot
+  channel filled by a producer goroutine. Here `nWorkers` scoped threads
+  take the next id from an atomic counter: jobs start in the same order, and
+  a worker takes a job only when it is free, as with the channel. Go's
+  producer can leak (when every worker quits early with more than 1024 jobs
+  left, it blocks on the channel forever); there is no producer here.
+
+- **D-97 The context is checked first.** Where Go `select`s between
+  `ctx.Done()` and a job or a semaphore slot, it picks at random when both
+  are ready. The port always takes the context, one of Go's outcomes: no
+  job starts once the context is done.
+
+- **D-98 Panics.** As in Go, `Parallel` with more than one worker
+  recovers a worker's panic (`util.CheckPanic`: logs `panic recovered`, the
+  worker stops, the others go on), and the sequential paths (one worker)
+  let it reach the caller. In Go a panic in a worker goroutine of `For`,
+  `ForEach` or `Detachable` is not recovered and crashes the process; a
+  library cannot do that, so the other workers stop taking jobs and the
+  first panic resumes on the caller after they return. `Detachable` gives
+  back the panicking job's slot first, so its scheduler cannot hang on it.
+
+- **D-99 A thread per `Detachable` job.** Go starts a goroutine per job.
+  A job waiting in `Attach` holds no slot, so the number of live jobs is not
+  bounded by `nWorkers + nMaxDetached`, and a fixed pool could deadlock
+  where Go does not. Each job is a scoped thread (a spawn costs some
+  microseconds; the worker pipeline's jobs take milliseconds).
+
+- **D-100 Shapes.** Counts are `usize` (Go's `int`; negative counts cannot
+  be passed). `ForEach` lends the worker `&T` where Go copies the element.
+  `For` is `for_` (`for` is a keyword). `parallel::Context`'s methods take
+  `&mut self`; Go's nil-receiver no-op becomes an `Option<&mut Context>` at
+  the call site. The limiter package variables are behind locks, read with
+  getters (`chat_completion_backoff()` ...) and set only by the init
+  functions; `RateLimiter: Any`, so a caller can type-switch as Go does.
+
+- **D-101 `gocontext` scope.** `Background`, `WithCancel`, `CancelFunc`,
+  `Err`, `Done` (as `is_done`, `wait`, `wait_timeout`). A child registers a
+  hook on its parent and removes it when cancelled itself (Go's
+  `children` map and `removeChild`); hooks run after the parent's lock is
+  released but before its cancel returns, so a cancel has reached every
+  descendant when it returns, as in Go. Parents hold children strongly and
+  children hold parents weakly, so dropped contexts are freed. A crate-private
+  hook (`on_done`) wakes `Detachable`'s scheduler, which Go does with a
+  `select`. Dropping a `CancelFunc` cancels nothing, as in Go.
+
+- **D-102 juju's types.** Go's `time.Duration` is `i64` nanoseconds and
+  `time.Time` is `Instant`; `int64` arithmetic wraps as in Go; `now.Sub`
+  saturates as in Go. Go's `int64(float64)` is amd64's `CVTTSD2SQ` (NaN and
+  out-of-range values give the minimum `int64`), not Rust's saturating `as`,
+  which would accept a fill interval Go skips (`1e9 / 9.25e18` tokens a
+  second panics in Go; a saturating conversion returns a bucket).
+
+- **D-103 Real time in Go's synctest tests.** Go runs most of
+  `parallel_test.go` in `testing/synctest` bubbles (fake time). Here they run
+  on real time with Go's bounds: `TestDetachable`'s second case takes about
+  10 s against its 11 s bound. `TestParallelCancel` sleeps 100 ms per job
+  instead of 1 s (it counts jobs, not time). juju's
+  `TestNoBonusTokenAfterBucketIsFull` advances a fake clock 5 s instead of
+  sleeping.
+
+- **D-104 `mysql_dsn` lives in `gorse-common`.** `gorse-storage-core` depends
+  on `gorse-common`, and `log` needs `redact_db_url`, which is in `mysql_dsn`.
+  Putting `mysql_dsn` in storage-core would make `gorse-common` depend on it,
+  a cycle. The module moved with `git mv`, and storage-core re-exports it as
+  `pub use gorse_common::mysql_dsn;`, so `gorse_storage_core::mysql_dsn` keeps
+  its path.
+
+- **D-105 Run-time log routing.** The three Go loggers are replaced when
+  flags are read. The Rust set-up uses one `tracing` subscriber with a reload
+  handle; the access and OpenAI logs are chosen by target inside the writer
+  (`Route::make_writer_for`). A per-layer `with_filter` panicked when layers
+  were swapped in at run time ("Filtered layer used, but it had no FilterId"),
+  so routing moved into the writer.
+
+- **D-106 Datasets under `~/.gorse`.** `datautil` keeps Go's layout:
+  `dataset/<name>` is the unpacked directory and `temp/` holds the download.
+  `LoadIris` reads `iris.data` from it. Its target class is `i64`, Go's `int`
+  on the 64-bit targets Gorse runs on.
+
+- **D-107 Test-only dependencies.** `tempfile` 3.27.0 (dev), and the
+  `[workspace.dependencies]` additions are `tracing-subscriber` 0.3.23 (`fmt`,
+  `json`, `registry`, `std`), `csv` 1.4.0, `reqwest` 0.13.5 (`blocking`,
+  `rustls`), `zip` 9.1.3 (`deflate`). Their rows are in
+  `porting/crate-selection.md`; the statik row's `zip` is bumped from 9.0.4 to
+  9.1.3 so both uses agree.
 
 ## Open questions for Ritchie
 

@@ -3,7 +3,7 @@
 // Ports: math/exp_amd64.s, math/exp_amd64.go @ go1.27.0 (through util::rand::math)
 
 //! Stand-ins for three dependencies of `common/nn` whose ports are not on the
-//! integration branch yet (`porting/notes/WP-1-11.md`, Open):
+//! integration branch yet (`PORTING_NOTES.md`, Open):
 //!
 //! - [`exp`]: Go's `math.Exp` on amd64, which is the `exp_with` of WP-1-4's
 //!   `util::rand::math`. This wrapper only chooses the FMA path the way Go

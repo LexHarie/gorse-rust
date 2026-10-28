@@ -10,23 +10,29 @@ publish = false
 
 [dependencies]
 blake2.workspace = true
+csv.workspace = true
 gorse-protocol = { workspace = true }
+gorse-ratelimit.workspace = true
 hex.workspace = true
 indexmap.workspace = true
 md-5.workspace = true
 regex.workspace = true
+reqwest.workspace = true
 rustls.workspace = true
 rustls-webpki.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+tracing-subscriber.workspace = true
 x509-parser.workspace = true
+zip.workspace = true
 
 [build-dependencies]
 cc.workspace = true
 
 [dev-dependencies]
+tempfile.workspace = true
 prost.workspace = true
 sha2.workspace = true
 

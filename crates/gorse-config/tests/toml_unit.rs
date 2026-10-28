@@ -9,7 +9,7 @@
 //! one), as viper does. Tests that decode into typed maps or structs are
 //! ported with a `map[string]interface{}` target where the TOML values keep
 //! their meaning, and say so; the others are listed in
-//! `porting/notes/WP-1-15-toml.md`. Every input here is also a case of
+//! `PORTING_NOTES.md`. Every input here is also a case of
 //! `toml_golden.json`, which records Go's exact result.
 
 use gorse_config::formats::toml::{self, Error};

@@ -16,7 +16,7 @@
 //!
 //! Comment text is not kept, since the decoder never reads it. The token queue
 //! is never compacted, where yaml.v3 compacts it when its backing array is
-//! full; see `porting/notes/WP-1-15-yaml.md` for what that changes.
+//! full; see `PORTING_NOTES.md` for what that changes.
 
 use std::collections::HashMap;
 

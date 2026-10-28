@@ -11,7 +11,7 @@
 //! (`scanner`) and parser (`parser`), then yaml.v3's composer (`composer`),
 //! decoder (`decoder`) and tag resolution (`resolve`). Only the first document
 //! of a stream is decoded. The differences from Go are listed in
-//! `porting/notes/WP-1-15-yaml.md`.
+//! `PORTING_NOTES.md`.
 
 mod composer;
 mod decoder;

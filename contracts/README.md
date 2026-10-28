@@ -84,7 +84,9 @@ go run ./contracts/tools/math32golden -out crates/gorse-common/tests/data/math32
 go run ./contracts/tools/exprparsegolden -out-dir crates/gorse-expr/tests/data
 go run ./contracts/tools/exprunicode -out crates/gorse-expr/src/unicode_tables.rs
 # common/util (WP-1-4): Go's math/rand streams and tables, util and strconv
-# parsers, and the TLS credential cases (gorse-common)
+# parsers, and the TLS credential cases (gorse-common). The math.Exp outputs
+# are recorded per GODEBUG setting: fma, nofma (cpu.fma=off) and avx_off
+# (cpu.avx=off), O-14.
 go run ./contracts/tools/randgolden \
   -tables-out crates/gorse-common/src/util/rand/tables.rs \
   -out crates/gorse-common/tests/data/rand_golden.json
@@ -92,6 +94,11 @@ go run ./contracts/tools/utilgolden -out crates/gorse-common/tests/data/util_gol
 go run ./contracts/tools/tlsgolden \
   -dir crates/gorse-common/tests/data/tls \
   -out crates/gorse-common/tests/data/tls_golden.json
+# juju/ratelimit (WP-1-6): the bucket, and the limiter set-up that master
+# reaches. Regenerating gives byte-identical files.
+go run ./contracts/tools/ratelimitgolden \
+  -out crates/gorse-ratelimit/tests/data/ratelimit_golden.json \
+  -gorse-out crates/gorse-common/tests/data/parallel_ratelimit_golden.json
 # storage/errors.go, options.go, scheme.go (WP-1-14): options, table prefixes,
 # gorm names, json_contains through modernc's SQLite, AppendURLParams and the
 # MySQL DSN code (gorse-storage-core), and encoding/json decoding (gorse-common)

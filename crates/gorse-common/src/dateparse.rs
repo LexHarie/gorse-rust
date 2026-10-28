@@ -15,7 +15,7 @@
 //! "2006-01-02"), and parses the input with that layout. The port keeps the
 //! Go code's shape: byte indices are `i64` like Go's `int`, the states carry
 //! Go's names, and every quirk stays, including the ones that look like bugs
-//! (`porting/notes/WP-1-9.md` lists them). Inputs are bytes, as Go strings
+//! (`PORTING_NOTES.md` lists them). Inputs are bytes, as Go strings
 //! are, and need not be UTF-8. Where Go panics (an index out of range, a nil
 //! parser), this panics too.
 

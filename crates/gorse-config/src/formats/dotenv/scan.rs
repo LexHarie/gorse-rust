@@ -377,7 +377,7 @@ mod tests {
     /// read. gotenv's test expects a final empty line after a trailing
     /// terminator (first, third and fifth cases); Go 1.27's `Scan` returns
     /// false for the nil final token `splitLines` returns at EOF, and the
-    /// test fails there when run with go1.27.0 (`porting/notes/WP-1-15-dotenv.md`,
+    /// test fails there when run with go1.27.0 (`PORTING_NOTES.md`,
     /// Q-125). The expectations here are Go 1.27's.
     #[test]
     fn gotenv_test_scanner() {

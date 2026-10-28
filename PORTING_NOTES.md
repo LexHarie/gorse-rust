@@ -810,6 +810,51 @@ said otherwise), so the Rust result is Go's.
 - **Q-151**: comment marks decide where BLOCK-END tokens fall
   (`scanner.rs` `unroll_indent`). Ported as in `scannerc.go`.
 
+### Parallel, rate limits and Go context (WP-1-6)
+
+- **Q-152 A per-minute limit from 1 to 59 stops the master.** The bucket
+  holds `rpm/60` tokens, refilled with `rpm/60` a second; for 1 to 59 that
+  is 0 and `NewBucketWithQuantum` panics `token bucket capacity is not > 0`
+  inside `NewMaster`. The config does not validate `chat_completion_rpm`,
+  `chat_completion_tpm`, `embedding_rpm` or `embedding_tpm`. The backoff is
+  already set when the requests bucket panics; a `tpm` panic comes after the
+  requests limiter is set.
+
+- **Q-153 Limits of zero or less keep the previous limiter**, and a very
+  large `rpm` gives a backoff of 0.
+
+- **Q-154 `Split(a, 0)` with a non-empty `a` panics** (integer division by
+  zero; Rust's panic text differs). An empty `a` gives no chunks for any `n`.
+
+- **Q-155 `Parallel` reports the lowest failing job, not the first
+  failure.** A failing worker stops while the others run the remaining jobs;
+  a panicking job (recovered) counts as a success.
+
+- **Q-156 `Detachable` with `nWorkers` 0 blocks until the context is
+  done; `Detach` with `nMaxDetached` 0 blocks forever** (Go's unbuffered
+  channels).
+
+- **Q-157 juju's int64 arithmetic wraps.** `Take(math.MaxInt64)` while
+  tokens are owed wraps the balance positive and succeeds at once; a wait
+  whose tick product overflows comes out negative (572 of the golden's
+  8440 calls).
+
+- **Q-158 juju's clock going backwards** gives negative ticks, which
+  remove tokens from a bucket below capacity.
+
+- **Q-159 juju's `NewBucketWithRate` test never runs**: it is a gocheck
+  suite method without the `Test` prefix. It is ported as a real test and
+  passes; the golden also covers its 142857 rates.
+
+### Common utilities (WP-1-8)
+
+- **Q-160 `sizeof` charges unused slice capacity at 24 bytes per slot.**
+  Go's `sizeof` asks for `v.Type().Size()` of the slice type, which is the
+  slice header (24 bytes), not the element size, so the unused capacity is
+  charged at 24 bytes per slot. Kept on purpose. The expected numbers in the
+  `sizeof` tests come from a Go 1.27.0 program run on the same values; that
+  program is in the scratch directory and is not committed.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -1065,6 +1110,46 @@ said otherwise), so the Rust result is Go's.
   therefore compares the lossy text and does not compare those two fields.
   Checked by stripping `hex` from the Go outcome and comparing the rest.
 
+### Parallel, rate limits and Go context (WP-1-6)
+
+- **X-51 `gocontext` is partial (WP-1-6).** Deadlines and timeouts, causes, `AfterFunc` and `WithoutCancel` are not ported. Gorse uses `WithoutCancel` for `event.Emit` (`master/tasks.go:126`, `server/rest.go:178`); the work packages that port those callers add it. Values (`WithValue`, used by monitor spans) came with WP-1-8.
+
+### Common utilities (WP-1-8)
+
+- **X-52 Log format and the loggers not ported.** Log lines are tracing's
+  JSON, not zap's JSON: the field names and the time format differ. Events go
+  to stderr as JSON at info level when no set-up has run, as zap's production
+  logger does. Not ported: `OptunaLogger`, the OpenTelemetry handler, and
+  `ResponseLogger`. Lumberjack removes old backups in a goroutine after a
+  rotation; here the removal finishes before the rotation returns.
+
+- **X-53 `json` NaN and infinity.** Go's `json.Marshal` fails with
+  `UnsupportedValueError` on NaN and infinities. `serde_json` writes `null`
+  before the formatter sees them, so `marshal` returns `null` where Go errors.
+  The test for a failing encoder uses a custom `Serialize` type instead.
+
+- **X-54 `copier` aliasing and errors.** Go's copy can leave the copied
+  slice sharing its backing array with a variable the caller still holds. Rust
+  ownership cannot express that, so the port copies. Tests check the reuse of
+  the destination's buffer through `as_ptr`. Three Go errors (a destination
+  that is not a pointer, a type mismatch, a struct name mismatch) are compile
+  errors here, so `copy` returns nothing. See the module doc.
+
+- **X-55 Home directory.** Go takes the home directory from
+  `user.Current()` (the password database) and stops the process if that
+  fails. The port reads `$HOME` and uses an empty path when it is unset.
+
+- **X-56 `datautil` details.** A short CSV row (fewer than five fields) is
+  an `Error::ShortRow`; Go panics on the `row[4]` index. Unzipped files get default
+  permissions; Go uses `f.Mode()`. The ZipSlip check (`file_path` must be a
+  strict descendant of the destination, as Go's `HasPrefix` check requires)
+  is ported and tested.
+
+- **X-57 Monitor and `sync.Map`.** Each span guards its fields with a
+  mutex and the maps with mutexes; Go uses `sync.Map` and unlocked updates.
+  The same sequence of calls gives the same results, and there are no data
+  races.
+
 ## Open questions
 
 - **O-1** The Go CI's model tests read the datasets from `https://cdn.gorse.io`,
@@ -1134,7 +1219,7 @@ said otherwise), so the Rust result is Go's.
   branch. Later parts add their own lines by hand.
 
 - **O-13 `parallel.For` stand-in.** `deps::parallel_for` (see For the
-  integrator) stays until WP-1-6 is on the integration branch.
+  integrator) stays until WP-1-6 is on the integration branch. WP-1-6 is merged (2026-10-28), so `gorse_common::parallel::for_` exists; the switch is the nn thread's next merge.
 
 - **O-14 `GODEBUG` and `util::rand::math`.** `util::rand::math::use_fma`
   reads the CPU directly, without `GODEBUG`. Go's `math.Exp` takes the FMA path
@@ -1168,3 +1253,7 @@ said otherwise), so the Rust result is Go's.
   `insensitivise_val` and `cast_to_string_map`, which clones values. A
   10000-deep config could overflow there. No test here exercises that, and it
   is not changed here.
+
+- **O-21 `TestLoadIris` is ignored (WP-1-8).** It downloads from `cdn.gorse.io`, which is blocked here, as with O-1. It is ported with the Go test's assertions (150 rows, 4 values per row, 150 targets) and `#[ignore]`d. Offline tests cover the CSV parse and the unzip, including a ZipSlip archive. Run it when the CDN is reachable.
+
+- **O-22 A test flake and a `detachable` race (WP-1-6): closed.** `for_and_detachable_panics_resume_on_the_caller` failed about 1 run in 10 under load: the panic hook took longer than the 1000 jobs of 1 ms, so every job started before the stop flag. The test now holds the other jobs until job 0 has unwound; the bound `< 1000` is unchanged. In `detachable`, a panicked job released its slot before recording the panic, so the scheduler could start one more job first; the panic is now recorded first. The same test also hung when job 0 started late (the other jobs filled both detached slots). Job 0 now detaches first and says so, and the other jobs wait for it. Every assertion is unchanged.

@@ -338,3 +338,50 @@ fn util_random_generator_matches_go() {
         }
     }
 }
+
+/// The streams of `Rand` (NormFloat64 and ExpFloat64 among them) under each
+/// `GODEBUG` setting that changes `math.Exp`. `contracts/tools/randgolden`
+/// records the rand section once, after checking that the `cpu.fma=off` and
+/// `cpu.avx=off` runs of Go give it byte for byte; each setting here runs in a
+/// child process and is checked against that section.
+#[test]
+fn util_rand_streams_follow_godebug_in_child_processes() {
+    for godebug in ["cpu.fma=off", "cpu.avx=off"] {
+        run_godebug_child(godebug);
+    }
+}
+
+/// The child of [`util_rand_streams_follow_godebug_in_child_processes`]. It is
+/// ignored so that a normal run does not count it; the parent runs it with
+/// `--ignored` under a `GODEBUG` setting.
+#[test]
+#[ignore = "run by util_rand_streams_follow_godebug_in_child_processes"]
+fn util_rand_godebug_child() {
+    util_rand_inv_rn_matches_go();
+    util_rand_regress_matches_go();
+    util_rand_streams_match_go();
+    util_rand_locked_streams_match_go();
+    util_rand_mixed_calls_match_go();
+}
+
+/// Runs `util_rand_godebug_child` in a child process of this test binary, with
+/// `GODEBUG` set to `godebug`, and asserts that it ran and passed.
+fn run_godebug_child(godebug: &str) {
+    let output = std::process::Command::new(std::env::current_exe().expect("test binary"))
+        .args([
+            "--exact",
+            "util_rand_godebug_child",
+            "--ignored",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("GODEBUG", godebug)
+        .output()
+        .expect("run the child");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        output.status.success() && stdout.contains("1 passed"),
+        "GODEBUG={godebug} child did not pass:\n{stdout}\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
