@@ -2277,6 +2277,8 @@ said otherwise), so the Rust result is Go's.
 
 - **Q-239 one statement per batch.** Each write batch is one `INSERT`, as the Go code in this file writes it. Batches larger than the server's placeholder limit are not tested.
 
+- **Q-240 GCS, S3 and Azure list by the raw string prefix.** Go's `List` passes the prefix to the store as a plain string (`storage/blob/gcs.go`, `s3.go`, `azure.go`). A listing under `blob` therefore also returns `blobs/x`, and Go names it by slicing the key after `len(prefix)` and dropping one leading `/`: `s/x`. The port does the same. object_store lists by path segment, so `CloudStore::list` lists the directory that holds the prefix and filters on the string. A prefix with no `/` lists the whole bucket, so a shared bucket transfers every object in it on each list. Test: `test_gcs_xml_list_matches_go_raw_prefix`.
+
 - **X-145 `Init` creates, it does not migrate.** Go's `Init` runs GORM `AutoMigrate`, which also alters tables that already exist. The port runs `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`. A fresh database dumps byte-identical to Go's (see Evidence). A database created by an older Go version is not altered. A second Go `Init` on the same database runs introspection and `ALTER TABLE ... SET DEFAULT` on the existing columns, with the defaults they already have, so the schema does not change. The port runs none of these statements.
 
 - **X-146 `ErrNotFound` is the bare sentinel.** Go wraps it with the id (`item X not found`). The port returns `Error::Storage(NotFound)`, so the kind matches and the message does not.
@@ -2323,7 +2325,7 @@ said otherwise), so the Rust result is Go's.
   fake-gcs-server, which was started with `-external-url http://127.0.0.1:5051`. The 404s
   recorded under D-184 came before `-external-url` was set. The emulator round trip `test_gcs`
   stays `#[ignore]` under O-62 and O-31, because fake-gcs-server refuses object_store's XML upload
-  (400, `invalid uploadType`). Opened under D-184. Open.
+  (400, `invalid uploadType`). Opened under D-184. Open for `test_gcs` only.
 
   Go's requests against the Rust listener's responses, side by side. Go is the probe recorded
   at 16:31 through a recording proxy against the running fake-gcs-server. Rust is the in-process
@@ -2332,23 +2334,23 @@ said otherwise), so the Rust result is Go's.
   | Step | Go sends | Go gets | Rust sends | Rust gets |
   |---|---|---|---|---|
   | Write | `POST /upload/storage/v1/b/gorse-test/o?uploadType=multipart&name=blob%2Ftest.txt` (JSON) | 200 | `PUT /gorse-test/blob/test.txt`, body `hello` (XML) | 200 |
-  | List | `GET /storage/v1/b/gorse-test/o?prefix=blob` (JSON) | 200, `blob/test.txt`, reported as `test.txt` | `GET /gorse-test?list-type=2&prefix=blob/` (XML) | 200, `blob/test.txt`, reported as `test.txt` |
+  | List | `GET /storage/v1/b/gorse-test/o?prefix=blob` (JSON) | 200, `blob/test.txt`, reported as `test.txt` | `GET /gorse-test?list-type=2` (XML, no prefix; filtered on the raw prefix) | 200, `blob/test.txt`, reported as `test.txt` |
   | Read | `GET /gorse-test/blob%2Ftest.txt` (XML) | 404 from fake-gcs-server | `GET /gorse-test/blob/test.txt` (XML) | 200, body `hello` |
   | Remove | `DELETE /storage/v1/b/gorse-test/o/blob%2Ftest.txt` (JSON) | 200 | `DELETE /gorse-test/blob/test.txt` (XML) | 204 |
-  | List after remove | `GET /storage/v1/b/gorse-test/o?prefix=blob` (JSON) | 200, empty | `GET /gorse-test?list-type=2&prefix=blob/` (XML) | 200, empty |
+  | List after remove | `GET /storage/v1/b/gorse-test/o?prefix=blob` (JSON) | 200, empty | `GET /gorse-test?list-type=2` (XML, no prefix) | 200, empty |
   | Missing object | not run; the probe's read 404 gave `storage: object doesn't exist` | | `GET` of an absent object | 404, NotFound |
 
   Differences that remain:
   1. Write, list and remove use the JSON API in Go and XML in object_store, so the requests
      cannot match byte for byte. The results match.
-  2. Go lists with prefix `blob`, object_store with `blob/`. A `blob` prefix would also match
-     sibling names such as `blobs/x`. Not run; the Rust list does not return them. A decision
-     for the coordinator.
-  3. Go's read gets 404 from the running fake-gcs-server for an object its JSON list shows. curl
-     against the same server gets 200 for the same object written by JSON upload, with the slash
-     and the dot each raw or percent-encoded. So path encoding does not explain the 404. The
-     probe went through a recording proxy, which may have changed the request; not isolated.
-     Real GCS is not checked.
+  2. The list filters on the raw prefix, as Go does, so a listing under `blob` also returns
+     `blobs/x` as `s/x` (Q-240). The request carries no prefix, so the whole bucket is listed.
+     Resolved by the coordinator's ruling; the cost is noted in Q-240.
+  3. Go's read gets 404 from the running fake-gcs-server. The emulator matches the request's
+     `Host` header against its `-external-url`. The same path and Go's headers return 200 with
+     `Host: 127.0.0.1:5051` and 404 with `Host: localhost:5050` or `Host: storage.googleapis.com`.
+     The probe's own `Host` was not recorded, so this is the likely cause, confirmed for those
+     Host values only. Real GCS is not checked.
   4. The in-process listener decodes paths, so it cannot see raw encoding differences. The live
      read path passes with `%2D` for dashes and `%2E` for dots (the emulator's access log shows
      both), where Go's read sends neither.

@@ -1445,9 +1445,11 @@ or accepts a metric gap outside the Go tests' own tolerances.
     `GCS_EMULATOR_ENDPOINT=http://127.0.0.1:5051`, the fake-gcs-server started with
     `-external-url`. `test_gcs_read_list_remove` passes against it. The in-process
     `test_gcs_xml_round_trip` and `test_gcs_xml_missing_object_is_not_found` pass, as do the
-    put and multipart tests. `test_gcs` stays `#[ignore]` (O-31, O-62). The cloud suite
-    `--features s3,gcs,azure blob` gives 16 passed and 1 ignored, with the S3, Azure and GCS
-    emulators all live. The Go-against-Rust comparison is in PORTING_NOTES.md under O-62.
+    put and multipart tests. `test_gcs` stays `#[ignore]` (O-31, O-62). The list filters on
+    the raw prefix as Go does (Q-240), tested by `test_gcs_xml_list_matches_go_raw_prefix`.
+    The cloud suite `--features s3,gcs,azure blob` gives 17 passed and 1 ignored, with the S3,
+    Azure and GCS emulators all live. The Go-against-Rust comparison is in PORTING_NOTES.md
+    under O-62.
   - Redis, `cache::redis` (12 of 12 each): Kvrocks at `redis://127.0.0.1:6666/`;
     the six-node cluster as `redis+cluster://127.0.0.1:7000` and with the five
     `addr=` parameters. No skips.

@@ -103,18 +103,22 @@ impl Store for CloudStore {
     async fn list(&self, ctx: &Context) -> Result<Vec<String>, BlobError> {
         check_ctx(ctx)?;
         let prefix = self.prefix();
-        let filter = if prefix.is_empty() {
-            None
-        } else {
-            Some(Path::parse(prefix).map_err(|err| BlobError::Config(err.to_string()))?)
-        };
+        // Go lists by the raw string prefix, so `blob` also returns `blobs/x`. object_store
+        // lists by path segment, so list the directory that holds the prefix, then filter
+        // on the string here.
+        let filter = prefix
+            .rfind('/')
+            .map(|at| Path::parse(&prefix[..at]).map_err(|err| BlobError::Config(err.to_string())))
+            .transpose()?;
         let mut objects = self.store.list(filter.as_ref());
         let mut names = Vec::new();
         while let Some(object) = objects.try_next().await? {
             check_ctx(ctx)?;
             // Go slices the key after the prefix and drops one leading '/'.
             let key = object.location.as_ref();
-            let rest = key.strip_prefix(prefix).unwrap_or(key);
+            let Some(rest) = key.strip_prefix(prefix) else {
+                continue;
+            };
             let name = rest.strip_prefix('/').unwrap_or(rest);
             if !name.is_empty() {
                 names.push(name.to_string());
