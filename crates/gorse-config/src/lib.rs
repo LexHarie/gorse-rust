@@ -3,10 +3,14 @@
 //! Loading, defaulting and validating `config.toml` and the `GORSE_*`
 //! environment variables.
 //!
-//! Work in progress (WP-1-15): the Go value model and the format decoders
-//! viper reads configuration files with.
+//! The Go value model and the format decoders viper reads configuration files
+//! with are in [`value`] and [`formats`]; [`config`] holds the Gorse
+//! configuration itself.
 
+pub mod config;
 pub mod formats;
 pub mod mapstructure;
 pub mod value;
 pub mod viper;
+
+mod log;
