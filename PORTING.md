@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); config.schema.json and config.keys.md not generated (X-49). WP-1-17 and WP-1-18 are in progress (WP-1-18 follows WP-1-16 and WP-1-17). All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); config.schema.json and config.keys.md not generated (X-49). WP-1-18 is in progress (it follows WP-1-16 and WP-1-17, both merged). All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
@@ -985,6 +985,63 @@ or accepts a metric gap outside the Go tests' own tolerances.
   `init`. Tests use `locate_built_in_dataset_in` and `create_dirs` with
   temporary directories, because setting `$HOME` in a test is `unsafe` in
   edition 2024 and the workspace denies `unsafe`.
+
+- **D-117 `Labels` is Go's `any` as a Rust enum.** Labels reach Gorse as two
+  Go types. The REST decoder (go-restful v3.13.0, `entity_accessors.go:138`)
+  calls `UseNumber`, so its numbers are `json.Number`. gorm's JSON serializer
+  (gorm v1.31.1, `schema/serializer.go:95`) calls `json.Unmarshal`, so values read
+  from the database are `float64`. `ValidateLabels` treats the two differently
+  (it accepts `json.Number`, rejects `float64` and `bool`), so the enum keeps
+  `Number(String)` (text) and `Float64(f64)` apart. `Deserialize` gives
+  `Float64`, which is `json.Unmarshal`'s default. The REST path needs its own
+  `UseNumber` decode (Q-178).
+
+- **D-118 `Categories` is `Option<Vec<String>>`.** Go's nil slice marshals
+  as `null`, and an empty slice as `[]`. Both occur: a REST body without
+  `Categories` gives nil, and `sql.go` writes nil as `"null"`. A `Vec` would
+  change the wire output. `ItemPatch.Categories` uses the same type, because
+  `patch.Categories != nil` is how Go decides to update.
+
+- **D-119 `Labels::Nil` means unset in patches.** `ItemPatch.Labels` and
+  `UserPatch.Labels` are not `Option`. Go's `patch.Labels != nil` treats a nil
+  `any` as unset, and `Labels::Nil` is that value.
+
+- **D-120 Go's `sort.Sort` is ported, not Rust's sort.** `sort.Sort` is
+  pattern-defeating quicksort and not stable. `SortFeedbacks` decides which
+  feedback is latest when timestamps are equal, and `logics/recommend.go`,
+  `worker/pipeline.go`, `server/rest.go` and `master/rest.go` all sort with it.
+  Up to 12 elements it is an insertion sort, which is stable, but above that the
+  tie order depends on the exact sequence of Less and Swap calls. So
+  `gorse_common::gosort` is a port of go1.27.0's `sort.go` and
+  `zsortinterface.go` (`Sort`, pdqsort and its helpers). It is a shared module
+  for later packages, which also call `sort.Sort`.
+
+- **D-121 `ScanOptions`, `ScanOption`, `GetOptions` are not in this WP.**
+  They are query options of the `Database` interface, not record types, and
+  WP-2-1 ports them with the interface. `NewScanOptions` and the `With*`
+  functions go there too.
+
+- **D-122 Storage traits are `async`.** Every storage family (cache, vectors,
+  blob, data, meta) exposes an `async` trait. Traits used as `dyn` (`Open`
+  returns one) use `async-trait` (`porting/crate-selection.md`). Reason: the
+  network stores (Redis, MySQL, Postgres, MongoDB, Qdrant, Milvus, S3-style blob)
+  need async clients, and `tokio` is already the runtime that `tonic`, `axum`
+  and `sqlx` require. One rule for every family keeps the callers the same.
+  Rules that follow:
+  - No sync facade over a network driver. A blocking wrapper would hide the cost
+    and nest runtimes.
+  - Each method keeps Go's `ctx` as its first parameter, `&gocontext::Context`.
+    It checks `ctx.err()` on entry and between units of work. Dropping the
+    future cancels the rest. Each store records this in its X-entries.
+  - In-process stores (sqlite through `rusqlite`, the xvec file log) run their
+    blocking work in `tokio::task::spawn_blocking`. A `std` lock is never held
+    across an `.await`.
+  - `tokio` joins the library's dependencies when the first backend needs it.
+    WP-2-4 keeps it a dev-dependency until then.
+  Accepted from the cache core (WP-2-4), which already follows this. The vector
+  core (WP-2-8) keeps a sync trait in its notes (C-WP28-2), which this decision
+  overrides: it must be converted before it merges. Decided by the integrator on
+  the coordinator's request (2026-10-28). It binds WP-2-1 to WP-2-13.
 
 ## Open questions for Ritchie
 

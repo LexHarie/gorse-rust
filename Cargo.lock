@@ -724,6 +724,10 @@ dependencies = [
  "gorse-model-core",
  "gorse-protocol",
  "gorse-storage-core",
+ "indexmap",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

@@ -913,6 +913,54 @@ said otherwise), so the Rust result is Go's.
 - The JSON-float case of Q-15 is reproduced: Reproduced through `ParamValue::Float64` and the
   exact-type `get_int`. Test: `get_int_does_not_accept_an_int64_or_a_float_from_json`.
 
+### Data types (WP-1-17)
+
+- **Q-174 JSON names are the Go field names.** The records have no JSON tags,
+  so `ItemId`, `IsHidden`, `FeedbackType` and the rest are written as Go names.
+  Embedded `FeedbackKey` and `Item` are flattened. `UpdateAt` is skipped
+  (`json:"-"`). Serde's `rename_all = "PascalCase"` gives these names. Go's
+  decoder matches names without case; serde does not (see Q-177).
+
+- **Q-175 Map names are written sorted.** `encoding/json` sorts a map's names,
+  so `Labels::Object` marshals in sorted order even though it keeps insertion
+  order. The golden has an object whose input order differs from its output.
+
+- **Q-176 An error text lists the labels as JSON.**
+  `unsupported labels: [1,"2"]` and `unsupported type in labels: bool` are
+  returned to REST callers as the 400 body, so they match Go byte for byte.
+  The golden covers HTML escaping inside the list (`<`).
+
+- **Q-177 Key matching is case-sensitive, and duplicate names are an error.**
+  Go's decoder matches `{"itemid": ...}` to `ItemId`, and takes the last value of
+  a repeated name. serde matches exactly and rejects a repeated name. The REST
+  decoder (WP-4-x) must handle both, probably with a hand-written `Deserialize`
+  on the record types. This WP does not change it.
+
+- **Q-178 REST labels need a `UseNumber` decode.** `Deserialize` gives
+  `Float64`, which is right for the database path. The server WP must decode
+  request bodies so numbers become `Labels::Number` with their text, as go-restful
+  does, since `ValidateLabels` rejects `float64`. `gojson` and serde do not keep
+  number text (`serde_json` would need `arbitrary_precision`).
+
+- **Q-179 Nesting depth.** Go's `encoding/json` allows 10,000 levels of
+  nesting; serde_json stops at 128. Deep labels from a request or a stored row
+  fail to decode in Rust.
+
+- **Q-180 Go's map order in `ValidateLabels`.** Go checks map entries in
+  random order, so with several invalid entries Go's error text varies between
+  runs. The port reports the first invalid entry in insertion order. The golden
+  has at most one invalid entry per map.
+
+- **Q-181 Go's native `int` labels.** Go code can put an `int` into labels,
+  and `ValidateLabels` then says `unsupported type in labels: int`. JSON never
+  produces an `int`, so `Labels` has no integer variant. Such values are not
+  reachable from the wire or the database.
+
+- **Q-182 `mapstructure` tags are not ported.** The record types carry
+  `mapstructure` tags. The only non-test `mapstructure` decoder in Go that
+  touches the data types is in `master/rest.go`, and it decodes config. No
+  Rust code needs the tags yet. The stores (WP-2-x) decide if they need them.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -1382,3 +1430,15 @@ said otherwise), so the Rust result is Go's.
   `locate_built_in_dataset_ml_1m`.
 
 - **O-25 `datautil` download has a 30 second timeout (WP-1-8).** Go's `http.Get` has none, and `datautil.rs` calls `reqwest::blocking::get`, which uses reqwest's 30 second default. Ruling: the timeout goes, as D-111 does for the model core. Owner: the util thread. Open until that fix merges.
+
+- **O-26 pdqsort's heapSort fallback is not reached by any golden case.**
+  `gosort` calls `heap_sort` when pdqsort runs out of its partition budget. No
+  golden case gets there. A seeded search of 400,000 random slices of 13 to 24
+  keys, and eight structured families up to 400 long, produced no hit. So the
+  call from pdqsort is not covered: removing it (the slice is then left unsorted
+  on that path) passes every test. `heap_sort` itself matches Go on 1000 cases
+  through a verbatim copy of Go's code. To close the gap, an adaptive adversary
+  (McIlroy's "killer" for pdqsort) would need to build an input that exhausts the
+  budget. Only feedback that defeats pdqsort's pivot choices reaches that path,
+  which real data is unlikely to do, but the dataset and logics WPs sort large
+  slices, so the gap should close before WP-3-x.

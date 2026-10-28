@@ -20,6 +20,7 @@ pub mod floats;
 pub mod gocontext;
 pub mod gojson;
 pub mod gonet;
+pub mod gosort;
 pub mod gostrconv;
 pub mod gostrings;
 pub mod gotime;
