@@ -30,7 +30,7 @@ Every Rust module names the Go files it ports with a
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-18, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); the frozen config.schema.json and config.keys.md match a fresh run of the Go generator byte for byte (X-49, closed 2026-10-28). WP-1-18 (dataset) is merged: Q-210 to Q-217, X-117 to X-129, O-51 and O-52 open, and the ml-1m test is ignored (O-1). Every Phase 1 WP is merged. All in `porting/work-packages.md` |
-| 2. Storage | in progress | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-3 (MongoDB data store, feature `mongodb`, MongoDB 6.0.28; O-53 open for 8.0; the `get_item_stream` doc is corrected, O-54). WP-2-11 (meta store, SQLite through rusqlite 0.39.0, D-160 to D-166; O-48 closed, O-49 and O-50 open for Phases 3 and 4). WP-2-2 (SQL data store, MySQL, Postgres and SQLite as one build; D-177 to D-181; O-36 closed by the SQL and MongoDB runs; O-57 and O-59 closed by the Go and Rust cross-reads on PostgreSQL, MySQL and SQLite, D-177 to D-181). WP-2-6 (SQL cache store: MySQL and Postgres on sqlx 0.9.0, SQLite on rusqlite 0.39.0; D-167 to D-175; Q-232 MySQL auth open). WP-2-9, 2-12, 2-13 not merged |
+| 2. Storage | exited (D-207) | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-3 (MongoDB data store, feature `mongodb`, MongoDB 6.0.28; O-53 open for 8.0; the `get_item_stream` doc is corrected, O-54). WP-2-11 (meta store, SQLite through rusqlite 0.39.0, D-160 to D-166; O-48 closed, O-49 and O-50 open for Phases 3 and 4). WP-2-2 (SQL data store, MySQL, Postgres and SQLite as one build; D-177 to D-181; O-36 closed by the SQL and MongoDB runs; O-57 and O-59 closed by the Go and Rust cross-reads on PostgreSQL, MySQL and SQLite, D-177 to D-181). WP-2-6 (SQL cache store: MySQL and Postgres on sqlx 0.9.0, SQLite on rusqlite 0.39.0; D-167 to D-175; Q-232 MySQL auth open). WP-2-9 (D-197 to D-200), WP-2-12 (D-202 to D-206) and WP-2-13 (D-186 to D-193) merged. The court audit of the env-gated backend tests is O-66 (D-201). Phase 2 exited (D-207): `test_gcs` stays ignored with its reason, and O-62 stays open for a real-GCS run before Phase 5. |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
@@ -1617,6 +1617,127 @@ or accepts a metric gap outside the Go tests' own tolerances.
     `logics/item_to_item.go` compiles expressions with the expr-lang VM (line 130). WP-3-5
     therefore also waits for WP-3-6. The `SuggestParams` methods that take a goptuna `Trial`
     (`model/cf/model.go` lines 397 and 588, `model/ctr/fm.go` line 79) are ported in WP-3-3.
+
+- **D-197 Qdrant client is `qdrant-client` 1.20.0 (WP-2-9, P-1).** `porting/crate-selection.md`
+  named 1.19.0. 1.20.0 is the latest stable release (checked in the crates index on 2026-10-28),
+  so the row is 1.20.0. Go's module pins `qdrant/go-client` v1.18.2. Against the 1.20.0 server
+  the 1.18.2 client only warns, so the Rust client follows the server's release.
+
+- **D-198 Milvus and Weaviate are hand-written REST adapters (WP-2-9, P-2).** This is D-17 as
+  already written. No change.
+
+- **D-199 Storage errors wrap the storage sentinels, as Go's `%w` does (WP-2-9, P-3).** Every
+  NotSupported error from the three stores is `Error::Storage { kind: NotSupported, .. }` through
+  `vectors::not_supported`, so `kind()` matches Go's `errors.Is`. Qdrant and Weaviate returned
+  `Error::Other` for these before the fix.
+
+- **D-200 Court acceptance for WP-2-9 on the merged head `4b835df1` (integrator, 2026-10-28).**
+  The branch `claude/wp-2-9-vector-backends` is merged from `3918b84`, as one commit, because the
+  three stores share `open()`, the features and `Cargo.lock`.
+  - Acceptance, run by the integrator with all three servers set: `QDRANT_URI=qdrant://127.0.0.1:6334
+    MILVUS_URI=milvus://127.0.0.1:19530 WEAVIATE_URI=weaviate://127.0.0.1:8080 cargo test -p
+    gorse-storage --features qdrant,milvus,weaviate vectors`: 56 passed, 0 failed, 1 ignored (the
+    Weaviate sparse case, which Go's `TestSparse` also skips). The thread's own count is the same.
+  - The servers: Qdrant `latest` (1.20.0), Weaviate `semitechnologies/weaviate:1.35.7` from Docker
+    Hub (`cr.weaviate.io` does not resolve from this container), etcd `v3.5.25` from
+    `gcr.io/etcd-development/etcd` (`quay.io` does not resolve), and Milvus v2.6.9 with the
+    compose settings: rustfs as the object store and `MQ_TYPE=woodpecker`. The thread ran Milvus
+    with local storage and rocksmq instead. The compose-style run passes, so the thread's
+    deviation from compose is not needed for the result.
+  - The Go oracle and the two-way cross-read are the thread's evidence (TestMilvus 11 of 11,
+    TestQdrant 10 of 10, TestWeaviate with TestSparse skipped). The integrator did not rerun
+    them. The cross-read harness is not committed, so it cannot be rerun from the repository.
+    That is a gap to close with the next Phase 2 change, not a reason to reject.
+  - Verdict: accepted, with the harness gap recorded.
+
+- **D-201 Court audit of the env-gated backend tests, and the gate on `479760b2` (integrator,
+  2026-10-28).** The coordinator's court rule (17:18): a backend test with no server configured
+  reports ignored or fails, and never passes. The audit is O-66. It found that the Redis, MongoDB
+  and SQL tests returned early when their URI was unset, so they passed with no server. They now
+  panic with `<NAME> is not set`, and the Redis TLS cases are `#[ignore]` with their reason
+  (`4ea540a5`). The WP-2-9 thread's head `b9fde43d` makes the 30 vector backend tests `#[ignore]`
+  with a reason, and their helpers fail when the URI is unset. It is merged as `479760b2`. The
+  integrator's own edits to the vector files were dropped in favour of this version, which follows
+  the same rule.
+  - Gate on `479760b2`, with every URI set (MARIADB, MYSQL, POSTGRES, MONGO, REDIS, QDRANT,
+    MILVUS, WEAVIATE, and `GCS_EMULATOR_ENDPOINT=http://127.0.0.1:5051` for fake-gcs-server).
+    `cargo fmt --check`, `cargo clippy --workspace --all-targets -D warnings`, rustdoc with
+    `-D warnings`, the config and YAML goldens, `go vet`, cloud clippy and Mongo clippy all exit 0.
+    `cargo test --workspace --no-fail-fast`: TEST section 992 passed, 0 failed, 48 ignored. The
+    gate sums only that section. The earlier gate failed `fmt --check` on the module order in
+    `vectors/mod.rs`, which `4ea540a5` fixes.
+  - Backend acceptance, run by the integrator with `--include-ignored`: `cargo test -p
+    gorse-storage --features qdrant,milvus,weaviate vectors -- --include-ignored --skip
+    vectors::weaviate::tests::sparse`: 69 passed, 0 failed. Of these, 30 are the backend tests
+    (Milvus 11, Qdrant 10, Weaviate 9), and 39 are the xvec, database, proxy and no-database
+    tests. The thread's 56 is the same run before the WP-2-12 proxy vectors were merged, since
+    56 = 30 + 22 + 3 + 1.
+  - The negative check: `env -u REDIS_TLS_URI -u REDIS_TLS_UNTRUSTED cargo test -p gorse-storage
+    --features redis tls -- --include-ignored` fails both cases with `REDIS_TLS_URI is not set`
+    (exit 101). They fail rather than pass.
+  - The unset-URI check, run before the commit: with the URIs unset, the Mongo cases fail (4), the
+    MySQL cases fail (3), the Postgres cases fail (2), the Milvus cases fail (11), the Weaviate
+    cases fail (9, the sparse case ignored), the Qdrant cases fail (10), and the Redis cases fail
+    (6). `test_gcs_read_list_remove` panics without `GCS_EMULATOR_ENDPOINT`. `test_gcs` stays
+    ignored under O-31 and O-62.
+  - The cross-read, `cargo test -p gorse-conformance --test vector_cross_read -- --ignored`: both
+    directions pass with the three servers (2 passed).
+  - Verdict: accepted. The audit is complete for the backends listed in O-66.
+
+- **D-202 The proxy suites run through the proxy (WP-2-12, P-1).** The coordinator approved an
+  additive `run_through_proxy` in `data/database_test.rs` and in `cache/database_test.rs`. It runs
+  the cases of `run()` in the same order, minus the ones Go's `ProxyTestSuite` skips. `run()` is
+  unchanged. The suites through the proxy run only with `--features mysql,postgres,sqlite`, as the
+  SQL suites they wrap do. `refuses_init_scan_and_purge` (data and cache) asserts the client-side
+  refusals with Go's texts: `method Init is not allowed in ProxyClient` and `method Purge is not
+  allowed in ProxyClient` (data), and `init`, `scan` and `purge is not allowed in proxy client`
+  (cache).
+
+- **D-203 A NotFound error keeps Go's text (WP-2-12, P-2).** `data::Error` gains
+  `Wrapped { kind, message }`. Its `Display` is the message and `kind()` reports `NotFound`. The
+  proxy client returns it for a missing item or user, so the text is `item <id> not found` (and
+  `user <id> not found`), as Go's `fmt.Errorf("item %s %w", ...)` gives it. Go's text is not
+  shortened, since error text can reach REST bodies and logs. Test:
+  `missing_item_reads_back_with_go_text`.
+
+- **D-204 `describe_collection` on a missing collection (WP-2-12, P-3).** The server answers with
+  gRPC `NotFound`. The client maps that code to a NotFound-kind error whose text is
+  `collection <name>: not found`. The transcript pins `collection missing: not found`.
+
+- **D-205 gRPC error text follows Go's client (WP-2-12, P-4).** Go's client shows a status as
+  `rpc error: code = <Code> desc = <msg>`, with Go's spelling of the code names (`Canceled`, not
+  `Cancelled`). The Rust client builds the same text. Server errors that are not NotFound go out
+  as `Status::unknown(err.to_string())`, as Go's server does.
+
+- **D-206 Court acceptance for WP-2-12 on the merged head `479760b2` (integrator, 2026-10-28).**
+  The branch `claude/wp-2-12-proxies` is merged as `50886475`, one `--no-ff` merge of `892767b`.
+  That head replaces the earlier `d122a96`, and it runs the Go-Rust wire check under `cargo test`
+  (O-68).
+  - Acceptance on the final head: `cargo test -p gorse-conformance proxy` passes 3 of 3 (the
+    golden matches Go's regenerated transcript, Go's client runs against the Rust servers, and the
+    Rust clients run against Go's servers). `cargo test -p gorse-storage proxy` passes. In the
+    workspace run, with the SQL and Mongo URIs set, 36 proxy-named tests pass, and the SQL suites
+    run through the proxy pass too (D-201).
+  - The check needs `go` on PATH. The gate ran with `/usr/local/go/bin` on PATH.
+  - The notes are folded as D-202 to D-205, Q-241 to Q-245, X-161 to X-165 and O-67 to O-69.
+    `porting/notes/WP-2-12.md` is deleted.
+  - Verdict: accepted. O-69 stays open, since the scenario does not cover `SearchItems`,
+    `GetLatestItems` or the three vector backends.
+
+- **D-207 Phase 2 exits, and `test_gcs` stays ignored with its reason (coordinator ruling,
+  integrator, 2026-10-28).** The coordinator ruled at 17:36 that `test_gcs` is blocked by the
+  emulator itself: fake-gcs-server refuses the XML upload that `object_store` makes. The GCS write,
+  list, read and remove paths have in-process and emulator evidence. So:
+  - `test_gcs` stays `#[ignore]`, with the reason `fake-gcs-server refuses the XML upload that
+    object_store uses (O-31, O-62)`.
+  - O-62 stays open for a real-GCS run before Phase 5.
+  - Phase 2 is exited on the merged head `e1b51b37`. All thirteen storage packages, WP-2-1 to
+    WP-2-13, are merged. Their evidence is D-184 (blob S3 and Azure, Redis Kvrocks and cluster,
+    MariaDB), D-185 (O-61), D-193 (WP-2-13), D-194 (O-62), D-200 (WP-2-9), D-201 (the audit gate on
+    `479760b2`) and D-206 (WP-2-12).
+  - Carried into later phases, still open: O-53 (MongoDB 8.0 untested), O-60 (the two SQLite
+    drivers, after conformance), O-63 (samples and the Redis key layout), O-64 (mixed-version runs),
+    O-65 (Weaviate sparse vectors) and O-69 (proxy transcript coverage).
 
 ## Open questions for Ritchie
 

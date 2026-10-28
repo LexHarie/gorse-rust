@@ -23,7 +23,7 @@ carries unused dependencies.
 | gorm sqlite (gorse-io fork on modernc) | `rusqlite` (`bundled`) on `spawn_blocking` | 0.40.2 | MIT | Gorse registers a custom `json_contains` SQL function per connection; `rusqlite` exposes `create_scalar_function` safely, `sqlx-sqlite` only through a raw handle and `unsafe`. `sqlx`'s `sqlite` feature stays off so only one `libsqlite3-sys` is linked | `sqlx` `sqlite` |
 | mongo-driver | `mongodb` | 3.9.1 | Apache-2.0 | Official driver | — |
 | go-redis (standalone, cluster, RediSearch, RedisTimeSeries) | `redis` (`tokio-comp`, `cluster-async`, `connection-manager`) | 1.8.0 | BSD-3-Clause | Most used client; cluster support; `FT.*`/`TS.*` sent as raw commands like go-redis does | `fred` 10.1.0 (smaller user base) |
-| qdrant go-client | `qdrant-client` | 1.19.0 | Apache-2.0 | Official client, gRPC like the Go one | hand-written gRPC |
+| qdrant go-client | `qdrant-client` | 1.20.0 | Apache-2.0 | Official client, gRPC like the Go one | hand-written gRPC |
 | milvus client v2 | hand-written adapter over the Milvus REST v2 API with `reqwest` | — | — | `milvus-sdk-rust` 3.0.2 declares a non-standard licence, which the plan forbids | `milvus-sdk-rust` |
 | weaviate-go-client | hand-written REST + GraphQL adapter with `reqwest` | — | — | `weaviate-community` 0.2.2 is unmaintained since 2024-02 | `weaviate-community` |
 | minio-go, GCS, Azure SDKs | `object_store` (`aws`, `gcp`, `azure`) | 0.14.2 | MIT/Apache | One API over the three clouds, maintained by Apache Arrow | the three official SDKs |
@@ -60,7 +60,7 @@ carries unused dependencies.
 | gomlx / go-xla (`fm_xla.go`) | not ported; `fm.go` + `common/nn` ported by hand | — | — | Default Go builds use `fm.go`; see decision D-8 | `candle` 0.11.0, `burn` 0.22.0 |
 | common/floats SIMD | C sources in `common/floats/src` built with `cc`; runtime detection with `std::arch` | `cc` 1.8.0 | MIT/Apache | The plan's approach; same kernels as Go | `std::simd` (unstable) |
 | x/exp/float16 | `half` | 2.7.1 | MIT/Apache | FP16 vectors on the wire | — |
-| google/uuid | `uuid` (`v3`, `v4`) | 1.28.0 | MIT/Apache | — | — |
+| google/uuid | `uuid` (`v3`, `v4`) | 1.29.0 | MIT/Apache | — | — |
 | crypto/md5 | `md-5` | 0.11.0 | MIT/Apache | — | — |
 | bits-and-blooms/bitset | `fixedbitset` | 0.5.7 | MIT/Apache | Small, dependency-free | `bitvec` 1.1.1 |
 | compress/gzip | `flate2` | 1.1.10 | MIT/Apache | — | — |
@@ -72,7 +72,7 @@ carries unused dependencies.
 | regexp (RE2) | `regex` | 1.13.1 | MIT/Apache | Same leftmost-first semantics and anchoring as RE2 for the patterns Gorse uses, so `common/expression` keeps the Go pattern verbatim; checked against a Go corpus (WP-1-7) | a hand-written matcher (equivalent here, but no longer the Go pattern) |
 | time | none: hand port of Go's `time` (`gorse_common::gotime`) | n/a | n/a | Go's exact layouts, parse errors, `Time.String()` with the monotonic suffix, `ParseDuration` and the TZif reader; `chrono` would contribute nothing (`PORTING.md` C-13) | `time` |
 | errors | `thiserror` | 2.0.21 | MIT/Apache | Typed errors so callers can match kinds like Go's `errors.Is` | — |
-| base64 | `base64` | 0.23.1 | MIT/Apache | Redis category encoding | — |
+| base64 | `base64` | 0.23.1 | MIT/Apache | Redis category encoding; Milvus FP16 vector bytes | — |
 | schollz/progressbar | `indicatif` | 0.18.6 | MIT | Playground import progress only | — |
 | samber/lo, golang-set, copier, sortutil, strutil | std | — | — | Small helpers; written inline | — |
 

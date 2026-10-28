@@ -29,6 +29,7 @@ use types::{Feedback, Item, ItemPatch, ScoredItem, User, UserPatch};
 #[cfg(feature = "mongodb")]
 pub mod mongodb;
 pub mod no_database;
+pub mod proxy;
 /// The SQL stores (MySQL, PostgreSQL, SQLite). Go links all three drivers into
 /// every binary, so the store is built only when all three features are on.
 #[cfg(all(feature = "mysql", feature = "postgres", feature = "sqlite"))]
@@ -47,6 +48,15 @@ pub enum Error {
     /// A bare sentinel from `storage`, such as `ErrNotFound`.
     #[error(transparent)]
     Storage(#[from] StorageError),
+    /// A sentinel from `storage` with the text Go wraps around it, such as
+    /// `item <id> not found` from `fmt.Errorf("item %s %w", ...)`.
+    #[error("{message}")]
+    Wrapped {
+        /// The sentinel, which [`Error::kind`] reports.
+        kind: StorageError,
+        /// Go's error text.
+        message: String,
+    },
     /// A context was cancelled (Go's `context canceled`).
     #[error(transparent)]
     Context(#[from] ContextError),
@@ -63,7 +73,7 @@ impl Error {
     /// The `storage` sentinel this error wraps, as Go's `errors.Is` sees it.
     pub fn kind(&self) -> Option<StorageError> {
         match self {
-            Error::Storage(kind) => Some(*kind),
+            Error::Storage(kind) | Error::Wrapped { kind, .. } => Some(*kind),
             _ => None,
         }
     }

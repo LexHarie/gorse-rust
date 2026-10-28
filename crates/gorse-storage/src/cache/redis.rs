@@ -980,12 +980,11 @@ mod tests {
 
     /// The Go test's `REDIS_URI`. Unset, the Redis tests are skipped, as Go's
     /// `t.Skip` skips them.
-    fn redis_dsn() -> Option<String> {
-        let dsn = std::env::var("REDIS_URI").ok().filter(|s| !s.is_empty());
-        if dsn.is_none() {
-            eprintln!("REDIS_URI is not set, skipping Redis test");
-        }
-        dsn
+    fn redis_dsn() -> String {
+        std::env::var("REDIS_URI")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .expect("REDIS_URI is not set")
     }
 
     /// Opens a store under its own table prefix, purged and with its schema.
@@ -1027,7 +1026,7 @@ mod tests {
     /// Go's `TestRedis`: the shared suite runs against a live Redis.
     #[tokio::test]
     async fn redis_suite() {
-        let Some(dsn) = redis_dsn() else { return };
+        let dsn = redis_dsn();
         let db = test_store(&dsn, "suite").await;
         database_test::run(&db).await;
     }
@@ -1035,7 +1034,7 @@ mod tests {
     /// Go's `TestEscapeCharacters`.
     #[tokio::test]
     async fn escape_characters() {
-        let Some(dsn) = redis_dsn() else { return };
+        let dsn = redis_dsn();
         let db = test_store(&dsn, "escape").await;
         let ctx = Context::background();
         for c in ["-", ":", ".", "/"] {
@@ -1099,7 +1098,7 @@ mod tests {
     /// Every document comes back exactly once, and the ids are the full set.
     #[tokio::test]
     async fn scan_scores_multiple_pages() {
-        let Some(dsn) = redis_dsn() else { return };
+        let dsn = redis_dsn();
         let db = test_store(&dsn, "scan_pages").await;
         let ctx = Context::background();
         const NUM_SCORES: usize = 2500;
@@ -1139,7 +1138,7 @@ mod tests {
     /// Go's `TestUpdateScoresWithPagination`.
     #[tokio::test]
     async fn update_scores_with_pagination() {
-        let Some(dsn) = redis_dsn() else { return };
+        let dsn = redis_dsn();
         let mut db = test_store(&dsn, "update_pages").await;
         let ctx = Context::background();
         db.max_search_results = 2;
@@ -1185,7 +1184,7 @@ mod tests {
     /// Go's `TestUpdateScoresWithPaginationAndScorePatch`.
     #[tokio::test]
     async fn update_scores_with_pagination_and_score_patch() {
-        let Some(dsn) = redis_dsn() else { return };
+        let dsn = redis_dsn();
         let mut db = test_store(&dsn, "update_score").await;
         let ctx = Context::background();
         db.max_search_results = 1;
@@ -1233,7 +1232,7 @@ mod tests {
     /// Go's `TestUpdateScoresWithPaginationAndTiedScores`.
     #[tokio::test]
     async fn update_scores_with_pagination_and_tied_scores() {
-        let Some(dsn) = redis_dsn() else { return };
+        let dsn = redis_dsn();
         let mut db = test_store(&dsn, "update_tie").await;
         let ctx = Context::background();
         db.max_search_results = 2;
@@ -1334,13 +1333,12 @@ mod tests {
     }
 
     /// `skip_verify=true` connects to a self-signed server, whether or not its
-    /// CA is trusted.
+    /// CA is trusted. Ignored by default: it needs `REDIS_TLS_URI`, a self-signed
+    /// TLS server this container does not run (O-66).
+    #[ignore = "needs REDIS_TLS_URI, a self-signed TLS server (O-66)"]
     #[tokio::test]
     async fn tls_skip_verify_connects_to_a_self_signed_server() {
-        let Some(dsn) = redis_tls_dsn() else {
-            eprintln!("REDIS_TLS_URI is not set, skipping the TLS test");
-            return;
-        };
+        let dsn = redis_tls_dsn().expect("REDIS_TLS_URI is not set");
         let store = open(&format!("{dsn}?skip_verify=true"), "gorse_tls_", &[]).unwrap();
         store.ping().await.unwrap();
     }
@@ -1348,16 +1346,14 @@ mod tests {
     /// Without `skip_verify`, a self-signed server is refused by a process that
     /// does not trust its CA. The run that sets `REDIS_TLS_UNTRUSTED` says the
     /// CA is not trusted, and then expects that refusal.
+    #[ignore = "needs REDIS_TLS_URI and REDIS_TLS_UNTRUSTED, a self-signed TLS server (O-66)"]
     #[tokio::test]
     async fn tls_verifies_the_server_by_default() {
-        let Some(dsn) = redis_tls_dsn() else {
-            eprintln!("REDIS_TLS_URI is not set, skipping the TLS test");
-            return;
-        };
-        if std::env::var_os("REDIS_TLS_UNTRUSTED").is_none() {
-            eprintln!("REDIS_TLS_UNTRUSTED is not set, skipping the verification test");
-            return;
-        }
+        let dsn = redis_tls_dsn().expect("REDIS_TLS_URI is not set");
+        assert!(
+            std::env::var_os("REDIS_TLS_UNTRUSTED").is_some(),
+            "REDIS_TLS_UNTRUSTED is not set"
+        );
         let store = open(&dsn, "gorse_tls_", &[]).unwrap();
         let err = store.ping().await.unwrap_err();
         assert!(format!("{err:?}").contains("UnknownIssuer"), "{err:?}");

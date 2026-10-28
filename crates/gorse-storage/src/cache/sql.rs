@@ -1637,8 +1637,7 @@ mod tests {
     #[tokio::test]
     async fn mysql_cold_full_authentication_connects() {
         let Some(dsn) = dsn_from_env("MYSQL_URI") else {
-            eprintln!("skipped: MYSQL_URI is not set");
-            return;
+            panic!("MYSQL_URI is not set");
         };
         let body = dsn
             .strip_prefix(MYSQL_PREFIX)
@@ -1705,8 +1704,7 @@ mod tests {
     #[tokio::test]
     async fn mysql_suite() {
         let Some(dsn) = dsn_from_env("MYSQL_URI") else {
-            eprintln!("skipped: MYSQL_URI is not set");
-            return;
+            panic!("MYSQL_URI is not set");
         };
         let body = dsn
             .strip_prefix(MYSQL_PREFIX)
@@ -1741,8 +1739,7 @@ mod tests {
     #[tokio::test]
     async fn postgres_suite() {
         let Some(dsn) = dsn_from_env("POSTGRES_URI") else {
-            eprintln!("skipped: POSTGRES_URI is not set");
-            return;
+            panic!("POSTGRES_URI is not set");
         };
         let mut admin = postgres_admin_connection(&dsn).await;
         let lower = TEST_DATABASE.to_lowercase();

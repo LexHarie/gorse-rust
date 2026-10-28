@@ -2378,6 +2378,117 @@ said otherwise), so the Rust result is Go's.
   The Kvrocks and six-node cluster runs of the Go CI's compatibility job are not part of WP-2-13.
   They are run on the merged head under D-184 and D-185. Open for the mixed-version case only.
 
+- **X-154 Milvus index parameters are unnested (WP-2-9, deviation 1).** The REST gateway returns an
+  index's own parameters as a JSON string under `params`. Go's gRPC client sees them flat (a probe
+  printed `map[index_type:IVF_PQ m:4 metric_type:IP nbits:8 nlist:128]`). `index_params` unnests the
+  JSON, so `describe_collection` reads `m` and `nbits` as Go does.
+
+- **X-155 Milvus `description` goes at the top level of the create request (deviation 2).** A
+  `description` inside `schema` is dropped by the REST gateway, as a probe showed.
+
+- **X-156 Milvus category filters and query-by-ids are literals with JSON escapes (deviations 3
+  and 4).** Go uses template parameters (`WithTemplateParam`) for category filters, and quotes ids
+  raw. The Rust text is identical for string categories and for ids with no quote or backslash.
+
+- **X-157 Milvus waits by polling (deviation 5).** Go's `Await` becomes a 100 ms poll of
+  `/indexes/describe` (`Finished`, `Failed`) and `/collections/get_load_state` (`LoadStateLoaded`).
+
+- **X-158 Milvus sparse vectors travel as JSON objects (deviation 6).** They map dimension to value,
+  and they are read back sorted by dimension, as Go's sparse embeddings are.
+
+- **X-159 Weaviate uses REST and has no sparse vectors (deviation 7).** Go's `Open` sets no gRPC
+  config, so batches go over REST. Describe reports no dimension, as Go's does not. Sparse vectors
+  are not supported, so the Rust sparse case is `#[ignore]` (see O-65).
+
+- **X-160 Qdrant `delete_collection` errors for a missing collection (deviation 8).** It checks the
+  response's `result`, as Go's client does. The earlier port returned Ok.
+
+- **Q-240 Turbo-quant bit names (deviation 9).** Go's `TurboQuantBitSize` enum has no 8-bit value,
+  and its messages print the names `String()` gives (`Bits1`, `Bits1_5`, `Bits2`, `Bits4`).
+  `go_turbo_bits_name` does the same.
+
+- **O-65 The Weaviate sparse case is ignored.** Weaviate has no sparse vectors in this port, and
+  Go's `TestSparse` skips for Weaviate too. Nothing is open against Go. The item closes if Weaviate
+  support is added in a later WP.
+
+- **O-66 Backend tests with no server configured must not pass (court audit, 2026-10-28).** The
+  court rule from the coordinator: a backend test whose server is not configured reports ignored
+  or fails, and never passes, so the test counts are honest evidence. The audit read every test
+  that takes a backend URI. The Redis cache tests, the MongoDB cache and data tests, and the SQL
+  cache and data suites returned early when their URI was unset, so they passed with no server.
+  Each now panics with `<NAME> is not set`, as the schema tests do (D-189). The Redis TLS tests
+  need a self-signed TLS server that `storage/docker-compose.yml` does not run, so they are
+  `#[ignore]` with that reason and fail with `REDIS_TLS_URI is not set` under `--include-ignored`.
+  The vector tests are the WP-2-9 change on `b9fde43d` (D-201). The blob tests already panic
+  through `required_env`, and `test_gcs` is ignored under O-31 and O-62. The in-process proxy
+  tests need no server. The conformance proxy check fails without Go (`proxy_wire`). Open for
+  nothing: the items the audit found are fixed in the same commit.
+
+- **X-161 Contexts do not cross the wire (WP-2-12, deviation 1).** Go passes the call's context
+  into the backend. The Rust server gives the backend a background context. A client that goes
+  away drops the call's future, which stops the work the same way.
+
+- **X-162 Where Go panics, the Rust server returns an error (WP-2-12, deviation 2).** Go's server
+  dereferences `scan_options` unchecked, so a request without them panics. The Rust server
+  returns an error there. Missing `condition` or `patch` become an error or a default. Go's client
+  always sends the options, so the oracle does not reach this case.
+
+- **X-163 The cache scan buffer is unbounded (WP-2-12, deviation 3).** `scan_scores` on the Rust
+  server pushes into an unbounded channel, so the backend is not paused by the client's reads.
+  Go's stream is paced by the send. Memory can grow with a slow reader.
+
+- **X-164 Malformed labels JSON uses serde's text (WP-2-12, deviation 4).** A labels blob that is
+  not valid JSON fails with serde's message, not Go's `encoding/json` text. Empty bytes give Go's
+  `unexpected end of JSON input`, as Go does.
+
+- **X-165 The brief's base commit was an ancestor of the integration head (WP-2-12, deviation 5).**
+  The brief names `25c5bb81`. The integration head was `12f19e4`, and `25c5bb81` is its ancestor.
+  The branch `claude/wp-2-12-proxies` starts from `12f19e4`.
+
+- **Q-241 Timestamps of nil read as Go reads them (WP-2-12, quirk 1).** `time_from_pb` of a nil
+  timestamp is the Unix epoch, as Go's `Timestamp.AsTime` on nil gives it. `optional_time_from_pb`
+  of nil is the zero time, as Go's `timeFromPB` gives it. The transcript pins both through the
+  item, feedback and vector records.
+
+- **Q-242 `GetItemStream` drops `time_limit` (WP-2-12, quirk 2).** Go's client does not send it,
+  so the Rust client does not either.
+
+- **Q-243 Empty repeated fields are nil on the wire (WP-2-12, quirk 3).** An empty `categories`
+  list reads back as nil in Go and as `None` in Rust. So `ItemPatch` and `ScorePatch` cannot clear
+  categories over the wire. The transcript shows `Categories: null` for an item stored with `[]`.
+
+- **Q-244 The cache `Get` hides backend errors (WP-2-12, quirk 4).** Go's server answers with no
+  value and no error whenever the key does not exist, even when the backend reported an error for
+  it. A failing `get` therefore reads back as a missing key, through the Rust server as well
+  (`a_failing_get_reads_as_a_missing_key_through_the_proxy`).
+
+- **Q-245 An unknown distance is refused with Go's text (WP-2-12, quirk 5).** A distance number
+  that is not one of the three known ones is an error with the text `distance method not
+  supported`, the text Go's `distanceFromPB` gives (`distances_convert_both_ways_and_refuse_unknown`).
+
+- **O-67 One scenario, two languages (WP-2-12, oracle 1).** `contracts/tools/proxygolden` runs a
+  66-step scenario (data 32, cache 19, vectors 15) through Go's proxy clients and servers, and
+  writes `crates/gorse-storage/tests/data/proxy_transcript.txt`.
+  `crates/gorse-storage/tests/common/proxy_scenario.rs` runs the same steps through the Rust proxy
+  clients. Each step's line is its name, a tab, then `{"ok":...}` or `{"err":...}`, with keys
+  sorted and integral floats written as integers.
+
+- **O-68 Both directions are checked on the wire (WP-2-12, oracle 2).**
+  `crates/gorse-storage/tests/proxy_wire.rs` replays the scenario against the Rust servers
+  in-process, per store, and compares with the golden lines. `conformance/tests/proxy_wire.rs`
+  runs the live checks under `cargo test -p gorse-conformance proxy`: Go regenerates the golden
+  file (`proxy_oracle_matches_golden`), Go's client runs against the Rust servers
+  (`proxy_go_client_against_rust_server`), and the Rust clients run against Go's servers
+  (`proxy_rust_client_against_go_server`). The Rust side is the `proxy_peer` binary of the
+  conformance crate. A missing Go fails these tests. A mutated golden line makes the
+  `-rust-client` check fail at that line.
+
+- **O-69 The transcript does not cover search or the vector stores (WP-2-12, oracle 3).** The
+  `Updated` column is checked as Go sets it, equal to the timestamp at insert. Float values are
+  chosen to be exact in f32 and f64, so both languages print them the same. `SearchItems` and
+  `GetLatestItems` are not in the scenario, and the scenario does not run against the Milvus,
+  Qdrant and Weaviate stores. Open: the scenario does not yet cover these.
+
 Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
 version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does
 this port; newer versions are not tested), MariaDB 10.2.44 (`mariadb:10.2`, CI's
