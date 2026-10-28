@@ -16,10 +16,13 @@ gorse-config = { workspace = true }
 gorse-model-core = { workspace = true }
 thiserror.workspace = true
 tracing.workspace = true
+async-trait = "0.1.92"
+tokio = { version = "1.53.3", features = ["rt"] }
 
 [dev-dependencies]
 hex.workspace = true
 tempfile.workspace = true
+tokio = { version = "1.53.3", features = ["macros", "rt"] }
 
 [lints]
 workspace = true

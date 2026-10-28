@@ -719,6 +719,7 @@ dependencies = [
 name = "gorse-storage"
 version = "0.0.0"
 dependencies = [
+ "async-trait",
  "gorse-common",
  "gorse-config",
  "gorse-model-core",
@@ -727,6 +728,7 @@ dependencies = [
  "hex",
  "tempfile",
  "thiserror",
+ "tokio",
  "tracing",
 ]
 

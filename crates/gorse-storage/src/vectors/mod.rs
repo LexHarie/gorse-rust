@@ -16,6 +16,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
+use async_trait::async_trait;
 use gorse_common::floats;
 use gorse_common::gocontext::{Context, ContextError};
 use gorse_common::gotime::Time;
@@ -264,21 +265,24 @@ pub fn user_to_user_collection(name: &str) -> String {
 }
 
 /// Go's `Database`: the vector store every backend implements. Every method
-/// takes the caller's context, as the Go methods do.
+/// takes the caller's context first, as the Go methods do. The methods are
+/// async, so a store can await the network or run file IO on a blocking pool.
+#[async_trait]
 pub trait Database: Send + Sync {
     /// Go's `Init`: opens the collections the store already holds.
-    fn init(&self) -> Result<(), Error>;
+    async fn init(&self) -> Result<(), Error>;
     /// Go's `Optimize`: rebuilds what the store keeps for a collection.
-    fn optimize(&self, ctx: &Context, name: &str) -> Result<(), Error>;
+    async fn optimize(&self, ctx: &Context, name: &str) -> Result<(), Error>;
     /// Go's `Close`.
-    fn close(&self) -> Result<(), Error>;
+    async fn close(&self) -> Result<(), Error>;
     /// Go's `ListCollections`, sorted by name.
-    fn list_collections(&self, ctx: &Context) -> Result<Vec<String>, Error>;
+    async fn list_collections(&self, ctx: &Context) -> Result<Vec<String>, Error>;
     /// Go's `DescribeCollection`.
-    fn describe_collection(&self, ctx: &Context, name: &str) -> Result<CollectionInfo, Error>;
+    async fn describe_collection(&self, ctx: &Context, name: &str)
+    -> Result<CollectionInfo, Error>;
     /// Go's `AddCollection`. A dimension of 0 makes a sparse collection, which
     /// ranks by [`Distance::Dot`] only.
-    fn add_collection(
+    async fn add_collection(
         &self,
         ctx: &Context,
         name: &str,
@@ -287,22 +291,26 @@ pub trait Database: Send + Sync {
         config: VectorConfig,
     ) -> Result<(), Error>;
     /// Go's `DeleteCollection`.
-    fn delete_collection(&self, ctx: &Context, name: &str) -> Result<(), Error>;
+    async fn delete_collection(&self, ctx: &Context, name: &str) -> Result<(), Error>;
     /// Go's `CountVectors`.
-    fn count_vectors(&self, ctx: &Context, collection: &str) -> Result<i64, Error>;
+    async fn count_vectors(&self, ctx: &Context, collection: &str) -> Result<i64, Error>;
     /// Go's `AddVectors`: writes each vector, replacing any with the same id.
-    fn add_vectors(&self, ctx: &Context, collection: &str, vectors: &[Vector])
-    -> Result<(), Error>;
+    async fn add_vectors(
+        &self,
+        ctx: &Context,
+        collection: &str,
+        vectors: &[Vector],
+    ) -> Result<(), Error>;
     /// Go's `GetVectors`: the vectors with the given ids, in the order of `ids`.
     /// Missing ids and repeated ids are skipped.
-    fn get_vectors(
+    async fn get_vectors(
         &self,
         ctx: &Context,
         collection: &str,
         ids: &[&str],
     ) -> Result<Vec<Vector>, Error>;
     /// Go's `DeleteVectors`: deletes the vectors written before `timestamp`.
-    fn delete_vectors(
+    async fn delete_vectors(
         &self,
         ctx: &Context,
         collection: &str,
@@ -310,7 +318,7 @@ pub trait Database: Send + Sync {
     ) -> Result<(), Error>;
     /// Go's `QueryVectors`: up to `top_k` visible vectors that have all of
     /// `categories`, best score first.
-    fn query_vectors(
+    async fn query_vectors(
         &self,
         ctx: &Context,
         collection: &str,
@@ -321,9 +329,9 @@ pub trait Database: Send + Sync {
 }
 
 /// Go's `Purge`: deletes all collections from a vector database.
-pub fn purge(ctx: &Context, database: &dyn Database) -> Result<(), Error> {
-    for collection in database.list_collections(ctx)? {
-        database.delete_collection(ctx, &collection)?;
+pub async fn purge(ctx: &Context, database: &dyn Database) -> Result<(), Error> {
+    for collection in database.list_collections(ctx).await? {
+        database.delete_collection(ctx, &collection).await?;
     }
     Ok(())
 }
@@ -388,28 +396,33 @@ pub fn open(path: &str, table_prefix: &str, opts: &[Opt]) -> Result<Box<dyn Data
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct NoDatabase;
 
+#[async_trait]
 impl Database for NoDatabase {
-    fn init(&self) -> Result<(), Error> {
+    async fn init(&self) -> Result<(), Error> {
         Err(storage_error(StorageError::NoDatabase))
     }
 
-    fn optimize(&self, _ctx: &Context, _name: &str) -> Result<(), Error> {
+    async fn optimize(&self, _ctx: &Context, _name: &str) -> Result<(), Error> {
         Ok(())
     }
 
-    fn close(&self) -> Result<(), Error> {
+    async fn close(&self) -> Result<(), Error> {
         Err(storage_error(StorageError::NoDatabase))
     }
 
-    fn list_collections(&self, _ctx: &Context) -> Result<Vec<String>, Error> {
+    async fn list_collections(&self, _ctx: &Context) -> Result<Vec<String>, Error> {
         Err(storage_error(StorageError::NoDatabase))
     }
 
-    fn describe_collection(&self, _ctx: &Context, _name: &str) -> Result<CollectionInfo, Error> {
+    async fn describe_collection(
+        &self,
+        _ctx: &Context,
+        _name: &str,
+    ) -> Result<CollectionInfo, Error> {
         Err(storage_error(StorageError::NoDatabase))
     }
 
-    fn add_collection(
+    async fn add_collection(
         &self,
         _ctx: &Context,
         _name: &str,
@@ -420,15 +433,15 @@ impl Database for NoDatabase {
         Err(storage_error(StorageError::NoDatabase))
     }
 
-    fn delete_collection(&self, _ctx: &Context, _name: &str) -> Result<(), Error> {
+    async fn delete_collection(&self, _ctx: &Context, _name: &str) -> Result<(), Error> {
         Err(storage_error(StorageError::NoDatabase))
     }
 
-    fn count_vectors(&self, _ctx: &Context, _collection: &str) -> Result<i64, Error> {
+    async fn count_vectors(&self, _ctx: &Context, _collection: &str) -> Result<i64, Error> {
         Err(storage_error(StorageError::NoDatabase))
     }
 
-    fn add_vectors(
+    async fn add_vectors(
         &self,
         _ctx: &Context,
         _collection: &str,
@@ -437,7 +450,7 @@ impl Database for NoDatabase {
         Err(storage_error(StorageError::NoDatabase))
     }
 
-    fn get_vectors(
+    async fn get_vectors(
         &self,
         _ctx: &Context,
         _collection: &str,
@@ -446,7 +459,7 @@ impl Database for NoDatabase {
         Err(storage_error(StorageError::NoDatabase))
     }
 
-    fn delete_vectors(
+    async fn delete_vectors(
         &self,
         _ctx: &Context,
         _collection: &str,
@@ -455,7 +468,7 @@ impl Database for NoDatabase {
         Err(storage_error(StorageError::NoDatabase))
     }
 
-    fn query_vectors(
+    async fn query_vectors(
         &self,
         _ctx: &Context,
         _collection: &str,
@@ -499,32 +512,33 @@ mod no_database {
         NoDatabase
     }
 
-    #[test]
-    fn lifecycle() {
+    #[tokio::test]
+    async fn lifecycle() {
         let ctx = Context::background();
         let database = store();
         assert_eq!(
-            database.init().unwrap_err().kind(),
+            database.init().await.unwrap_err().kind(),
             Some(StorageError::NoDatabase)
         );
-        assert!(database.optimize(&ctx, "test").is_ok());
+        assert!(database.optimize(&ctx, "test").await.is_ok());
         assert_eq!(
-            database.close().unwrap_err().kind(),
+            database.close().await.unwrap_err().kind(),
             Some(StorageError::NoDatabase)
         );
     }
 
-    #[test]
-    fn collections() {
+    #[tokio::test]
+    async fn collections() {
         let ctx = Context::background();
         let database = store();
         assert_eq!(
-            database.list_collections(&ctx).unwrap_err().kind(),
+            database.list_collections(&ctx).await.unwrap_err().kind(),
             Some(StorageError::NoDatabase)
         );
         assert_eq!(
             database
                 .describe_collection(&ctx, "test")
+                .await
                 .unwrap_err()
                 .kind(),
             Some(StorageError::NoDatabase)
@@ -533,6 +547,7 @@ mod no_database {
         assert_eq!(
             database
                 .add_collection(&ctx, "test", 4, Distance::Cosine, config.clone())
+                .await
                 .unwrap_err()
                 .kind(),
             Some(StorageError::NoDatabase)
@@ -540,29 +555,39 @@ mod no_database {
         assert_eq!(
             database
                 .add_collection(&ctx, "test", 4, Distance::Dot, config)
+                .await
                 .unwrap_err()
                 .kind(),
             Some(StorageError::NoDatabase)
         );
         assert_eq!(
-            database.delete_collection(&ctx, "test").unwrap_err().kind(),
+            database
+                .delete_collection(&ctx, "test")
+                .await
+                .unwrap_err()
+                .kind(),
             Some(StorageError::NoDatabase)
         );
         assert_eq!(
             database
                 .delete_collection(&ctx, "missing")
+                .await
                 .unwrap_err()
                 .kind(),
             Some(StorageError::NoDatabase)
         );
     }
 
-    #[test]
-    fn vectors() {
+    #[tokio::test]
+    async fn vectors() {
         let ctx = Context::background();
         let database = store();
         assert_eq!(
-            database.count_vectors(&ctx, "test").unwrap_err().kind(),
+            database
+                .count_vectors(&ctx, "test")
+                .await
+                .unwrap_err()
+                .kind(),
             Some(StorageError::NoDatabase)
         );
 
@@ -575,17 +600,23 @@ mod no_database {
         assert_eq!(
             database
                 .add_vectors(&ctx, "test", std::slice::from_ref(&vector))
+                .await
                 .unwrap_err()
                 .kind(),
             Some(StorageError::NoDatabase)
         );
         assert_eq!(
-            database.add_vectors(&ctx, "test", &[]).unwrap_err().kind(),
+            database
+                .add_vectors(&ctx, "test", &[])
+                .await
+                .unwrap_err()
+                .kind(),
             Some(StorageError::NoDatabase)
         );
         assert_eq!(
             database
                 .get_vectors(&ctx, "test", &["a"])
+                .await
                 .unwrap_err()
                 .kind(),
             Some(StorageError::NoDatabase)
@@ -593,6 +624,7 @@ mod no_database {
         assert_eq!(
             database
                 .delete_vectors(&ctx, "test", &gotime::now())
+                .await
                 .unwrap_err()
                 .kind(),
             Some(StorageError::NoDatabase)
@@ -600,6 +632,7 @@ mod no_database {
         assert_eq!(
             database
                 .delete_vectors(&ctx, "missing", &Time::default())
+                .await
                 .unwrap_err()
                 .kind(),
             Some(StorageError::NoDatabase)
@@ -612,6 +645,7 @@ mod no_database {
         assert_eq!(
             database
                 .query_vectors(&ctx, "test", &query, &["cat-a"], 10)
+                .await
                 .unwrap_err()
                 .kind(),
             Some(StorageError::NoDatabase)
@@ -619,6 +653,7 @@ mod no_database {
         assert_eq!(
             database
                 .query_vectors(&ctx, "missing", &Vector::default(), &[], 0)
+                .await
                 .unwrap_err()
                 .kind(),
             Some(StorageError::NoDatabase)

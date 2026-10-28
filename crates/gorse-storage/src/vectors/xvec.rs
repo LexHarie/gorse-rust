@@ -27,13 +27,18 @@
 //! Queries scan every live vector. The scores are xvec's: cosine as the negated
 //! cosine distance `1 - cos`, Euclidean as the negated squared distance, and
 //! dot as the inner product. Higher scores are better, as in Go.
+//!
+//! The async trait runs each call on tokio's blocking pool, because every call
+//! does file IO or scans the vectors. The locks are std locks, and none is held
+//! across an `.await`.
 
 use std::collections::{BTreeMap, HashMap};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
+use async_trait::async_trait;
 use gorse_common::floats;
 use gorse_common::gocontext::Context;
 use gorse_common::gotime::{self, Time};
@@ -62,8 +67,16 @@ const KIND_DENSE: u8 = 0;
 /// The kind byte of a sparse vector.
 const KIND_SPARSE: u8 = 1;
 
+/// How many vectors a loop handles between two checks of the caller's context.
+const CONTEXT_CHECK_INTERVAL: usize = 1024;
+
 /// Go's `Xvec`: the `xvec://` store.
 pub struct Xvec {
+    store: Arc<Store>,
+}
+
+/// The store's state. Its methods block: they do file IO and scan vectors.
+struct Store {
     root: PathBuf,
     table_prefix: String,
     inner: RwLock<Inner>,
@@ -72,7 +85,7 @@ pub struct Xvec {
 /// What the store's lock guards: whether it is closed, and its collections.
 struct Inner {
     closed: bool,
-    collections: BTreeMap<String, Collection>,
+    collections: BTreeMap<String, Arc<Collection>>,
 }
 
 /// One collection: its schema and its vectors, which are also on disk.
@@ -117,6 +130,23 @@ enum Query {
     Sparse(HashMap<u32, f32>),
 }
 
+/// Runs `task` on tokio's blocking pool and returns its result. A panic in the
+/// task propagates to the caller, as a panic in Go's store would crash the
+/// process. Must be awaited inside a tokio runtime.
+async fn blocking<T, F>(task: F) -> Result<T, Error>
+where
+    F: FnOnce() -> Result<T, Error> + Send + 'static,
+    T: Send + 'static,
+{
+    match tokio::task::spawn_blocking(task).await {
+        Ok(result) => result,
+        Err(err) => match err.try_into_panic() {
+            Ok(panic) => std::panic::resume_unwind(panic),
+            Err(err) => Err(Error::Other(err.to_string())),
+        },
+    }
+}
+
 impl Xvec {
     /// Go's `Open` for an `xvec://` path. `root` is the path without the
     /// prefix. Nothing is read until [`Database::init`].
@@ -125,15 +155,19 @@ impl Xvec {
             return Err(Error::Other("xvec path is empty".to_owned()));
         }
         Ok(Xvec {
-            root: PathBuf::from(root),
-            table_prefix: table_prefix.to_owned(),
-            inner: RwLock::new(Inner {
-                closed: false,
-                collections: BTreeMap::new(),
+            store: Arc::new(Store {
+                root: PathBuf::from(root),
+                table_prefix: table_prefix.to_owned(),
+                inner: RwLock::new(Inner {
+                    closed: false,
+                    collections: BTreeMap::new(),
+                }),
             }),
         })
     }
+}
 
+impl Store {
     fn read(&self) -> RwLockReadGuard<'_, Inner> {
         // A panic while the lock was held leaves the maps intact: each write
         // is applied only after it is on disk. So a poisoned lock is still safe.
@@ -145,32 +179,469 @@ impl Xvec {
     }
 
     /// Go's `collection`: the collection named `name`, if the store is open and holds it.
-    fn collection(&self, name: &str) -> Result<CollectionRef<'_>, Error> {
+    fn collection(&self, name: &str) -> Result<Arc<Collection>, Error> {
         let inner = self.read();
         if inner.closed {
             return Err(closed());
         }
-        if !inner.collections.contains_key(name) {
-            return Err(not_found(name));
+        inner
+            .collections
+            .get(name)
+            .cloned()
+            .ok_or_else(|| not_found(name))
+    }
+
+    fn init(&self) -> Result<(), Error> {
+        fs::create_dir_all(&self.root).map_err(io_error)?;
+        let entries = fs::read_dir(&self.root).map_err(io_error)?;
+        {
+            let inner = self.read();
+            if inner.closed {
+                return Err(closed());
+            }
+            if !inner.collections.is_empty() {
+                return Ok(());
+            }
         }
-        Ok(CollectionRef {
-            inner,
+        let mut opened = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(io_error)?;
+            if !entry.file_type().map_err(io_error)?.is_dir() {
+                continue;
+            }
+            let dir_name = entry.file_name().to_string_lossy().into_owned();
+            let Some(name) = dir_name.strip_prefix(self.table_prefix.as_str()) else {
+                continue;
+            };
+            if name.is_empty() {
+                continue;
+            }
+            match Collection::open(&entry.path(), name)? {
+                Some(collection) => opened.push((name.to_owned(), collection)),
+                None => tracing::warn!(
+                    collection = name,
+                    "skipping a directory without a vector log of this format"
+                ),
+            }
+        }
+        let mut inner = self.write();
+        if inner.closed {
+            return Err(closed());
+        }
+        for (name, collection) in opened {
+            inner
+                .collections
+                .entry(name)
+                .or_insert_with(|| Arc::new(collection));
+        }
+        Ok(())
+    }
+
+    fn optimize(&self, ctx: &Context, name: &str) -> Result<(), Error> {
+        let collection = self.collection(name)?;
+        check_context(ctx)?;
+        let mut state = collection
+            .state
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
+        compact(ctx, &collection, &mut state)
+    }
+
+    fn close(&self) -> Result<(), Error> {
+        let mut inner = self.write();
+        if inner.closed {
+            return Ok(());
+        }
+        inner.closed = true;
+        // The collections close with their last handle: every write was synced.
+        inner.collections.clear();
+        Ok(())
+    }
+
+    fn list_collections(&self, ctx: &Context) -> Result<Vec<String>, Error> {
+        check_context(ctx)?;
+        let inner = self.read();
+        if inner.closed {
+            return Err(closed());
+        }
+        Ok(inner.collections.keys().cloned().collect())
+    }
+
+    fn describe_collection(&self, ctx: &Context, name: &str) -> Result<CollectionInfo, Error> {
+        check_context(ctx)?;
+        Ok(self.collection(name)?.info.clone())
+    }
+
+    fn add_collection(
+        &self,
+        ctx: &Context,
+        name: &str,
+        dimensions: i64,
+        distance: Distance,
+        config: &VectorConfig,
+    ) -> Result<(), Error> {
+        // Go's `collectionSchema`, which runs before the store is looked at.
+        check_context(ctx)?;
+        if dimensions < 0 || dimensions > i64::from(u32::MAX) {
+            return Err(Error::Other(format!(
+                "invalid vector dimension {dimensions}"
+            )));
+        }
+        if config.quantization != QuantizationType::None {
+            return Err(Error::Storage {
+                kind: StorageError::NotSupported,
+                message: format!(
+                    "quantization type {} for xvec {}",
+                    config.quantization,
+                    StorageError::NotSupported
+                ),
+            });
+        }
+        if dimensions == 0 && distance != Distance::Dot {
+            return Err(Error::Storage {
+                kind: StorageError::NotSupported,
+                message: format!(
+                    "distance method for sparse vector {}",
+                    StorageError::NotSupported
+                ),
+            });
+        }
+        check_name(name)?;
+
+        let mut inner = self.write();
+        if inner.closed {
+            return Err(closed());
+        }
+        if inner.collections.contains_key(name) {
+            return Err(already_exists(name));
+        }
+        let dir = self.root.join(format!("{}{name}", self.table_prefix));
+        if dir.exists() {
+            if holds_collection(&dir) {
+                return Err(Error::Other(format!(
+                    "directory {} already holds a collection",
+                    dir.display()
+                )));
+            }
+            // A directory of another store under this name. Its contents are
+            // derived data, so it is replaced (`PORTING_NOTES.md` X-WP28-3).
+            tracing::warn!(
+                collection = name,
+                directory = %dir.display(),
+                "replacing a directory without a vector log of this format"
+            );
+            fs::remove_dir_all(&dir).map_err(io_error)?;
+        }
+        let info = CollectionInfo {
             name: name.to_owned(),
-        })
+            dimension: dimensions,
+            distance,
+            config: VectorConfig::default(),
+        };
+        let collection = Collection::create(&dir, info)?;
+        inner
+            .collections
+            .insert(name.to_owned(), Arc::new(collection));
+        Ok(())
+    }
+
+    fn delete_collection(&self, name: &str) -> Result<(), Error> {
+        let mut inner = self.write();
+        if inner.closed {
+            return Err(closed());
+        }
+        let Some(collection) = inner.collections.remove(name) else {
+            return Err(not_found(name));
+        };
+        if let Err(err) = fs::remove_dir_all(&collection.dir) {
+            // Go puts the collection back when its destroy fails.
+            inner.collections.insert(name.to_owned(), collection);
+            return Err(io_error(err));
+        }
+        Ok(())
+    }
+
+    fn count_vectors(&self, ctx: &Context, name: &str) -> Result<i64, Error> {
+        check_context(ctx)?;
+        let collection = self.collection(name)?;
+        let state = collection
+            .state
+            .read()
+            .unwrap_or_else(PoisonError::into_inner);
+        Ok(state.docs.len() as i64)
+    }
+
+    fn add_vectors(&self, ctx: &Context, name: &str, vectors: &[Vector]) -> Result<(), Error> {
+        if vectors.is_empty() {
+            return Ok(());
+        }
+        let collection = self.collection(name)?;
+        check_context(ctx)?;
+        let docs = vectors
+            .iter()
+            .map(|vector| Ok((vector.id.as_str(), collection.encode(vector)?)))
+            .collect::<Result<Vec<_>, Error>>()?;
+        check_context(ctx)?;
+        let mut state = collection
+            .state
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
+        let payloads: Vec<Vec<u8>> = docs
+            .iter()
+            .map(|(id, doc)| upsert_payload(id, doc))
+            .collect();
+        append(&mut state, &payloads)?;
+        for (id, doc) in docs {
+            state.docs.insert(id.to_owned(), doc);
+        }
+        Ok(())
+    }
+
+    fn get_vectors(&self, ctx: &Context, name: &str, ids: &[String]) -> Result<Vec<Vector>, Error> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let collection = self.collection(name)?;
+        check_context(ctx)?;
+        let state = collection
+            .state
+            .read()
+            .unwrap_or_else(PoisonError::into_inner);
+        let mut vectors = Vec::new();
+        for (index, id) in ids.iter().enumerate() {
+            if index % CONTEXT_CHECK_INTERVAL == 0 {
+                check_context(ctx)?;
+            }
+            if let Some(doc) = state.docs.get(id) {
+                // Go's `GetVectors` returns the timestamp in UTC.
+                let timestamp = gotime::unix_milli(doc.timestamp).utc();
+                vectors.push(vector_from(id, doc, timestamp));
+            }
+        }
+        let refs: Vec<&str> = ids.iter().map(String::as_str).collect();
+        Ok(order_vectors(&refs, vectors))
+    }
+
+    fn delete_vectors(&self, ctx: &Context, name: &str, timestamp: &Time) -> Result<(), Error> {
+        let collection = self.collection(name)?;
+        check_context(ctx)?;
+        let cutoff = timestamp.unix_milli();
+        let mut state = collection
+            .state
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
+        append(&mut state, &[delete_payload(cutoff)])?;
+        state.docs.retain(|_, doc| doc.timestamp >= cutoff);
+        Ok(())
+    }
+
+    fn query_vectors(
+        &self,
+        ctx: &Context,
+        name: &str,
+        q: &Vector,
+        categories: &[String],
+        top_k: i64,
+    ) -> Result<Vec<ScoredVector>, Error> {
+        if top_k <= 0 {
+            return Ok(Vec::new());
+        }
+        let collection = self.collection(name)?;
+        check_context(ctx)?;
+        let query = if q.is_sparse() {
+            if collection.info.dimension != 0 {
+                return Err(Error::Other(format!(
+                    "query is sparse but collection {} is dense",
+                    collection.info.name
+                )));
+            }
+            if q.indices.len() != q.values.len() {
+                return Err(Error::Other(format!(
+                    "query has {} indices and {} values",
+                    q.indices.len(),
+                    q.values.len()
+                )));
+            }
+            Query::Sparse(
+                q.indices
+                    .iter()
+                    .copied()
+                    .zip(q.values.iter().copied())
+                    .collect(),
+            )
+        } else {
+            if collection.info.dimension == 0 {
+                return Err(Error::Other(format!(
+                    "query is dense but collection {} is sparse",
+                    collection.info.name
+                )));
+            }
+            let bits = q.float16_values();
+            if bits.len() as i64 != collection.info.dimension {
+                return Err(Error::Other(format!(
+                    "query has {} dimensions, collection {} has {}",
+                    bits.len(),
+                    collection.info.name,
+                    collection.info.dimension
+                )));
+            }
+            Query::Dense(floats::to_float32(&bits))
+        };
+
+        let state = collection
+            .state
+            .read()
+            .unwrap_or_else(PoisonError::into_inner);
+        let mut hits: Vec<(f32, &str, &Doc)> = Vec::new();
+        for (index, (id, doc)) in state.docs.iter().enumerate() {
+            if index % CONTEXT_CHECK_INTERVAL == 0 {
+                check_context(ctx)?;
+            }
+            if doc.hidden || !has_categories(&doc.categories, categories) {
+                continue;
+            }
+            let score = match (&doc.values, &query) {
+                (Values::Dense(values), Query::Dense(query)) => {
+                    dense_score(collection.info.distance, query, values)
+                }
+                (Values::Sparse { indices, values }, Query::Sparse(query)) => {
+                    let score = sparse_dot(query, indices, values);
+                    // Go skips the zero scores of a sparse query: no shared index.
+                    if score == 0.0 {
+                        continue;
+                    }
+                    score
+                }
+                // A collection holds one kind of vector, and the query was
+                // checked against it above.
+                _ => continue,
+            };
+            hits.push((score, id, doc));
+        }
+        // Best score first. Ties go to the smaller id, so the order is total.
+        let by_score = |a: &(f32, &str, &Doc), b: &(f32, &str, &Doc)| {
+            b.0.total_cmp(&a.0).then_with(|| a.1.cmp(b.1))
+        };
+        let top_k = usize::try_from(top_k).unwrap_or(usize::MAX);
+        if hits.len() > top_k {
+            hits.select_nth_unstable_by(top_k - 1, by_score);
+            hits.truncate(top_k);
+        }
+        hits.sort_by(by_score);
+        Ok(hits
+            .into_iter()
+            .map(|(score, id, doc)| ScoredVector {
+                // Go's QueryVectors does not convert the timestamp to UTC.
+                vector: vector_from(id, doc, gotime::unix_milli(doc.timestamp)),
+                score,
+            })
+            .collect())
     }
 }
 
-/// A collection looked up under the store's read lock.
-struct CollectionRef<'a> {
-    inner: RwLockReadGuard<'a, Inner>,
-    name: String,
-}
+#[async_trait]
+impl Database for Xvec {
+    async fn init(&self) -> Result<(), Error> {
+        let store = Arc::clone(&self.store);
+        blocking(move || store.init()).await
+    }
 
-impl CollectionRef<'_> {
-    fn get(&self) -> &Collection {
-        // Presence was checked when the reference was made, and the read lock
-        // keeps the collection from being removed since.
-        &self.inner.collections[&self.name]
+    async fn optimize(&self, ctx: &Context, name: &str) -> Result<(), Error> {
+        let (store, ctx, name) = (Arc::clone(&self.store), ctx.clone(), name.to_owned());
+        blocking(move || store.optimize(&ctx, &name)).await
+    }
+
+    async fn close(&self) -> Result<(), Error> {
+        let store = Arc::clone(&self.store);
+        blocking(move || store.close()).await
+    }
+
+    async fn list_collections(&self, ctx: &Context) -> Result<Vec<String>, Error> {
+        let (store, ctx) = (Arc::clone(&self.store), ctx.clone());
+        blocking(move || store.list_collections(&ctx)).await
+    }
+
+    async fn describe_collection(
+        &self,
+        ctx: &Context,
+        name: &str,
+    ) -> Result<CollectionInfo, Error> {
+        let (store, ctx, name) = (Arc::clone(&self.store), ctx.clone(), name.to_owned());
+        blocking(move || store.describe_collection(&ctx, &name)).await
+    }
+
+    async fn add_collection(
+        &self,
+        ctx: &Context,
+        name: &str,
+        dimensions: i64,
+        distance: Distance,
+        config: VectorConfig,
+    ) -> Result<(), Error> {
+        let (store, ctx, name) = (Arc::clone(&self.store), ctx.clone(), name.to_owned());
+        blocking(move || store.add_collection(&ctx, &name, dimensions, distance, &config)).await
+    }
+
+    async fn delete_collection(&self, _ctx: &Context, name: &str) -> Result<(), Error> {
+        let (store, name) = (Arc::clone(&self.store), name.to_owned());
+        blocking(move || store.delete_collection(&name)).await
+    }
+
+    async fn count_vectors(&self, ctx: &Context, collection: &str) -> Result<i64, Error> {
+        let (store, ctx, name) = (Arc::clone(&self.store), ctx.clone(), collection.to_owned());
+        blocking(move || store.count_vectors(&ctx, &name)).await
+    }
+
+    async fn add_vectors(
+        &self,
+        ctx: &Context,
+        collection: &str,
+        vectors: &[Vector],
+    ) -> Result<(), Error> {
+        let (store, ctx, name) = (Arc::clone(&self.store), ctx.clone(), collection.to_owned());
+        let vectors = vectors.to_vec();
+        blocking(move || store.add_vectors(&ctx, &name, &vectors)).await
+    }
+
+    async fn get_vectors(
+        &self,
+        ctx: &Context,
+        collection: &str,
+        ids: &[&str],
+    ) -> Result<Vec<Vector>, Error> {
+        let (store, ctx, name) = (Arc::clone(&self.store), ctx.clone(), collection.to_owned());
+        let ids: Vec<String> = ids.iter().map(|id| (*id).to_owned()).collect();
+        blocking(move || store.get_vectors(&ctx, &name, &ids)).await
+    }
+
+    async fn delete_vectors(
+        &self,
+        ctx: &Context,
+        collection: &str,
+        timestamp: &Time,
+    ) -> Result<(), Error> {
+        let (store, ctx, name) = (Arc::clone(&self.store), ctx.clone(), collection.to_owned());
+        let timestamp = timestamp.clone();
+        blocking(move || store.delete_vectors(&ctx, &name, &timestamp)).await
+    }
+
+    async fn query_vectors(
+        &self,
+        ctx: &Context,
+        collection: &str,
+        q: &Vector,
+        categories: &[&str],
+        top_k: i64,
+    ) -> Result<Vec<ScoredVector>, Error> {
+        let (store, ctx, name) = (Arc::clone(&self.store), ctx.clone(), collection.to_owned());
+        let (q, categories) = (
+            q.clone(),
+            categories
+                .iter()
+                .map(|c| (*c).to_owned())
+                .collect::<Vec<_>>(),
+        );
+        blocking(move || store.query_vectors(&ctx, &name, &q, &categories, top_k)).await
     }
 }
 
@@ -204,7 +675,8 @@ fn distance_from_code(code: u8) -> Option<Distance> {
     }
 }
 
-/// Go's `collectionSchema` checks on a collection's name.
+/// Rejects names that would not stay one directory under the store's root.
+/// `PORTING_NOTES.md` X-WP28-4.
 fn check_name(name: &str) -> Result<(), Error> {
     if name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\']) {
         return Err(Error::Other(format!("invalid collection name {name:?}")));
@@ -575,13 +1047,17 @@ fn append(state: &mut State, payloads: &[Vec<u8>]) -> Result<(), Error> {
 }
 
 /// Rewrites the log with one upsert per live vector, and reopens it.
-fn compact(collection: &Collection, state: &mut State) -> Result<(), Error> {
+fn compact(ctx: &Context, collection: &Collection, state: &mut State) -> Result<(), Error> {
     let mut out = header(collection.info.dimension as u32, collection.info.distance);
-    for (id, doc) in &state.docs {
+    for (index, (id, doc)) in state.docs.iter().enumerate() {
+        if index % CONTEXT_CHECK_INTERVAL == 0 {
+            check_context(ctx)?;
+        }
         let payload = upsert_payload(id, doc);
         put_u32(&mut out, payload.len());
         out.extend_from_slice(&payload);
     }
+    check_context(ctx)?;
     let path = collection.dir.join(LOG_FILE);
     let tmp = collection.dir.join(format!("{LOG_FILE}.tmp"));
     let result = (|| -> io::Result<File> {
@@ -610,7 +1086,7 @@ fn compact(collection: &Collection, state: &mut State) -> Result<(), Error> {
 }
 
 /// Go's `hasCategories`: the document has every category asked for.
-fn has_categories(doc_categories: &[String], wanted: &[&str]) -> bool {
+fn has_categories(doc_categories: &[String], wanted: &[String]) -> bool {
     wanted
         .iter()
         .all(|wanted| doc_categories.iter().any(|category| category == wanted))
@@ -681,363 +1157,6 @@ fn vector_from(id: &str, doc: &Doc, timestamp: Time) -> Vector {
     vector
 }
 
-impl Database for Xvec {
-    fn init(&self) -> Result<(), Error> {
-        fs::create_dir_all(&self.root).map_err(io_error)?;
-        let entries = fs::read_dir(&self.root).map_err(io_error)?;
-        {
-            let inner = self.read();
-            if inner.closed {
-                return Err(closed());
-            }
-            if !inner.collections.is_empty() {
-                return Ok(());
-            }
-        }
-        let mut opened = Vec::new();
-        for entry in entries {
-            let entry = entry.map_err(io_error)?;
-            if !entry.file_type().map_err(io_error)?.is_dir() {
-                continue;
-            }
-            let dir_name = entry.file_name().to_string_lossy().into_owned();
-            let Some(name) = dir_name.strip_prefix(self.table_prefix.as_str()) else {
-                continue;
-            };
-            if name.is_empty() {
-                continue;
-            }
-            match Collection::open(&entry.path(), name)? {
-                Some(collection) => opened.push((name.to_owned(), collection)),
-                None => tracing::warn!(
-                    collection = name,
-                    "skipping a directory without a vector log of this format"
-                ),
-            }
-        }
-        let mut inner = self.write();
-        if inner.closed {
-            return Err(closed());
-        }
-        for (name, collection) in opened {
-            inner.collections.entry(name).or_insert(collection);
-        }
-        Ok(())
-    }
-
-    fn optimize(&self, ctx: &Context, name: &str) -> Result<(), Error> {
-        let collection = self.collection(name)?;
-        check_context(ctx)?;
-        let collection = collection.get();
-        let mut state = collection
-            .state
-            .write()
-            .unwrap_or_else(PoisonError::into_inner);
-        compact(collection, &mut state)
-    }
-
-    fn close(&self) -> Result<(), Error> {
-        let mut inner = self.write();
-        if inner.closed {
-            return Ok(());
-        }
-        inner.closed = true;
-        // The collections close with their last handle: every write was synced.
-        inner.collections.clear();
-        Ok(())
-    }
-
-    fn list_collections(&self, ctx: &Context) -> Result<Vec<String>, Error> {
-        check_context(ctx)?;
-        let inner = self.read();
-        if inner.closed {
-            return Err(closed());
-        }
-        Ok(inner.collections.keys().cloned().collect())
-    }
-
-    fn describe_collection(&self, ctx: &Context, name: &str) -> Result<CollectionInfo, Error> {
-        check_context(ctx)?;
-        let collection = self.collection(name)?;
-        Ok(collection.get().info.clone())
-    }
-
-    fn add_collection(
-        &self,
-        ctx: &Context,
-        name: &str,
-        dimensions: i64,
-        distance: Distance,
-        config: VectorConfig,
-    ) -> Result<(), Error> {
-        // Go's `collectionSchema`, which runs before the store is looked at.
-        check_context(ctx)?;
-        if dimensions < 0 || dimensions > i64::from(u32::MAX) {
-            return Err(Error::Other(format!(
-                "invalid vector dimension {dimensions}"
-            )));
-        }
-        if config.quantization != QuantizationType::None {
-            return Err(Error::Storage {
-                kind: StorageError::NotSupported,
-                message: format!(
-                    "quantization type {} for xvec {}",
-                    config.quantization,
-                    StorageError::NotSupported
-                ),
-            });
-        }
-        if dimensions == 0 && distance != Distance::Dot {
-            return Err(Error::Storage {
-                kind: StorageError::NotSupported,
-                message: format!(
-                    "distance method for sparse vector {}",
-                    StorageError::NotSupported
-                ),
-            });
-        }
-        check_name(name)?;
-
-        let mut inner = self.write();
-        if inner.closed {
-            return Err(closed());
-        }
-        if inner.collections.contains_key(name) {
-            return Err(already_exists(name));
-        }
-        let dir = self.root.join(format!("{}{name}", self.table_prefix));
-        if dir.exists() {
-            if holds_collection(&dir) {
-                return Err(Error::Other(format!(
-                    "directory {} already holds a collection",
-                    dir.display()
-                )));
-            }
-            // A directory of another store under this name. Its contents are
-            // derived data, so it is replaced (`PORTING_NOTES.md` X-WP28-3).
-            tracing::warn!(
-                collection = name,
-                "replacing a directory without a vector log of this format"
-            );
-            fs::remove_dir_all(&dir).map_err(io_error)?;
-        }
-        let info = CollectionInfo {
-            name: name.to_owned(),
-            dimension: dimensions,
-            distance,
-            config: VectorConfig::default(),
-        };
-        let collection = Collection::create(&dir, info)?;
-        inner.collections.insert(name.to_owned(), collection);
-        Ok(())
-    }
-
-    fn delete_collection(&self, _ctx: &Context, name: &str) -> Result<(), Error> {
-        let mut inner = self.write();
-        if inner.closed {
-            return Err(closed());
-        }
-        let Some(collection) = inner.collections.remove(name) else {
-            return Err(not_found(name));
-        };
-        if let Err(err) = fs::remove_dir_all(&collection.dir) {
-            // Go puts the collection back when its destroy fails.
-            inner.collections.insert(name.to_owned(), collection);
-            return Err(io_error(err));
-        }
-        Ok(())
-    }
-
-    fn count_vectors(&self, ctx: &Context, collection: &str) -> Result<i64, Error> {
-        check_context(ctx)?;
-        let found = self.collection(collection)?;
-        let state = found
-            .get()
-            .state
-            .read()
-            .unwrap_or_else(PoisonError::into_inner);
-        Ok(state.docs.len() as i64)
-    }
-
-    fn add_vectors(
-        &self,
-        ctx: &Context,
-        collection: &str,
-        vectors: &[Vector],
-    ) -> Result<(), Error> {
-        if vectors.is_empty() {
-            return Ok(());
-        }
-        let found = self.collection(collection)?;
-        check_context(ctx)?;
-        let collection = found.get();
-        let docs = vectors
-            .iter()
-            .map(|vector| Ok((vector.id.as_str(), collection.encode(vector)?)))
-            .collect::<Result<Vec<_>, Error>>()?;
-        let mut state = collection
-            .state
-            .write()
-            .unwrap_or_else(PoisonError::into_inner);
-        let payloads: Vec<Vec<u8>> = docs
-            .iter()
-            .map(|(id, doc)| upsert_payload(id, doc))
-            .collect();
-        append(&mut state, &payloads)?;
-        for (id, doc) in docs {
-            state.docs.insert(id.to_owned(), doc);
-        }
-        Ok(())
-    }
-
-    fn get_vectors(
-        &self,
-        ctx: &Context,
-        collection: &str,
-        ids: &[&str],
-    ) -> Result<Vec<Vector>, Error> {
-        if ids.is_empty() {
-            return Ok(Vec::new());
-        }
-        let found = self.collection(collection)?;
-        check_context(ctx)?;
-        let state = found
-            .get()
-            .state
-            .read()
-            .unwrap_or_else(PoisonError::into_inner);
-        let vectors = ids
-            .iter()
-            .filter_map(|id| {
-                let doc = state.docs.get(*id)?;
-                let timestamp = gotime::unix_milli(doc.timestamp).utc();
-                Some(vector_from(id, doc, timestamp))
-            })
-            .collect();
-        Ok(order_vectors(ids, vectors))
-    }
-
-    fn delete_vectors(
-        &self,
-        ctx: &Context,
-        collection: &str,
-        timestamp: &Time,
-    ) -> Result<(), Error> {
-        let found = self.collection(collection)?;
-        check_context(ctx)?;
-        let cutoff = timestamp.unix_milli();
-        let mut state = found
-            .get()
-            .state
-            .write()
-            .unwrap_or_else(PoisonError::into_inner);
-        append(&mut state, &[delete_payload(cutoff)])?;
-        state.docs.retain(|_, doc| doc.timestamp >= cutoff);
-        Ok(())
-    }
-
-    fn query_vectors(
-        &self,
-        ctx: &Context,
-        collection: &str,
-        q: &Vector,
-        categories: &[&str],
-        top_k: i64,
-    ) -> Result<Vec<ScoredVector>, Error> {
-        if top_k <= 0 {
-            return Ok(Vec::new());
-        }
-        let found = self.collection(collection)?;
-        check_context(ctx)?;
-        let collection = found.get();
-        let query = if q.is_sparse() {
-            if collection.info.dimension != 0 {
-                return Err(Error::Other(format!(
-                    "query is sparse but collection {collection_name} is dense",
-                    collection_name = collection.info.name
-                )));
-            }
-            if q.indices.len() != q.values.len() {
-                return Err(Error::Other(format!(
-                    "query has {} indices and {} values",
-                    q.indices.len(),
-                    q.values.len()
-                )));
-            }
-            Query::Sparse(
-                q.indices
-                    .iter()
-                    .copied()
-                    .zip(q.values.iter().copied())
-                    .collect(),
-            )
-        } else {
-            if collection.info.dimension == 0 {
-                return Err(Error::Other(format!(
-                    "query is dense but collection {} is sparse",
-                    collection.info.name
-                )));
-            }
-            let bits = q.float16_values();
-            if bits.len() as i64 != collection.info.dimension {
-                return Err(Error::Other(format!(
-                    "query has {} dimensions, collection {} has {}",
-                    bits.len(),
-                    collection.info.name,
-                    collection.info.dimension
-                )));
-            }
-            Query::Dense(floats::to_float32(&bits))
-        };
-
-        let state = collection
-            .state
-            .read()
-            .unwrap_or_else(PoisonError::into_inner);
-        let mut hits: Vec<(f32, &str, &Doc)> = Vec::new();
-        for (id, doc) in &state.docs {
-            if doc.hidden || !has_categories(&doc.categories, categories) {
-                continue;
-            }
-            let score = match (&doc.values, &query) {
-                (Values::Dense(values), Query::Dense(query)) => {
-                    dense_score(collection.info.distance, query, values)
-                }
-                (Values::Sparse { indices, values }, Query::Sparse(query)) => {
-                    let score = sparse_dot(query, indices, values);
-                    // Go skips the zero scores of a sparse query: no shared index.
-                    if score == 0.0 {
-                        continue;
-                    }
-                    score
-                }
-                // A collection holds one kind of vector, and the query was
-                // checked against it above.
-                _ => continue,
-            };
-            hits.push((score, id, doc));
-        }
-        // Best score first. Ties go to the smaller id, so the order is total.
-        let by_score = |a: &(f32, &str, &Doc), b: &(f32, &str, &Doc)| {
-            b.0.total_cmp(&a.0).then_with(|| a.1.cmp(b.1))
-        };
-        let top_k = usize::try_from(top_k).unwrap_or(usize::MAX);
-        if hits.len() > top_k {
-            hits.select_nth_unstable_by(top_k - 1, by_score);
-            hits.truncate(top_k);
-        }
-        hits.sort_by(by_score);
-        Ok(hits
-            .into_iter()
-            .map(|(score, id, doc)| ScoredVector {
-                // Go's QueryVectors does not convert the timestamp to UTC.
-                vector: vector_from(id, doc, gotime::unix_milli(doc.timestamp)),
-                score,
-            })
-            .collect())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1047,7 +1166,7 @@ mod tests {
     use gorse_storage_core::scheme::XVEC_PREFIX;
 
     /// Go's `XvecTestSuite`: each case runs on a new store with table prefix `gorse_`.
-    fn run(case: fn(&Context, &dyn Database)) {
+    async fn run(case: impl for<'a> AsyncFnOnce(&'a Context, &'a dyn Database)) {
         let dir = tempfile::tempdir().expect("temp dir");
         let db = open(
             &format!("{XVEC_PREFIX}{}", dir.path().display()),
@@ -1055,71 +1174,72 @@ mod tests {
             &[] as &[Opt],
         )
         .expect("open");
-        db.init().expect("init");
-        case(&Context::background(), db.as_ref());
-        db.close().expect("close");
+        db.init().await.expect("init");
+        case(&Context::background(), db.as_ref()).await;
+        db.close().await.expect("close");
     }
 
-    #[test]
-    fn purge() {
-        run(suite::test_purge);
+    #[tokio::test]
+    async fn purge() {
+        run(suite::test_purge).await;
     }
 
-    #[test]
-    fn collections() {
-        run(suite::test_collections);
+    #[tokio::test]
+    async fn collections() {
+        run(suite::test_collections).await;
     }
 
-    #[test]
-    fn vectors() {
-        run(suite::test_vectors);
+    #[tokio::test]
+    async fn vectors() {
+        run(suite::test_vectors).await;
     }
 
-    #[test]
-    fn half_vectors() {
-        run(suite::test_half_vectors);
+    #[tokio::test]
+    async fn half_vectors() {
+        run(suite::test_half_vectors).await;
     }
 
-    #[test]
-    fn get_vectors() {
-        run(suite::test_get_vectors);
+    #[tokio::test]
+    async fn get_vectors() {
+        run(suite::test_get_vectors).await;
     }
 
-    #[test]
-    fn sparse() {
-        run(suite::test_sparse);
+    #[tokio::test]
+    async fn sparse() {
+        run(suite::test_sparse).await;
     }
 
-    #[test]
-    fn hidden() {
-        run(suite::test_hidden);
+    #[tokio::test]
+    async fn hidden() {
+        run(suite::test_hidden).await;
     }
 
-    #[test]
-    fn dot() {
-        run(suite::test_dot);
+    #[tokio::test]
+    async fn dot() {
+        run(suite::test_dot).await;
     }
 
-    #[test]
-    fn delete_vectors() {
-        run(suite::test_delete_vectors);
+    #[tokio::test]
+    async fn delete_vectors() {
+        run(suite::test_delete_vectors).await;
     }
 
     /// The suite's quantization case with the one quantization xvec accepts.
-    #[test]
-    fn quantization_none() {
-        run(|ctx, db| suite::test_quantization(ctx, db, QuantizationType::None, 0));
+    #[tokio::test]
+    async fn quantization_none() {
+        run(async |ctx, db| suite::test_quantization(ctx, db, QuantizationType::None, 0).await)
+            .await;
     }
 
     /// A store on `dir`, initialised.
-    fn store_at(dir: &Path) -> Box<dyn Database> {
+    async fn store_at(dir: &Path) -> Box<dyn Database> {
         let db = open(
             &format!("{XVEC_PREFIX}{}", dir.display()),
             "gorse_",
             &[] as &[Opt],
         )
         .expect("open");
-        db.init().expect("init");
+        db.init().await.expect("init");
         db
     }
 
@@ -1133,14 +1253,15 @@ mod tests {
         }
     }
 
-    #[test]
-    fn reopen_keeps_collections_and_vectors() {
+    #[tokio::test]
+    async fn reopen_keeps_collections_and_vectors() {
         let dir = tempfile::tempdir().expect("temp dir");
         let ctx = Context::background();
         let timestamp = gotime::now().utc().truncate(MILLISECOND);
         let before = {
-            let db = store_at(dir.path());
+            let db = store_at(dir.path()).await;
             db.add_collection(&ctx, "test", 4, Distance::Cosine, VectorConfig::default())
+                .await
                 .expect("add");
             db.add_vectors(
                 &ctx,
@@ -1150,6 +1271,7 @@ mod tests {
                     dense("b", &[0.9, 0.1, 0.0, 0.0], timestamp.clone()),
                 ],
             )
+            .await
             .expect("add vectors");
             let results = db
                 .query_vectors(
@@ -1159,14 +1281,15 @@ mod tests {
                     &[],
                     10,
                 )
+                .await
                 .expect("query");
-            db.close().expect("close");
+            db.close().await.expect("close");
             results
         };
 
-        let db = store_at(dir.path());
-        assert_eq!(db.list_collections(&ctx).expect("list"), ["test"]);
-        assert_eq!(db.count_vectors(&ctx, "test").expect("count"), 2);
+        let db = store_at(dir.path()).await;
+        assert_eq!(db.list_collections(&ctx).await.expect("list"), ["test"]);
+        assert_eq!(db.count_vectors(&ctx, "test").await.expect("count"), 2);
         let after = db
             .query_vectors(
                 &ctx,
@@ -1175,28 +1298,31 @@ mod tests {
                 &[],
                 10,
             )
+            .await
             .expect("query");
         assert_eq!(after, before);
-        let stored = db.get_vectors(&ctx, "test", &["a"]).expect("get");
+        let stored = db.get_vectors(&ctx, "test", &["a"]).await.expect("get");
         assert_eq!(stored[0].timestamp, timestamp);
-        db.close().expect("close");
+        db.close().await.expect("close");
     }
 
-    #[test]
-    fn incomplete_record_at_the_end_is_dropped() {
+    #[tokio::test]
+    async fn incomplete_record_at_the_end_is_dropped() {
         let dir = tempfile::tempdir().expect("temp dir");
         let ctx = Context::background();
         let timestamp = gotime::now().utc().truncate(MILLISECOND);
-        let db = store_at(dir.path());
+        let db = store_at(dir.path()).await;
         db.add_collection(&ctx, "test", 4, Distance::Cosine, VectorConfig::default())
+            .await
             .expect("add");
         db.add_vectors(
             &ctx,
             "test",
             &[dense("a", &[1.0, 0.0, 0.0, 0.0], timestamp.clone())],
         )
+        .await
         .expect("add");
-        db.close().expect("close");
+        db.close().await.expect("close");
 
         let log = dir.path().join("gorse_test").join(LOG_FILE);
         let intact = fs::metadata(&log).expect("metadata").len();
@@ -1210,30 +1336,32 @@ mod tests {
             .write_all(&torn)
             .expect("write");
 
-        let db = store_at(dir.path());
-        assert_eq!(db.count_vectors(&ctx, "test").expect("count"), 1);
+        let db = store_at(dir.path()).await;
+        assert_eq!(db.count_vectors(&ctx, "test").await.expect("count"), 1);
         assert_eq!(fs::metadata(&log).expect("metadata").len(), intact);
         db.add_vectors(
             &ctx,
             "test",
             &[dense("b", &[0.0, 1.0, 0.0, 0.0], timestamp)],
         )
+        .await
         .expect("add");
-        db.close().expect("close");
+        db.close().await.expect("close");
 
-        let db = store_at(dir.path());
-        assert_eq!(db.count_vectors(&ctx, "test").expect("count"), 2);
-        db.close().expect("close");
+        let db = store_at(dir.path()).await;
+        assert_eq!(db.count_vectors(&ctx, "test").await.expect("count"), 2);
+        db.close().await.expect("close");
     }
 
     /// A delete is replayed from the log when the store is opened again.
-    #[test]
-    fn delete_survives_reopen() {
+    #[tokio::test]
+    async fn delete_survives_reopen() {
         let dir = tempfile::tempdir().expect("temp dir");
         let ctx = Context::background();
         let cutoff = gotime::now().utc().truncate(MILLISECOND);
-        let db = store_at(dir.path());
+        let db = store_at(dir.path()).await;
         db.add_collection(&ctx, "test", 4, Distance::Cosine, VectorConfig::default())
+            .await
             .expect("add");
         db.add_vectors(
             &ctx,
@@ -1252,29 +1380,34 @@ mod tests {
                 ),
             ],
         )
+        .await
         .expect("add vectors");
-        db.delete_vectors(&ctx, "test", &cutoff).expect("delete");
-        db.close().expect("close");
+        db.delete_vectors(&ctx, "test", &cutoff)
+            .await
+            .expect("delete");
+        db.close().await.expect("close");
 
-        let db = store_at(dir.path());
-        assert_eq!(db.count_vectors(&ctx, "test").expect("count"), 2);
+        let db = store_at(dir.path()).await;
+        assert_eq!(db.count_vectors(&ctx, "test").await.expect("count"), 2);
         let ids: Vec<String> = db
             .get_vectors(&ctx, "test", &["old", "at", "new"])
+            .await
             .expect("get")
             .into_iter()
             .map(|vector| vector.id)
             .collect();
         assert_eq!(ids, ["at", "new"]);
-        db.close().expect("close");
+        db.close().await.expect("close");
     }
 
-    #[test]
-    fn optimize_rewrites_the_log_and_keeps_the_vectors() {
+    #[tokio::test]
+    async fn optimize_rewrites_the_log_and_keeps_the_vectors() {
         let dir = tempfile::tempdir().expect("temp dir");
         let ctx = Context::background();
         let cutoff = gotime::now().utc().truncate(MILLISECOND);
-        let db = store_at(dir.path());
+        let db = store_at(dir.path()).await;
         db.add_collection(&ctx, "test", 4, Distance::Dot, VectorConfig::default())
+            .await
             .expect("add");
         db.add_vectors(
             &ctx,
@@ -1293,12 +1426,15 @@ mod tests {
                 ),
             ],
         )
+        .await
         .expect("add vectors");
-        db.delete_vectors(&ctx, "test", &cutoff).expect("delete");
+        db.delete_vectors(&ctx, "test", &cutoff)
+            .await
+            .expect("delete");
         let log = dir.path().join("gorse_test").join(LOG_FILE);
         let before = fs::metadata(&log).expect("metadata").len();
 
-        db.optimize(&ctx, "test").expect("optimize");
+        db.optimize(&ctx, "test").await.expect("optimize");
         assert!(fs::metadata(&log).expect("metadata").len() < before);
         assert!(
             !dir.path()
@@ -1306,26 +1442,27 @@ mod tests {
                 .join(format!("{LOG_FILE}.tmp"))
                 .exists()
         );
-        db.close().expect("close");
+        db.close().await.expect("close");
 
-        let db = store_at(dir.path());
-        assert_eq!(db.count_vectors(&ctx, "test").expect("count"), 2);
+        let db = store_at(dir.path()).await;
+        assert_eq!(db.count_vectors(&ctx, "test").await.expect("count"), 2);
         let ids: Vec<String> = db
             .get_vectors(&ctx, "test", &["new", "newer", "old"])
+            .await
             .expect("get")
             .into_iter()
             .map(|vector| vector.id)
             .collect();
         assert_eq!(ids, ["new", "newer"]);
-        db.close().expect("close");
+        db.close().await.expect("close");
     }
 
-    #[test]
-    fn scores_follow_xvec_metrics() {
+    #[tokio::test]
+    async fn scores_follow_xvec_metrics() {
         let dir = tempfile::tempdir().expect("temp dir");
         let ctx = Context::background();
         let timestamp = Time::default();
-        let db = store_at(dir.path());
+        let db = store_at(dir.path()).await;
         db.add_collection(
             &ctx,
             "euclidean",
@@ -1333,33 +1470,40 @@ mod tests {
             Distance::Euclidean,
             VectorConfig::default(),
         )
+        .await
         .expect("add");
         db.add_collection(&ctx, "cosine", 4, Distance::Cosine, VectorConfig::default())
+            .await
             .expect("add");
         db.add_collection(&ctx, "dot", 4, Distance::Dot, VectorConfig::default())
+            .await
             .expect("add");
         db.add_vectors(
             &ctx,
             "euclidean",
             &[dense("a", &[3.0, 4.0, 0.0, 0.0], timestamp.clone())],
         )
+        .await
         .expect("add");
         db.add_vectors(
             &ctx,
             "cosine",
             &[dense("a", &[1.0, 1.0, 0.0, 0.0], timestamp.clone())],
         )
+        .await
         .expect("add");
         db.add_vectors(
             &ctx,
             "dot",
             &[dense("a", &[1.0, 1.0, 0.0, 0.0], timestamp.clone())],
         )
+        .await
         .expect("add");
 
         let zero = dense("", &[0.0; 4], timestamp.clone());
         let score = db
             .query_vectors(&ctx, "euclidean", &zero, &[], 1)
+            .await
             .expect("query")[0]
             .score;
         assert_eq!(score, -25.0);
@@ -1367,6 +1511,7 @@ mod tests {
         let unit = dense("", &[1.0, 0.0, 0.0, 0.0], timestamp.clone());
         let score = db
             .query_vectors(&ctx, "cosine", &unit, &[], 1)
+            .await
             .expect("query")[0]
             .score;
         assert!(
@@ -1377,17 +1522,18 @@ mod tests {
         let two_three = dense("", &[2.0, 3.0, 0.0, 0.0], timestamp);
         let score = db
             .query_vectors(&ctx, "dot", &two_three, &[], 1)
+            .await
             .expect("query")[0]
             .score;
         assert_eq!(score, 5.0);
-        db.close().expect("close");
+        db.close().await.expect("close");
     }
 
-    #[test]
-    fn unsupported_collections_are_rejected() {
+    #[tokio::test]
+    async fn unsupported_collections_are_rejected() {
         let dir = tempfile::tempdir().expect("temp dir");
         let ctx = Context::background();
-        let db = store_at(dir.path());
+        let db = store_at(dir.path()).await;
 
         let sq = VectorConfig {
             quantization: QuantizationType::Sq,
@@ -1395,6 +1541,7 @@ mod tests {
         };
         let err = db
             .add_collection(&ctx, "sq", 4, Distance::Cosine, sq)
+            .await
             .unwrap_err();
         assert_eq!(err.kind(), Some(StorageError::NotSupported));
         assert_eq!(
@@ -1404,36 +1551,41 @@ mod tests {
 
         let err = db
             .add_collection(&ctx, "sparse", 0, Distance::Cosine, VectorConfig::default())
+            .await
             .unwrap_err();
         assert_eq!(err.kind(), Some(StorageError::NotSupported));
 
         assert!(
             db.add_collection(&ctx, "negative", -1, Distance::Dot, VectorConfig::default())
+                .await
                 .is_err()
         );
         for name in ["", ".", "..", "a/b", "a\\b"] {
             assert!(
                 db.add_collection(&ctx, name, 4, Distance::Dot, VectorConfig::default())
+                    .await
                     .is_err(),
                 "{name:?}"
             );
         }
         assert_eq!(
-            db.list_collections(&ctx).expect("list"),
+            db.list_collections(&ctx).await.expect("list"),
             Vec::<String>::new()
         );
-        db.close().expect("close");
+        db.close().await.expect("close");
     }
 
-    #[test]
-    fn wrong_kind_or_dimension_is_rejected_without_writing() {
+    #[tokio::test]
+    async fn wrong_kind_or_dimension_is_rejected_without_writing() {
         let dir = tempfile::tempdir().expect("temp dir");
         let ctx = Context::background();
         let timestamp = Time::default();
-        let db = store_at(dir.path());
+        let db = store_at(dir.path()).await;
         db.add_collection(&ctx, "dense", 4, Distance::Cosine, VectorConfig::default())
+            .await
             .expect("add");
         db.add_collection(&ctx, "sparse", 0, Distance::Dot, VectorConfig::default())
+            .await
             .expect("add");
 
         let short = dense("short", &[1.0, 0.0, 0.0], timestamp.clone());
@@ -1443,10 +1595,11 @@ mod tests {
                 "dense",
                 &[dense("ok", &[1.0; 4], timestamp.clone()), short]
             )
+            .await
             .is_err()
         );
         assert_eq!(
-            db.count_vectors(&ctx, "dense").expect("count"),
+            db.count_vectors(&ctx, "dense").await.expect("count"),
             0,
             "a failed batch writes nothing"
         );
@@ -1459,95 +1612,106 @@ mod tests {
         };
         assert!(
             db.add_vectors(&ctx, "dense", std::slice::from_ref(&sparse))
+                .await
                 .is_err()
         );
         assert!(
             db.add_vectors(&ctx, "sparse", &[dense("d", &[1.0; 4], timestamp.clone())])
+                .await
                 .is_err()
         );
-        assert!(db.query_vectors(&ctx, "dense", &sparse, &[], 1).is_err());
+        assert!(
+            db.query_vectors(&ctx, "dense", &sparse, &[], 1)
+                .await
+                .is_err()
+        );
         assert!(
             db.query_vectors(&ctx, "sparse", &dense("", &[1.0; 4], timestamp), &[], 1)
+                .await
                 .is_err()
         );
-        db.close().expect("close");
+        db.close().await.expect("close");
     }
 
-    #[test]
-    fn foreign_directories_are_skipped_and_replaced() {
+    #[tokio::test]
+    async fn foreign_directories_are_skipped_and_replaced() {
         let dir = tempfile::tempdir().expect("temp dir");
         let ctx = Context::background();
         let foreign = dir.path().join("gorse_test");
         fs::create_dir_all(&foreign).expect("create");
         fs::write(foreign.join("CURRENT"), b"not ours").expect("write");
 
-        let db = store_at(dir.path());
-        assert!(db.list_collections(&ctx).expect("list").is_empty());
+        let db = store_at(dir.path()).await;
+        assert!(db.list_collections(&ctx).await.expect("list").is_empty());
         db.add_collection(&ctx, "test", 4, Distance::Cosine, VectorConfig::default())
+            .await
             .expect("replaces the foreign directory");
         assert!(!foreign.join("CURRENT").exists());
         let err = db
             .add_collection(&ctx, "test", 4, Distance::Cosine, VectorConfig::default())
+            .await
             .unwrap_err();
         assert_eq!(err.kind(), Some(StorageError::AlreadyExists));
-        db.close().expect("close");
+        db.close().await.expect("close");
     }
 
-    #[test]
-    fn empty_requests_do_not_need_a_collection() {
+    #[tokio::test]
+    async fn empty_requests_do_not_need_a_collection() {
         let dir = tempfile::tempdir().expect("temp dir");
         let ctx = Context::background();
-        let db = store_at(dir.path());
-        assert!(db.add_vectors(&ctx, "missing", &[]).is_ok());
+        let db = store_at(dir.path()).await;
+        assert!(db.add_vectors(&ctx, "missing", &[]).await.is_ok());
         assert!(
             db.get_vectors(&ctx, "missing", &[])
+                .await
                 .expect("get")
                 .is_empty()
         );
         assert!(
             db.query_vectors(&ctx, "missing", &Vector::default(), &[], 0)
+                .await
                 .expect("query")
                 .is_empty()
         );
         assert_eq!(
-            db.count_vectors(&ctx, "missing").unwrap_err().kind(),
+            db.count_vectors(&ctx, "missing").await.unwrap_err().kind(),
             Some(StorageError::NotFound)
         );
-        db.close().expect("close");
+        db.close().await.expect("close");
     }
 
-    #[test]
-    fn closed_store_refuses_calls_and_closes_again() {
+    #[tokio::test]
+    async fn closed_store_refuses_calls_and_closes_again() {
         let dir = tempfile::tempdir().expect("temp dir");
         let ctx = Context::background();
-        let db = store_at(dir.path());
-        db.close().expect("close");
-        db.close().expect("a second close succeeds");
+        let db = store_at(dir.path()).await;
+        db.close().await.expect("close");
+        db.close().await.expect("a second close succeeds");
         assert_eq!(
-            db.list_collections(&ctx).unwrap_err().to_string(),
+            db.list_collections(&ctx).await.unwrap_err().to_string(),
             "xvec database is closed"
         );
         assert_eq!(
-            db.init().unwrap_err().to_string(),
+            db.init().await.unwrap_err().to_string(),
             "xvec database is closed"
         );
     }
 
-    #[test]
-    fn cancelled_context_stops_calls() {
+    #[tokio::test]
+    async fn cancelled_context_stops_calls() {
         let dir = tempfile::tempdir().expect("temp dir");
-        let db = store_at(dir.path());
+        let db = store_at(dir.path()).await;
         let (ctx, cancel) = Context::background().with_cancel();
         cancel.cancel();
         assert_eq!(
-            db.list_collections(&ctx).unwrap_err(),
+            db.list_collections(&ctx).await.unwrap_err(),
             Error::Context(gorse_common::gocontext::ContextError::Canceled)
         );
-        db.close().expect("close");
+        db.close().await.expect("close");
     }
 
-    #[test]
-    fn empty_root_is_rejected() {
+    #[tokio::test]
+    async fn empty_root_is_rejected() {
         assert!(open(XVEC_PREFIX, "", &[] as &[Opt]).is_err());
     }
 }

@@ -26,8 +26,8 @@ fn ids(results: &[ScoredVector]) -> Vec<&str> {
 }
 
 /// Go's `SetupTest`: every case starts from an empty database.
-fn setup(ctx: &Context, db: &dyn Database) {
-    purge(ctx, db).expect("purge");
+async fn setup(ctx: &Context, db: &dyn Database) {
+    purge(ctx, db).await.expect("purge");
 }
 
 /// The dense vector `values` with the id and categories given.
@@ -41,8 +41,8 @@ fn dense(id: &str, values: Vec<f32>, categories: &[&str]) -> Vector {
 }
 
 // Ports: TestPurge @ add21b5
-pub(super) fn test_purge(ctx: &Context, db: &dyn Database) {
-    setup(ctx, db);
+pub(super) async fn test_purge(ctx: &Context, db: &dyn Database) {
+    setup(ctx, db).await;
     db.add_collection(
         ctx,
         "a",
@@ -50,6 +50,7 @@ pub(super) fn test_purge(ctx: &Context, db: &dyn Database) {
         Distance::Cosine,
         VectorConfig::default(),
     )
+    .await
     .expect("add a");
     db.add_collection(
         ctx,
@@ -58,18 +59,19 @@ pub(super) fn test_purge(ctx: &Context, db: &dyn Database) {
         Distance::Cosine,
         VectorConfig::default(),
     )
+    .await
     .expect("add b");
-    purge(ctx, db).expect("purge");
+    purge(ctx, db).await.expect("purge");
 
-    let collections = db.list_collections(ctx).expect("list");
+    let collections = db.list_collections(ctx).await.expect("list");
     assert!(collections.is_empty());
 }
 
 // Ports: TestCollections @ add21b5
-pub(super) fn test_collections(ctx: &Context, db: &dyn Database) {
-    setup(ctx, db);
+pub(super) async fn test_collections(ctx: &Context, db: &dyn Database) {
+    setup(ctx, db).await;
     // list collections
-    let collections = db.list_collections(ctx).expect("list");
+    let collections = db.list_collections(ctx).await.expect("list");
     assert!(collections.is_empty());
     // create collection
     db.add_collection(
@@ -79,9 +81,10 @@ pub(super) fn test_collections(ctx: &Context, db: &dyn Database) {
         Distance::Cosine,
         VectorConfig::default(),
     )
+    .await
     .expect("add");
     // describe collection
-    let info = db.describe_collection(ctx, "test").expect("describe");
+    let info = db.describe_collection(ctx, "test").await.expect("describe");
     assert_eq!(info.name, "test");
     if info.dimension > 0 {
         assert_eq!(info.dimension, DEFAULT_VECTOR_SIZE);
@@ -90,23 +93,23 @@ pub(super) fn test_collections(ctx: &Context, db: &dyn Database) {
     assert_eq!(info.config.quantization, QuantizationType::None);
     assert_eq!(info.config.bits, 0);
     // list collections
-    let collections = db.list_collections(ctx).expect("list");
+    let collections = db.list_collections(ctx).await.expect("list");
     assert_eq!(collections, ["test"]);
     // delete collection
-    db.delete_collection(ctx, "test").expect("delete");
+    db.delete_collection(ctx, "test").await.expect("delete");
     // describe deleted collection
-    let err = db.describe_collection(ctx, "test").unwrap_err();
+    let err = db.describe_collection(ctx, "test").await.unwrap_err();
     assert_eq!(err.kind(), Some(StorageError::NotFound));
     // list collections
-    let collections = db.list_collections(ctx).expect("list");
+    let collections = db.list_collections(ctx).await.expect("list");
     assert!(collections.is_empty());
     // delete non-existent collection
-    assert!(db.delete_collection(ctx, "non-existent").is_err());
+    assert!(db.delete_collection(ctx, "non-existent").await.is_err());
 }
 
 // Ports: TestVectors @ add21b5
-pub(super) fn test_vectors(ctx: &Context, db: &dyn Database) {
-    setup(ctx, db);
+pub(super) async fn test_vectors(ctx: &Context, db: &dyn Database) {
+    setup(ctx, db).await;
     db.add_collection(
         ctx,
         "test",
@@ -114,8 +117,9 @@ pub(super) fn test_vectors(ctx: &Context, db: &dyn Database) {
         Distance::Cosine,
         VectorConfig::default(),
     )
+    .await
     .expect("add");
-    let count = db.count_vectors(ctx, "test").expect("count");
+    let count = db.count_vectors(ctx, "test").await.expect("count");
     assert_eq!(count, 0);
 
     let vector_a = vec![1.0, 0.0, 0.0, 0.0];
@@ -129,8 +133,9 @@ pub(super) fn test_vectors(ctx: &Context, db: &dyn Database) {
             dense("b", vector_b.clone(), &["cat-b", "common"]),
         ],
     )
+    .await
     .expect("add vectors");
-    let count = db.count_vectors(ctx, "test").expect("count");
+    let count = db.count_vectors(ctx, "test").await.expect("count");
     assert_eq!(count, 2);
 
     let results = db
@@ -141,6 +146,7 @@ pub(super) fn test_vectors(ctx: &Context, db: &dyn Database) {
             &["cat-a"],
             10,
         )
+        .await
         .expect("query");
     assert_eq!(ids(&results), ["a"]);
     assert!(!results[0].vector.categories.is_empty());
@@ -153,6 +159,7 @@ pub(super) fn test_vectors(ctx: &Context, db: &dyn Database) {
             &["common"],
             10,
         )
+        .await
         .expect("query");
     assert_eq!(ids(&results), ["a", "b"]);
     assert!(results[0].score > results[1].score);
@@ -168,28 +175,31 @@ pub(super) fn test_vectors(ctx: &Context, db: &dyn Database) {
             &["cat-a", "common"],
             10,
         )
+        .await
         .expect("query");
     assert_eq!(ids(&results), ["a"]);
 
     let results = db
         .query_vectors(ctx, "test", &dense("", vector_a.clone(), &[]), &[], 1)
+        .await
         .expect("query");
     assert!(!results.is_empty());
     for result in &results {
         assert!(!result.vector.categories.is_empty());
     }
 
-    let query_vectors = db.get_vectors(ctx, "test", &["a"]).expect("get");
+    let query_vectors = db.get_vectors(ctx, "test", &["a"]).await.expect("get");
     assert_eq!(query_vectors.len(), 1);
     let results = db
         .query_vectors(ctx, "test", &query_vectors[0], &[], 10)
+        .await
         .expect("query");
     assert_eq!(ids(&results), ["a", "b"]);
 }
 
 // Ports: TestHalfVectors @ add21b5
-pub(super) fn test_half_vectors(ctx: &Context, db: &dyn Database) {
-    setup(ctx, db);
+pub(super) async fn test_half_vectors(ctx: &Context, db: &dyn Database) {
+    setup(ctx, db).await;
     db.add_collection(
         ctx,
         "test_half",
@@ -197,6 +207,7 @@ pub(super) fn test_half_vectors(ctx: &Context, db: &dyn Database) {
         Distance::Cosine,
         VectorConfig::default(),
     )
+    .await
     .expect("add");
 
     let vector_a = vec![1.0, 0.0, 0.0, 0.0];
@@ -219,9 +230,13 @@ pub(super) fn test_half_vectors(ctx: &Context, db: &dyn Database) {
             },
         ],
     )
+    .await
     .expect("add vectors");
 
-    let vectors = db.get_vectors(ctx, "test_half", &["a", "b"]).expect("get");
+    let vectors = db
+        .get_vectors(ctx, "test_half", &["a", "b"])
+        .await
+        .expect("get");
     assert_eq!(vectors.len(), 2);
     assert_slice_close(&vector_a, &vectors[0].values, 0.001);
     assert_slice_close(&vector_b, &vectors[1].values, 0.001);
@@ -239,13 +254,14 @@ pub(super) fn test_half_vectors(ctx: &Context, db: &dyn Database) {
             &[],
             2,
         )
+        .await
         .expect("query");
     assert_eq!(ids(&results), ["a", "b"]);
 }
 
 // Ports: TestGetVectors @ add21b5
-pub(super) fn test_get_vectors(ctx: &Context, db: &dyn Database) {
-    setup(ctx, db);
+pub(super) async fn test_get_vectors(ctx: &Context, db: &dyn Database) {
+    setup(ctx, db).await;
     db.add_collection(
         ctx,
         "test",
@@ -253,6 +269,7 @@ pub(super) fn test_get_vectors(ctx: &Context, db: &dyn Database) {
         Distance::Cosine,
         VectorConfig::default(),
     )
+    .await
     .expect("add");
 
     let timestamp_a = gotime::now().utc().truncate(MILLISECOND);
@@ -273,20 +290,22 @@ pub(super) fn test_get_vectors(ctx: &Context, db: &dyn Database) {
         ..Default::default()
     };
     db.add_vectors(ctx, "test", &[vector_a.clone(), vector_b.clone()])
+        .await
         .expect("add vectors");
 
     let results = db
         .get_vectors(ctx, "test", &["b", "missing", "a", "b"])
+        .await
         .expect("get");
     assert_eq!(results, [vector_b, vector_a]);
 
-    let results = db.get_vectors(ctx, "test", &[]).expect("get");
+    let results = db.get_vectors(ctx, "test", &[]).await.expect("get");
     assert!(results.is_empty());
 }
 
 // Ports: TestSparse @ add21b5
-pub(super) fn test_sparse(ctx: &Context, db: &dyn Database) {
-    setup(ctx, db);
+pub(super) async fn test_sparse(ctx: &Context, db: &dyn Database) {
+    setup(ctx, db).await;
     db.add_collection(
         ctx,
         "test_sparse",
@@ -294,10 +313,12 @@ pub(super) fn test_sparse(ctx: &Context, db: &dyn Database) {
         Distance::Dot,
         VectorConfig::default(),
     )
+    .await
     .expect("add");
 
     let info = db
         .describe_collection(ctx, "test_sparse")
+        .await
         .expect("describe");
     assert_eq!(info.dimension, 0);
     assert_eq!(info.distance, Distance::Dot);
@@ -330,13 +351,15 @@ pub(super) fn test_sparse(ctx: &Context, db: &dyn Database) {
             },
         ],
     )
+    .await
     .expect("add vectors");
 
-    let count = db.count_vectors(ctx, "test_sparse").expect("count");
+    let count = db.count_vectors(ctx, "test_sparse").await.expect("count");
     assert_eq!(count, 3);
 
     let vectors = db
         .get_vectors(ctx, "test_sparse", &["match", "missing"])
+        .await
         .expect("get");
     assert_eq!(vectors.len(), 1);
     assert_eq!(vectors[0].id, "match");
@@ -356,24 +379,30 @@ pub(super) fn test_sparse(ctx: &Context, db: &dyn Database) {
             &[],
             10,
         )
+        .await
         .expect("query");
     assert_eq!(results.len(), 2);
     assert_eq!(results[0].vector.id, "match");
 
     db.delete_vectors(ctx, "test_sparse", &cutoff)
+        .await
         .expect("delete vectors");
-    let count = db.count_vectors(ctx, "test_sparse").expect("count");
+    let count = db.count_vectors(ctx, "test_sparse").await.expect("count");
     assert_eq!(count, 2);
 
     db.delete_collection(ctx, "test_sparse")
+        .await
         .expect("delete collection");
-    let err = db.describe_collection(ctx, "test_sparse").unwrap_err();
+    let err = db
+        .describe_collection(ctx, "test_sparse")
+        .await
+        .unwrap_err();
     assert_eq!(err.kind(), Some(StorageError::NotFound));
 }
 
 // Ports: TestHidden @ add21b5
-pub(super) fn test_hidden(ctx: &Context, db: &dyn Database) {
-    setup(ctx, db);
+pub(super) async fn test_hidden(ctx: &Context, db: &dyn Database) {
+    setup(ctx, db).await;
     db.add_collection(
         ctx,
         "test_hidden",
@@ -381,6 +410,7 @@ pub(super) fn test_hidden(ctx: &Context, db: &dyn Database) {
         Distance::Cosine,
         VectorConfig::default(),
     )
+    .await
     .expect("add");
 
     let query = vec![1.0, 0.0, 0.0, 0.0];
@@ -398,13 +428,15 @@ pub(super) fn test_hidden(ctx: &Context, db: &dyn Database) {
             },
         ],
     )
+    .await
     .expect("add vectors");
 
-    let count = db.count_vectors(ctx, "test_hidden").expect("count");
+    let count = db.count_vectors(ctx, "test_hidden").await.expect("count");
     assert_eq!(count, 2);
 
     let results = db
         .query_vectors(ctx, "test_hidden", &dense("", query.clone(), &[]), &[], 10)
+        .await
         .expect("query");
     assert_eq!(ids(&results), ["visible"]);
 
@@ -416,6 +448,7 @@ pub(super) fn test_hidden(ctx: &Context, db: &dyn Database) {
             &["common"],
             10,
         )
+        .await
         .expect("query");
     assert_eq!(ids(&results), ["visible"]);
 
@@ -427,13 +460,14 @@ pub(super) fn test_hidden(ctx: &Context, db: &dyn Database) {
             &["quo'te"],
             10,
         )
+        .await
         .expect("query");
     assert_eq!(ids(&results), ["visible"]);
 }
 
 // Ports: TestDot @ add21b5
-pub(super) fn test_dot(ctx: &Context, db: &dyn Database) {
-    setup(ctx, db);
+pub(super) async fn test_dot(ctx: &Context, db: &dyn Database) {
+    setup(ctx, db).await;
     db.add_collection(
         ctx,
         "test_dot",
@@ -441,6 +475,7 @@ pub(super) fn test_dot(ctx: &Context, db: &dyn Database) {
         Distance::Dot,
         VectorConfig::default(),
     )
+    .await
     .expect("add");
 
     let query = vec![1.0, 0.0, 0.0, 0.0];
@@ -452,18 +487,20 @@ pub(super) fn test_dot(ctx: &Context, db: &dyn Database) {
             dense("b", vec![1.0, 1.0, 0.0, 0.0], &[]),
         ],
     )
+    .await
     .expect("add vectors");
 
     let results = db
         .query_vectors(ctx, "test_dot", &dense("", query, &[]), &[], 2)
+        .await
         .expect("query");
     assert_eq!(ids(&results), ["a", "b"]);
     assert!(results[0].score > results[1].score);
 }
 
 // Ports: TestDeleteVectors @ add21b5
-pub(super) fn test_delete_vectors(ctx: &Context, db: &dyn Database) {
-    setup(ctx, db);
+pub(super) async fn test_delete_vectors(ctx: &Context, db: &dyn Database) {
+    setup(ctx, db).await;
     db.add_collection(
         ctx,
         "test",
@@ -471,6 +508,7 @@ pub(super) fn test_delete_vectors(ctx: &Context, db: &dyn Database) {
         Distance::Cosine,
         VectorConfig::default(),
     )
+    .await
     .expect("add");
 
     let vector_a = vec![1.0, 0.0, 0.0, 0.0];
@@ -497,29 +535,32 @@ pub(super) fn test_delete_vectors(ctx: &Context, db: &dyn Database) {
             },
         ],
     )
+    .await
     .expect("add vectors");
 
     db.delete_vectors(ctx, "test", &cutoff)
+        .await
         .expect("delete vectors");
-    let count = db.count_vectors(ctx, "test").expect("count");
+    let count = db.count_vectors(ctx, "test").await.expect("count");
     assert_eq!(count, 1);
 
     let results = db
         .query_vectors(ctx, "test", &dense("", vector_a, &[]), &["common"], 10)
+        .await
         .expect("query");
     assert_eq!(ids(&results), ["new"]);
 }
 
 // Ports: testQuantization @ add21b5. The xvec suite does not call it (Go only
-// calls it from the Qdrant and Milvus suites), so xvec_tests::quantization_none
-// runs it with the one quantization xvec accepts.
-pub(super) fn test_quantization(
+// calls it from the Qdrant and Milvus suites), so xvec's `quantization_none`
+// test runs it with the one quantization xvec accepts.
+pub(super) async fn test_quantization(
     ctx: &Context,
     db: &dyn Database,
     quantization: QuantizationType,
     bits: i64,
 ) {
-    setup(ctx, db);
+    setup(ctx, db).await;
     db.add_collection(
         ctx,
         "test_quantization",
@@ -530,10 +571,12 @@ pub(super) fn test_quantization(
             bits,
         },
     )
+    .await
     .expect("add");
 
     let config = db
         .describe_collection(ctx, "test_quantization")
+        .await
         .expect("describe");
     assert_eq!(config.config.quantization, quantization);
     if bits > 0 {
@@ -550,6 +593,7 @@ pub(super) fn test_quantization(
             dense("b", vector_b, &["cat-b", "common"]),
         ],
     )
+    .await
     .expect("add vectors");
 
     let results = db
@@ -560,10 +604,12 @@ pub(super) fn test_quantization(
             &["common"],
             10,
         )
+        .await
         .expect("query");
     assert_eq!(results.len(), 2);
 
     db.delete_collection(ctx, "test_quantization")
+        .await
         .expect("delete collection");
 }
 
