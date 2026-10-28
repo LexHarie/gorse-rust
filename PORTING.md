@@ -1618,6 +1618,38 @@ or accepts a metric gap outside the Go tests' own tolerances.
     therefore also waits for WP-3-6. The `SuggestParams` methods that take a goptuna `Trial`
     (`model/cf/model.go` lines 397 and 588, `model/ctr/fm.go` line 79) are ported in WP-3-3.
 
+- **D-197 Qdrant client is `qdrant-client` 1.20.0 (WP-2-9, P-1).** `porting/crate-selection.md`
+  named 1.19.0. 1.20.0 is the latest stable release (checked in the crates index on 2026-10-28),
+  so the row is 1.20.0. Go's module pins `qdrant/go-client` v1.18.2. Against the 1.20.0 server
+  the 1.18.2 client only warns, so the Rust client follows the server's release.
+
+- **D-198 Milvus and Weaviate are hand-written REST adapters (WP-2-9, P-2).** This is D-17 as
+  already written. No change.
+
+- **D-199 Storage errors wrap the storage sentinels, as Go's `%w` does (WP-2-9, P-3).** Every
+  NotSupported error from the three stores is `Error::Storage { kind: NotSupported, .. }` through
+  `vectors::not_supported`, so `kind()` matches Go's `errors.Is`. Qdrant and Weaviate returned
+  `Error::Other` for these before the fix.
+
+- **D-200 Court acceptance for WP-2-9 on the merged head `4b835df1` (integrator, 2026-10-28).**
+  The branch `claude/wp-2-9-vector-backends` is merged from `3918b84`, as one commit, because the
+  three stores share `open()`, the features and `Cargo.lock`.
+  - Acceptance, run by the integrator with all three servers set: `QDRANT_URI=qdrant://127.0.0.1:6334
+    MILVUS_URI=milvus://127.0.0.1:19530 WEAVIATE_URI=weaviate://127.0.0.1:8080 cargo test -p
+    gorse-storage --features qdrant,milvus,weaviate vectors`: 56 passed, 0 failed, 1 ignored (the
+    Weaviate sparse case, which Go's `TestSparse` also skips). The thread's own count is the same.
+  - The servers: Qdrant `latest` (1.20.0), Weaviate `semitechnologies/weaviate:1.35.7` from Docker
+    Hub (`cr.weaviate.io` does not resolve from this container), etcd `v3.5.25` from
+    `gcr.io/etcd-development/etcd` (`quay.io` does not resolve), and Milvus v2.6.9 with the
+    compose settings: rustfs as the object store and `MQ_TYPE=woodpecker`. The thread ran Milvus
+    with local storage and rocksmq instead. The compose-style run passes, so the thread's
+    deviation from compose is not needed for the result.
+  - The Go oracle and the two-way cross-read are the thread's evidence (TestMilvus 11 of 11,
+    TestQdrant 10 of 10, TestWeaviate with TestSparse skipped). The integrator did not rerun
+    them. The cross-read harness is not committed, so it cannot be rerun from the repository.
+    That is a gap to close with the next Phase 2 change, not a reason to reject.
+  - Verdict: accepted, with the harness gap recorded.
+
 ## Open questions for Ritchie
 
 - **Datasets.** The network policy of this environment blocks

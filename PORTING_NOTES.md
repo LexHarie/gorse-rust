@@ -2378,6 +2378,39 @@ said otherwise), so the Rust result is Go's.
   The Kvrocks and six-node cluster runs of the Go CI's compatibility job are not part of WP-2-13.
   They are run on the merged head under D-184 and D-185. Open for the mixed-version case only.
 
+- **X-154 Milvus index parameters are unnested (WP-2-9, deviation 1).** The REST gateway returns an
+  index's own parameters as a JSON string under `params`. Go's gRPC client sees them flat (a probe
+  printed `map[index_type:IVF_PQ m:4 metric_type:IP nbits:8 nlist:128]`). `index_params` unnests the
+  JSON, so `describe_collection` reads `m` and `nbits` as Go does.
+
+- **X-155 Milvus `description` goes at the top level of the create request (deviation 2).** A
+  `description` inside `schema` is dropped by the REST gateway, as a probe showed.
+
+- **X-156 Milvus category filters and query-by-ids are literals with JSON escapes (deviations 3
+  and 4).** Go uses template parameters (`WithTemplateParam`) for category filters, and quotes ids
+  raw. The Rust text is identical for string categories and for ids with no quote or backslash.
+
+- **X-157 Milvus waits by polling (deviation 5).** Go's `Await` becomes a 100 ms poll of
+  `/indexes/describe` (`Finished`, `Failed`) and `/collections/get_load_state` (`LoadStateLoaded`).
+
+- **X-158 Milvus sparse vectors travel as JSON objects (deviation 6).** They map dimension to value,
+  and they are read back sorted by dimension, as Go's sparse embeddings are.
+
+- **X-159 Weaviate uses REST and has no sparse vectors (deviation 7).** Go's `Open` sets no gRPC
+  config, so batches go over REST. Describe reports no dimension, as Go's does not. Sparse vectors
+  are not supported, so the Rust sparse case is `#[ignore]` (see O-65).
+
+- **X-160 Qdrant `delete_collection` errors for a missing collection (deviation 8).** It checks the
+  response's `result`, as Go's client does. The earlier port returned Ok.
+
+- **Q-240 Turbo-quant bit names (deviation 9).** Go's `TurboQuantBitSize` enum has no 8-bit value,
+  and its messages print the names `String()` gives (`Bits1`, `Bits1_5`, `Bits2`, `Bits4`).
+  `go_turbo_bits_name` does the same.
+
+- **O-65 The Weaviate sparse case is ignored.** Weaviate has no sparse vectors in this port, and
+  Go's `TestSparse` skips for Weaviate too. Nothing is open against Go. The item closes if Weaviate
+  support is added in a later WP.
+
 Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
 version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does
 this port; newer versions are not tested), MariaDB 10.2.44 (`mariadb:10.2`, CI's
