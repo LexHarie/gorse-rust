@@ -30,7 +30,7 @@ Every Rust module names the Go files it ports with a
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); config.schema.json and config.keys.md not generated (X-49). WP-1-18 is in progress (it follows WP-1-16 and WP-1-17, both merged). All in `porting/work-packages.md` |
-| 2. Storage | in progress | Done: WP-2-4 (cache core; its shared suite waits for the backends, O-28). Vectors (WP-2-8) and blob (WP-2-10) are not merged. WP-2-1 to WP-2-13 otherwise not started |
+| 2. Storage | in progress | Done: WP-2-4 (cache core; its shared suite waits for the backends, O-28) and WP-2-8 (vector core, async per D-122, exact search, O-30). WP-2-10 (blob) is not merged. WP-2-1 to WP-2-3, 2-5 to 2-7, 2-9, 2-11 to 2-13 not merged |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
@@ -282,6 +282,20 @@ correction below states the evidence.
   cancellation tree; `porting/crate-selection.md` gains a row
   (`tokio-util`'s `CancellationToken` is async only, and the schedulers'
   callers block on the context from plain threads).
+
+- **C-30 The shared suite is run by the xvec tests only.** `testQuantization`
+  in `database_test.go` is called only from the Qdrant and Milvus suites. It is
+  ported in `suite.rs` and run for xvec with `QuantizationNone`, the one
+  quantization xvec accepts (`xvec::tests::quantization_none`). WP-2-9 calls
+  it with the other quantization types.
+
+- **C-31 `Database` is an async trait with the caller's context.** Every
+  Go method takes `context.Context`; the Rust trait takes
+  `&gorse_common::gocontext::Context` first and is `#[async_trait]`, as the
+  integrator ruled (D-122). This replaces the synchronous trait of the first
+  head. The xvec store does its file IO and scans on tokio's blocking pool
+  (`spawn_blocking`), and holds no std lock across an `.await`. WP-2-9 and
+  WP-2-12 use the same shape.
 
 ## Decision log
 
@@ -1039,7 +1053,7 @@ or accepts a metric gap outside the Go tests' own tolerances.
   - `tokio` joins the library's dependencies when the first backend needs it.
     WP-2-4 keeps it a dev-dependency until then.
   Accepted from the cache core (WP-2-4), which already follows this. The vector
-  core (WP-2-8) keeps a sync trait in its notes (C-WP28-2), which this decision
+  core (WP-2-8) keeps a sync trait in its notes (C-31), which this decision
   overrides: it must be converted before it merges. Decided by the integrator on
   the coordinator's request (2026-10-28). It binds WP-2-1 to WP-2-13.
 
@@ -1072,6 +1086,45 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
 - **D-128 `ScorePatch` fields are `Option`.** Go's nil `Categories` (no
   change) is `None`, and an empty non-nil slice (clear) is `Some(vec![])`.
+
+- **D-129 Trait object.** `Database: Send + Sync` with `&self` methods, so
+  `open` returns `Box<dyn Database>`. Go's mutable `sync.Map` state sits behind
+  one `RwLock` per store and one per collection. The store is an
+  `Arc<Store>`: each async method clones the `Arc` and its owned inputs, and
+  runs the sync `Store` method on the blocking pool (`blocking` in `xvec.rs`,
+  which resumes a task's panic on the caller). Nothing borrowed crosses an
+  `.await`.
+
+- **D-130 Errors.** `vectors::Error` is `Storage { kind, message }` (the
+  storage sentinel plus Go's exact text, `kind()` is Go's `errors.Is`),
+  `Context(ContextError)`, and `Other(String)` for everything else. The
+  messages copy Go's `fmt.Errorf` texts, including the `collection X: not
+  found` and `collection X already exists` forms.
+
+- **D-131 Registry.** Go fills `creators` from `init` functions. Rust lists
+  the backends in `vectors::open`, which is the same lookup by prefix. WP-2-9
+  adds its prefixes there.
+
+- **D-132 Enums.** `Distance` is an enum. `QuantizationType` is an enum with
+  an `Other(String)` case, because Go's type is a string and `master/tasks.go`
+  converts unchecked config strings into it.
+
+- **D-133 Integers.** Go's `int` fields and arguments (dimensions, bits,
+  `topK`, counts) are `i64`, as in `gorse-storage-core`, so the Go range checks
+  stay.
+
+- **D-134 Time.** `Vector.Timestamp` is `gotime::Time`. Storage keeps Go's
+  `UnixMilli`.
+
+- **D-135 Own file format.** D-6 decided that `xvec://` is Rust's own
+  format. Each collection is a directory `<prefix><name>` holding one
+  `gorse.vectors` log: a header (magic `GVECTORS`, version 1, dimension, distance
+  code) and one record per upsert or delete. Writes are appended and synced
+  before they are applied. A torn last record is dropped on open. `Optimize`
+  rewrites the log. The layout is in the module header of `xvec.rs`.
+
+- **D-136 Exact search.** The store scans every live vector and keeps the
+  best `topK`. HNSW, which Go uses, is not ported (X-75).
 
 ## Open questions for Ritchie
 
