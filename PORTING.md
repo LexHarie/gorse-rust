@@ -1402,6 +1402,26 @@ or accepts a metric gap outside the Go tests' own tolerances.
   logged deviation (X-153). Revisit when `rsa` 0.10 has a stable release, and run
   `cargo audit` when it is installed.
 
+- **D-183 Court acceptance for WP-2-2 and X-144 (integrator, 2026-10-28).** On the
+  merged head `5b80e256`, with the services of D-176 (MySQL 8.0.46, PostgreSQL 10.0,
+  MongoDB 6.0.28, Redis 8.10.3):
+  - WP-2-2, `MYSQL_URI=mysql://root:password@tcp(127.0.0.1:3306)/
+    POSTGRES_URI=postgres://gorse:gorse_pass@127.0.0.1:5432/ cargo test -p
+    gorse-storage --features mysql,postgres,sqlite data::sql`: 3 passed, 0 failed,
+    0 skipped (`test_mysql`, `test_postgres`, `test_sqlite`).
+  - SQL cache, `cargo test -p gorse-storage --features mysql,postgres,sqlite
+    cache::sql` with the same URIs: 10 passed, 0 failed, 0 skipped. This includes
+    `mysql_cold_full_authentication_connects` (X-144), which creates a fresh account
+    so its first login is the cold full authentication.
+  - `cargo clippy -p gorse-storage --all-targets --features mysql,postgres,sqlite
+    -- -D warnings`: exit 0.
+  - Gate on `5b80e256` with all four URIs set: 905 passed, 0 failed, 13 ignored;
+    fmt, clippy, rustdoc, goldens and go vet exit 0.
+  The SQL data thread's cross-reads (Go populates, Rust reads, and back, on
+  PostgreSQL 10.0, MySQL 8.0 and SQLite, 9 of 9 identical) are recorded in
+  `PORTING_NOTES.md` under WP-2-2 and close O-57 and O-59. Pre-release `rsa` is
+  D-182 and X-153.
+
 ## Open questions for Ritchie
 
 - **Datasets.** The network policy of this environment blocks
