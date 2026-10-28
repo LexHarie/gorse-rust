@@ -3,10 +3,10 @@
 //! Blob stores: the `Store` interface of Go's `storage/blob` package and the
 //! factory that picks an implementation from `blob.uri`.
 //!
-//! Go's `Store` is synchronous, so the Rust trait is too. The cloud stores and
-//! the master's gRPC client are async underneath and block on a tokio runtime
-//! they own (see [`cloud`] and [`master`]). Their methods must therefore not be
-//! called from inside a tokio task; use `spawn_blocking` there.
+//! The stores are async (decision D-122 on ba01cae1). Every method takes the
+//! Go-style context first and checks it on entry and between units of work.
+//! No store owns a runtime: the node that serves them owns one, so the methods
+//! are called from inside a tokio task.
 
 pub mod master;
 pub mod posix;
@@ -21,34 +21,49 @@ pub mod gcs;
 #[cfg(feature = "s3")]
 pub mod s3;
 
-use std::io::{Read, Write};
-use std::sync::mpsc::Receiver;
-
+use async_trait::async_trait;
+use gorse_common::gocontext::{Context, ContextError};
 use gorse_config::config::schema::BlobConfig;
+use gorse_storage_core::errors::Error as StorageError;
 use thiserror::Error;
+use tokio::io::AsyncRead;
+use tokio::sync::oneshot;
 use tonic::transport::Channel;
 
 /// A named blob store (Go's `blob.Store`).
 ///
-/// `create` returns the writer and a channel that disconnects once the blob
-/// is complete, which is the Rust form of Go's `done chan struct{}` that is
-/// closed at the same point.
+/// `create` returns the writer and a receiver that completes once the blob is
+/// finished. Go closes a `done` channel at that point; the receiver here fails
+/// with `RecvError` instead, because the sender is dropped.
+#[async_trait]
 pub trait Store: Send + Sync {
     /// Opens the blob `name` for reading.
-    fn open(&self, name: &str) -> Result<Box<dyn Read + Send>, BlobError>;
+    async fn open(
+        &self,
+        ctx: &Context,
+        name: &str,
+    ) -> Result<Box<dyn AsyncRead + Send + Unpin>, BlobError>;
     /// Starts writing the blob `name`.
-    fn create(&self, name: &str) -> Result<(Box<dyn BlobWriter>, Receiver<()>), BlobError>;
+    async fn create(
+        &self,
+        ctx: &Context,
+        name: &str,
+    ) -> Result<(Box<dyn BlobWriter>, oneshot::Receiver<()>), BlobError>;
     /// Lists the names of all blobs.
-    fn list(&self) -> Result<Vec<String>, BlobError>;
+    async fn list(&self, ctx: &Context) -> Result<Vec<String>, BlobError>;
     /// Removes the blob `name`.
-    fn remove(&self, name: &str) -> Result<(), BlobError>;
+    async fn remove(&self, ctx: &Context, name: &str) -> Result<(), BlobError>;
 }
 
 /// The writer returned by [`Store::create`] (Go's `io.WriteCloser`).
-pub trait BlobWriter: Write + Send {
-    /// Finishes the blob. Dropping the writer without closing it leaves the
-    /// blob incomplete.
-    fn close(self: Box<Self>) -> Result<(), BlobError>;
+///
+/// Dropping the writer without closing it leaves the blob incomplete.
+#[async_trait]
+pub trait BlobWriter: Send {
+    /// Writes `data` after the data written before it.
+    async fn write(&mut self, ctx: &Context, data: &[u8]) -> Result<(), BlobError>;
+    /// Finishes the blob.
+    async fn close(self: Box<Self>, ctx: &Context) -> Result<(), BlobError>;
 }
 
 /// Errors of the blob stores.
@@ -75,10 +90,28 @@ pub enum BlobError {
     /// A failure to connect to the master.
     #[error(transparent)]
     Transport(#[from] tonic::transport::Error),
+    /// The context was cancelled before the operation finished.
+    #[error(transparent)]
+    Canceled(#[from] ContextError),
     /// An error from a cloud provider.
     #[cfg(any(feature = "s3", feature = "gcs", feature = "azure"))]
     #[error(transparent)]
     Cloud(#[from] object_store::Error),
+}
+
+impl BlobError {
+    /// The storage sentinel this error stands for: [`StorageError::NotFound`]
+    /// for a blob that does not exist, as Go's `storage.ErrNotFound`.
+    pub fn kind(&self) -> Option<StorageError> {
+        match self {
+            BlobError::Io(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                Some(StorageError::NotFound)
+            }
+            #[cfg(any(feature = "s3", feature = "gcs", feature = "azure"))]
+            BlobError::Cloud(object_store::Error::NotFound { .. }) => Some(StorageError::NotFound),
+            _ => None,
+        }
+    }
 }
 
 /// Rejects names that would leave the store's directory: empty names, names
@@ -90,6 +123,14 @@ pub fn check_name(name: &str) -> Result<(), BlobError> {
     Ok(())
 }
 
+/// Fails with the cancellation error once `ctx` is done (Go's `ctx.Err()`).
+pub(crate) fn check_ctx(ctx: &Context) -> Result<(), BlobError> {
+    match ctx.err() {
+        Some(err) => Err(BlobError::Canceled(err)),
+        None => Ok(()),
+    }
+}
+
 /// Returns the store for `cfg.uri` (Go's `blob.NewStore`).
 ///
 /// A URI with a scheme selects a cloud store. Otherwise the store is the
@@ -97,7 +138,7 @@ pub fn check_name(name: &str) -> Result<(), BlobError> {
 pub fn new_store(cfg: &BlobConfig, master: Option<Channel>) -> Result<Box<dyn Store>, BlobError> {
     if !cfg.uri.contains("://") {
         return match master {
-            Some(channel) => Ok(Box::new(master::MasterStoreClient::new(channel)?)),
+            Some(channel) => Ok(Box::new(master::MasterStoreClient::new(channel))),
             None => Ok(Box::new(posix::Posix::new(&cfg.uri))),
         };
     }

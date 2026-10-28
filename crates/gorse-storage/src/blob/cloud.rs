@@ -1,20 +1,23 @@
 // Ports: storage/blob/s3.go, storage/blob/gcs.go, storage/blob/azure.go @ add21b5 (the shared `Store` methods)
 
 //! The part that S3, GCS and Azure have in common: keys under a prefix, the
-//! blocking bridge to `object_store`, and streaming reads and writes.
+//! `object_store` calls, and streaming reads and writes.
 
-use std::io::{Read, Write};
+use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::task::{Context as TaskContext, Poll, ready};
 
+use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::stream::BoxStream;
 use futures_util::{StreamExt, TryStreamExt};
+use gorse_common::gocontext::Context;
 use object_store::path::Path;
 use object_store::{ObjectStore, ObjectStoreExt, WriteMultipart};
-use tokio::runtime::Runtime;
+use tokio::io::{AsyncRead, ReadBuf};
+use tokio::sync::oneshot;
 
-use super::{BlobError, BlobWriter, Store, check_name};
+use super::{BlobError, BlobWriter, Store, check_ctx, check_name};
 
 /// Data up to this size is uploaded in one request. Larger data starts a
 /// multipart upload in parts of this size (the S3 minimum part size).
@@ -24,31 +27,22 @@ const PART_SIZE: usize = 5 * 1024 * 1024;
 const MAX_PARTS_IN_FLIGHT: usize = 4;
 
 /// A [`Store`] over one `object_store` backend, with keys under `prefix`
-/// (Go's `S3`, `GCS` and `AzureBlob` structs). It owns the runtime that drives
-/// the calls, so its methods must not be called from inside a tokio task.
+/// (Go's `S3`, `GCS` and `AzureBlob` structs). It holds no runtime: the calls
+/// run on the caller's tokio runtime.
 pub struct CloudStore {
     store: Arc<dyn ObjectStore>,
     prefix: String,
-    runtime: Arc<Runtime>,
     provider: &'static str,
 }
 
 impl CloudStore {
     /// Wraps `store`. `provider` names the service in log lines.
-    pub(crate) fn new(
-        store: Arc<dyn ObjectStore>,
-        prefix: &str,
-        provider: &'static str,
-    ) -> Result<Self, BlobError> {
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?;
-        Ok(Self {
+    pub(crate) fn new(store: Arc<dyn ObjectStore>, prefix: &str, provider: &'static str) -> Self {
+        Self {
             store,
             prefix: prefix.to_string(),
-            runtime: Arc::new(runtime),
             provider,
-        })
+        }
     }
 
     /// The prefix without leading or trailing slashes, as Go's `filepath.Join`
@@ -69,24 +63,32 @@ impl CloudStore {
     }
 }
 
+#[async_trait]
 impl Store for CloudStore {
-    fn open(&self, name: &str) -> Result<Box<dyn Read + Send>, BlobError> {
+    async fn open(
+        &self,
+        ctx: &Context,
+        name: &str,
+    ) -> Result<Box<dyn AsyncRead + Send + Unpin>, BlobError> {
+        check_ctx(ctx)?;
         check_name(name)?;
-        let result = self.runtime.block_on(self.store.get(&self.path(name)?))?;
+        let result = self.store.get(&self.path(name)?).await?;
         Ok(Box::new(CloudReader {
-            runtime: Arc::clone(&self.runtime),
             stream: result.into_stream(),
-            chunk: Vec::new(),
-            pos: 0,
+            chunk: Bytes::new(),
         }))
     }
 
-    fn create(&self, name: &str) -> Result<(Box<dyn BlobWriter>, Receiver<()>), BlobError> {
+    async fn create(
+        &self,
+        ctx: &Context,
+        name: &str,
+    ) -> Result<(Box<dyn BlobWriter>, oneshot::Receiver<()>), BlobError> {
+        check_ctx(ctx)?;
         check_name(name)?;
-        let (done, closed) = mpsc::channel();
+        let (done, closed) = oneshot::channel();
         Ok((
             Box::new(CloudWriter {
-                runtime: Arc::clone(&self.runtime),
                 store: Arc::clone(&self.store),
                 path: self.path(name)?,
                 buffer: Vec::new(),
@@ -98,18 +100,18 @@ impl Store for CloudStore {
         ))
     }
 
-    fn list(&self) -> Result<Vec<String>, BlobError> {
+    async fn list(&self, ctx: &Context) -> Result<Vec<String>, BlobError> {
+        check_ctx(ctx)?;
         let prefix = self.prefix();
         let filter = if prefix.is_empty() {
             None
         } else {
             Some(Path::parse(prefix).map_err(|err| BlobError::Config(err.to_string()))?)
         };
-        let objects = self
-            .runtime
-            .block_on(self.store.list(filter.as_ref()).try_collect::<Vec<_>>())?;
+        let mut objects = self.store.list(filter.as_ref());
         let mut names = Vec::new();
-        for object in objects {
+        while let Some(object) = objects.try_next().await? {
+            check_ctx(ctx)?;
             // Go slices the key after the prefix and drops one leading '/'.
             let key = object.location.as_ref();
             let rest = key.strip_prefix(prefix).unwrap_or(key);
@@ -121,10 +123,11 @@ impl Store for CloudStore {
         Ok(names)
     }
 
-    fn remove(&self, name: &str) -> Result<(), BlobError> {
+    async fn remove(&self, ctx: &Context, name: &str) -> Result<(), BlobError> {
+        check_ctx(ctx)?;
         check_name(name)?;
         let path = self.path(name)?;
-        if let Err(err) = self.runtime.block_on(self.store.delete(&path)) {
+        if let Err(err) = self.store.delete(&path).await {
             tracing::error!(file = %path, error = %err, "failed to remove file from {}", self.provider);
             return Err(err.into());
         }
@@ -132,88 +135,76 @@ impl Store for CloudStore {
     }
 }
 
-/// Reads an object chunk by chunk, blocking on the store's runtime.
+/// Reads an object as its chunks arrive.
 struct CloudReader {
-    runtime: Arc<Runtime>,
     stream: BoxStream<'static, object_store::Result<Bytes>>,
-    chunk: Vec<u8>,
-    pos: usize,
+    chunk: Bytes,
 }
 
-impl Read for CloudReader {
-    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
-        if out.is_empty() {
-            return Ok(0);
+impl AsyncRead for CloudReader {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut TaskContext<'_>,
+        out: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        let this = self.get_mut();
+        if out.remaining() == 0 {
+            return Poll::Ready(Ok(()));
         }
-        while self.pos == self.chunk.len() {
-            match self.runtime.block_on(self.stream.next()) {
-                Some(Ok(bytes)) => {
-                    self.chunk = Vec::from(bytes);
-                    self.pos = 0;
-                }
-                Some(Err(err)) => return Err(std::io::Error::other(err)),
-                None => return Ok(0),
+        while this.chunk.is_empty() {
+            match ready!(this.stream.poll_next_unpin(cx)) {
+                Some(Ok(bytes)) => this.chunk = bytes,
+                Some(Err(err)) => return Poll::Ready(Err(std::io::Error::other(err))),
+                None => return Poll::Ready(Ok(())),
             }
         }
-        let n = out.len().min(self.chunk.len() - self.pos);
-        out[..n].copy_from_slice(&self.chunk[self.pos..self.pos + n]);
-        self.pos += n;
-        Ok(n)
+        let n = out.remaining().min(this.chunk.len());
+        out.put_slice(&this.chunk.split_to(n));
+        Poll::Ready(Ok(()))
     }
 }
 
 /// Uploads the data written to it. Data up to [`PART_SIZE`] goes up in one
 /// request on close; more starts a multipart upload.
 struct CloudWriter {
-    runtime: Arc<Runtime>,
     store: Arc<dyn ObjectStore>,
     path: Path,
     buffer: Vec<u8>,
     upload: Option<WriteMultipart>,
     provider: &'static str,
-    _done: Sender<()>,
+    _done: oneshot::Sender<()>,
 }
 
 impl CloudWriter {
     /// Hands the buffered data to the multipart upload, starting it on first use.
-    fn send_buffered(&mut self) -> object_store::Result<()> {
+    async fn send_buffered(&mut self) -> object_store::Result<()> {
         if self.upload.is_none() {
-            let upload = self
-                .runtime
-                .block_on(self.store.put_multipart(&self.path))?;
+            let upload = self.store.put_multipart(&self.path).await?;
             self.upload = Some(WriteMultipart::new(upload));
         }
         if let Some(upload) = self.upload.as_mut() {
-            let buffer = &self.buffer;
-            self.runtime.block_on(async {
-                upload.wait_for_capacity(MAX_PARTS_IN_FLIGHT).await?;
-                upload.write(buffer);
-                Ok::<(), object_store::Error>(())
-            })?;
+            upload.wait_for_capacity(MAX_PARTS_IN_FLIGHT).await?;
+            upload.write(&self.buffer);
         }
         self.buffer.clear();
         Ok(())
     }
 }
 
-impl Write for CloudWriter {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.buffer.extend_from_slice(buf);
+#[async_trait]
+impl BlobWriter for CloudWriter {
+    async fn write(&mut self, ctx: &Context, data: &[u8]) -> Result<(), BlobError> {
+        check_ctx(ctx)?;
+        self.buffer.extend_from_slice(data);
         if self.buffer.len() > PART_SIZE {
-            self.send_buffered().map_err(std::io::Error::other)?;
+            self.send_buffered().await?;
         }
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
     }
-}
 
-impl BlobWriter for CloudWriter {
-    fn close(self: Box<Self>) -> Result<(), BlobError> {
+    async fn close(self: Box<Self>, ctx: &Context) -> Result<(), BlobError> {
+        check_ctx(ctx)?;
         let CloudWriter {
-            runtime,
             store,
             path,
             buffer,
@@ -222,15 +213,11 @@ impl BlobWriter for CloudWriter {
             _done,
         } = *self;
         let result = match upload {
-            None => runtime
-                .block_on(store.put(&path, buffer.into()))
-                .map(|_| ()),
-            Some(mut upload) => runtime
-                .block_on(async move {
-                    upload.write(&buffer);
-                    upload.finish().await
-                })
-                .map(|_| ()),
+            None => store.put(&path, buffer.into()).await.map(|_| ()),
+            Some(mut upload) => {
+                upload.write(&buffer);
+                upload.finish().await.map(|_| ())
+            }
         };
         if let Err(err) = &result {
             tracing::error!(file = %path, error = %err, "failed to upload file to {provider}");

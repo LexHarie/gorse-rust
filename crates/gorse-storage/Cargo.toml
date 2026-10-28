@@ -23,9 +23,10 @@ tempfile = { workspace = true }
 thiserror.workspace = true
 tonic = { workspace = true }
 tracing = { workspace = true }
-# The gRPC master store runs its async client and server on a tokio runtime
-# behind the blocking `Store` trait (Go's `Store` is synchronous).
-tokio = { version = "1.53.3", features = ["rt-multi-thread", "sync", "macros", "net"] }
+# The blob stores are async (decision D-122); POSIX file calls run through
+# `tokio::fs`, which uses the blocking pool.
+async-trait = "0.1.92"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "sync", "macros", "net", "fs", "io-util", "time"] }
 tokio-stream = { version = "0.1.19", features = ["net"] }
 url = "2.5.8"
 percent-encoding = "2.3.2"

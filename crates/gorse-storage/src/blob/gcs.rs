@@ -38,7 +38,7 @@ pub fn new(cfg: &GCSConfig, bucket: &str, prefix: &str) -> Result<CloudStore, Bl
     if !cfg.credentials_file.is_empty() {
         builder = builder.with_service_account_path(&cfg.credentials_file);
     }
-    CloudStore::new(Arc::new(builder.build()?), prefix, "GCS")
+    Ok(CloudStore::new(Arc::new(builder.build()?), prefix, "GCS"))
 }
 
 #[cfg(test)]
@@ -46,17 +46,18 @@ mod tests {
     use super::*;
     use crate::blob::Store;
     use crate::blob::cloud::required_env;
-    use std::io::{Read, Write};
-    use std::sync::mpsc::RecvTimeoutError;
+    use gorse_common::gocontext::Context;
     use std::time::Duration;
+    use tokio::io::AsyncReadExt;
 
     /// Go writes through the emulator here. object_store writes through the GCS
     /// XML API, which fake-gcs-server does not serve (v1.54.0 and v1.56.1 both
     /// answer 400 "invalid uploadType"), so the write cannot run in this
     /// container. See `porting/notes/WP-2-10.md` (O-WP210-1).
     #[ignore = "fake-gcs-server has no XML upload API that object_store uses (O-WP210-1)"]
-    #[test]
-    fn test_gcs() {
+    #[tokio::test]
+    async fn test_gcs() {
+        let ctx = Context::background();
         // Go starts an in-process fake-gcs-server here; the Rust test needs an
         // emulator already running at GCS_EMULATOR_ENDPOINT, with the bucket
         // `gorse-test` created before the test.
@@ -66,30 +67,32 @@ mod tests {
         let client = new(&GCSConfig::default(), "gorse-test", "blob").unwrap();
 
         // create file
-        let (mut w, done) = client.create("test.txt").unwrap();
-        w.write_all(b"hello").unwrap();
-        w.close().unwrap();
-        assert!(matches!(
-            done.recv_timeout(Duration::from_secs(60)),
-            Err(RecvTimeoutError::Disconnected)
-        ));
+        let (mut w, done) = client.create(&ctx, "test.txt").await.unwrap();
+        w.write(&ctx, b"hello").await.unwrap();
+        w.close(&ctx).await.unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_secs(60), done)
+                .await
+                .unwrap()
+                .is_err()
+        );
 
         // list files
-        let names = client.list().unwrap();
+        let names = client.list(&ctx).await.unwrap();
         assert_eq!(names, vec!["test.txt".to_string()]);
 
         // read file
-        let mut r = client.open("test.txt").unwrap();
+        let mut r = client.open(&ctx, "test.txt").await.unwrap();
         let mut data = Vec::new();
-        r.read_to_end(&mut data).unwrap();
+        r.read_to_end(&mut data).await.unwrap();
         assert_eq!(data, b"hello");
         drop(r);
 
         // remove file
-        client.remove("test.txt").unwrap();
+        client.remove(&ctx, "test.txt").await.unwrap();
 
         // list files again
-        let names = client.list().unwrap();
+        let names = client.list(&ctx).await.unwrap();
         assert!(names.is_empty());
     }
 
@@ -97,35 +100,37 @@ mod tests {
     /// which fake-gcs-server does serve, and then listed, read and removed
     /// through object_store. This covers the GCS read and delete paths that
     /// `test_gcs` cannot reach here.
-    #[test]
-    fn test_gcs_read_list_remove() {
+    #[tokio::test]
+    async fn test_gcs_read_list_remove() {
+        let ctx = Context::background();
         let endpoint = required_env("GCS_EMULATOR_ENDPOINT");
         let base_url = endpoint
             .trim_end_matches('/')
             .trim_end_matches("/storage/v1");
-        reqwest::blocking::Client::new()
+        reqwest::Client::new()
             .post(format!(
                 "{base_url}/upload/storage/v1/b/gorse-test/o?uploadType=media&name=blob%2Fseeded.txt"
             ))
             .body("hello")
             .send()
+            .await
             .unwrap()
             .error_for_status()
             .unwrap();
 
         let client = new(&GCSConfig::default(), "gorse-test", "blob").unwrap();
 
-        let names = client.list().unwrap();
+        let names = client.list(&ctx).await.unwrap();
         assert!(names.contains(&"seeded.txt".to_string()));
 
-        let mut r = client.open("seeded.txt").unwrap();
+        let mut r = client.open(&ctx, "seeded.txt").await.unwrap();
         let mut data = Vec::new();
-        r.read_to_end(&mut data).unwrap();
+        r.read_to_end(&mut data).await.unwrap();
         assert_eq!(data, b"hello");
         drop(r);
 
-        client.remove("seeded.txt").unwrap();
-        let names = client.list().unwrap();
+        client.remove(&ctx, "seeded.txt").await.unwrap();
+        let names = client.list(&ctx).await.unwrap();
         assert!(!names.contains(&"seeded.txt".to_string()));
     }
 }

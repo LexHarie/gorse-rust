@@ -37,7 +37,11 @@ pub fn new(cfg: &AzureBlobConfig, container: &str, prefix: &str) -> Result<Cloud
             builder = builder.with_endpoint(cfg.endpoint.clone());
         }
     }
-    CloudStore::new(Arc::new(builder.build()?), prefix, "Azure Blob")
+    Ok(CloudStore::new(
+        Arc::new(builder.build()?),
+        prefix,
+        "Azure Blob",
+    ))
 }
 
 /// The settings of an Azure storage connection string that the blob client
@@ -88,12 +92,13 @@ mod tests {
     use super::*;
     use crate::blob::Store;
     use crate::blob::cloud::required_env;
-    use std::io::{Read, Write};
-    use std::sync::mpsc::RecvTimeoutError;
+    use gorse_common::gocontext::Context;
     use std::time::Duration;
+    use tokio::io::AsyncReadExt;
 
-    #[test]
-    fn test_azure_blob_emulator() {
+    #[tokio::test]
+    async fn test_azure_blob_emulator() {
+        let ctx = Context::background();
         let connection_string = required_env("AZURE_STORAGE_CONNECTION_STRING");
 
         // create client. The container `gorse-test` is created by the emulator's
@@ -108,25 +113,27 @@ mod tests {
         )
         .unwrap();
 
-        let (mut w, done) = client.create("test.txt").unwrap();
-        w.write_all(b"hello").unwrap();
-        w.close().unwrap();
-        assert!(matches!(
-            done.recv_timeout(Duration::from_secs(60)),
-            Err(RecvTimeoutError::Disconnected)
-        ));
+        let (mut w, done) = client.create(&ctx, "test.txt").await.unwrap();
+        w.write(&ctx, b"hello").await.unwrap();
+        w.close(&ctx).await.unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_secs(60), done)
+                .await
+                .unwrap()
+                .is_err()
+        );
 
-        let mut r = client.open("test.txt").unwrap();
+        let mut r = client.open(&ctx, "test.txt").await.unwrap();
         let mut data = Vec::new();
-        r.read_to_end(&mut data).unwrap();
+        r.read_to_end(&mut data).await.unwrap();
         assert_eq!(data, b"hello");
         drop(r);
 
-        let names = client.list().unwrap();
+        let names = client.list(&ctx).await.unwrap();
         assert!(names.contains(&"test.txt".to_string()));
 
-        client.remove("test.txt").unwrap();
-        let names = client.list().unwrap();
+        client.remove(&ctx, "test.txt").await.unwrap();
+        let names = client.list(&ctx).await.unwrap();
         assert!(!names.contains(&"test.txt".to_string()));
     }
 }

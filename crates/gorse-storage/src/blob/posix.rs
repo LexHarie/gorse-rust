@@ -2,15 +2,18 @@
 
 //! A blob store in a local directory: `blob.uri` without `://`.
 
-use std::fs::{self, File};
-use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::sync::mpsc::{self, Receiver, Sender};
 
-use super::{BlobError, BlobWriter, Store, check_name};
+use async_trait::async_trait;
+use gorse_common::gocontext::Context;
+use tokio::fs::{self, File};
+use tokio::io::{AsyncRead, AsyncWriteExt};
+use tokio::sync::oneshot;
+
+use super::{BlobError, BlobWriter, Store, check_ctx, check_name};
 
 /// A blob store that keeps each blob as a file in one directory (Go's
-/// `blob.POSIX`).
+/// `blob.POSIX`). Each file call runs on tokio's blocking pool (`tokio::fs`).
 #[derive(Debug, Clone)]
 pub struct Posix {
     dir: PathBuf,
@@ -24,28 +27,41 @@ impl Posix {
     }
 }
 
+#[async_trait]
 impl Store for Posix {
-    fn open(&self, name: &str) -> Result<Box<dyn Read + Send>, BlobError> {
+    async fn open(
+        &self,
+        ctx: &Context,
+        name: &str,
+    ) -> Result<Box<dyn AsyncRead + Send + Unpin>, BlobError> {
+        check_ctx(ctx)?;
         check_name(name)?;
-        Ok(Box::new(File::open(self.dir.join(name))?))
+        Ok(Box::new(File::open(self.dir.join(name)).await?))
     }
 
-    fn create(&self, name: &str) -> Result<(Box<dyn BlobWriter>, Receiver<()>), BlobError> {
+    async fn create(
+        &self,
+        ctx: &Context,
+        name: &str,
+    ) -> Result<(Box<dyn BlobWriter>, oneshot::Receiver<()>), BlobError> {
+        check_ctx(ctx)?;
         check_name(name)?;
         let path = self.dir.join(name);
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
+            fs::create_dir_all(parent).await?;
         }
-        let file = File::create(&path)?;
-        let (done, closed) = mpsc::channel();
+        let file = File::create(&path).await?;
+        let (done, closed) = oneshot::channel();
         Ok((Box::new(PosixWriter { file, _done: done }), closed))
     }
 
-    fn list(&self) -> Result<Vec<String>, BlobError> {
+    async fn list(&self, ctx: &Context) -> Result<Vec<String>, BlobError> {
+        check_ctx(ctx)?;
         let mut names = Vec::new();
-        for entry in fs::read_dir(&self.dir)? {
-            let entry = entry?;
-            if !entry.file_type()?.is_dir() {
+        let mut entries = fs::read_dir(&self.dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            check_ctx(ctx)?;
+            if !entry.file_type().await?.is_dir() {
                 names.push(entry.file_name().to_string_lossy().into_owned());
             }
         }
@@ -54,10 +70,11 @@ impl Store for Posix {
         Ok(names)
     }
 
-    fn remove(&self, name: &str) -> Result<(), BlobError> {
+    async fn remove(&self, ctx: &Context, name: &str) -> Result<(), BlobError> {
+        check_ctx(ctx)?;
         check_name(name)?;
         let path = self.dir.join(name);
-        if let Err(err) = fs::remove_file(&path) {
+        if let Err(err) = fs::remove_file(&path).await {
             tracing::error!(file = %path.display(), error = %err, "failed to remove file");
             return Err(err.into());
         }
@@ -70,21 +87,21 @@ impl Store for Posix {
 /// disconnects the `done` channel.
 struct PosixWriter {
     file: File,
-    _done: Sender<()>,
+    _done: oneshot::Sender<()>,
 }
 
-impl Write for PosixWriter {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.file.write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.file.flush()
-    }
-}
-
+#[async_trait]
 impl BlobWriter for PosixWriter {
-    fn close(self: Box<Self>) -> Result<(), BlobError> {
+    async fn write(&mut self, ctx: &Context, data: &[u8]) -> Result<(), BlobError> {
+        check_ctx(ctx)?;
+        self.file.write_all(data).await?;
+        Ok(())
+    }
+
+    async fn close(self: Box<Self>, ctx: &Context) -> Result<(), BlobError> {
+        check_ctx(ctx)?;
+        let mut writer = self;
+        writer.file.flush().await?;
         Ok(())
     }
 }
@@ -92,38 +109,55 @@ impl BlobWriter for PosixWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::mpsc::RecvTimeoutError;
+    use gorse_storage_core::errors::Error as StorageError;
     use std::time::Duration;
+    use tokio::io::AsyncReadExt;
 
-    #[test]
-    fn test_posix() {
+    #[tokio::test]
+    async fn test_posix() {
+        let ctx = Context::background();
         let root = tempfile::tempdir().unwrap();
         // create client
         let client = Posix::new(root.path().join("blob"));
 
         // write a temp file
-        let (mut w, done) = client.create("test").unwrap();
-        w.write_all(b"hello world").unwrap();
-        w.close().unwrap();
-        assert!(matches!(
-            done.recv_timeout(Duration::from_secs(10)),
-            Err(RecvTimeoutError::Disconnected)
-        ));
+        let (mut w, done) = client.create(&ctx, "test").await.unwrap();
+        w.write(&ctx, b"hello world").await.unwrap();
+        w.close(&ctx).await.unwrap();
+        // Go's done channel is closed here; the receiver fails instead.
+        assert!(
+            tokio::time::timeout(Duration::from_secs(10), done)
+                .await
+                .unwrap()
+                .is_err()
+        );
 
         // read the file
-        let mut r = client.open("test").unwrap();
+        let mut r = client.open(&ctx, "test").await.unwrap();
         let mut content = [0u8; 11];
-        r.read_exact(&mut content).unwrap();
+        r.read_exact(&mut content).await.unwrap();
         assert_eq!(&content, b"hello world");
         drop(r);
 
         // list files
-        let files = client.list().unwrap();
+        let files = client.list(&ctx).await.unwrap();
         assert!(files.contains(&"test".to_string()));
 
         // remove the file
-        client.remove("test").unwrap();
-        let files = client.list().unwrap();
+        client.remove(&ctx, "test").await.unwrap();
+        let files = client.list(&ctx).await.unwrap();
         assert!(!files.contains(&"test".to_string()));
+    }
+
+    /// Not in Go's tests. A missing blob reports the storage sentinel NotFound,
+    /// which callers test for (Go's `storage.ErrNotFound`).
+    #[tokio::test]
+    async fn open_missing_blob_is_not_found() {
+        let ctx = Context::background();
+        let root = tempfile::tempdir().unwrap();
+        let client = Posix::new(root.path());
+
+        let err = client.open(&ctx, "missing").await.err().unwrap();
+        assert_eq!(err.kind(), Some(StorageError::NotFound));
     }
 }

@@ -29,7 +29,7 @@ pub fn new(cfg: &S3Config, bucket: &str, prefix: &str) -> Result<CloudStore, Blo
         .with_secret_access_key(&cfg.secret_access_key)
         .with_bucket_name(bucket)
         .build()?;
-    CloudStore::new(Arc::new(store), prefix, "S3")
+    Ok(CloudStore::new(Arc::new(store), prefix, "S3"))
 }
 
 #[cfg(test)]
@@ -37,12 +37,13 @@ mod tests {
     use super::*;
     use crate::blob::Store;
     use crate::blob::cloud::required_env;
-    use std::io::{Read, Write};
-    use std::sync::mpsc::RecvTimeoutError;
+    use gorse_common::gocontext::Context;
     use std::time::Duration;
+    use tokio::io::AsyncReadExt;
 
-    #[test]
-    fn test_s3() {
+    #[tokio::test]
+    async fn test_s3() {
+        let ctx = Context::background();
         let endpoint = required_env("S3_ENDPOINT");
         let access_key_id = required_env("S3_ACCESS_KEY_ID");
         let secret_access_key = required_env("S3_SECRET_ACCESS_KEY");
@@ -61,38 +62,41 @@ mod tests {
         .unwrap();
 
         // write a temp file
-        let (mut w, done) = client.create("test").unwrap();
-        w.write_all(b"hello world").unwrap();
-        w.close().unwrap();
-        assert!(matches!(
-            done.recv_timeout(Duration::from_secs(60)),
-            Err(RecvTimeoutError::Disconnected)
-        ));
+        let (mut w, done) = client.create(&ctx, "test").await.unwrap();
+        w.write(&ctx, b"hello world").await.unwrap();
+        w.close(&ctx).await.unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_secs(60), done)
+                .await
+                .unwrap()
+                .is_err()
+        );
 
         // read the file
-        let mut r = client.open("test").unwrap();
+        let mut r = client.open(&ctx, "test").await.unwrap();
         let mut content = [0u8; 11];
-        r.read_exact(&mut content).unwrap();
+        r.read_exact(&mut content).await.unwrap();
         assert_eq!(&content, b"hello world");
         // Go's minio reader returns io.EOF with the last bytes; a Rust reader
         // reports the end on the next read.
-        assert_eq!(r.read(&mut [0u8; 1]).unwrap(), 0);
+        assert_eq!(r.read(&mut [0u8; 1]).await.unwrap(), 0);
         drop(r);
 
         // list files
-        let files = client.list().unwrap();
+        let files = client.list(&ctx).await.unwrap();
         assert!(files.contains(&"test".to_string()));
 
         // remove the file
-        client.remove("test").unwrap();
-        let files = client.list().unwrap();
+        client.remove(&ctx, "test").await.unwrap();
+        let files = client.list(&ctx).await.unwrap();
         assert!(!files.contains(&"test".to_string()));
     }
 
     /// Not in Go. Data past one part goes up as a multipart upload, which the
     /// writer starts on its own; this checks that path round-trips intact.
-    #[test]
-    fn test_s3_multipart() {
+    #[tokio::test]
+    async fn test_s3_multipart() {
+        let ctx = Context::background();
         let endpoint = required_env("S3_ENDPOINT");
         let access_key_id = required_env("S3_ACCESS_KEY_ID");
         let secret_access_key = required_env("S3_SECRET_ACCESS_KEY");
@@ -108,23 +112,25 @@ mod tests {
         .unwrap();
 
         let data: Vec<u8> = (0..12 * 1024 * 1024).map(|i| (i % 251) as u8).collect();
-        let (mut w, done) = client.create("big").unwrap();
+        let (mut w, done) = client.create(&ctx, "big").await.unwrap();
         for chunk in data.chunks(1024 * 1024) {
-            w.write_all(chunk).unwrap();
+            w.write(&ctx, chunk).await.unwrap();
         }
-        w.close().unwrap();
-        assert!(matches!(
-            done.recv_timeout(Duration::from_secs(120)),
-            Err(RecvTimeoutError::Disconnected)
-        ));
+        w.close(&ctx).await.unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_secs(120), done)
+                .await
+                .unwrap()
+                .is_err()
+        );
 
-        let mut r = client.open("big").unwrap();
+        let mut r = client.open(&ctx, "big").await.unwrap();
         let mut read = Vec::new();
-        r.read_to_end(&mut read).unwrap();
+        r.read_to_end(&mut read).await.unwrap();
         drop(r);
         assert_eq!(read.len(), data.len());
         assert!(read == data, "the multipart upload changed the bytes");
 
-        client.remove("big").unwrap();
+        client.remove(&ctx, "big").await.unwrap();
     }
 }
