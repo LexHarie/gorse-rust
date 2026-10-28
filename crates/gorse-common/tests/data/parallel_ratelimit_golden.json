@@ -1,0 +1,518 @@
+{
+ "chat_completion": [
+  {
+   "rpm": 120,
+   "tpm": 180,
+   "panic": "",
+   "backoff": 500000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 2,
+    "rate": "4000000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 3,
+    "rate": "4008000000000000"
+   }
+  },
+  {
+   "rpm": 0,
+   "tpm": 0,
+   "panic": "",
+   "backoff": 500000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 2,
+    "rate": "4000000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 3,
+    "rate": "4008000000000000"
+   }
+  },
+  {
+   "rpm": -1,
+   "tpm": -5,
+   "panic": "",
+   "backoff": 500000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 2,
+    "rate": "4000000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 3,
+    "rate": "4008000000000000"
+   }
+  },
+  {
+   "rpm": 60,
+   "tpm": 60,
+   "panic": "",
+   "backoff": 1000000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   }
+  },
+  {
+   "rpm": 61,
+   "tpm": 119,
+   "panic": "",
+   "backoff": 983606557,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   }
+  },
+  {
+   "rpm": 59,
+   "tpm": 0,
+   "panic": "token bucket capacity is not \u003e 0",
+   "backoff": 1016949152,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   }
+  },
+  {
+   "rpm": 0,
+   "tpm": 1,
+   "panic": "token bucket capacity is not \u003e 0",
+   "backoff": 1016949152,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   }
+  },
+  {
+   "rpm": 3600,
+   "tpm": 3600000,
+   "panic": "",
+   "backoff": 16666666,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 60,
+    "rate": "404e000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 60000,
+    "rate": "40ed4c0000000000"
+   }
+  },
+  {
+   "rpm": 1,
+   "tpm": 0,
+   "panic": "token bucket capacity is not \u003e 0",
+   "backoff": 60000000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 60,
+    "rate": "404e000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 60000,
+    "rate": "40ed4c0000000000"
+   }
+  },
+  {
+   "rpm": 9223372036854775807,
+   "tpm": 9223372036854775807,
+   "panic": "",
+   "backoff": 0,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 153722867280912930,
+    "rate": "4381111111111111"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 153722867280912930,
+    "rate": "4381111111111111"
+   }
+  },
+  {
+   "rpm": 60,
+   "tpm": 0,
+   "panic": "",
+   "backoff": 1000000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 153722867280912930,
+    "rate": "4381111111111111"
+   }
+  },
+  {
+   "rpm": 1000000,
+   "tpm": 59,
+   "panic": "token bucket capacity is not \u003e 0",
+   "backoff": 60000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 16666,
+    "rate": "40d0468000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 153722867280912930,
+    "rate": "4381111111111111"
+   }
+  },
+  {
+   "rpm": 7200,
+   "tpm": 0,
+   "panic": "",
+   "backoff": 8333333,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 120,
+    "rate": "405e000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 153722867280912930,
+    "rate": "4381111111111111"
+   }
+  },
+  {
+   "rpm": 0,
+   "tpm": -60,
+   "panic": "",
+   "backoff": 8333333,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 120,
+    "rate": "405e000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 153722867280912930,
+    "rate": "4381111111111111"
+   }
+  },
+  {
+   "rpm": -9223372036854775808,
+   "tpm": -9223372036854775808,
+   "panic": "",
+   "backoff": 8333333,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 120,
+    "rate": "405e000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 153722867280912930,
+    "rate": "4381111111111111"
+   }
+  },
+  {
+   "rpm": 6000,
+   "tpm": 6000,
+   "panic": "",
+   "backoff": 10000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 100,
+    "rate": "4059000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 100,
+    "rate": "4059000000000000"
+   }
+  }
+ ],
+ "embedding": [
+  {
+   "rpm": 6000,
+   "tpm": 6000,
+   "panic": "",
+   "backoff": 10000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 100,
+    "rate": "4059000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 100,
+    "rate": "4059000000000000"
+   }
+  },
+  {
+   "rpm": -9223372036854775808,
+   "tpm": -9223372036854775808,
+   "panic": "",
+   "backoff": 10000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 100,
+    "rate": "4059000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 100,
+    "rate": "4059000000000000"
+   }
+  },
+  {
+   "rpm": 0,
+   "tpm": -60,
+   "panic": "",
+   "backoff": 10000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 100,
+    "rate": "4059000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 100,
+    "rate": "4059000000000000"
+   }
+  },
+  {
+   "rpm": 7200,
+   "tpm": 0,
+   "panic": "",
+   "backoff": 8333333,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 120,
+    "rate": "405e000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 100,
+    "rate": "4059000000000000"
+   }
+  },
+  {
+   "rpm": 1000000,
+   "tpm": 59,
+   "panic": "token bucket capacity is not \u003e 0",
+   "backoff": 60000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 16666,
+    "rate": "40d0468000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 100,
+    "rate": "4059000000000000"
+   }
+  },
+  {
+   "rpm": 60,
+   "tpm": 0,
+   "panic": "",
+   "backoff": 1000000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 100,
+    "rate": "4059000000000000"
+   }
+  },
+  {
+   "rpm": 9223372036854775807,
+   "tpm": 9223372036854775807,
+   "panic": "",
+   "backoff": 0,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 153722867280912930,
+    "rate": "4381111111111111"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 153722867280912930,
+    "rate": "4381111111111111"
+   }
+  },
+  {
+   "rpm": 1,
+   "tpm": 0,
+   "panic": "token bucket capacity is not \u003e 0",
+   "backoff": 60000000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 153722867280912930,
+    "rate": "4381111111111111"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 153722867280912930,
+    "rate": "4381111111111111"
+   }
+  },
+  {
+   "rpm": 3600,
+   "tpm": 3600000,
+   "panic": "",
+   "backoff": 16666666,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 60,
+    "rate": "404e000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 60000,
+    "rate": "40ed4c0000000000"
+   }
+  },
+  {
+   "rpm": 0,
+   "tpm": 1,
+   "panic": "token bucket capacity is not \u003e 0",
+   "backoff": 16666666,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 60,
+    "rate": "404e000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 60000,
+    "rate": "40ed4c0000000000"
+   }
+  },
+  {
+   "rpm": 59,
+   "tpm": 0,
+   "panic": "token bucket capacity is not \u003e 0",
+   "backoff": 1016949152,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 60,
+    "rate": "404e000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 60000,
+    "rate": "40ed4c0000000000"
+   }
+  },
+  {
+   "rpm": 61,
+   "tpm": 119,
+   "panic": "",
+   "backoff": 983606557,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   }
+  },
+  {
+   "rpm": 60,
+   "tpm": 60,
+   "panic": "",
+   "backoff": 1000000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   }
+  },
+  {
+   "rpm": -1,
+   "tpm": -5,
+   "panic": "",
+   "backoff": 1000000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   }
+  },
+  {
+   "rpm": 0,
+   "tpm": 0,
+   "panic": "",
+   "backoff": 1000000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 1,
+    "rate": "3ff0000000000000"
+   }
+  },
+  {
+   "rpm": 120,
+   "tpm": 180,
+   "panic": "",
+   "backoff": 500000000,
+   "requests": {
+    "kind": "bucket",
+    "capacity": 2,
+    "rate": "4000000000000000"
+   },
+   "tokens": {
+    "kind": "bucket",
+    "capacity": 3,
+    "rate": "4008000000000000"
+   }
+  }
+ ]
+}

@@ -447,6 +447,7 @@ dependencies = [
  "blake2",
  "cc",
  "gorse-protocol",
+ "gorse-ratelimit",
  "hex",
  "indexmap",
  "md-5",
@@ -552,6 +553,16 @@ dependencies = [
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
+]
+
+[[package]]
+name = "gorse-ratelimit"
+version = "0.0.0"
+dependencies = [
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

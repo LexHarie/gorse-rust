@@ -1,0 +1,23 @@
+[package]
+name = "gorse-ratelimit"
+description = "Rust port of github.com/juju/ratelimit v1.0.2, the token bucket behind Gorse's OpenAI rate limiters."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+# A port of juju/ratelimit, which is LGPLv3 with a static-linking exception
+# (LICENSE; the GPLv3 it builds on is in COPYING). Unlike the rest of the
+# workspace this crate is not Apache-2.0 (Ritchie's decision, 2026-10-19).
+# src/format.rs is derived from Go's strconv (BSD-3-Clause,
+# licenses/GO-LICENSE).
+license = "(LGPL-3.0-only WITH LGPL-3.0-linking-exception) AND BSD-3-Clause"
+repository.workspace = true
+publish = false
+
+[dev-dependencies]
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[lints]
+workspace = true
