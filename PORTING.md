@@ -937,6 +937,20 @@ or accepts a metric gap outside the Go tests' own tolerances.
   `porting/crate-selection.md`; the statik row's `zip` is bumped from 9.0.4 to
   9.1.3 so both uses agree.
 
+- **D-108 The test servers use `std::net`, not go-restful or axum.** Go's mocks answer through
+  go-restful over `net/http`. The Rust mocks answer through a small HTTP/1.1 server on `std::net`
+  (`http.rs`). It serves one request per connection, reads `Content-Length` bodies, and answers with
+  `Connection: close`. The mocks serve two routes each. `gorse-common` has no async runtime, so axum
+  and tokio would add two dependencies to serve two routes.
+
+- **D-109 Client calls end when their context does.** `http::post` runs the request on its own
+  thread and checks the context every 10 ms. A context that is done returns `Error::Context`, as Go's
+  cancelled request does. The request thread finishes unobserved and its reply is dropped.
+
+- **D-110 The clients use reqwest's blocking client with rustls.** Go's `http.DefaultClient` is
+  shared across requests, and so is the Rust `OnceLock` client. Both honour the proxy environment
+  variables. No Phase 1 caller is async.
+
 ## Open questions for Ritchie
 
 - **Datasets.** The network policy of this environment blocks

@@ -855,6 +855,28 @@ said otherwise), so the Rust result is Go's.
   `sizeof` tests come from a Go 1.27.0 program run on the same values; that
   program is in the scratch directory and is not committed.
 
+### HTTP mocks and clients (WP-1-12)
+
+- **Q-161 The decision client accepts any 2xx; the reranker client accepts only 200.**
+  `common/decision/client.go` checks `200 <= status < 300`. `common/reranker/client.go` checks `!= 200`.
+
+- **Q-162 Error texts are Go's.** Decision: `jev request failed with status N: <body, trimmed>`.
+  Reranker: `rerank request failed with status: N, body: <body>`.
+
+- **Q-163 Optional request fields are omitted as in Go.** `top_n` is left out when zero
+  (`omitempty`). A criteria with neither outcome encodes as `{}`, and a question without criteria
+  leaves the field out.
+
+- **Q-164 The chat mock prefixes replies for model `deepseek-r1` with a `<think>` block**
+  (`common/mock/openai.go`, the same branch as Go).
+
+- **Q-165 Stream pieces are cut by bytes, as Go cuts them.** Eight bytes per piece. A piece can
+  end inside a multi-byte character. JSON encoding then writes each invalid byte as U+FFFD, which
+  `mock::go_string` reproduces.
+
+- **Q-166 Embedding input must be a string.** Go answers 400 with `invalid input type`, and the
+  Rust mock does the same.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -1149,6 +1171,32 @@ said otherwise), so the Rust result is Go's.
   mutex and the maps with mutexes; Go uses `sync.Map` and unlocked updates.
   The same sequence of calls gives the same results, and there are no data
   races.
+
+### HTTP mocks and clients (WP-1-12)
+
+- **X-58 The OpenAI mock listens on 127.0.0.1, not on every interface.** Go's
+  `net.Listen("tcp", "")` listens on all interfaces. Go's reranker mock already binds `127.0.0.1:0`,
+  and the Rust reranker mock matches it. Tests connect only to loopback, so the Rust mock keeps
+  itself off the network.
+
+- **X-59 The mock's JSON leaves out two fields.** Go writes `content_filter_results` and the
+  unnamed `MultiContent` field on chat messages. The Rust mock writes neither. No Gorse code reads
+  either.
+
+- **X-60 `start()` returns `Ok(())` after `close()`.** Go returns `http.ErrServerClosed`.
+
+- **X-61 Chunked request bodies get a 400.** Go's server reads them. The Gorse clients send
+  `Content-Length` bodies, so no test reaches this path.
+
+- **X-62 `"answers": null` is a decode error.** Go's nil map accepts it. Serde rejects `null` for
+  a `BTreeMap`. No Gorse caller sends null.
+
+- **X-63 Float32 embeddings are written as `139.0`.** serde_json writes an `f32` with a fraction;
+  Go writes `139`. The values are equal, and the Go test compares parsed float32s.
+
+- **X-64 An empty `messages` list gets a 500.** Go indexes `Messages[0]` without a check, and
+  net/http then drops the connection. The Rust mock answers 500 with Go's index-panic text, so the
+  failure is visible.
 
 ## Open questions
 
