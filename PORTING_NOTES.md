@@ -2234,9 +2234,10 @@ said otherwise), so the Rust result is Go's.
   sqlx-mysql's OAEP encryption of the password with the server's public key, and the port
   holds no private key (D-182).
 
-- **Q-229 Schema equality.** The tables this store creates are not compared
-  with `contracts/schema/cache/{mysql,postgres,sqlite}.sql`. WP-2-13 owns that
-  check.
+- **Q-229 Schema equality (closed by WP-2-13, D-193).** The tables this store creates equal
+  `contracts/schema/{mysql,postgres,sqlite}.sql` on MySQL 8.0.46, PostgreSQL 10.0 and SQLite. The
+  search variants equal the Go reconcile output (`schema_mysql`, `schema_postgres`,
+  `schema_sqlite`).
 
 - **Q-230 rusqlite version.** Resolved by D-160: keep 0.39.0.
 
@@ -2357,6 +2358,17 @@ said otherwise), so the Rust result is Go's.
 
   Also see O-31. Ruled on by D-185: the listener covers the GCS list and read requests,
   and `test_gcs` stays open here until a run with a working emulator or real GCS.
+
+- **O-63 Samples and the Redis key layout are not compared.** WP-2-13 compares the schema
+  files only (D-192). The Go `samples/*.json` files and the Redis key listing
+  (`samples/cache.redis.json`) are not compared. The coordinator's "key layout where applicable"
+  covers `FT.INFO`, which is compared (D-190). The key layout is the next step if it is wanted in
+  the gate. Open.
+
+- **O-64 Mixed-version runs.** The WP-2-13 run used the Go and Rust builds at the pinned commit,
+  each on its own databases (D-188). Go and Rust sharing a database across versions was not run.
+  The Kvrocks and six-node cluster runs of the Go CI's compatibility job are not part of WP-2-13.
+  They are run on the merged head under D-184 and D-185. Open for the mixed-version case only.
 
 Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
 version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does

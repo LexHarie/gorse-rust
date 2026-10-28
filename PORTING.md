@@ -1484,6 +1484,49 @@ or accepts a metric gap outside the Go tests' own tolerances.
     new brief. It does not block Phase 3 prep, but it must close before the Phase 2
     exit is declared.
 
+- **D-186 The Go tool dumps the Rust databases; the Rust mirror is a second check (WP-2-13,
+  D-WP213-1).** `schemadump`'s full run creates its own databases, so it cannot dump one a
+  Rust store made. The coordinator approved a `-dump-only` mode in `contracts/tools/schemadump`
+  (`-dump-only <kind>` with `-target`, `-database` and `-postgres-container`). It writes one dump
+  to stdout and changes nothing. The kinds are `sqlite`, `mysql`, `postgres`, `mongodb` and
+  `redis`. The full run's outputs are unchanged: before and after the change, all four backends
+  give byte-identical schema files, apart from the wall-clock `FT.INFO` `total_indexing_time`,
+  and the sample files differ only in `_id` and `update_at`. The Rust mirror in `schema::dump`
+  stays as a second check, so a fault shared by the Rust stores and a mirror of the Go format
+  cannot hide a diff. Each Rust-initialised database must equal the Go-initialised dump and
+  `contracts/schema/` under both checks.
+
+- **D-187 PostgreSQL is dumped inside the server container (D-WP213-2).** `pg_dump -s` runs
+  through `docker exec` in `POSTGRES_CONTAINER`, as `dump-schemas.sh` does. The host's
+  `pg_dump` is version 16 and would not match the server's 10.0 output. The default container
+  name is `storage-postgres-1`, the compose project's name. On the integrator's host the service
+  container is `gorse-pg`, so the acceptance ran with `POSTGRES_CONTAINER=gorse-pg`. No code
+  change.
+
+- **D-188 Separate databases (D-WP213-3).** Go writes `gorse_schema_*` and Rust writes
+  `gorse_rs_schema_*` (`schema::init`), so neither build reads the other's database. Each test
+  drops and creates its own databases before it starts.
+
+- **D-189 A missing backend fails, it does not skip (D-WP213-4).** Each test needs its URI
+  (`MYSQL_URI`, `MARIADB_URI`, `POSTGRES_URI`, `MONGO_URI`, `REDIS_URI`) and fails without it,
+  as `conformance/README.md` requires. The Go tests skip instead. SQLite needs no server.
+
+- **D-190 Run-dependent values and read counts (D-WP213-5).** Two rules, applied to the Go side,
+  the Rust side and the contract. `FT.INFO`'s `total_indexing_time` is replaced by
+  `<run-dependent>`, and it is the only normalisation. Every `FT.INFO` call increments
+  `number_of_uses`, so each dump reads a freshly built index once: the Go tool reads first, the
+  index is rebuilt, and the Rust mirror reads second. Redis 8 then agrees on `FT.INFO documents`.
+
+- **D-191 MariaDB 10.2 has no frozen dump (D-WP213-6).** `contracts/schema` holds MySQL 8.0
+  only, so `schema_mariadb` compares the Go and Rust dumps with each other. The differences from
+  the MySQL dump come from the server: the version line, `DEFAULT '0'` shown as `DEFAULT 0` for
+  `double`, `labels` as `longtext` rather than `json`, and the multi-valued index
+  `idx_collection_subset_categories`, which is missing on MariaDB.
+
+- **D-192 Samples are not in the schema check (D-WP213-7).** `schemadump` also writes
+  `samples/*.json`. WP-2-13 compares the schema files only, as its brief says. The rows are
+  covered by the store WPs' cross-reads (D-177 to D-181 and the WP-2-3 and WP-2-5 runs).
+
 ## Open questions for Ritchie
 
 - **Datasets.** The network policy of this environment blocks
