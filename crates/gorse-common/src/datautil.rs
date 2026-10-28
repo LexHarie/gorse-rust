@@ -124,8 +124,13 @@ fn download_from_url(src: &str, dst: &Path) -> (PathBuf, Result<(), Error>) {
             fs::create_dir_all(dir)?;
         }
         let mut output = File::create(&file_name)?;
-        // As Go's http.Get: the body is saved whatever the status code.
-        let mut response = reqwest::blocking::get(src)?;
+        // As Go's http.Get: the body is saved whatever the status code, and no
+        // timeout applies. reqwest's blocking client would cut a slow download
+        // off after 30 seconds, so the timeout is switched off.
+        let client = reqwest::blocking::Client::builder()
+            .timeout(None::<std::time::Duration>)
+            .build()?;
+        let mut response = client.get(src).send()?;
         io::copy(&mut response, &mut output)?;
         Ok(())
     })();
@@ -205,6 +210,38 @@ mod tests {
         assert_eq!(data.len(), 4);
         assert_eq!(data[1], vec![7.0, 3.2, 4.7, 1.4]);
         assert_eq!(target, vec![0, 1, 2, 0]);
+    }
+
+    /// Go's `http.Get` sets no timeout, so a download slower than the 30 seconds
+    /// of reqwest's default blocking client still succeeds. The server sends the
+    /// headers at once and holds the body for 31 seconds.
+    #[test]
+    fn download_from_url_waits_past_the_default_timeout() {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+        use std::thread;
+        use std::time::Duration;
+
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("address");
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept");
+            let mut request = [0; 1024];
+            let _ = stream.read(&mut request);
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n")
+                .expect("headers");
+            stream.flush().expect("flush");
+            thread::sleep(Duration::from_secs(31));
+            stream.write_all(b"hello").expect("body");
+        });
+
+        let temp = tempfile::tempdir().expect("temp dir");
+        let src = format!("http://{addr}/slow.csv");
+        let (path, result) = download_from_url(&src, temp.path());
+        result.expect("download");
+        assert_eq!(fs::read(&path).expect("saved file"), b"hello");
+        server.join().expect("server");
     }
 
     #[test]
