@@ -14,6 +14,10 @@ gorse-config = { workspace = true }
 gorse-dataset = { workspace = true }
 gorse-storage-core = { workspace = true }
 gorse-storage = { workspace = true }
+minijinja.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
 
 [lints]
 workspace = true
