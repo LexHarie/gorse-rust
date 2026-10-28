@@ -12,11 +12,14 @@
 //! well. So each write is sent on its own, in order, and the first error stops
 //! the batch, as Go's ordered bulk write does.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use gorse_common::gocontext::Context;
 use gorse_common::gotime::{self, Duration, Time};
+use gorse_storage_core::options::Opt;
 use gorse_storage_core::scheme::TablePrefix;
 use mongodb::bson::{self, DateTime, Document, doc};
 use mongodb::{Client, Collection, IndexModel};
@@ -544,11 +547,44 @@ impl Database for MongoDB {
     }
 }
 
+/// The future a [`creator`] returns.
+pub type OpenFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<Box<dyn Database>, Error>> + Send + 'a>>;
+
+/// The creator for `mongodb://` and `mongodb+srv://` paths, in the form the
+/// cache registry takes: it opens the store [`MongoDB::open`] makes. Go's
+/// creator takes options and ignores them, and so does this.
+pub fn creator<'a>(path: &'a str, table_prefix: &'a str, _opts: &'a [Opt]) -> OpenFuture<'a> {
+    Box::pin(async move {
+        let db = MongoDB::open(path, table_prefix).await?;
+        Ok(Box::new(db) as Box<dyn Database>)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use crate::cache::{Database, database_test};
 
     use super::MongoDB;
+
+    /// The creator opens the same store as [`MongoDB::open`], as a boxed
+    /// [`Database`]. Skipped without `MONGO_URI`, as [`mongo`] is.
+    #[tokio::test]
+    async fn creator_opens_the_store() {
+        let Ok(uri) = std::env::var("MONGO_URI") else {
+            eprintln!("MONGO_URI is not set, skipping MongoDB creator test");
+            return;
+        };
+        let db = super::creator(
+            &format!("{uri}gorse_cache_test?authSource=admin&connect=direct"),
+            "gorse_",
+            &[],
+        )
+        .await
+        .unwrap();
+        db.ping().await.unwrap();
+        db.close().await.unwrap();
+    }
 
     /// Go's `TestMongo`: runs the shared suite against a real MongoDB, in the
     /// database `gorse_cache_test`, which is dropped first. Without
