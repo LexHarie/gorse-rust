@@ -31,7 +31,7 @@ Every Rust module names the Go files it ports with a
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-18, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); the frozen config.schema.json and config.keys.md match a fresh run of the Go generator byte for byte (X-49, closed 2026-10-28). WP-1-18 (dataset) is merged: Q-210 to Q-217, X-117 to X-129, O-51 and O-52 open, and the ml-1m test is ignored (O-1). Every Phase 1 WP is merged. All in `porting/work-packages.md` |
 | 2. Storage | exited (D-207) | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-3 (MongoDB data store, feature `mongodb`, MongoDB 6.0.28; O-53 open for 8.0; the `get_item_stream` doc is corrected, O-54). WP-2-11 (meta store, SQLite through rusqlite 0.39.0, D-160 to D-166; O-48 closed, O-49 and O-50 open for Phases 3 and 4). WP-2-2 (SQL data store, MySQL, Postgres and SQLite as one build; D-177 to D-181; O-36 closed by the SQL and MongoDB runs; O-57 and O-59 closed by the Go and Rust cross-reads on PostgreSQL, MySQL and SQLite, D-177 to D-181). WP-2-6 (SQL cache store: MySQL and Postgres on sqlx 0.9.0, SQLite on rusqlite 0.39.0; D-167 to D-175; Q-232 MySQL auth open). WP-2-9 (D-197 to D-200), WP-2-12 (D-202 to D-206) and WP-2-13 (D-186 to D-193) merged. The court audit of the env-gated backend tests is O-66 (D-201). Phase 2 exited (D-207): `test_gcs` stays ignored with its reason, and O-62 stays open for a real-GCS run before Phase 5. |
-| 3. Models and logics | in progress | Accepted: WP-3-1 (D-216), WP-3-4 (D-217), WP-3-2 (D-224) and WP-3-6 (D-229, with Q-254 and Q-255 open). WP-3-3 is under review. WP-3-5 can start now. WP-3-7 waits for WP-3-5 and WP-3-6, WP-3-8 needs the datasets (O-1, O-70 to O-72) |
+| 3. Models and logics | in progress | Accepted: WP-3-1 (D-216), WP-3-4 (D-217), WP-3-2 (D-224), WP-3-3 (D-230) and WP-3-6 (D-229, with Q-254 and Q-255 open). WP-3-5 can start now. WP-3-7 waits for WP-3-5 and WP-3-6, WP-3-8 needs the datasets (O-1, O-70 to O-72) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
 
@@ -1940,6 +1940,31 @@ or accepts a metric gap outside the Go tests' own tolerances.
     unset (exit 101, expected, O-66). They fail rather than pass.
   - Verdict: accepted, with Q-254 and Q-255 open. The master work package must close Q-254 before the
     master merges, and Q-255 before Phase 5 conformance.
+
+- **D-230 Court acceptance for WP-3-3 on the head `36aedd40` (integrator, 2026-10-28).** The branch
+  `claude/wp-3-3-tuning` is merged as `1143819c` on the integration head `2b4e0942`. The merge was clean.
+  The notes fold as Q-257, Q-258, X-193 to X-198, which closes X-65 (X-197). The port is goptuna v0.9.0's
+  TPE sampler and Gorse's model search, with `SuggestParams` for BPR, ALS and AFM.
+  - The Go oracle. `contracts/tools/tpegolden` writes `crates/gorse-model/testdata/tpe/golden.json`. The
+    court regenerated it twice with `GODEBUG=randautoseed=0 go run ./contracts/tools/tpegolden`. Both
+    runs equal the committed file byte for byte, and each other. The Rust tests read the committed file
+    (`tpe::golden`). That is the pattern of the other committed goldens (util, tls and ratelimit), but
+    unlike the CF and CTR oracles, which run Go inside the test, the regeneration is not run by the gate. Any change to the
+    generator must regenerate the file by hand, as `contracts/README.md` says.
+  - The contract touches. `gorse-common` makes `util::rand::math` public, with `exp` and `log` public.
+    `gorse-model-core` gains `SuggestTrial` and `Model::suggest_params`. Both are the X-65 change that
+    the notes planned. WP-3-3 records the coordinator's approval of both. The court has not seen that
+    ruling, so it is cited as the thread records it, and the coordinator is asked to confirm it.
+  - No test is ignored, skipped or made to return early in the diff. The mock models in the test
+    modules of `cf/optimize.rs`, `cf/evaluator.rs` and `ctr/optimize.rs` panic on methods the tests do
+    not reach. The tests pass, so none of those panics is hit.
+  - The gate on the merged tree, with every URI set: fmt, clippy, rustdoc, the config and YAML goldens,
+    `go vet`, the cloud and Mongo clippy runs, the vector acceptance with `--include-ignored` (skipping
+    `vectors::weaviate::tests::sparse`, as D-224 and D-229 record), the vector cross-read, the proxy
+    conformance and the proxy store tests all exit 0. `cargo test --workspace --no-fail-fast`: TEST
+    section 1083 passed, 0 failed, 54 ignored. That is 34 more than D-229's 1049, all from WP-3-3. The
+    Redis TLS unset check exits 101, as O-66 expects.
+  - Verdict: accepted. No open items. WP-3-3 is folded and its notes file is deleted.
 
 ## Open questions for Ritchie
 
