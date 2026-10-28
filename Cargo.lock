@@ -591,8 +591,10 @@ name = "gorse-config"
 version = "0.0.0"
 dependencies = [
  "gorse-common",
+ "gorse-expr",
  "gorse-storage-core",
  "hex",
+ "md-5",
  "regex",
  "serde_json",
  "stacker",

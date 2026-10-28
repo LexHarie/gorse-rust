@@ -759,6 +759,38 @@ said otherwise), so the Rust result is Go's.
   every non-ASCII cased code point and about 7,000 strings, and EqualFold on
   folding orbits, mixed strings and near misses, both ways round.
 
+### Config loader (WP-1-15, config.go)
+
+- **Q-145 Duplicate keys that differ only by case.** `config.toml` with
+  `Port = 1111`, `PORT = 2222` and `port = 3333` under `[master]`. Go's viper
+  walks its key map in random order, so the golden file records two outcomes:
+  `master.port` 1111 or 2222. The port gives 2222, the second recorded outcome,
+  because `viper::insensitivise` keeps the last spelling other than the
+  lower-case one (`insensitivise_keeps_the_last_other_spelling`). The port's
+  choice is pinned by `pinned_alternatives`, which asserts it exactly.
+- **Q-146 A file value shadowing an env-bound key.** `master = 5` in the file
+  and `GORSE_MASTER_PORT=4` in the environment. Go's `AllKeys` order is random,
+  and viper's `deepSearch` replaces an intermediate scalar with a map. If
+  `master` is walked after `master.port`, the scalar wins and the error is
+  `decoding failed ... 'master' expected a map or struct, got "int64"`. If it is
+  walked first, the nested map wins and Validate reports
+  `n_jobs must be greater than 0`. The port walks keys in sorted order, so the
+  nested map wins and the result is the second recorded outcome. Pinned by
+  `pinned_alternatives`. The rule that a scalar on the path becomes a map is
+  how `viper.rs` models viper's `deepSearch`. The golden file shows both
+  outcomes, which is the evidence that the order matters.
+- **Keys are lower-cased** the way viper lower-cases them (Q-144, Go's case
+  mapping).
+- **`json.Marshal` of a NaN or infinite float** fails with
+  `json: unsupported value: NaN` (or `+Inf`, `-Inf`). The port returns the same
+  text from `marshal_json` (golden `meta_error`).
+- **Go's `encodeFloat`** writes `e-09` as `e-9` and uses exponent form only for
+  magnitudes below 1e-6 or at least 1e21.
+- **Go's JSON string escaping** (`<`, `>`, `&` and the control characters) is
+  reused from `gorse_common::expression::go_json_quote`.
+- **Durations** are integer nanoseconds in the JSON form and Go duration strings
+  in TOML.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -987,6 +1019,24 @@ said otherwise), so the Rust result is Go's.
   are, and read `~/.gorse/dataset/{iris,mnist}`. `TestMNIST` also skips in Go
   unless on Apple silicon or AVX-512. The Rust test does not repeat that check.
 
+### Config loader (WP-1-15, config.go)
+
+- **X-46 `NewTracerProvider` is not ported.** It builds the OpenTelemetry
+  exporter from `TracingConfig`. No work package in `porting/work-packages.md`
+  owns tracing. See O-17, and its decision there.
+
+- **X-47 YAML cases are ignored**, with `#[ignore = "needs WP-1-15 yaml"]`:
+  `config::tests::test_unmarshal_yaml` and the golden `load_yaml_cases`. The
+  YAML decoder is `formats::yaml::decode(&[u8]) -> Result<Map, String>`, already
+  dispatched at `viper.rs:146`. Un-ignore both when the YAML branch merges.
+
+- **X-48 Log output is missing** until WP-1-8 merges (D-84).
+
+- **X-49 `contracts/config/config.schema.json` and `config.keys.md` are not
+  generated** by this port. They come from `contracts/tools/configschema`
+  (`jsonschema` reflection and the walk over `GetDefaultConfig`). WP-1-15's
+  acceptance names only `meta-config.*.json` and `config.toml`.
+
 ## Open questions
 
 - **O-1** The Go CI's model tests read the datasets from `https://cdn.gorse.io`,
@@ -1070,3 +1120,5 @@ said otherwise), so the Rust result is Go's.
   has its own quote, IsPrint, ParseInt and ParseFloat. Now that it depends on
   `gorse-common`, they could call `gostrconv` instead. Not done in the config
   drafts, to keep that change to the bug fix (C-26).
+
+- **O-17 Who owns `NewTracerProvider`?** Decided by the integrator on 2026-10-28. The Go method is `config/config.go:596`, and its call sites are `server/server.go:257` (WP-4-3) and `master/master.go:123` (the master work package after WP-4-3). The exporter is ported with the first of those work packages, into a tracing module of `gorse-config`, and no WP is assigned before then. Still open.
