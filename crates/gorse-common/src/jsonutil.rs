@@ -56,11 +56,11 @@ impl Formatter for GoFormatter {
                 '\u{2029}' => "\\u2029",
                 _ => continue,
             };
-            writer.write_all(fragment[start..index].as_bytes())?;
+            writer.write_all(&fragment.as_bytes()[start..index])?;
             writer.write_all(escape.as_bytes())?;
             start = index + ch.len_utf8();
         }
-        writer.write_all(fragment[start..].as_bytes())
+        writer.write_all(&fragment.as_bytes()[start..])
     }
 
     fn write_f64<W: ?Sized + Write>(&mut self, writer: &mut W, value: f64) -> io::Result<()> {

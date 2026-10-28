@@ -13,8 +13,9 @@
 //! (`master/master.go:120,472`), so this module ports that part of Go's
 //! `context`: cancelling a context cancels every context derived from it,
 //! [`CancelFunc::cancel`] removes a context from its parent, and a context
-//! derived from a cancelled parent starts cancelled. Deadlines, values,
-//! causes and `AfterFunc` are not ported (`porting/notes/WP-1-6.md`).
+//! derived from a cancelled parent starts cancelled. Values
+//! ([`Context::with_value`]) are ported too. Deadlines, causes and `AfterFunc`
+//! are not (`porting/notes/WP-1-6.md`).
 //!
 //! A [`Context`] is a handle: clone it where Go copies the interface value.
 //! Go's `<-ctx.Done()` is [`Context::wait`], and a `select` with a `default`
@@ -188,7 +189,10 @@ impl Context {
             Some(node) => {
                 let mut state = node.lock();
                 while node.err.get().is_none() {
-                    state = node.done.wait(state).unwrap_or_else(PoisonError::into_inner);
+                    state = node
+                        .done
+                        .wait(state)
+                        .unwrap_or_else(PoisonError::into_inner);
                 }
             }
             None => loop {
@@ -487,7 +491,10 @@ mod tests {
             // Wait on all the contexts in another order.
             for i in 0..contexts.len() {
                 let (ctx, _) = &contexts[(i * 53) % contexts.len()];
-                assert!(ctx.wait_timeout(QUIESCENT), "timed out waiting for <-ctx.Done()");
+                assert!(
+                    ctx.wait_timeout(QUIESCENT),
+                    "timed out waiting for <-ctx.Done()"
+                );
             }
         });
     }
@@ -502,7 +509,10 @@ mod tests {
                 cancel_child.cancel();
             });
             cancel_parent.cancel();
-            assert!(child.wait_timeout(QUIESCENT), "timed out waiting for child.Done()");
+            assert!(
+                child.wait_timeout(QUIESCENT),
+                "timed out waiting for child.Done()"
+            );
         });
     }
 
@@ -517,7 +527,10 @@ mod tests {
                 ctx = next;
                 cancels.push(cancel);
             }
-            assert!(!ctx.is_done(), "seed={seed}: ctx should not be canceled yet");
+            assert!(
+                !ctx.is_done(),
+                "seed={seed}: ctx should not be canceled yet"
+            );
             let pick = (seed as usize * 7919) % cancels.len();
             cancels[pick].cancel();
             assert!(ctx.is_done(), "seed={seed}: ctx should be canceled");

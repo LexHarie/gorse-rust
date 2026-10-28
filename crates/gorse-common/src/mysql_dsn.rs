@@ -23,12 +23,12 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::{Arc, PoisonError, RwLock};
 
-use gorse_common::gonet::{join_host_port, split_host_port};
-use gorse_common::gostrconv::{NumError, atoi, quote};
-use gorse_common::gotime::{
+use crate::gonet::{join_host_port, split_host_port};
+use crate::gostrconv::{NumError, atoi, quote};
+use crate::gotime::{
     Duration, Location, LocationError, ParseDurationError, load_location, parse_duration, utc,
 };
-use gorse_common::gourl::{EscapeError, path_escape, path_unescape, query_escape, query_unescape};
+use crate::gourl::{EscapeError, path_escape, path_unescape, query_escape, query_unescape};
 use thiserror::Error;
 
 /// Go's `defaultMaxAllowedPacket` (const.go): 64 MiB.

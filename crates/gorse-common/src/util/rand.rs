@@ -19,7 +19,7 @@
 //! runtime source since Go 1.20, and `rand.Seed` is a no-op since Go 1.24, so
 //! nothing about them is reproducible and they are not ported here.
 
-mod math;
+pub(crate) mod math;
 #[rustfmt::skip]
 mod tables;
 
