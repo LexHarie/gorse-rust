@@ -4,10 +4,10 @@
 //!
 //! The blob stores are in [`blob`], the data store's record types are in
 //! [`data::types`], the cache store's core is in [`cache`], and the vector
-//! store's core is in [`vectors`]. The meta store is Phase 2 work and is not
-//! ported yet.
+//! store's core is in [`vectors`], and the meta store is in [`meta`].
 
 pub mod blob;
 pub mod cache;
 pub mod data;
+pub mod meta;
 pub mod vectors;

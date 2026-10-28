@@ -18,6 +18,7 @@ futures-core.workspace = true
 futures-util.workspace = true
 indexmap.workspace = true
 prost-types = { workspace = true }
+rusqlite.workspace = true
 serde.workspace = true
 # `raw_value` writes a `json.Number`'s text as it is, as Go's `json.Marshal` does.
 serde_json = { workspace = true, features = ["raw_value"] }
