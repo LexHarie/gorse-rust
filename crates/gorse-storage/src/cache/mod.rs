@@ -31,6 +31,7 @@ use gorse_storage_core::scheme::{MONGO_PREFIX, MONGO_SRV_PREFIX};
 #[cfg(feature = "mongodb")]
 pub mod mongodb;
 pub mod no_database;
+pub mod proxy;
 #[cfg(feature = "redis")]
 pub mod redis;
 #[cfg(any(feature = "mysql", feature = "postgres", feature = "sqlite"))]

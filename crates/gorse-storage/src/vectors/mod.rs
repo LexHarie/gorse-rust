@@ -7,6 +7,7 @@
 //! The `xvec://` store is ported as Rust's own file format ([`xvec`], see
 //! `PORTING.md` D-6). Qdrant, Milvus and Weaviate arrive with WP-2-9.
 
+pub mod proxy;
 pub mod xvec;
 
 #[cfg(test)]
