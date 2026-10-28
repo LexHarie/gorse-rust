@@ -30,7 +30,7 @@ Every Rust module names the Go files it ports with a
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); config.schema.json and config.keys.md not generated (X-49). WP-1-18 is in progress (it follows WP-1-16 and WP-1-17, both merged). All in `porting/work-packages.md` |
-| 2. Storage | in progress | Done: WP-2-4 (cache core; its shared suite waits for the backends, O-28). Vectors (WP-2-8) and blob (WP-2-10) are not merged. WP-2-1 to WP-2-13 otherwise not started |
+| 2. Storage | in progress | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 open until the XML-upload stub test merges). WP-2-2, 2-3, 2-5 to 2-7, 2-9, 2-11 to 2-13 not merged |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
@@ -283,7 +283,21 @@ correction below states the evidence.
   (`tokio-util`'s `CancellationToken` is async only, and the schedulers'
   callers block on the context from plain threads).
 
-- **C-30 The Redis crate moves to 1.8.0, with `connection-manager`.** The crate choice in `porting/crate-selection.md` (`redis`, with `tokio-comp` and `cluster-async`) is unchanged. Its version was 1.7.1, and Ritchie's rule of 2026-10-17 requires the latest stable version (1.8.0; checked against the crates.io index). `connection-manager` is added so a store reconnects by itself, as go-redis does. `base64` (0.23.1) and `tokio` are optional dependencies of the `redis` feature, for category encoding and the lazy connection.
+0 The shared suite is run by the xvec tests only.** `testQuantization`
+  in `database_test.go` is called only from the Qdrant and Milvus suites. It is
+  ported in `suite.rs` and run for xvec with `QuantizationNone`, the one
+  quantization xvec accepts (`xvec::tests::quantization_none`). WP-2-9 calls
+  it with the other quantization types.
+
+- **C-31 `Database` is an async trait with the caller's context.** Every
+  Go method takes `context.Context`; the Rust trait takes
+  `&gorse_common::gocontext::Context` first and is `#[async_trait]`, as the
+  integrator ruled (D-122). This replaces the synchronous trait of the first
+  head. The xvec store does its file IO and scans on tokio's blocking pool
+  (`spawn_blocking`), and holds no std lock across an `.await`. WP-2-9 and
+  WP-2-12 use the same shape.
+
+- **C-32 The Redis crate moves to 1.8.0, with `connection-manager`.** The crate choice in `porting/crate-selection.md` (`redis`, with `tokio-comp` and `cluster-async`) is unchanged. Its version was 1.7.1, and Ritchie's rule of 2026-10-17 requires the latest stable version (1.8.0; checked against the crates.io index). `connection-manager` is added so a store reconnects by itself, as go-redis does. `tokio-rustls-comp` enables `tls-rustls`, which gives `rediss://` its rustls TLS (X-102). `base64` (0.23.1) is an optional dependency of the `redis` feature, for category encoding. `tokio` is a normal dependency of the crate, since the blob stores need it, and the Redis store's lazy connection uses its `sync` feature.
 
 ## Decision log
 
@@ -1041,7 +1055,7 @@ or accepts a metric gap outside the Go tests' own tolerances.
   - `tokio` joins the library's dependencies when the first backend needs it.
     WP-2-4 keeps it a dev-dependency until then.
   Accepted from the cache core (WP-2-4), which already follows this. The vector
-  core (WP-2-8) keeps a sync trait in its notes (C-WP28-2), which this decision
+  core (WP-2-8) keeps a sync trait in its notes (C-31), which this decision
   overrides: it must be converted before it merges. Decided by the integrator on
   the coordinator's request (2026-10-28). It binds WP-2-1 to WP-2-13.
 
@@ -1074,6 +1088,113 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
 - **D-128 `ScorePatch` fields are `Option`.** Go's nil `Categories` (no
   change) is `None`, and an empty non-nil slice (clear) is `Some(vec![])`.
+
+- **D-129 Trait object.** `Database: Send + Sync` with `&self` methods, so
+  `open` returns `Box<dyn Database>`. Go's mutable `sync.Map` state sits behind
+  one `RwLock` per store and one per collection. The store is an
+  `Arc<Store>`: each async method clones the `Arc` and its owned inputs, and
+  runs the sync `Store` method on the blocking pool (`blocking` in `xvec.rs`,
+  which resumes a task's panic on the caller). Nothing borrowed crosses an
+  `.await`.
+
+- **D-130 Errors.** `vectors::Error` is `Storage { kind, message }` (the
+  storage sentinel plus Go's exact text, `kind()` is Go's `errors.Is`),
+  `Context(ContextError)`, and `Other(String)` for everything else. The
+  messages copy Go's `fmt.Errorf` texts, including the `collection X: not
+  found` and `collection X already exists` forms.
+
+- **D-131 Registry.** Go fills `creators` from `init` functions. Rust lists
+  the backends in `vectors::open`, which is the same lookup by prefix. WP-2-9
+  adds its prefixes there.
+
+- **D-132 Enums.** `Distance` is an enum. `QuantizationType` is an enum with
+  an `Other(String)` case, because Go's type is a string and `master/tasks.go`
+  converts unchecked config strings into it.
+
+- **D-133 Integers.** Go's `int` fields and arguments (dimensions, bits,
+  `topK`, counts) are `i64`, as in `gorse-storage-core`, so the Go range checks
+  stay.
+
+- **D-134 Time.** `Vector.Timestamp` is `gotime::Time`. Storage keeps Go's
+  `UnixMilli`.
+
+- **D-135 Own file format.** D-6 decided that `xvec://` is Rust's own
+  format. Each collection is a directory `<prefix><name>` holding one
+  `gorse.vectors` log: a header (magic `GVECTORS`, version 1, dimension, distance
+  code) and one record per upsert or delete. Writes are appended and synced
+  before they are applied. A torn last record is dropped on open. `Optimize`
+  rewrites the log. The layout is in the module header of `xvec.rs`.
+
+- **D-136 Exact search.** The store scans every live vector and keeps the
+  best `topK`. HNSW, which Go uses, is not ported (X-75).
+
+- **D-137 async stores, ctx first (D-122).** `Store` and `BlobWriter` are
+  `#[async_trait]`. Every method takes `ctx: &gocontext::Context` first and checks
+  `ctx.err()` on entry and between units of work (each write, each list entry).
+  No store holds a runtime and nothing calls `block_on`. No sync facade.
+
+- **D-138 `done` is a oneshot.** `create` returns a
+  `tokio::sync::oneshot::Receiver<()>`. Go closes `done`; the port sees a
+  `RecvError` because the sender is dropped when the writer is closed or dropped.
+
+- **D-139 POSIX IO through `tokio::fs`.** Each `tokio::fs` call runs on the
+  blocking pool, which is the `spawn_blocking` the ruling asks for. The gRPC
+  server's temp-file creation and rename call `spawn_blocking` directly.
+
+- **D-140 cloud writes.** A writer buffers up to 5 MiB (the S3 minimum part
+  size). Data up to that size goes up in one request on close. More starts a
+  multipart upload with at most 4 parts in flight.
+
+- **D-141 cancelled master uploads are aborted.** The master client runs each
+  upload on its own task. A cancelled context aborts that task, so the stream is
+  reset instead of ended. The server persists only a stream that ends normally,
+  so a cancelled upload creates no blob (test `cancelled_upload_persists_nothing`).
+
+- **D-142 NotFound.** `BlobError::kind()` maps POSIX `ErrorKind::NotFound`
+  and object_store `NotFound` to `gorse_storage_core::errors::Error::NotFound`.
+  gRPC missing-blob errors are not mapped (O-34).
+
+- **D-143 crates.** `async-trait` 0.1.92 (dyn-compatible async methods, the
+  crate-selection row), `tokio` 1.54.1 (the latest; this WP moved the crate from
+  1.53.3 to 1.54.1 to match that row) with `fs`, `io-util` and `time`,
+  `object_store` 0.14.2 (`aws`, `gcp`, `azure`), `tokio-stream` 0.1.19,
+  `futures-util` 0.3.34, `bytes` 1.12.1, `url` 2.5.8, `percent-encoding` 2.3.2.
+  Dev: `reqwest` (workspace) to seed the GCS emulator. `tokio-util` is not used.
+
+- **D-144 gRPC list uses a background context.** The gRPC `ListBlobs` call
+  carries no Go context. A dropped call is the only cancellation.
+
+- **D-145 Callback lifetimes for `async-trait` (WP-2-4, fixed in WP-2-7).** The
+  `scan` and `scan_scores` callbacks of the cache `Database` trait take explicit
+  higher-ranked lifetimes: `for<'a> FnMut(&'a str)` and
+  `for<'a, 'b, 'c> FnMut(&'a str, &'b str, &'c str, Time)`. The elided form
+  (`FnMut(&str)`) is rewritten by `async-trait` to one named lifetime, so a backend
+  that passes a borrowed string fails with E0597. Every backend hits this. The
+  change is the signature only. Approved by the coordinator as a government decision
+  (2026-10-28). Merged as `0c9bf1bb` (fix commit `9e3aa927`). The Redis and SQL
+  threads take it by cherry-pick.
+
+- **D-146 The data `Database` trait is `#[async_trait]`, ctx first (D-122).** Methods that Go gives a `ctx` take `&Context` first. Lifecycle methods Go gives no `ctx` (`Close`, `Ping`, `Init`, `Reconcile`, `Optimize`, `Purge`) take none.
+
+- **D-147 Go's chan pairs are one `BoxStream<'a, Result<Vec<T>, Error>>`.** `GetUserStream`, `GetItemStream` and `GetFeedbackStream` return a stream of batches. An error is the last item, which matches the order Go's consumers see on the two channels. The stream is borrowed from `&self` and `&Context`, and dropping it stops the scan.
+
+- **D-148 Go's `int` counts are `i64`** (`n`, `batch_size`, the delete count, the counts), as the cache core uses `i64` for Go `int`. Go's `int` can be negative, and the backends must see the same value.
+
+- **D-149 The registry is the cache core's.** `Creator` is a sync `fn` that returns `Box<dyn Database>`, and `Registry::open` takes the longest matching prefix. Go's `Open` picks among matching prefixes in map order, which is random, so the longest is the only deterministic choice that matches every path a prefix can match unambiguously.
+
+- **D-150 `ScanOption` is a newtype over `Box<dyn Fn(&mut ScanOptions) + Send + Sync>`**, like storage-core's `Opt`. Each `with_*` function is a Go `With*` function.
+
+- **D-151 Async registries (ruling, applied in a later commit).** Every registry
+  whose `Creator` opens a store with I/O takes an async creator. The cache and data
+  registries (D-146 onward; the cache core's D-126) use
+  `pub type Creator = for<'a> fn(&'a str, &'a str, &'a [Opt]) -> BoxFuture<'a, Result<Box<dyn Database>, Error>>`,
+  with `BoxFuture` from `futures-util`, and `Registry::open` is `async`. Every
+  backend's creator wraps its async open. The vector and blob registries follow
+  the same rule where they have a creator. Reason: MongoDB, SQL and Redis open
+  their clients asynchronously, so a sync creator would need a blocking facade over
+  a network client, which D-122 forbids. `cache::open` stays the one entry point,
+  as Go's `Open` is. Until the applying commit lands, a store may build against
+  this signature. Integrator, 2026-10-28; the coordinator asked for it (O-WP27-1).
 
 ## Open questions for Ritchie
 

@@ -978,6 +978,45 @@ said otherwise), so the Rust result is Go's.
   `2026-01-02 03:04:05.678901 +0000 UTC`, `2023-01-01 00:00:00.0000005 +0000
   UTC`, and the `CEST` case, which reads back as UTC.
 
+### Vector store core (WP-2-8)
+
+- **Q-186 Empty requests skip the collection check.** `AddVectors` with no
+  vectors and `GetVectors` with no ids return success for a collection that
+  does not exist. `QueryVectors` with `topK <= 0` returns an empty result
+  before the check too.
+
+- **Q-187 Query and get timestamps differ.** `GetVectors` returns
+  `time.UnixMilli(ms).UTC()`, and `QueryVectors` returns `time.UnixMilli(ms)`
+  in the local zone. Both are reproduced.
+
+- **Q-188 `DeleteCollection` restores on failure.** If xvec's `Destroy`
+  fails, Go stores the collection back in the map. The port does the same.
+
+- **Q-189 `Close` is idempotent**, and every call after it fails with
+  `xvec database is closed`, except a second `Close`, which succeeds.
+
+- **Q-190 `DeleteVectors` removes timestamps strictly before the cutoff.**
+  A vector written exactly at the cutoff stays.
+
+- **Q-191 `GetVectors` returns vectors in the order of the ids**, each id
+  once, and skips missing ids (`orderVectors`).
+
+- **Q-192 `NoDatabase.Optimize` succeeds.** Every other `NoDatabase` method
+  returns `storage.ErrNoDatabase`.
+
+### Blob stores (WP-2-10)
+
+- **Q-193 one timestamp per chunk.** Go stamps every chunk with its own time,
+  so the server rejects a second chunk of one upload (`inconsistent timestamp`).
+  The port keeps this: the blob is not created and `Close` returns Ok. Test
+  `quirk_second_chunk_is_rejected`. A temporary Go probe, since deleted, showed the
+  same result.
+
+- **Q-194 4 MiB chunks exceed the gRPC limit.** A 4 MiB chunk plus its framing
+  is larger than gRPC's default 4 MiB receive limit. The server refuses it
+  (`received message larger than max (4194332 vs. 4194304)`) and no blob is created.
+  A 3 MiB write is accepted. Test `quirk_full_size_chunk_exceeds_grpc_limit`.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -1347,6 +1386,108 @@ said otherwise), so the Rust result is Go's.
   returns the parsed number next to a range error. Every Gorse caller ignores
   the number on error, so `integer()` returns `Err` alone.
 
+### Vector store core (WP-2-8)
+
+- **X-74 Float16 bytes are copied.** Go's `Float16Bytes` and
+  `Float16Values` reinterpret memory, so the two slices share storage and the
+  conversions allocate nothing. The Rust functions copy and encode little-endian
+  explicitly. `TestHalfBytes` keeps its value assertions (the hex string and the
+  round trip). It drops the aliasing assertions (`values[0] = ...` changes
+  `encoded`, `decoded[1] = ...` changes `values`) and the `AllocsPerRun` checks,
+  which test Go's memory sharing, not the store's behaviour. Gorse only writes
+  these bytes once, so nothing depends on the sharing.
+
+- **X-75 Exact search, not HNSW.** Go's `xvec` answers queries with an
+  approximate index. This port answers them exactly, so the Rust results are
+  the true top `topK`. The results equal Go's where HNSW's recall is 1, and they
+  differ by its missed neighbours otherwise. The ranking tolerance belongs to
+  Phase 3 (metric parity); the open question is O-30. Cost: a query is O(n·d) over the collection, not
+  sublinear. `NumJobs` and `SkipUnindexedSegments` are accepted and ignored,
+  since exact search has no job count and no index to skip.
+  Scores are xvec's, read from `internal/core/algorithm/distance_batch.go` and
+  `internal/ailego/math/distance.go` at its pinned version:
+  cosine `-(1 - cos)`, Euclidean `-(squared L2)`, dot the inner product. Ties
+  go to the smaller id, which xvec leaves unspecified. A sparse query's dot
+  product sums the query's overlapping indices in the vector's index order,
+  which can round differently from xvec's merge.
+
+- **X-76 The xvec format is Rust's own (refines X-1).** X-1 says a master
+  switched between Go and Rust on one `xvec://` directory rebuilds its
+  collections on its first training round. This port makes that true like so:
+  `Init` skips a collection directory whose `gorse.vectors` is missing or lacks
+  the magic, and logs a warning. Go's xvec directories therefore do not load.
+  `AddCollection` on a name whose directory holds no log of this format removes
+  that directory and creates the collection. The removal is preceded by a
+  warning that names the directory. Such a directory is derived data
+  the master rebuilds, but the removal is not reversible. A directory with a log
+  of this format and no open collection is an error.
+
+- **X-77 Collection names are checked.** The empty name, `.`, `..`, and
+  names containing `/` or `\` are rejected with `invalid collection name`. Go
+  joins the name into the path, so `a/b` creates a nested directory that
+  `Init` never reads again (it lists one level), and `..` escapes the store
+  root. Gorse builds names from the config's item-to-item and user-to-user
+  names, so this follows X-2 in spirit: names are checked, not trusted.
+
+- **X-78 The collection schema is fixed at creation.** `DescribeCollection`
+  reports `QuantizationNone` and `Bits` 0 always, as Go does. The store does
+  not keep `Bits`, and it rejects any quantization other than none with Go's
+  text `quantization type sq for xvec not supported`.
+
+### Blob stores (WP-2-10)
+
+- **X-79 S3 close returns the upload error.** Go's `S3.Create` runs
+  `PutObject` on a goroutine behind an `io.Pipe`. Its error is logged and the
+  pipe's `Close` returns nil. The port returns the upload error from `close` and
+  logs it. The caller can see the failure. GCS already returns its writer's error
+  in Go, and the port matches that.
+
+- **X-80 list strips the prefix the same way.** Go's S3 `List` slices
+  `Key[len(prefix):]` and drops one leading `/`. The port does the same with
+  `strip_prefix`. The prefix is trimmed of slashes first, as the `Path` join is.
+
+- **X-81 temp file removed on failure.** A failed master upload deletes its
+  temp file. Go leaves an `upload-*` file behind (its `os.Rename` runs only after a
+  full read).
+
+- **X-82 write errors are returned.** POSIX and master writes return their
+  I/O errors. Go's `io.Pipe` writes block or fail the copy goroutine instead.
+
+- **X-83 EOF on the next read.** Go's minio reader returns `io.EOF` with the
+  last bytes. The Rust readers report the end on the following read. The tests
+  assert that second read returns 0.
+
+- **X-84 missing env panics.** The cloud tests panic when a required variable
+  is missing (`required_env`). Go's tests skip. A silent skip would look like a pass.
+
+- **X-85 buckets are created out of band.** object_store has no
+  `CreateBucket`, so `gorse-test` (and the Azure container) must exist before the
+  cloud tests run. Go creates them in the test.
+
+- **X-86 constructors return a Result.** `MasterStoreServer::new` returns
+  `io::Result` where Go calls `log.Logger().Fatal`. The caller decides.
+
+- **X-87 cancelled cloud multipart.** A cancelled write leaves an unfinished
+  multipart upload, which the provider's lifecycle rule must clear. A cancelled
+  POSIX write leaves the partial file, as Go does when its copy fails.
+
+- **X-88 ctx on every method.** `Store` and `BlobWriter` take `ctx`, as D-122
+  requires. Go's blob API has no context.
+
+### Data store core (WP-2-1)
+
+- **X-89 Go's `NewScanOptions` skips nil options.** A `ScanOption` cannot be nil in Rust, so there is nothing to skip. Behaviour is the same for every value that can be built.
+
+- **X-90 The shared suite's faker labels are fixed strings.** Go's `faker` colour and genre names are replaced with fixed strings. The cases only check that a label round-trips, so the values do not matter.
+
+- **X-91 Go's `[]string` and `[]any` labels are one `Labels::Array`.** Go's conversions to `[]any` in the suite (`feedback[0].Labels = []any{"positive"}`, `[]any{"a", "b", "c"}`) are kept as the same value. The distinction is erased by `Labels`, which is the decision of D-117.
+
+- **X-92 The suite's type switches are a `Backend` trait.** Go's `suite.Database.(*SQLDatabase)` and `*MongoDB` checks become `Backend::analyze_tables` (Postgres runs `ANALYZE`) and `Backend::time_stamps` (Postgres rounds to a microsecond, SQLite is exact, MongoDB truncates to a millisecond, others skip). TestTimezone skips for `TimeStamps::Unknown`, as Go's `Skipf` does.
+
+- **X-93 Go's `TestSortFeedbacks` and `TestValidateLabels` are in `types.rs`.** WP-1-17 ported them, so the suite file does not repeat them.
+
+- **X-94 Go's `time.Sleep(time.Millisecond)` is `std::thread::sleep`** in the suite. The suite runs on the test's own thread.
+
 ## Open questions
 
 - **O-1** The Go CI's model tests read the datasets from `https://cdn.gorse.io`,
@@ -1493,67 +1634,124 @@ said otherwise), so the Rust result is Go's.
   `BENCHMARK_DATA_SIZE` are not run by `go test`. Phase 5 performance work is
   the place for them.
 
+0 HNSW ranking parity.** Go's `xvec` answers with HNSW, which is
+  approximate. This port scans exactly (X-75), so its top `topK` can differ
+  from Go's where HNSW misses a neighbour. Option: `gorse_common::ann::Hnsw`
+  (WP-1-10) as the index. That would bring the rankings closer to Go's, but not
+  identical, since the graph build differs. The exact scan costs O(n·d) per
+  query. Phase 3 (metric parity) decides whether that gap is acceptable, and
+  whether xvec's index must be ported.
+
+- **O-31 GCS write cannot run on fake-gcs-server.** The XML `PUT` to the
+  emulator answers 400 `invalid uploadType` on 1.54.0, 1.56.1 and in the latest
+  run. `test_gcs` is `#[ignore]`d with that reason. `test_gcs_read_list_remove`
+  covers read, list and remove, with the seed uploaded through the JSON API. The
+  write needs an emulator that serves the XML upload, or real GCS.
+  Integrator ruling (2026-10-28): the ignored test is not coverage of the write path. object_store's GCS put uses the XML API (`src/gcp/client.rs` in object_store 0.14.2), which fake-gcs-server does not serve, so no test runs the write. Before WP-2-10 is closed, the blob thread adds an in-process test that serves the XML PUT and the multipart calls on a local HTTP listener and checks the request line, headers and body that the store sends. The emulator test may stay ignored with this reason. Open until that merges.
+
+- **O-32 fake-gcs-server needs `-external-url` for path-style XML.** Without
+  it, `GET /{bucket}?list-type=2` answers 404. This is an emulator setting, and the
+  code is unchanged. Run it as `-scheme http -port 5051 -public-host 127.0.0.1:5051
+  -external-url http://127.0.0.1:5051 -backend memory`.
+
+- **O-33 live emulators.** RustFS runs as the `rustfs/rustfs:alpha` container
+  on port 9000. Azurite runs from the npm `azurite` package on port 10000 with
+  `--skipApiVersionCheck`. Buckets and the container are created before the test
+  run. The environment variables are `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`,
+  `S3_SECRET_ACCESS_KEY`, `AZURE_STORAGE_CONNECTION_STRING` and
+  `GCS_EMULATOR_ENDPOINT`. The S3 keys are development-only and are not recorded here.
+
+- **O-34 a missing blob over gRPC is `Unknown`.** Go's server returns the
+  `os.Open` error as a plain error, which gRPC reports as code `Unknown`. The master
+  client therefore cannot map it to `NotFound`. The integrator needs to choose: a
+  status code on the server side, or matching the error text.
+  Integrator ruling (2026-10-28): keep Go's wire behaviour. The gRPC error stays code `Unknown`, and the master client does not map it to `NotFound`. This is faithful to Go. Revisit only if a caller needs `NotFound`.
+
+- **O-35 `log` rotation can overwrite a backup within one millisecond (WP-1-8).** Backup
+  names carry milliseconds (`gorse-<time>.log`). Two rotations in the same millisecond
+  give the same name, and the second rename replaces the first backup. Go's lumberjack
+  names its backups the same way, so this is the Go behaviour, not a port bug.
+  The test `log::tests::rotation_keeps_the_backups_the_flags_allow` writes 8 chunks
+  that rotate 4 times, and it expects 2 backups. It failed once in the full workspace
+  run on 2026-10-28 (gate18: `assertion left == right failed: ["gorse-2026-10-28T11-29-14.070.log", "gorse.log"]`,
+  left 1, right 2), and it passed alone three times and in the rerun. Owner: the util
+  thread. The fix must keep the name format and the assertion unchanged. The test
+  makes its rotations apart in time (for example a 2 ms sleep between writes). It must
+  not lower the count. Open until that merges.
+
+- **O-36 The suite is compiled and not run.** `data/database_test.rs` is called by no test in this crate. WP-2-2 (SQL) and WP-2-3 (MongoDB) run it against their stores. The acceptance command of this WP, `cargo test -p gorse-storage data::no_database`, runs only the NoDatabase case.
+
+- **O-37 (closed by the WP-2-1 merge) Merged with the integration head 9c89272 (f8b3662).** The cache and vector cores are in integration now. The `Cargo.toml` and `Cargo.lock` overlap is resolved: `async-trait` and `tokio` come from integration, and this WP adds `futures-core` and `futures-util` (0.3.34). The dev-dependency `tokio` already had `macros`, `rt` and `time`.
+
+- **O-38 Crate-selection rows.** `porting/crate-selection.md` needs rows for `async-trait` (0.1.92), `futures-core` and `futures-util` (0.3.34, Apache-2.0 or MIT), and `tokio` (1.54.1). The integrator adds them at fold.
+
+- **O-39 TestTimezone loads `Asia/Tokyo`** through `gotime::load_location`, which reads the system zoneinfo. The case needs the zone file on the test machine.
+
+- **O-40 Shared-suite cases that need a backend are untested here.** Every case in `database_test.rs` is unverified until WP-2-2 or WP-2-3 runs it. The gate for this WP does not run them.
+
+- **O-41 No callback in the data trait takes a `&str`.** The only `Fn` in this WP is `ScanOption`, which takes `&mut ScanOptions`. The cache core's E0597 comes from its `scan` callback, which this WP does not have. Stream methods return `BoxStream` and take no callbacks.
+
 ## WP-2-5 Redis cache store
 
-- **Q-186 `UpdateScores` checks, then writes, with no transaction.** Go's
+- **Q-195 `UpdateScores` checks, then writes, with no transaction.** Go's
   `Watch` runs its function on one connection with no `MULTI`/`EXEC`, so the
   watch guards nothing. `EXISTS` and then `HSET` are two commands another client
   can interleave. The port sends the same two commands.
 
-- **Q-187 `ScanScores` fails on a key deleted between `SCAN` and `HGETALL`.**
+- **Q-196 `ScanScores` fails on a key deleted between `SCAN` and `HGETALL`.**
   Go's `redis.Nil` check, meant to skip such a key, never fires: `HGETALL` on a
   missing key returns an empty map with no error. The empty `timestamp` then
   fails to parse and the scan returns the error. The port does the same.
 
-- **Q-188 A search with `begin == end == 0` has no `LIMIT`.** go-redis sends
+- **Q-197 A search with `begin == end == 0` has no `LIMIT`.** go-redis sends
   `LIMIT` only when the offset is positive or the limit is positive. A search
   for `[0, 0)` therefore gets RediSearch's default of 10 results. The port keeps
   that condition.
 
-- **Q-189 `Scan` and `Purge` also visit score documents and points.** Both match
+- **Q-198 `Scan` and `Purge` also visit score documents and points.** Both match
   `prefix*`, so they see the `documents:` and `time_series_points:` keys, with
   the prefix stripped. The port does the same.
 
-- **Q-190 A category token that decodes to nothing panics in Go.**
+- **Q-199 A category token that decodes to nothing panics in Go.**
   `decodeCategory` slices `b[1:]` without a length check. The port returns an
   error for that token.
 
-- **Q-191 A missing time series is matched by text.** Go checks for the
+- **Q-200 A missing time series is matched by text.** Go checks for the
   `TSDB: the key does not exist` and `key does not exist` prefixes. The port
   checks for either text anywhere in the error, since the driver's message can
   wrap the server's.
 
-- **X-74 `Close` drops the connection.** The `ConnectionManager` closes with the
+- **X-95 `Close` drops the connection.** The `ConnectionManager` closes with the
   store, which has the same effect as go-redis's `client.Close()`.
 
-- **X-75 Cancellation is checked at call boundaries.** go-redis aborts a command
+- **X-96 Cancellation is checked at call boundaries.** go-redis aborts a command
   in flight when its context is cancelled. The port checks the context when a
   method starts and after each reply of a score scan, as Go's `ScanScores` does.
   A command already sent runs to completion. Open for the WP-4 review.
 
-- **X-76 `CLIENT SETNAME` is sent once, on the first connection.** go-redis names
+- **X-97 `CLIENT SETNAME` is sent once, on the first connection.** go-redis names
   every connection it makes. A `ConnectionManager` reconnect does not resend the
   name.
 
-- **X-77 A cluster sends pipelines one command at a time.** redis-rs refuses a
+- **X-98 A cluster sends pipelines one command at a time.** redis-rs refuses a
   pipeline whose keys span slots (CROSSSLOT). Go's cluster client splits the
   pipeline per node. The replies are the same. The port makes more round trips.
   Not measured.
 
-- **X-78 Cluster primaries come from one `CLUSTER NODES` reply.** Go's
+- **X-99 Cluster primaries come from one `CLUSTER NODES` reply.** Go's
   `ForEachMaster` walks the client's slot map. The port scans each node whose
   flags include `master`. Run against a six-node Redis 8.10.3
-  cluster, see O-30.
+  cluster, see O-42.
 
-- **X-79 Cluster `addr` parameters take the base URL's credentials.** Go's
+- **X-100 Cluster `addr` parameters take the base URL's credentials.** Go's
   `ParseClusterURL` does the same. The port does not decode percent escapes in
   the parameters.
 
-- **X-80 Each test owns a table prefix and purges it, not `FLUSHDB`.** Go's suite
+- **X-101 Each test owns a table prefix and purges it, not `FLUSHDB`.** Go's suite
   flushes the whole database, which would make parallel Rust tests clobber each
   other. The assertions are unchanged.
 
-- **X-81 `rediss://` connects through rustls, with the system roots.** The redis
+- **X-102 `rediss://` connects through rustls, with the system roots.** The redis
   crate's `tokio-rustls-comp` feature is on, reusing the workspace's rustls. The
   server certificate is checked against the system roots, which
   `rustls-native-certs` loads, and `SSL_CERT_FILE` overrides them on Linux, as
@@ -1567,7 +1765,7 @@ said otherwise), so the Rust result is Go's.
   a `DocumentSorter` adapter, and the local pdqsort copy is deleted. Go's
   `sort.Slice` and `sort.Sort` share one algorithm.
 
-- **O-30 The Redis acceptance runs pass on Redis 8 and Kvrocks.** The
+- **O-42 The Redis acceptance runs pass on Redis 8 and Kvrocks.** The
   shared suite, the search, update and delete paths, and the time series paths
   all run. The environment's Redis 7.0.15 has no modules, so it was not the
   gate. `redis:8` (Redis 8.10.3, with the `search` and `timeseries` modules)
@@ -1583,7 +1781,7 @@ said otherwise), so the Rust result is Go's.
   A mutation check (the escape rule without `-`) made `escape_characters` fail,
   then the file was restored.
 
-- **O-31 The Go CI's Redis jobs are covered for WP-2-5.** The standalone,
+- **O-43 The Go CI's Redis jobs are covered for WP-2-5.** The standalone,
   one-address cluster, six-address cluster and Kvrocks jobs in
-  `.github/workflows/build_test.yml` all run here (see O-30). The MariaDB job and
+  `.github/workflows/build_test.yml` all run here (see O-42). The MariaDB job and
   the rest of the Phase 2 exit gate belong to other work packages.

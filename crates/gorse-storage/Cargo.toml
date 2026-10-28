@@ -14,25 +14,42 @@ gorse-protocol = { workspace = true }
 gorse-storage-core = { workspace = true }
 gorse-config = { workspace = true }
 gorse-model-core = { workspace = true }
+futures-core.workspace = true
+futures-util.workspace = true
 indexmap.workspace = true
+prost-types = { workspace = true }
 serde.workspace = true
 # `raw_value` writes a `json.Number`'s text as it is, as Go's `json.Marshal` does.
 serde_json = { workspace = true, features = ["raw_value"] }
+tempfile = { workspace = true }
 thiserror.workspace = true
+tonic = { workspace = true }
+tracing.workspace = true
 async-trait.workspace = true
 # The Redis cache store (`cache::redis`). Off by default, as Go's Redis
 # driver is only linked in when a `redis://` store is configured.
 redis = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
-# `OnceCell` opens the Redis connection on first use, since Go's creators do not
-# connect until a call is made and Creators here are not async.
-tokio = { workspace = true, optional = true, features = ["sync"] }
+# The blob stores are async (decision D-122). POSIX file calls run through
+# `tokio::fs`, which uses the blocking pool.
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "sync", "macros", "net", "fs", "io-util", "time"] }
+tokio-stream = { version = "0.1.19", features = ["net"] }
+url = "2.5.8"
+percent-encoding = "2.3.2"
+bytes = { version = "1.12.1", optional = true }
+# Cloud stores, one feature per provider (`storage/blob/{s3,gcs,azure}.go`).
+object_store = { version = "0.14.2", default-features = false, optional = true }
 
 [features]
-redis = ["dep:redis", "dep:base64", "dep:tokio"]
+redis = ["dep:redis", "dep:base64"]
+s3 = ["dep:object_store", "dep:bytes", "object_store/aws"]
+gcs = ["dep:object_store", "dep:bytes", "object_store/gcp"]
+azure = ["dep:object_store", "dep:bytes", "object_store/azure"]
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt", "time"] }
+hex.workspace = true
+# Seeds the GCS emulator through its JSON upload API in `gcs::tests`.
+reqwest = { workspace = true }
 
 [lints]
 workspace = true
