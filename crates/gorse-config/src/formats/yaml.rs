@@ -7,9 +7,9 @@
 
 //! viper's YAML codec: `yaml.Unmarshal(b, &v)` into a `map[string]any`.
 //!
-//! The pipeline is yaml.v3's: libyaml's reader ([`reader`]), its scanner
-//! ([`scanner`]) and parser ([`parser`]), then yaml.v3's composer
-//! ([`composer`]), decoder ([`decoder`]) and tag resolution ([`resolve`]). Only the first document
+//! The pipeline is yaml.v3's: libyaml's reader (`reader`), its scanner
+//! (`scanner`) and parser (`parser`), then yaml.v3's composer (`composer`),
+//! decoder (`decoder`) and tag resolution (`resolve`). Only the first document
 //! of a stream is decoded. The differences from Go are listed in
 //! `porting/notes/WP-1-15-yaml.md`.
 
