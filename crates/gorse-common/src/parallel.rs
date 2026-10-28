@@ -759,21 +759,22 @@ mod tests {
         assert!(started.load(Ordering::SeqCst) < 1000, "the others stop");
 
         let unwound = AtomicBool::new(false);
+        let zero_detached = AtomicBool::new(false);
         let started = AtomicI32::new(0);
         let caught = panic::catch_unwind(AssertUnwindSafe(|| {
             detachable(&ctx, 1000, 2, 2, |c, job_id| {
                 started.fetch_add(1, Ordering::SeqCst);
                 if job_id == 0 {
+                    // Job 0 detaches first and says so. The others wait for that,
+                    // so they cannot fill both detached slots before job 0 has one.
                     c.detach();
+                    zero_detached.store(true, Ordering::SeqCst);
                     let _unwound = Unwound(&unwound);
                     panic!("job {job_id}");
                 }
-                // Only job 0 detaches before it has unwound. A job that detached
-                // while it waited could take both detached slots before job 0
-                // started, and then job 0 could never detach to panic. Go's
-                // Detach blocks in the same way.
-                wait_for(&unwound);
+                wait_for(&zero_detached);
                 c.detach();
+                wait_for(&unwound);
                 thread::sleep(Duration::from_millis(1));
                 c.attach();
             })
