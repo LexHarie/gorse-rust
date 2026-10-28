@@ -9,7 +9,6 @@ use std::io;
 use super::defaults::set_default;
 use super::schema::Config;
 use super::validate::ValidateError;
-use crate::log;
 use crate::mapstructure::{self, Errors};
 use crate::value::{Map, Value};
 use crate::viper::{ReadError, Viper, path_error};
@@ -144,13 +143,11 @@ pub fn load_config_with_env(
 
     // load config file if provided
     if path.is_empty() {
-        log::info("no config file provided, use defaults and environment variables");
+        tracing::info!("no config file provided, use defaults and environment variables");
     } else {
         match fs::metadata(path) {
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                log::warn(&format!(
-                    "config file not found, use default config path={path}"
-                ));
+                tracing::warn!("config file not found, use default config path={path}");
             }
             Err(err) => return Err(LoadError::Stat(path_error("stat", path, &err))),
             Ok(_) => viper.read_in_config(path)?,
