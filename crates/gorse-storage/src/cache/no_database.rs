@@ -38,7 +38,7 @@ impl Database for NoDatabase {
 
     async fn scan(
         &self,
-        _work: &mut (dyn FnMut(&str) -> Result<(), Error> + Send),
+        _work: &mut (dyn for<'a> FnMut(&'a str) -> Result<(), Error> + Send),
     ) -> Result<(), Error> {
         Err(no_database())
     }
@@ -104,7 +104,10 @@ impl Database for NoDatabase {
     async fn scan_scores(
         &self,
         _ctx: &Context,
-        _callback: &mut (dyn FnMut(&str, &str, &str, Time) -> Result<(), Error> + Send),
+        _callback: &mut (
+                 dyn for<'a, 'b, 'c> FnMut(&'a str, &'b str, &'c str, Time) -> Result<(), Error>
+                     + Send
+             ),
     ) -> Result<(), Error> {
         Err(no_database())
     }
