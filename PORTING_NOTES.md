@@ -2601,13 +2601,13 @@ said otherwise), so the Rust result is Go's.
 - **O-72 The metrics conformance test needs the datasets (WP-3-2, open item).** The WP-3-8 metric
   test, like the five dataset tests of WP-3-2 under O-1, needs `/mnt/project-files/datasets/`. Open.
 
-- **Q-254 Non-personalised pushes from parallel workers need `Send` expressions (WP-3-6, open).**
+- **Q-254 Non-personalised pushes from parallel workers need `Send` expressions (WP-3-6, closed by D-232).**
   `NonPersonalized` is not `Send`, because its compiled programs hold `Rc`s. Go's `Push` runs on
   `parallel.Parallel` workers (`master/tasks.go`, 607 to 630). The ruling is D-227: the master work
   package makes the expression types `Send`, recommended as `Arc`-based, before it merges. Open until
   that package merges. On 2026-10-28 the coordinator asked the WP-3-6 thread to make the change now on
   `claude/q-254-send` (`Arc`-based, with a compile-time `Send` assertion), so it does not wait for the
-  master package. Q-254 closes when that branch is reviewed and merged.
+  master package. Closed by D-232: `claude/q-254-send` (`df15b3f`) is merged as `6ae07e72`.
 
 - **Q-255 `json.Number` labels become floats in expressions (WP-3-6, open).** Go keeps a
   `json.Number` as a named string type, and the port turns it into a float. So `len`, string
