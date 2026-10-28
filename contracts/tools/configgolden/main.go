@@ -27,7 +27,12 @@
 //     raw fields of every feedback type expression (Marshal prints only the
 //     string form), the recommender names and the recommender hashes. A
 //     failure is recorded as its error text; parse_error marks viper's
-//     ConfigParseError, whose text comes from the format's parser.
+//     ConfigParseError, whose text comes from the format's parser. Each case
+//     runs 64 times: viper builds its settings by iterating Go maps, so some
+//     inputs (a variable under a file value of another type, keys that differ
+//     only in case) load differently from run to run. The results are sorted
+//     by their JSON; the first is recorded in the case and the others in
+//     alternatives.
 //   - validate: a JSON document decoded by json.Unmarshal over a base config
 //     (as workers and servers decode Meta.config), then Config.Validate.
 //   - hash: a JSON RecommendConfig, its recommender names and hashes.
@@ -45,6 +50,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -96,6 +102,44 @@ type LoadCase struct {
 	Error      string            `json:"error,omitempty"`
 	ParseError bool              `json:"parse_error,omitempty"`
 	Panic      string            `json:"panic,omitempty"`
+	// Alternatives are the other results Go gave for the same input.
+	Alternatives []LoadCase `json:"alternatives,omitempty"`
+}
+
+// runs is how many times each load case runs.
+const runs = 64
+
+// outcome is the result part of a load case.
+func outcome(c LoadCase) LoadCase {
+	return LoadCase{
+		Meta: c.Meta, MetaError: c.MetaError, Exprs: c.Exprs, Hashes: c.Hashes,
+		Error: c.Error, ParseError: c.ParseError, Panic: c.Panic,
+	}
+}
+
+// loadAll runs a load case runs times and records every distinct result.
+func loadAll(c LoadCase, envs []Binding) LoadCase {
+	seen := map[string]LoadCase{}
+	for i := 0; i < runs; i++ {
+		r := outcome(load(c, envs))
+		key, err := json.Marshal(r)
+		if err != nil {
+			panic(err)
+		}
+		seen[string(key)] = r
+	}
+	keys := make([]string, 0, len(seen))
+	for k := range seen {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	first := seen[keys[0]]
+	c.Meta, c.MetaError, c.Exprs, c.Hashes = first.Meta, first.MetaError, first.Exprs, first.Hashes
+	c.Error, c.ParseError, c.Panic = first.Error, first.ParseError, first.Panic
+	for _, k := range keys[1:] {
+		c.Alternatives = append(c.Alternatives, seen[k])
+	}
+	return c
 }
 
 // ValidateCase is one call of Config.Validate.
@@ -364,6 +408,10 @@ func loadCases(envs []Binding) []LoadCase {
 		{Name: "json top-level array", File: "config.json", Text: "[1, 2]\n"},
 		{Name: "yaml top-level scalar", File: "config.yaml", Text: "5\n"},
 		toml("upper-case keys", "[MASTER]\nPORT = 1234\nHttp_Port = 4321\n[Server]\nDefault_N = 7\n"),
+		toml("keys that differ only in case", "[master]\nport = 1111\nPORT = 2222\n"),
+		toml("two upper-case spellings of a key", "[master]\nPort = 1111\nPORT = 2222\nport = 3333\n"),
+		toml("tables that differ only in case", "[master]\nport = 1111\n[MASTER]\nhttp_port = 2222\n"),
+		{Name: "yaml keys that differ only in case", File: "config.yaml", Text: "master:\n  port: 1111\n  Port: 2222\n"},
 		toml("quoted dotted key", "\"master.port\" = 5555\n"),
 		toml("dotted key", "master.port = 5555\nmaster.host = \"h\"\n"),
 		toml("unknown keys", "[master]\nport = 1\nunknown = \"x\"\n[unknown]\na = 1\n"),
@@ -747,7 +795,7 @@ func main() {
 	}
 	golden := Golden{Bindings: envs, Default: clean(string(defaults))}
 	for _, c := range loadCases(envs) {
-		c = load(c, envs)
+		c = loadAll(c, envs)
 		if !utf8.ValidString(c.Text) {
 			c.TextHex, c.Text = hex.EncodeToString([]byte(c.Text)), ""
 		}
@@ -772,5 +820,12 @@ func main() {
 	if err = os.WriteFile(*out, append(data, '\n'), 0o644); err != nil {
 		panic(err)
 	}
-	fmt.Printf("%d load, %d validate, %d hash cases\n", len(golden.Load), len(golden.Validate), len(golden.Hash))
+	varying := 0
+	for _, c := range golden.Load {
+		if len(c.Alternatives) > 0 {
+			varying++
+		}
+	}
+	fmt.Printf("%d load (%d with more than one result), %d validate, %d hash cases\n",
+		len(golden.Load), varying, len(golden.Validate), len(golden.Hash))
 }

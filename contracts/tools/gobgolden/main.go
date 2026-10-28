@@ -75,6 +75,14 @@ func gobSpec(name, kind string, v, describe any) spec {
 func f32(v float32) string { return fmt.Sprintf("%08x", math.Float32bits(v)) }
 func f64(v float64) string { return fmt.Sprintf("%016x", math.Float64bits(v)) }
 
+func f32s(v []float32) []string {
+	d := []string{}
+	for _, x := range v {
+		d = append(d, f32(x))
+	}
+	return d
+}
+
 func describeParams(p model.Params) []Entry {
 	var entries []Entry
 	for k, v := range p {
@@ -148,6 +156,10 @@ func specs() []spec {
 		}
 		s = append(s, gobSpec("[]int "+strconv.Itoa(i), "[]int", v, d))
 	}
+	nan := float32(math.NaN())
+	for i, v := range [][]float32{{}, {1, 2, 3}, {0.1, -0.5, 1e-45, 3.4028235e38, float32(math.Inf(-1)), nan, float32(math.Copysign(0, -1))}} {
+		s = append(s, gobSpec("[]float32 "+strconv.Itoa(i), "[]float32", v, f32s(v)))
+	}
 	s = append(s,
 		params("params empty", model.Params{}, true),
 		params("params nil", model.Params(nil), true),
@@ -210,6 +222,7 @@ type DecodeCase struct {
 
 const (
 	intSliceDef = "0b7f020102ff800001040000"                     // -64: []int
+	f32SliceDef = "0b7f020102ff800001080000"                     // -64: []float32
 	paramsDef   = "157f04010106506172616d7301ff8000010c01100000" // -64: Params
 )
 
@@ -246,6 +259,17 @@ func decodeCases(renumberedHex string) []DecodeCase {
 		{Name: "slice length exceeds data", Target: "[]int", Hex: intSliceDef + "05ff80000302"},
 		{Name: "slice too big", Target: "[]int", Hex: intSliceDef + "08ff8000fc40000001"},
 		{Name: "defined but undescribed id", Target: "[]int", Hex: "04ff820000"},
+		{Name: "[]float32 into []int", Target: "[]int", Hex: f32SliceDef + "07ff800001fef03f"},
+		{Name: "[]int into []float32", Target: "[]float32", Hex: intSliceDef + "06ff8000020204"},
+		{Name: "[]float32 into float32", Target: "float32", Hex: f32SliceDef + "07ff800001fef03f"},
+		{Name: "[]float32 element overflow", Target: "[]float32", Hex: f32SliceDef + "0dff800001f89c7500883ce4377e"},
+		{Name: "[]float32 length exceeds data", Target: "[]float32", Hex: f32SliceDef + "07ff800003fef03f"},
+		{Name: "[]float32 too big", Target: "[]float32", Hex: f32SliceDef + "08ff8000fc80000001"},
+		{Name: "[]float32 empty", Target: "[]float32", Hex: f32SliceDef + "04ff800000"},
+		// The id a long-running process gives []float32 after another type.
+		{Name: "[]float32 with id 65", Target: "[]float32", Hex: "0cff81020102ff820001080000" + "07ff820001fef03f"},
+		// float64 wire elements decode into []float32 (rounded).
+		{Name: "[]float64 stream", Target: "[]float32", Hex: f32SliceDef + "0dff800001f89a9999999999b93f"},
 		{Name: "params with uint", Target: "params", Hex: paramsDef + "0fff80000101" + "6b" + "0475696e74" + "06020001"},
 		{Name: "params duplicate keys", Target: "params", Hex: paramsDef + "18ff800002" + "0161" + "03696e74" + "04020002" + "0161" + "03696e74" + "04020004"},
 		{Name: "params unregistered name", Target: "params", Hex: paramsDef + "0aff80000101" + "6b" + "03666f6f"},
@@ -305,6 +329,10 @@ func decodeOne(c *DecodeCase) {
 			d = append(d, strconv.Itoa(x))
 		}
 		value = d
+	case "[]float32":
+		var v []float32
+		err = dec.Decode(&v)
+		value = f32s(v)
 	case "params":
 		var v model.Params
 		err = dec.Decode(&v)

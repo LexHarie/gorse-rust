@@ -32,9 +32,11 @@ boundary at the pinned commit (every `WriteGob` call site was listed):
   `float64`, `bool`, `string` and `[]int`. Values decoded from the meta store's JSON
   are `float64` even when the original was an `int` (`PORTING_NOTES.md`).
 
-Top-level `string` is also gob-encoded, but only by
-`logics.MatrixFactorizationItems.Marshal` and `encoding_test.go`, neither of which
-crosses a process boundary. The Rust codec (`gorse-common`, `encoding::gob`)
+Top-level `string` and `[]float32` are also gob-encoded, but only by
+`logics.MatrixFactorizationItems.Marshal` (the `[]float32` vectors through
+`ann.HNSW.Marshal`, one `WriteGob` each) and `encoding_test.go`, none of which
+crosses a process boundary: only `logics/cf_test.go` creates a
+`MatrixFactorizationItems`. The Rust codec (`gorse-common`, `encoding::gob`)
 covers all of the above plus `int32` inside `Params`; it rejects other
 gob-registered types and strings that are not UTF-8 (`PORTING_NOTES.md` X-8).
 

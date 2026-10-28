@@ -234,6 +234,46 @@ places users on workers (`contracts/grpc.md`); the golden data
   set to nil without calling it. serde's `Vec<T>` rejects `null`, so the config
   types (WP-1-15) need `Option` or a default there.
 
+### Vector indexes
+
+- **Q-54 `Bruteforce.Add` returns the new length; `HNSW.Add` returns the new
+  vector's index** (`bruteforce.go:36`, `hnsw.go:70`). Only the HNSW's value is
+  used (`logics.MatrixFactorizationItems.Add` stores the item id there).
+- **Q-55 `HNSW.SearchIndex` finds the query vector itself; `Bruteforce` leaves
+  it out.** With a distance that is zero for equal vectors the HNSW's first
+  result is the query (unless `prune0` drops it); with Gorse's `-dot` distance
+  it lands wherever its own score puts it.
+- **Q-56 An HNSW grows by at most one layer per insert.** A vector drawn at
+  level `l` above the top layer is linked into the existing layers and then
+  becomes the only member, and enter point, of one new layer, however large
+  `l` is (`hnsw.go:188-193`).
+- **Q-57 Layer-0 neighbour lists are cut to `maxConnection` (48), not
+  `maxConnection0` (96).** The check uses 96 at layer 0, but the shrink keeps
+  48 (`hnsw.go:177-180`, against its own comment), so a list that reaches 97
+  falls back to the 48 nearest.
+- **Q-58 Layers come from Go's global `math/rand`.** The level is
+  `int(math32.Floor(-math32.Log(rand.Float32()) * levelFactor))`, drawn after
+  the enter point's distance is computed; the first insert into a fresh index
+  draws nothing. The global source is randomly seeded, so Go builds a different
+  graph on every run and no stream is reproduced; `Hnsw::with_uniform` takes
+  the draws, which the golden tests replay from Go. A draw of exactly 0 gives
+  `int(+Inf)`, which is `MinInt64` on amd64, and the insert panics with
+  `index out of range [-2]` (checked against Go with the draw stubbed to 0).
+- **Q-59 `Unmarshal` takes the level factor, `maxConnection`,
+  `maxConnection0`, `ef` and `efConstruction` from the blob**, not from
+  `NewHNSW`; an `ef` above zero then sets the search breadth (`efSearchValue`).
+- **Q-60 Go writes each upper layer's entries in `sync.Map` order**, which
+  changes from run to run, so two Go blobs of the same graph differ in bytes.
+  The Rust `marshal` writes them by vector index, one of Go's orders; the
+  goldens compare Go's blob with its entries sorted.
+- **Q-61 Searching an empty HNSW panics** (`index out of range [0] with length
+  0`: there is no enter point); an empty `Bruteforce` returns nothing, and
+  `SearchIndex` on either returns `index out of range: q`.
+- **Q-62 `Unmarshal` accepts layers it cannot search.** A negative entry count
+  reads as no entries; a vector stored twice in a layer keeps the later queue
+  and can leave another vector missing, so a search reaching it dereferences
+  nil; an enter point outside the vectors panics on the first search. Rust
+  reads the same and panics in the same searches.
 ### Time and dates
 
 Go's `time` (go1.27.0) as `gorse_common::gotime` and `araddon/dateparse`
@@ -305,6 +345,201 @@ explicit `f(0)` because Go's property only ever checks `sec == 0`;
 dateparse's `TestPreferMonthFirst` and `TestRetryAmbiguousDateWithSwap` run in
 America/Denver, which `TestInLocation` leaves behind when Go runs the file in
 order.
+
+### Float32 math
+
+`github.com/chewxy/math32` v1.11.2 as `gorse_common::math32`, checked by
+`math32_golden.json` (`contracts/tools/math32golden`): 13 functions over 21 862
+inputs, each recorded from the default amd64 build (`asm`, where math32's `Exp`,
+`Log` and `Sqrt` are assembly) and from a `-tags noasm` build (`noasm`, the Go
+code), plus FNV-1a digests of 10 unary functions and the two conversions over
+all 2^32 inputs per column, recomputed by the ignored test
+`math32_exhaustive`. Only what Gorse calls is ported (X-34).
+
+- **Q-76 amd64 `Exp` adds the exponent into its polynomial.** `exp_amd64.s` has
+  `ADDSS $T4, X1` where it means to load `T4` into `X1`, which still holds
+  `float32(k)`. Results are off by a few ulps, by more as `|x|` grows.
+- **Q-77 amd64 `Exp` range.** `k` is `x·log2(e)` rounded half to even
+  (`CVTSS2SL`), and the result is assembled as `2^k` times the polynomial
+  without the Go code's range checks. So `Exp` is `+Inf` from `x = 88.37627` on
+  (the true value is finite up to 88.72; the Go code gives `3.3259769e38` at
+  88.7), subnormal only from -87.33655 to -87.68312 and 0 from `x = -87.68313`
+  down (the Go code has subnormals to about -104), and 0 for every finite `x`
+  with `|x·log2(e)| >= 2^31` (from about `±1.49e9`), where the conversion gives
+  `MinInt32`: `Exp(1e9)` is `+Inf` but `Exp(2e9)` is 0, while `Exp(+Inf)` is
+  `+Inf`. Asserted in `math32_amd64_differs_from_go_code`.
+- **Q-78 amd64 `Log` takes the exponent bits raw.** `k = e - 126` with no
+  normalisation, so subnormal inputs give wrong results (`Log(1e-40)` is
+  `-88.02122`, the Go code gives `-92.10341`).
+- **Q-79 amd64 `Log` halves when `f1 <= √2/2`** (`CMPSS X2, X0, 5` computes
+  `!(HSqrt2 < f1)`), where the Go code halves when `f1 < Sqrt2/2`. They take
+  different paths for mantissa `0x3504F3`, and the results differ at some
+  exponents: `Log(0.70710677)` is `0xBEB17218` from the assembly and
+  `0xBEB17219` from the Go code. The golden covers that mantissa and its
+  neighbours at every exponent.
+- **Q-80 amd64 `Log` of any negative input**, a negative NaN included, returns
+  math32's NaN `0x7FE00000`; a positive NaN comes back unchanged.
+- **Q-81 NaN bits.** math32's `NaN()` is `0x7FE00000`, not Rust's `0x7FC00000`.
+  `Sqrt` on amd64 is `SQRTSS`: `0xFFC00000` for a negative input and the input
+  quieted for a NaN; the Go code returns `0x7FE00000`. The bits feed `Pow` and
+  `Tanh`, and any NaN a caller stores.
+- **Q-82 `Pow` and `Tanh` call `Exp`, `Log` and `Sqrt`**, so on amd64 they
+  inherit Q-76 to Q-81. `Pow`'s `isOddInt` and its loop over the bits of `y`
+  convert with `int32(x)`, so they get amd64's out-of-range result (Q-84).
+- **Q-83 `Sin` and `Cos` above 2^29.** math32's `trigReduce` adapts the float64
+  Payne–Hanek code with 32-bit shift counts over the 64-bit digits of 4/π, takes
+  the octant as `hi >> 29` of a 64-bit value and masks it to 0..7 only when it
+  is odd. `Sin` and `Cos` then pick the polynomial and sign from that unmasked
+  octant, so results for `|x| >= 2^29` are not the true sine. Reproduced line by
+  line; the exhaustive digests cover every such input.
+- **Q-84 Go's float-to-integer conversions.** `int32(x)` and `int(x)` truncate
+  toward zero; for NaN and out-of-range values amd64 gives `MinInt32` and
+  `MinInt64` (`CVTTSS2SL`, `CVTTSS2SQ`), where Rust's `as` saturates and maps
+  NaN to 0. `math32::go_f32_to_i32` and `go_f32_to_i64` reproduce amd64; the
+  exhaustive digests check them on every float32.
+
+### expr-lang parser
+
+`github.com/expr-lang/expr` v1.17.8's lexer and parser as `gorse_expr`, checked by
+`parser_golden.json`, `parser_bulk_golden.json` and `parser_go_tests.json`
+(`contracts/tools/exprparsegolden`; Unicode tables from
+`contracts/tools/exprunicode`). Gorse calls only `parser.Parse`
+(`config/config.go:975`), whose error decides `item_expr` validity. Each quirk is
+in the golden data (`quirks` source of `parser_golden.json` unless said
+otherwise). Decisions D-36 to D-45 are in `PORTING.md`.
+
+Each is in the golden data (`quirks` source of `parser_golden.json` unless
+said otherwise), so the Rust result is Go's.
+
+- **Q-85 `\U` escapes wrap Go's 32-bit runes.** The unescaper shifts
+  eight hex digits into an `int32`; from `\U80000000` up the value is
+  negative, passes the `> MaxRune` check and is written as its low byte:
+  `"\UFFFFFFFF"` is the one byte `0xFF` (printed `"\xff"`), `"\U80000041"` is
+  `"A"`. `\U7FFFFFFF` and `\U00110000` fail ("unable to unescape string").
+  Surrogates (`"\uD800"`, `"\u{D800}"`) become U+FFFD.
+- **Q-86 A lexer error replaces an earlier parser error.** The lexer
+  runs lazily, one token ahead of the parser; the parser's own errors are
+  first-wins, but a lexer error met while the parser keeps reading after its
+  error overwrites it. `count(, 1)` fails with `unexpected token
+  Operator(",") (1:7)`, `count(,"\q")` with `invalid char escape (1:10)`.
+- **Q-87 The `if` form's node is not counted and has no location.**
+  `parseConditionalIf` builds the `ConditionalNode` directly instead of
+  through `createNode`: it is outside the node budget and its location is
+  `0:0` (`if a { 1 } else { 2 }` walks to `ConditionalNode 0:0`).
+- **Q-88 `true`, `false`, `nil` and numbers take no postfix.** They
+  return before `parsePostfixExpression`: `true.foo` is `unexpected token
+  Operator(".")`, `nil[0]` likewise, and `1.foo` is `bad number syntax:
+  "1.f"` (the lexer reads `1.` as a number).
+- **Q-89 Map pairs are at the `{`.** Every `PairNode` takes the
+  location of the map's opening brace, not of its key.
+- **Q-90 A ternary is at the token after it.** The `?:`
+  `ConditionalNode` takes the location of the current token after its second
+  branch (for `a ? b : c`, the end of input, `8:9`).
+- **Q-91 `not` before an operator is matched by value and located at the
+  operator.** After `not` the parser checks only the next token's value, so a
+  string `"in"` works as the operator: `a not "in" b` is `not (a in b)`. The
+  `UnaryNode` takes the location of the `in` token, not of `not`.
+- **Q-92 The lexer and the unescaper disagree on escapes.** The lexer
+  rejects `\?`, `` \` `` and an escaped quote of the other kind (`'\"'`:
+  `invalid char escape`), which the unescaper would accept; it accepts octal
+  escapes from `\4` to `\7`, which the unescaper rejects (`"\400"`:
+  `unable to unescape string`).
+- **Q-93 Go's `Lexer.Reset` keeps the previous positions.** Reusing a
+  lexer (or a `parser.Parser`) for a second source starts reading at the
+  first one's end. `parser.Parse` and `ParseWithConfig` make a new parser each
+  time, so Gorse never sees it; the port has no reuse API (`PORTING.md` D-42).
+- **Q-94 Newlines.** A quoted string cannot hold a line feed (`literal
+  not terminated`), but a lone carriage return in it becomes a line feed;
+  backquoted strings keep `\r` as is.
+- **Q-95 Comparison chains and `?:` share operands.** `a < b < c <= d`
+  is `a < b && b < c && c <= d`; `a ?: b` is `a ? a : b` (`PORTING.md` D-39).
+- **Q-96 An error on an empty line has no position.** `file.Error`
+  leaves the snippet empty when the error's line is empty, and then prints
+  only the message: `a +\n\n` fails with just `unexpected token EOF`.
+- **Q-97 Numbers.** Underscores are removed anywhere before parsing
+  (`0x_1` is 1, `1_0` is 10); decimal literals may have leading zeros (`08`
+  is 8); the most negative integer cannot be written (`-9223372036854775808`
+  is unary minus on an out-of-range literal); a float that overflows is
+  `invalid float literal: ... value out of range`, one that underflows is 0.
+  The parser's `float literal is too large` and `integer literal is too
+  large` checks cannot fire on 64-bit Go.
+- **Q-98 Disabling a builtin does not touch the predicate builtins.**
+  `Disabled` applies to the builtins table only; `all`, `count`, `map`,
+  `filter` and the other predicate functions are still parsed as builtins
+  (golden config 7). Functions and environment names override both
+  (configs 8 and 9).
+
+### Util, math/rand and TLS
+
+- **Q-99 `Sample` and `SampleInt32` count excluded values outside the
+  interval.** The "take everything" branch triggers when `n >= high - low -
+  |exclude|`, with every excluded value counted, and then returns every
+  allowed value, which can be more than `n`: `Sample(5, 50, 41, {6, 7, 100,
+  -1})` returns 43 values (`common/util/random.go`). Covered by Go goldens
+  either side of the threshold.
+- **Q-100 `NormFloat64`, `ExpFloat64` and Go's `math.Exp` follow the CPU.** On
+  amd64 Go's `math.Exp` uses FMA when the CPU has it and gives different bits
+  without it; the Rust port detects FMA at run time the same way and has both
+  paths checked against Go (`GODEBUG=cpu.fma=off` for the plain one). The
+  ziggurat samplers only reach `Exp` and `Log` in their rare rejection
+  branches. Go's amd64 `math.Log` does not normalise subnormal inputs; nor
+  does the port.
+- **Q-101 Go's `NaN` bits.** `ParseFloat("nan")` returns Go's `math.NaN()`,
+  bits `0x7FF8000000000001`, not Rust's `f64::NAN`.
+- **Q-102 No host name is checked on either side of a TLS connection**
+  (`advancedtls.CertVerification`): a certificate for another host is
+  accepted.
+- **Q-103 `h2` is offered as ALPN on both sides and enforced on neither.**
+- **Q-104 A CA limited to server authentication** works in a client's CA file
+  and makes a server reject every client: the server checks client
+  certificates for client authentication all the way up to the CA.
+- **Q-105 `ParseInt` with bit size 1 drops a range error**
+  (`ParseInt("-2", 10, 1)` is `-1, nil` in go1.27.0). Gorse never uses bit
+  size 1; `gostrconv::parse_int` has the same logic (by reading the code; its
+  tests do not exercise that case).
+
+### Storage core and Go library ports (WP-1-14)
+
+- **Q-106 go1.27 `ParseFloat` past 800 digits.** `decimal.set` keeps 800
+  digits, but it takes the decimal point from the capped count. A mantissa
+  longer than that with a nonzero tail therefore parses wrongly. The bits of
+  `ParseFloat(s, 64)`, matched by the port at both `SetOptimize` settings:
+
+  | s | Go bits |
+  |---|---|
+  | `"9007199254740993" + "0"*790 + "1e-791"` | `41cad7f29abcaf49` (9.007199254740993e+08) |
+  | `"9007199254740993" + "0"*900 + "1e-901"` | `2af42c7ff0054685` (9.007199254740992e-102) |
+  | `"9007199254740993" + "0"*700 + "1e-701"` | `4340000000000001` |
+  | `"0." + "0"*900 + "1e-901"` | `0` |
+
+  A correctly rounding parser gives `4340000000000001` for the first three.
+  `gojson` reaches this through any JSON number that long.
+- **Q-107 Unhashable `json_contains` elements have two texts.**
+  - Inserting into a map, or looking up in a non-empty one, goes through
+    `typehash`: `runtime error: hash of unhashable type []interface {}` (or
+    `map[string]interface {}`).
+  - A lookup in an empty map goes through `mapKeyError`: `hash of unhashable
+    type: []interface {}`.
+
+  `-0` and `0` are the same key.
+- **Q-108 modernc's SQLite boundary.** This is what Go sees, and the Rust
+  SQLite glue must reproduce it:
+  - A `TEXT` argument arrives through `libc.GoString`, so it ends at its
+    first NUL (`modernc_text`). A `BLOB` keeps every byte, `INTEGER` is
+    `int64` and `REAL` is `float64` (both are "unsupported type").
+  - A function error passes through `libc.CString`, so it is cut at a NUL,
+    and is reported as `SQL logic error: <msg> (1)`, or `SQL logic error
+    (1)` when the message is SQLite's own (`modernc_error_text`).
+  - A `bool` result is integer 1 or 0.
+  - A nil `[]byte` binds as `NULL`.
+- **Q-109 `AppendURLParams` re-encodes the whole query.** The keys come
+  out sorted (`Values.Encode`), and an existing pair that does not parse is
+  dropped silently. A Windows path parses as a URL with scheme `c`, and the
+  ported Go test pins it.
+- **Q-110 Raw bytes in MySQL DSN errors.** Some error texts carry the
+  DSN's bytes unchanged, invalid UTF-8 included: an unknown network's default
+  address, the TLS config and server public key names, bool values, time
+  zones, `timeTruncate`, and a reserved TLS key.
 
 ## Deviations
 
@@ -410,6 +645,26 @@ order.
   surrogate escape or invalid UTF-8 fails in serde_json before reaching the
   visitor, with serde_json's message, where Go fails with
   `invalid expression format`; both reject it.
+- **X-21 `Hnsw::add` takes `&mut self`.** Go's HNSW lets goroutines insert and
+  search at once behind its own mutexes, so the graph depends on scheduling.
+  Here inserts are serialized by the caller (a `Mutex`, as the ported
+  `test_multithread` does) and searches take `&self`; the graph then depends
+  only on the insert order and the draws.
+- **X-22 `Hnsw::unmarshal` is atomic and never panics on counts.** Go replaces
+  fields as it reads, so a failed `Unmarshal` leaves a half-replaced index, and
+  it allocates from the counts, panicking with `makeslice: len out of range`
+  on a negative or huge one. Rust returns `NegativeCount` for a negative count,
+  grows its vectors as the data arrives (a huge count ends at the end of the
+  input with an error), and changes nothing on an error (D-23).
+- **X-23 An insert into an unmarshalled empty index.** Go deadlocks: the index
+  is no longer fresh, so the first vector becomes its own enter point and the
+  insert read-locks the vector whose write lock it holds (the golden generator
+  detects it from the child process's deadlock report). Rust has no such lock;
+  the vector is linked to itself.
+- **X-24 Narrower argument types.** `q` and `k` are `usize`: Go's negative `q`
+  is an error and a negative `k` returns nothing, and no Gorse caller passes
+  either. The distance is a `fn` pointer, where Go takes any function value;
+  Gorse passes only top-level functions (`logics/cf.go:32`).
 - **X-25 The monotonic clock starts at first use**, not at process start: Go
   takes `startNano` at package init, Rust has none.
   `gotime::init_process_clock()` starts it; nodes call it first thing in
@@ -438,6 +693,24 @@ order.
   port panics at the same inputs with Rust's message; Go's deferred retry while
   panicking is not emulated (the outcome is still a panic). The golden test
   requires a panic exactly where Go panics.
+- **X-33 math32 on arm64 is not bit-exact.** There math32's `Exp` and `Log` run
+  the Go code (`stubs_arm64.s`), which the port selects, but Go compiles every
+  pure-Go function on arm64 with fused multiply-adds and Rust does not fuse.
+  Results on arm64 can differ in the last bit. `PORTING.md` D-25 makes
+  linux/amd64 the reference; no arm64 machine was available to measure.
+- **X-34 Only the math32 functions Gorse calls are ported:** `Abs`, `Copysign`,
+  `Cos`, `Exp`, `Floor`, `Frexp`, `Inf`, `IsInf`, `IsNaN`, `Ldexp`, `Log`,
+  `Modf`, `NaN`, `Pow`, `Sin`, `Sqrt`, `Tanh` and the constants `Pi`, `Sqrt2`,
+  `Ln10`, `MaxFloat32`. `Log1p` and `Log2` follow (O-3).
+- **X-35 `Sqrt` on targets other than x86-64 and aarch64** uses the Go code. Go
+  has assembly for more architectures; Gorse ships amd64 and arm64.
+- **X-36 A TLS client whose chain does not reach the server's CA (WP-1-4).**
+  The Go client sends no certificate (none matches the server's CA hints) and
+  the Go server reports `client didn't provide a certificate`; a Rust client
+  sends its certificate anyway and the server rejects the chain. The verdict,
+  rejected by the server, is the same, and that is what the tests compare.
+- **X-37 TLS handshake error texts are rustls's, not Go's (WP-1-4,
+  `PORTING.md` D-47).** Credential errors at start-up keep Go's texts.
 
 ## Open questions
 
@@ -451,3 +724,27 @@ order.
   `expression_to_pb_matches_go` asserts the exact difference on 15 cases so a
   prost change is noticed. To be settled with the gRPC services (Phase 2/3):
   a score of `-0` can arise (`logics/cf.go` negates a dot product).
+- **O-3 math32's `Log1p` and `Log2`** (`model/cf` and `model/ctr`) are
+  `float32(math.Log1p(float64(x)))` and `float32(math.Log2(float64(x)))`, so
+  they need Go's float64 `math.Log` (assembly on amd64) and `math.Log1p`
+  ported. `common/nn` needs Go's float64 `math.Exp` (assembly with an FMA path)
+  for the same reason. They come with the nn part of WP-1-11.
+- **O-4 `common/expression` has its own `ParseFloat`** for the strings its
+  pattern admits (`crates/gorse-common/src/expression.rs`); it could call
+  `gostrconv::parse_float` once WP-1-14's conversion lands (`PORTING.md` D-52).
+- **O-5 `rustls`'s own unit tests do not build from the published package**
+  (its test data is left out); the patch in `third_party/rustls` is covered by
+  `util_tls_server_ignores_a_host_and_port_server_name` and the interop check
+  instead (`third_party/rustls/GORSE.md`).
+- **O-6** The SQLite stores register `json_contains` as deterministic,
+  with two arguments, on every connection (Q-25). The glue must:
+  - map SQLite values to `json_contains::Arg`, `TEXT` through
+    `modernc_text`;
+  - return `NULL` for `None` and an integer for the bool;
+  - report errors with `modernc_error_text`;
+  - bind an absent blob as `NULL`.
+
+  How to surface `Error::Unhashable`, where Go locks the connection, is that
+  WP's call: a query error is the natural one.
+- **O-7** The MySQL stores call `probe_mysql_isolation_variable_name`
+  with their driver, and `apply_sql_pool` on their pool.
