@@ -659,6 +659,11 @@ mod tests {
         let mut file = RotatingFile::new(&path.display().to_string(), &options);
         let chunk = vec![b'x'; MEGABYTE as usize / 2];
         for _ in 0..8 {
+            // Backup names carry millisecond timestamps, as Go's lumberjack names
+            // them. Two rotations in one millisecond would give one name, and the
+            // second would replace the first backup. The pause keeps each rotation
+            // in a millisecond of its own, however fast the writes run.
+            std::thread::sleep(std::time::Duration::from_millis(2));
             file.write_line(&chunk).expect("write");
         }
         let names: Vec<String> = fs::read_dir(temp.path())

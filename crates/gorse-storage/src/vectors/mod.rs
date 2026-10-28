@@ -376,17 +376,26 @@ pub fn float16_from_bytes(values: &[u8]) -> Vec<u16> {
 }
 
 /// Go's `Open`: opens the store that `path` names. `xvec://` is the only store
-/// so far; WP-2-9 adds the network stores.
+/// so far; WP-2-9 adds the network stores. Async, as D-151 rules for every
+/// registry. The xvec store's directory reads run on tokio's blocking pool.
 ///
 /// Go fills a registry from `init` functions, which Rust has no equivalent of
 /// without a link-time crate. The backends are listed here instead, which
 /// gives the same lookup by prefix.
-pub fn open(path: &str, table_prefix: &str, opts: &[Opt]) -> Result<Box<dyn Database>, Error> {
+pub async fn open(
+    path: &str,
+    table_prefix: &str,
+    opts: &[Opt],
+) -> Result<Box<dyn Database>, Error> {
     // The xvec store takes no options: exact search has no job count and no
     // index to skip (`PORTING_NOTES.md` X-WP28-2).
     let _ = opts;
     match path.strip_prefix(XVEC_PREFIX) {
-        Some(root) => Ok(Box::new(xvec::Xvec::new(root, table_prefix)?)),
+        Some(root) => {
+            let (root, table_prefix) = (root.to_owned(), table_prefix.to_owned());
+            let store = xvec::blocking(move || xvec::Xvec::new(&root, &table_prefix)).await?;
+            Ok(Box::new(store))
+        }
         None => Err(Error::Other(format!("Unknown database: {path}"))),
     }
 }

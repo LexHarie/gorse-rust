@@ -30,7 +30,7 @@ Every Rust module names the Go files it ports with a
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); config.schema.json and config.keys.md not generated (X-49). WP-1-18 is in progress (it follows WP-1-16 and WP-1-17, both merged). All in `porting/work-packages.md` |
-| 2. Storage | in progress | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 open until the XML-upload stub test merges). WP-2-2, 2-3, 2-5 to 2-7, 2-9, 2-11 to 2-13 not merged |
+| 2. Storage | in progress | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator pending the registry commit, D-151), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 open until the XML-upload stub test merges). WP-2-2, 2-3, 2-5, 2-6, 2-9, 2-11 to 2-13 not merged |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
@@ -1194,7 +1194,49 @@ or accepts a metric gap outside the Go tests' own tolerances.
   their clients asynchronously, so a sync creator would need a blocking facade over
   a network client, which D-122 forbids. `cache::open` stays the one entry point,
   as Go's `Open` is. Until the applying commit lands, a store may build against
-  this signature. Integrator, 2026-10-28; the coordinator asked for it (O-WP27-1).
+  this signature. Integrator, 2026-10-28; the coordinator asked for it (O-42).
+
+- **D-152 The driver is `mongodb` 3.9.1.** It is the latest stable release on
+  2026-10-28 (`cargo info mongodb`) and Apache-2.0, as `porting/crate-selection.md`
+  already says. It is an optional dependency of `gorse-storage`, behind the
+  `mongodb` feature, so a build with no MongoDB store does not link it. The
+  driver's default BSON is `bson` 2.15.
+
+- **D-153 `MongoDB::open` is `async`, and the registry does not hold it.**
+  Go's creator calls `mongo.Connect`, which is lazy. The Rust driver's
+  `ClientOptions::parse` is `async`, and `Client::with_options` spawns tasks on
+  the runtime. So `MongoDB::open(path, table_prefix)` is an async function. It
+  is not registered in `cache::Registry`, whose `Creator` is a sync `fn`. See
+  O-42.
+
+- **D-154 The callbacks of `scan` and `scan_scores` take any lifetime.** The
+  trait bounds are `for<'a> FnMut(&'a str)` (and `for<'a, 'b, 'c>` for
+  `scan_scores`), which the approved fix in `9e3aa92` sets. `async-trait`
+  rewrites the elided lifetime inside `FnMut(&str)` into a named lifetime, so a
+  backend cannot call the callback with a string it borrowed from a row
+  (rustc E0597). Redis (WP-2-5) and SQL (WP-2-6) take the same commit.
+
+- **D-155 Each write is its own round trip.** The driver's `bulk_write` needs
+  MongoDB 8.0, and the suite runs on 6.0.28. Each write is an
+  `update_one(...).upsert(true)`, in order, and the first error stops the batch.
+  That is what Go's ordered bulk write does on the server.
+
+- **D-156 Collections and indexes match Go.** Collections are
+  `<prefix>values`, `<prefix>documents` and `<prefix>time_series_points`. `init`
+  creates the values collection, then the two indexes on documents and the one
+  on points, with the keys Go uses. On mongo:6 (6.0.28), `getIndexes()` on the
+  Go-created and the Rust-created `gorse_cache_test` lists the same index names:
+  `collection_1_subset_1_id_1`, `collection_1_subset_1_categories_1_is_hidden_1_score_-1`
+  and `name_1_timestamp_1`.
+
+- **D-157 D-151 applied (integration).** `cache::Creator` and `data::Creator` are
+  `for<'a> fn(&'a str, &'a str, &'a [Opt]) -> BoxFuture<'a, Result<Box<dyn Database>, Error>>`,
+  and `Registry::open` is `async` in both. `vectors::open` is `async` too; its xvec
+  directory reads run through `xvec::blocking` (spawn_blocking). The registry test is
+  `#[tokio::test]`. `cache::register_builtin` registers the backends this build was
+  compiled with (`mongodb://` and `mongodb+srv://` with the `mongodb` feature), as
+  Go's `init` does; a node calls it once on the registry it builds. Backends in
+  WP-2-2, 2-3, 2-5, 2-6 and 2-9 write their creators to this signature.
 
 ## Open questions for Ritchie
 

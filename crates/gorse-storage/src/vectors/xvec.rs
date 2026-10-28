@@ -133,7 +133,7 @@ enum Query {
 /// Runs `task` on tokio's blocking pool and returns its result. A panic in the
 /// task propagates to the caller, as a panic in Go's store would crash the
 /// process. Must be awaited inside a tokio runtime.
-async fn blocking<T, F>(task: F) -> Result<T, Error>
+pub(super) async fn blocking<T, F>(task: F) -> Result<T, Error>
 where
     F: FnOnce() -> Result<T, Error> + Send + 'static,
     T: Send + 'static,
@@ -1173,6 +1173,7 @@ mod tests {
             "gorse_",
             &[] as &[Opt],
         )
+        .await
         .expect("open");
         db.init().await.expect("init");
         case(&Context::background(), db.as_ref()).await;
@@ -1238,6 +1239,7 @@ mod tests {
             "gorse_",
             &[] as &[Opt],
         )
+        .await
         .expect("open");
         db.init().await.expect("init");
         db
@@ -1712,6 +1714,6 @@ mod tests {
 
     #[tokio::test]
     async fn empty_root_is_rejected() {
-        assert!(open(XVEC_PREFIX, "", &[] as &[Opt]).is_err());
+        assert!(open(XVEC_PREFIX, "", &[] as &[Opt]).await.is_err());
     }
 }

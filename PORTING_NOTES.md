@@ -1017,6 +1017,43 @@ said otherwise), so the Rust result is Go's.
   (`received message larger than max (4194332 vs. 4194304)`) and no blob is created.
   A 3 MiB write is accepted. Test `quirk_full_size_chunk_exceeds_grpc_limit`.
 
+### MongoDB cache store (WP-2-7)
+
+- **Q-195 An empty write of time series points is an error.** `AddTimeSeriesPoints`
+  with no points returns "must provide at least one element in input slice" (the
+  driver's `ErrEmptySlice`). The other writes return nil on an empty list.
+  Observed with the Go oracle on 2026-10-28.
+
+- **Q-196 `Purge` leaves the time series points.** Go purges the values and the
+  documents collections only. Reproduced.
+
+- **Q-197 Scan loops swallow cursor errors.** `Scan`, `SearchScores` and
+  `ScanScores` stop at a cursor error without returning it, because Go never
+  calls `cursor.Err()` there. `GetTimeSeriesPoints` does check it, so the port
+  returns that error. Reproduced.
+
+- **Q-198 Times are stored in milliseconds, with Go's formula.** Go writes
+  `t.Unix()*1e3 + t.Nanosecond()/1e6`. Oracle: `time.Unix(-2, 999999999)` is
+  stored as -1001 ms and read back as `1969-12-31 23:59:58.999 +0000 UTC`.
+  Whole-nanosecond truncation would give 23:59:59.000, so the port uses Go's
+  formula (`to_datetime`). Positive times behave the same either way.
+
+- **Q-199 `IsHidden` is always false when read.** Go's BSON decoder reads the
+  key `ishidden`, which the store never writes. The search filters hidden
+  documents, so reading `is_hidden` gives the same result, and the port sets
+  false directly. No observable difference.
+
+- **Q-200 Go sends one `$set` per patched field.** `UpdateScores` with two or
+  more fields emits duplicate `$set` keys. The server applies them all: the
+  oracle's patch of `is_hidden`, `score` and `categories` changed all three. The
+  port sends one `$set` with the same fields, so the result is the same.
+
+- **Q-201 A negative `begin` is refused by the server.** The driver's skip is
+  unsigned, so the port refuses it itself, with the server's text:
+  `(Location51024) BSON field 'skip' value must be >= 0, actual value '-1'`
+  (oracle, MongoDB 6.0.28). `limit` of 0 is unlimited on the server, as in Go;
+  the oracle confirmed it.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -1488,6 +1525,32 @@ said otherwise), so the Rust result is Go's.
 
 - **X-94 Go's `time.Sleep(time.Millisecond)` is `std::thread::sleep`** in the suite. The suite runs on the test's own thread.
 
+### MongoDB cache store (WP-2-7)
+
+- **X-95 `connect=direct` is read as `directConnection=true`.** Go's
+  connection-string parser takes the legacy `connect` option. The Rust driver
+  rejects it ("connect is an invalid option"). The suite's URI and the Gorse
+  configs carry it. `connect=automatic` is the default, so it is dropped. Other
+  options pass through unchanged. `driver_uri` does this.
+
+- **X-96 A nil slice of categories is stored as an empty array.** Go writes a
+  nil `Categories` as BSON null. `Score.categories` is a `Vec`, which has no nil,
+  so the port writes `[]`. Both read back as no categories. Go's null value is
+  still read as no categories.
+
+- **X-97 The context is checked on entry and between documents.** Per D-122:
+  `ctx.err()` before each call, and before each document in `scan_scores`. Go's
+  driver also cancels an operation under way. Here an operation under way runs
+  until the server answers or the driver times out. Dropping the future cancels
+  it.
+
+- **X-98 No OpenTelemetry command monitor.** Go sets
+  `otelmongo.NewMonitor()` on the client. The port has no command monitor. Spans
+  belong with the tracing work (O-17), in the server and master WPs.
+
+- **X-99 Each write is its own round trip.** Same results, more round trips
+  (D-155).
+
 ## Open questions
 
 - **O-1** The Go CI's model tests read the datasets from `https://cdn.gorse.io`,
@@ -1690,6 +1753,25 @@ said otherwise), so the Rust result is Go's.
 - **O-40 Shared-suite cases that need a backend are untested here.** Every case in `database_test.rs` is unverified until WP-2-2 or WP-2-3 runs it. The gate for this WP does not run them.
 
 - **O-41 No callback in the data trait takes a `&str`.** The only `Fn` in this WP is `ScanOption`, which takes `&mut ScanOptions`. The cache core's E0597 comes from its `scan` callback, which this WP does not have. Stream methods return `BoxStream` and take no callbacks.
+
+- **O-42 Opening the store in a node. Closed by D-151 (integration).** The
+  registry's `Creator` becomes async, as the integrator ruled. `mongodb::creator`
+  is that creator: it returns an `OpenFuture` that opens the store with
+  `MongoDB::open`. The integrator registers it, in the commit that changes the
+  registry. The suite runs it in `creator_opens_the_store`.
+
+- **O-43 The test without `MONGO_URI`.** The test returns early and reports
+  `ok`, as Go's `t.Skip` does. The acceptance run sets `MONGO_URI`, so it runs
+  every suite case.
+
+- **O-44 MongoDB versions tested.** Only 6.0.28 (the `mongo:6` image, the
+  version PORTING.md pins) is run here. The root `docker-compose.yml` has a
+  commented `mongo:4.0`, and the Go CI's compatibility job is not run here. The
+  driver's minimum server version is not checked.
+
+- **O-45 (closed by f7ff3189) `gosort` copy.** This store does not sort in Rust (MongoDB sorts
+  on the server). The duplicate `pdqsort` in `cache/gosort.rs` is WP-2-4's and
+  is not changed here (O-27, owned by the cache core).
 
 ## WP-2-5 Redis cache store
 
