@@ -31,6 +31,8 @@ use gorse_storage_core::scheme::{MONGO_PREFIX, MONGO_SRV_PREFIX};
 #[cfg(feature = "mongodb")]
 pub mod mongodb;
 pub mod no_database;
+#[cfg(feature = "redis")]
+pub mod redis;
 #[cfg(any(feature = "mysql", feature = "postgres", feature = "sqlite"))]
 pub mod sql;
 
@@ -534,9 +536,17 @@ impl Registry {
 pub fn register_builtin(registry: &mut Registry) {
     #[cfg(feature = "mongodb")]
     registry.register(&[MONGO_PREFIX, MONGO_SRV_PREFIX], mongodb::creator);
+    #[cfg(feature = "redis")]
+    redis::register(registry);
     #[cfg(any(feature = "mysql", feature = "postgres", feature = "sqlite"))]
     sql::register(registry);
-    #[cfg(not(feature = "mongodb"))]
+    #[cfg(not(any(
+        feature = "mongodb",
+        feature = "redis",
+        feature = "mysql",
+        feature = "postgres",
+        feature = "sqlite"
+    )))]
     let _ = registry;
 }
 

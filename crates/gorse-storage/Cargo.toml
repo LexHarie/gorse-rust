@@ -18,6 +18,7 @@ futures-core.workspace = true
 futures-util.workspace = true
 indexmap.workspace = true
 prost-types = { workspace = true }
+rusqlite.workspace = true
 serde.workspace = true
 # `raw_value` writes a `json.Number`'s text as it is, as Go's `json.Marshal` does.
 serde_json = { workspace = true, features = ["raw_value"] }
@@ -27,10 +28,13 @@ tonic = { workspace = true }
 tracing.workspace = true
 async-trait.workspace = true
 # The SQL drivers are optional, one feature each (D-18). `sqlx` serves MySQL and
-# Postgres; `rusqlite` serves SQLite, on `tokio`'s blocking pool.
-rusqlite = { workspace = true, optional = true }
+# Postgres; `rusqlite` (above) serves SQLite, on `tokio`'s blocking pool.
 sqlx = { workspace = true, optional = true }
 
+# The Redis cache store (`cache::redis`). Off by default, as Go's Redis
+# driver is only linked in when a `redis://` store is configured.
+redis = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
 # The blob stores are async (decision D-122). POSIX file calls run through
 # `tokio::fs`, which uses the blocking pool.
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "sync", "macros", "net", "fs", "io-util", "time"] }
@@ -46,19 +50,19 @@ object_store = { version = "0.14.2", default-features = false, optional = true }
 mongodb = { workspace = true, optional = true }
 
 [features]
+redis = ["dep:redis", "dep:base64"]
 s3 = ["dep:object_store", "dep:bytes", "object_store/aws"]
 gcs = ["dep:object_store", "dep:bytes", "object_store/gcp"]
 azure = ["dep:object_store", "dep:bytes", "object_store/azure"]
 mongodb = ["dep:mongodb"]
 mysql = ["dep:sqlx", "sqlx/mysql"]
 postgres = ["dep:sqlx", "sqlx/postgres"]
-sqlite = ["dep:rusqlite"]
+sqlite = []
 
 [dev-dependencies]
 hex.workspace = true
 # Seeds the GCS emulator through its JSON upload API in `gcs::tests`.
 reqwest = { workspace = true }
-tempfile.workspace = true
 
 [lints]
 workspace = true

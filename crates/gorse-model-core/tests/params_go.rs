@@ -9,7 +9,8 @@ use gorse_model_core::params::{
     SIMILARITY, USE_FEATURE,
 };
 
-use ParamValue::{Bool, Float32, Float64, Int, Int64, IntSlice, Other, String as Str};
+use ParamValue::{Bool, Float32, Float64, Int, Int64, IntSlice, Json, Other, String as Str};
+use gorse_common::gojson::Value;
 
 /// Builds a `Params` from `(name, value)` pairs, as a Go composite literal does.
 fn params(entries: &[(&str, ParamValue)]) -> Params {
@@ -124,6 +125,13 @@ fn params_get_int_slice() {
     assert_eq!(p.get_int_slice(HIDDEN_LAYERS, &[1, 2, 3]), vec![4, 5, 6]);
     // Wrong type case: a `[]string` in Go.
     p.0.insert(HIDDEN_LAYERS.to_owned(), Other("[]string"));
+    assert_eq!(p.get_int_slice(HIDDEN_LAYERS, &[1, 2, 3]), vec![1, 2, 3]);
+    // A `[]any` decoded from JSON is a wrong type too, as Go's `GetIntSlice`
+    // treats it.
+    p.0.insert(
+        HIDDEN_LAYERS.to_owned(),
+        Json(Value::Array(vec![Value::Number(64.0), Value::Number(32.0)])),
+    );
     assert_eq!(p.get_int_slice(HIDDEN_LAYERS, &[1, 2, 3]), vec![1, 2, 3]);
 }
 

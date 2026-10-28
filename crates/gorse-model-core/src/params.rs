@@ -12,6 +12,8 @@
 
 use std::collections::BTreeMap;
 
+use gorse_common::gojson::Value;
+
 /// `Lr`: learning rate.
 pub const LR: &str = "Lr";
 /// `Reg`: regularization strength.
@@ -67,6 +69,12 @@ pub enum ParamValue {
     String(String),
     /// Go `[]int`.
     IntSlice(Vec<i64>),
+    /// A JSON array or object decoded from a parameter: Go's `[]any` or
+    /// `map[string]any`, held as the value `json.Unmarshal` decoded. Its
+    /// numbers are float64s, as in Go, and it encodes again as Go encodes the
+    /// value, with an object's keys sorted. The accessors treat it as a type
+    /// mismatch, as Go's accessors do for a `[]any` or a `map[string]any`.
+    Json(Value),
     /// A value of any other Go type, named as Go prints it (`[]string`).
     /// Gorse never stores one; the accessors treat it as a type mismatch.
     Other(&'static str),
@@ -85,6 +93,8 @@ impl ParamValue {
             ParamValue::Bool(_) => "bool",
             ParamValue::String(_) => "string",
             ParamValue::IntSlice(_) => "[]int",
+            ParamValue::Json(Value::Object(_)) => "map[string]interface {}",
+            ParamValue::Json(_) => "[]interface {}",
             ParamValue::Other(name) => name,
         }
     }

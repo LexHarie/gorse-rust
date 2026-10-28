@@ -1681,11 +1681,11 @@ said otherwise), so the Rust result is Go's.
   which real data is unlikely to do, but the dataset and logics WPs sort large
   slices, so the gap should close before WP-3-x.
 
-- **O-27 The cache core copies Go's pdqsort (WP-2-4).** `cache/gosort.rs` is a
+- **O-27 (closed by f7ff3189) The cache core copies Go's pdqsort (WP-2-4).** `cache/gosort.rs` is a
   private port of `sort.Slice`'s pdqsort. `gorse-common::gosort` (WP-1-17) already
   ports the same algorithm for `sort.Sort`, so there are two copies. Owner: the
   cache thread. Before WP-2-5 merges, it becomes a closure adapter over
-  `gorse_common::gosort`, so Go's pdqsort is in one place. Open.
+  `gorse_common::gosort`, so Go's pdqsort is in one place. Closed by f7ff3189: `cache::sort_documents` calls `gorse_common::gosort::sort` through an adapter, and the local copy is deleted.
 
 - **O-28 The shared suite has not run against a backend.** No backend
   exists in this WP, and the acceptance command is `cache::no_database`. WP-2-5,
@@ -1705,12 +1705,12 @@ said otherwise), so the Rust result is Go's.
   query. Phase 3 (metric parity) decides whether that gap is acceptable, and
   whether xvec's index must be ported.
 
-- **O-31 GCS write cannot run on fake-gcs-server.** The XML `PUT` to the
+- **O-31 (closed by 3966bf6f) GCS write cannot run on fake-gcs-server.** The XML `PUT` to the
   emulator answers 400 `invalid uploadType` on 1.54.0, 1.56.1 and in the latest
   run. `test_gcs` is `#[ignore]`d with that reason. `test_gcs_read_list_remove`
   covers read, list and remove, with the seed uploaded through the JSON API. The
   write needs an emulator that serves the XML upload, or real GCS.
-  Integrator ruling (2026-10-28): the ignored test is not coverage of the write path. object_store's GCS put uses the XML API (`src/gcp/client.rs` in object_store 0.14.2), which fake-gcs-server does not serve, so no test runs the write. Before WP-2-10 is closed, the blob thread adds an in-process test that serves the XML PUT and the multipart calls on a local HTTP listener and checks the request line, headers and body that the store sends. The emulator test may stay ignored with this reason. Open until that merges.
+  Integrator ruling (2026-10-28): the ignored test is not coverage of the write path. object_store's GCS put uses the XML API (`src/gcp/client.rs` in object_store 0.14.2), which fake-gcs-server does not serve, so no test runs the write. Before WP-2-10 is closed, the blob thread adds an in-process test that serves the XML PUT and the multipart calls on a local HTTP listener and checks the request line, headers and body that the store sends. The emulator test stays ignored with this reason. Closed by e5b177c (merged as 3966bf6f): `test_gcs_xml_put_sends_one_request` and `test_gcs_xml_multipart_sends_parts_then_complete` serve the XML calls on a local listener and check each request.
 
 - **O-32 fake-gcs-server needs `-external-url` for path-style XML.** Without
   it, `GET /{bucket}?list-type=2` answers 404. This is an emulator setting, and the
@@ -1740,7 +1740,7 @@ said otherwise), so the Rust result is Go's.
   left 1, right 2), and it passed alone three times and in the rerun. Owner: the util
   thread. The fix must keep the name format and the assertion unchanged. The test
   makes its rotations apart in time (for example a 2 ms sleep between writes). It must
-  not lower the count. Open until that merges.
+  not lower the count. Closed by 0842e4d (merged as 42f9f103): the test sleeps 2 ms before each write and keeps the name format and the count of 2.
 
 - **O-36 The suite is compiled and not run.** `data/database_test.rs` is called by no test in this crate. WP-2-2 (SQL) and WP-2-3 (MongoDB) run it against their stores. The acceptance command of this WP, `cargo test -p gorse-storage data::no_database`, runs only the NoDatabase case.
 
@@ -1772,3 +1772,178 @@ said otherwise), so the Rust result is Go's.
 - **O-45 (closed by f7ff3189) `gosort` copy.** This store does not sort in Rust (MongoDB sorts
   on the server). The duplicate `pdqsort` in `cache/gosort.rs` is WP-2-4's and
   is not changed here (O-27, owned by the cache core).
+
+## WP-2-5 Redis cache store
+
+- **Q-202 `UpdateScores` checks, then writes, with no transaction.** Go's
+  `Watch` runs its function on one connection with no `MULTI`/`EXEC`, so the
+  watch guards nothing. `EXISTS` and then `HSET` are two commands another client
+  can interleave. The port sends the same two commands.
+
+- **Q-203 `ScanScores` fails on a key deleted between `SCAN` and `HGETALL`.**
+  Go's `redis.Nil` check, meant to skip such a key, never fires: `HGETALL` on a
+  missing key returns an empty map with no error. The empty `timestamp` then
+  fails to parse and the scan returns the error. The port does the same.
+
+- **Q-204 A search with `begin == end == 0` has no `LIMIT`.** go-redis sends
+  `LIMIT` only when the offset is positive or the limit is positive. A search
+  for `[0, 0)` therefore gets RediSearch's default of 10 results. The port keeps
+  that condition.
+
+- **Q-205 `Scan` and `Purge` also visit score documents and points.** Both match
+  `prefix*`, so they see the `documents:` and `time_series_points:` keys, with
+  the prefix stripped. The port does the same.
+
+- **Q-206 A category token that decodes to nothing panics in Go.**
+  `decodeCategory` slices `b[1:]` without a length check. The port returns an
+  error for that token.
+
+- **Q-207 A missing time series is matched by text.** Go checks for the
+  `TSDB: the key does not exist` and `key does not exist` prefixes. The port
+  checks for either text anywhere in the error, since the driver's message can
+  wrap the server's.
+
+- **X-104 `Close` drops the connection.** The `ConnectionManager` closes with the
+  store, which has the same effect as go-redis's `client.Close()`.
+
+- **X-105 Cancellation is checked at call boundaries.** go-redis aborts a command
+  in flight when its context is cancelled. The port checks the context when a
+  method starts and after each reply of a score scan, as Go's `ScanScores` does.
+  A command already sent runs to completion. Open for the WP-4 review.
+
+- **X-106 `CLIENT SETNAME` is sent once, on the first connection.** go-redis names
+  every connection it makes. A `ConnectionManager` reconnect does not resend the
+  name.
+
+- **X-107 A cluster sends pipelines one command at a time.** redis-rs refuses a
+  pipeline whose keys span slots (CROSSSLOT). Go's cluster client splits the
+  pipeline per node. The replies are the same. The port makes more round trips.
+  Not measured.
+
+- **X-108 Cluster primaries come from one `CLUSTER NODES` reply.** Go's
+  `ForEachMaster` walks the client's slot map. The port scans each node whose
+  flags include `master`. Run against a six-node Redis 8.10.3
+  cluster, see O-46.
+
+- **X-100 Cluster `addr` parameters take the base URL's credentials.** Go's
+  `ParseClusterURL` does the same. The port does not decode percent escapes in
+  the parameters.
+
+- **X-101 Each test owns a table prefix and purges it, not `FLUSHDB`.** Go's suite
+  flushes the whole database, which would make parallel Rust tests clobber each
+  other. The assertions are unchanged.
+
+- **X-102 `rediss://` connects through rustls, with the system roots (was X-81
+  before the merge with 7f23f5a).** The redis crate's `tokio-rustls-comp`
+  feature is on. In redis 1.8.0 it enables `tls-rustls`, so the feature set is
+  the one the coordinator named, and the TLS stack is the workspace's rustls.
+  The server certificate is checked against the system roots that
+  `rustls-native-certs` loads; on Linux `SSL_CERT_FILE` replaces them. Verified
+  against `redis:8` with TLS on (a self-signed CA, SAN `localhost`): all seven
+  tests pass with the CA in `SSL_CERT_FILE`. With `SSL_CERT_FILE` unset, the six
+  server tests fail with `invalid peer certificate: UnknownIssuer`, and the one
+  test that needs no server passes. In this sandbox the inherited
+  `SSL_CERT_FILE` is the proxy's CA bundle, which does not trust the test CA.
+
+- **X-103 `skip_verify=true` is honoured on `rediss://`, as go-redis does
+  (resolved; decided by the coordinator).** The default still verifies. The
+  port maps the parameter to redis-rs's `#insecure` URL fragment, which needs
+  the `tls-rustls-insecure` feature. Details and the reproduction are in Q-208.
+
+- **Q-208 go-redis's `skip_verify` turns verification off, and the port now does
+  too (reproduced).** go-redis's `ParseURL` reads `skip_verify` only when the
+  scheme is `rediss://`, and reads it with its own rules: `true` and `1` are on,
+  `false`, `0` and an empty value are off, and anything else is the error
+  `redis: invalid skip_verify boolean`. `strconv.ParseBool` is not used.
+  go-redis's `ParseClusterURL` (`osscluster.go`) never reads `skip_verify`, so a
+  `rediss+cluster://` URL verifies whatever its query says; the port does the
+  same, since its cluster nodes are built without the query. Reproduced against
+  the TLS server with its CA not trusted (`SSL_CERT_FILE` unset): the default
+  fails with `UnknownIssuer`, and `?skip_verify=true` runs the whole suite to
+  seven of seven. The cluster rule is from the go-redis v9.18.0 source, not run.
+  The tests: `skip_verify_is_read_as_go_reads_it`,
+  `skip_verify_sets_the_insecure_mode_of_rediss_only` (mutation-checked: the
+  mapping removed fails it), and the TLS tests `tls_skip_verify_connects_to_a_self_signed_server`
+  (`REDIS_TLS_URI`) and `tls_verifies_the_server_by_default` (`REDIS_TLS_URI` and
+  `REDIS_TLS_UNTRUSTED`, which asserts the CA is not trusted).
+
+- **O-46 The Redis acceptance runs pass on Redis 8 and Kvrocks.** The
+  shared suite, the search, update and delete paths, and the time series paths
+  all run. The environment's Redis 7.0.15 has no modules, so it was not the
+  gate. `redis:8` (Redis 8.10.3, with the `search` and `timeseries` modules)
+  came from Docker Hub after one HTTP 429 retry. Each run was
+  `cargo test -p gorse-storage --features redis cache::redis`, and each passed
+  7 of 7:
+  - standalone, `REDIS_URI=redis://127.0.0.1:6391/`;
+  - a six-node Redis 8.10.3 cluster on the host network, ports 7001 to 7006,
+    one replica per primary, with `REDIS_URI=redis+cluster://127.0.0.1:7001`
+    and with the six-address `addr=` form the Go CI uses;
+  - `apache/kvrocks:nightly`, `REDIS_URI=redis://127.0.0.1:6666/`, which the
+    Go CI also runs.
+  A mutation check (the escape rule without `-`) made `escape_characters` fail,
+  then the file was restored.
+
+- **O-47 The Go CI's Redis jobs are covered for WP-2-5.** The standalone,
+  one-address cluster, six-address cluster and Kvrocks jobs in
+  `.github/workflows/build_test.yml` all run here (see O-46). The MariaDB job and
+  the rest of the Phase 2 exit gate belong to other work packages.
+
+## WP-2-11 meta store
+
+- **X-109 A nil `Params` encodes as `{}`, not `null`.** `Params` is a
+  `BTreeMap`, which has no nil. Go writes `"Params":null` for a model with nil
+  params (golden: `int_score`, `nil_params`). Both are read back the same by Go.
+  The golden test checks this case explicitly (`NIL_PARAMS`), it is not skipped.
+
+- **X-110 `ToJSON` returns `Result`.** Go's `lo.Must1` panics. The
+  error cases are a score that `encoding/json` refuses (a NaN) and
+  `ParamValue::Other`, which Gorse never stores. Phase 4 callers decide what to
+  do with the error.
+
+- **X-111 `FromJSON` matches JSON keys case-sensitively.** Go's
+  `json.Unmarshal` matches `"id"` to `ID` and `"type"` to `Type`. serde does not.
+  Go's own writer always writes the exact names, so the rows of both
+  implementations match.
+
+- **X-112 A type mismatch stops the decode.** Go's `json.Unmarshal` keeps
+  decoding the other fields and returns the first type error. The port stops
+  at the first error, so a partly-set model can differ from Go's after an error.
+
+- **X-113 Error texts are not Go's.** `encoding/json` texts (syntax, type
+  errors) are serde's and gojson's. The `Scan` failure keeps Go's text
+  (`Error::UnsupportedScan`). Only the error/no-error outcome is golden-checked.
+
+- **X-114 `Open` connects now; Go's `sql.Open` connects on first use.** An
+  unusable file fails at `Open` here, and at `Init` in Go. Both fail the same
+  start-up path.
+
+- **X-115 The DSN's query string is not parsed.** The file is the part
+  before any `?`. The busy timeout (10 s) and WAL mode are set on the
+  connection, as Go's `_pragma` parameters set them. No caller passes another
+  parameter (`master.go:287` passes none).
+
+- **X-116 One connection, not a pool.** Calls are serialised, where Go's
+  `database/sql` pool can run them in parallel. Results match; the node has
+  one meta writer, so nothing waits on the lock in practice.
+
+- **Q-209 `Equal` does not panic on slice parameters.** Go's `maps.Equal`
+  compares `any` values with `!=`, which panics when both sides hold the same
+  uncomparable type (for example two `[]int`). The port returns a value and
+  does not panic.
+
+- **O-48 Resolved by D-166.** The coordinator approved a `ParamValue`
+  variant that holds a JSON value (2026-10-28 12:00Z). The change is in
+  `crates/gorse-model-core/src/params.rs` (`ParamValue::Json`), with one case
+  added to `tests/params_go.rs` for the accessor mismatch.
+
+- **O-49 Phase 3 must give `cf.Score` and `ctr.Score` Go's encoding.**
+  `Model<T>` writes its `Score` with `jsonutil::marshal`, which matches Go for
+  numbers and strings, and reads it with serde. A struct score needs serde
+  renames that match Go's field names (Go has no tags here), and Go's
+  encoding of a `float64` field must be checked against the golden data then.
+
+- **O-50 Node JSON for the REST API is not defined here.** Go's `[]meta.Node` in
+  `master/rest.go` is the REST shape. `Node` has no serde impl; Phase 4 adds it
+  with Go's field names and RFC 3339 time text.
+
+- Evidence (the integrator's fold of the WP's tests): - Ported from Go, unchanged cases: `TestNodes`, `TestKeyValues` (`sqlite_test.rs`, each on a new SQLite file in a temp dir), `TestModel_Equal` (`database_test.rs`). - Golden, from Go 1.27.0: `golden_test.rs`, 7 tests (`round_trip_matches_go` added with D-166). - Mutation checks (sources restored after each): `float32` written as `float64` fails `to_json_matches_go`; the TTL sign dropped fails `test_nodes` and `go_written_rows_are_listed_and_pruned`; an unsorted object encoder fails `round_trip_matches_go`. - No test is ignored. SQLite is embedded, so no service is needed.
