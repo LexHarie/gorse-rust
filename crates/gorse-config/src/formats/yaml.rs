@@ -60,7 +60,9 @@ fn string_map(m: StringMap) -> Map {
 
 /// The [`Value`] of a decoded Go value.
 fn value(v: GoValue) -> Value {
-    match v {
+    // A mapping or sequence nests as deep as the input (10000 levels at most),
+    // so the recursion grows the stack as the composer's does.
+    stacker::maybe_grow(64 * 1024, 1024 * 1024, || match v {
         GoValue::Nil => Value::Nil,
         GoValue::Bool(b) => Value::Bool(b),
         GoValue::Int(i) => Value::Int(i),
@@ -71,5 +73,5 @@ fn value(v: GoValue) -> Value {
         GoValue::Slice(items) => Value::Slice(items.into_iter().map(value).collect()),
         GoValue::StringMap(m) => Value::Map(string_map(m)),
         GoValue::AnyMap(m) => Value::AnyMap(m.into_entries().into_iter().map(|(k, v)| (value(k), value(v))).collect()),
-    }
+    })
 }

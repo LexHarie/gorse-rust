@@ -1,9 +1,10 @@
 // Ports: the golden cases of contracts/tools/yamlgolden (viper v1.21.0's YAML codec over go.yaml.in/yaml/v3 v3.0.4) @ add21b5
 
 //! Replays every case of `tests/data/yaml_golden.json` against
-//! `formats::yaml::decode`. A case either matches Go exactly or is listed in
-//! one of the deviation tables below, which assert what the port does
-//! instead (see `porting/notes/WP-1-15-yaml.md`).
+//! `formats::yaml::decode`. Every case must match Go, with one deviation (X-1
+//! in `porting/notes/WP-1-15-yaml.md`): a Go string that is not UTF-8 is held
+//! as its lossy text, so the golden's `hex` and `k_hex` fields, which give the
+//! raw bytes, are not compared. The golden's `v` text is the lossy text.
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
@@ -273,13 +274,7 @@ fn compact_json(v: &Json, out: &mut String) {
                 if let Some(k) = x.get("k") {
                     out.push_str("{\"k\":");
                     match k {
-                        Json::String(k) => {
-                            write_string(out, k);
-                            if let Some(h) = x.get("k_hex").and_then(Json::as_str) {
-                                out.push_str(",\"k_hex\":");
-                                write_string(out, h);
-                            }
-                        }
+                        Json::String(k) => write_string(out, k),
                         k => compact_json(k, out),
                     }
                     out.push_str(",\"v\":");
@@ -292,10 +287,6 @@ fn compact_json(v: &Json, out: &mut String) {
             out.push(']');
         }
         Some(other) => panic!("unexpected golden value {other}"),
-    }
-    if let Some(h) = v.get("hex").and_then(Json::as_str) {
-        out.push_str(",\"hex\":");
-        write_string(out, h);
     }
     out.push('}');
 }
@@ -357,8 +348,20 @@ fn case_ids(cases: &[Json]) -> Vec<String> {
         .collect()
 }
 
+/// The replay recurses once per level of a 10000-deep result, so it runs on a
+/// thread with a stack that holds that recursion (the test harness's threads
+/// have 2 MiB).
 #[test]
 fn golden_cases() {
+    std::thread::Builder::new()
+        .stack_size(512 << 20)
+        .spawn(replay)
+        .expect("spawn the replay thread")
+        .join()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e));
+}
+
+fn replay() {
     let g = golden();
     let cases = g["cases"].as_array().expect("cases");
     let ids = case_ids(cases);

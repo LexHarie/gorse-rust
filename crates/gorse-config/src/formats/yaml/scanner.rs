@@ -1,40 +1,47 @@
-// Ports: scannerc.go (the token queue of yaml_parser_fetch_more_tokens, the depth limits of yaml_parser_roll_indent and yaml_parser_increase_flow_level, the scanner error texts and marks) @ go.yaml.in/yaml/v3 v3.0.4
+// Ports: scannerc.go (yaml_parser_fetch_more_tokens, yaml_parser_fetch_next_token, the simple key, indent and flow level bookkeeping, the token fetchers, yaml_parser_scan_to_next_token, the scanner error texts and marks) @ go.yaml.in/yaml/v3 v3.0.4
 //
 // Derived from go.yaml.in/yaml/v3, a Go port of libyaml: Copyright (c)
 // 2006-2011 Kirill Simonov, Copyright (c) 2011-2019 Canonical Ltd. MIT
 // licensed; see crates/gorse-config/licenses/YAML-V3-LICENSE.
 
-//! libyaml's tokens, scanned by `yaml-rust2`.
+//! libyaml's scanner: the tokens of a YAML stream, from the characters the
+//! reader decoded.
 //!
-//! The scanner of `yaml-rust2` is itself a port of libyaml's, updated for
-//! YAML 1.2. This adapter gives the parser ([`super::parser`]) the tokens
-//! libyaml would: it drops the implicit flow mappings `yaml-rust2` adds
-//! around `[a: b]` entries (libyaml's parser makes those), marks block
-//! scalars at their indicator, checks anchor names and the block depth limit
-//! as libyaml does, keeps yaml.v3's lookahead of two tokens, and turns the
-//! scanner's errors into libyaml's problem texts and marks. Where the two
-//! scanners accept different inputs, the difference is a deviation listed in
-//! `porting/notes/WP-1-15-yaml.md`.
+//! This is yaml.v3's `scannerc.go`, ported with the same lookahead (a token is
+//! fetched while the queue holds at most two tokens or a possible simple key
+//! at its head needs disambiguating), the same marks and the same error
+//! texts. The submodules hold the lexemes ([`lexemes`]), the scalars
+//! ([`scalars`]) and the comments ([`comments`]), which yaml.v3 scans as
+//! well: their reader errors and the marks of block-end tokens are observable.
+//!
+//! Comment text is not kept, since the decoder never reads it. The token queue
+//! is never compacted, where yaml.v3 compacts it when its backing array is
+//! full; see `porting/notes/WP-1-15-yaml.md` for what that changes.
 
-use std::cell::Cell;
-use std::collections::VecDeque;
-use std::rc::Rc;
+use std::collections::HashMap;
 
-use yaml_rust2::scanner::{Scanner as Yr2Scanner, TScalarStyle, TokenType};
+use super::reader::Decoded;
 
-use super::reader::{Chars, Decoded};
+mod comments;
+mod lexemes;
+mod scalars;
 
-/// libyaml's `max_indents` and `max_flow_level`.
-const MAX_DEPTH: usize = 10000;
+/// libyaml's `max_flow_level`.
+const MAX_FLOW_LEVEL: usize = 10000;
 
-/// The deepest flow nesting `yaml-rust2` scans (its flow level is a `u8`).
-pub(crate) const MAX_FLOW_DEPTH: usize = 255;
+/// libyaml's `max_indents`.
+const MAX_INDENTS: usize = 10000;
 
-/// A position. Only the line is used: yaml.v3 reports lines, never columns.
+/// A position: libyaml's `yaml_mark_t`. The index counts characters, a CRLF
+/// two of them; the line and the column count from 0.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Mark {
+    /// The character index, from 0.
+    pub(crate) index: usize,
     /// The line, from 0.
     pub(crate) line: usize,
+    /// The column, from 0.
+    pub(crate) column: usize,
 }
 
 /// A scalar's style, as libyaml's scanner reports it.
@@ -119,434 +126,707 @@ impl SyntaxError {
     }
 }
 
-/// Line numbers of character positions, by libyaml's line breaks: `\r\n`,
-/// `\r`, `\n` (NEL arrives as `\n`), U+2028 and U+2029.
-struct Lines {
-    /// The index of the first character of each line.
-    starts: Vec<usize>,
+/// `yaml_simple_key_t`: a token that may be the key of a mapping.
+#[derive(Clone, Copy, Debug, Default)]
+struct SimpleKey {
+    possible: bool,
+    required: bool,
+    token_number: usize,
+    mark: Mark,
 }
 
-impl Lines {
-    fn new(chars: &[char]) -> Self {
-        let mut starts = vec![0];
-        let mut i = 0;
-        while i < chars.len() {
-            match chars[i] {
-                '\r' if chars.get(i + 1) == Some(&'\n') => {
-                    i += 1;
-                    starts.push(i + 1);
-                }
-                '\r' | '\n' | '\u{2028}' | '\u{2029}' => starts.push(i + 1),
-                _ => {}
-            }
-            i += 1;
-        }
-        Lines { starts }
-    }
-
-    /// The line of the character at `index`.
-    fn line(&self, index: usize) -> usize {
-        self.starts.partition_point(|&s| s <= index).saturating_sub(1)
-    }
-
-    /// The column of the character at `index`.
-    fn column(&self, index: usize) -> usize {
-        index - self.starts[self.line(index)]
-    }
+/// The marks of a comment, which decide where block-end tokens are placed
+/// (`yaml_comment_t`). Line comments have zero scan and end marks, as in Go.
+#[derive(Clone, Copy, Debug)]
+struct Comment {
+    scan_mark: Mark,
+    start_mark: Mark,
+    end_mark: Mark,
 }
 
-/// The token source of the parser: `peek` and `skip` as libyaml's
-/// `peek_token` and `skip_token`.
+/// The token source of the parser: [`Scanner::peek`] and [`Scanner::skip`]
+/// as libyaml's `peek_token` and `skip_token`.
 pub(crate) struct Scanner {
-    inner: Yr2Scanner<Chars>,
-    chars: Rc<[char]>,
-    lines: Lines,
-    reader_failed: Rc<Cell<bool>>,
+    /// The characters the reader decoded, up to the window holding its error.
+    chars: Vec<char>,
+    /// The reader's problem, when the input has one past `chars`.
     reader_problem: Option<&'static str>,
-    started: bool,
-    /// Whether `yaml-rust2` has returned its STREAM-END token (or the token
-    /// stream ended early, see [`Self::fetch`]).
-    stream_ended: bool,
-    queue: VecDeque<Token>,
+    /// libyaml's `parser.mark`: the position of the next character. Its index
+    /// is also the position in `chars`.
+    mark: Mark,
+    /// The index in `chars` of libyaml's `buffer[0]`, which `is_bom` reads.
+    buffer_start: usize,
+    /// libyaml's `newlines`: the line breaks since the last character that is
+    /// not blank.
+    newlines: usize,
+    /// An error the scanner latched without returning it (libyaml sets
+    /// `parser.error` when a lookahead fails and carries on).
     error: Option<SyntaxError>,
-    /// For each open flow collection: whether it is an implicit mapping
-    /// `yaml-rust2` added.
-    flows: Vec<bool>,
-    /// Open block collections (libyaml's `indents`).
-    block_depth: usize,
-    /// The kind and character index of the last token `yaml-rust2` returned.
-    previous: Option<(TokenType, usize)>,
+    stream_start_produced: bool,
+    token_available: bool,
+    /// The token queue. Tokens are not removed: `head` is the index of the
+    /// next token to parse, and a token's number is its index here.
+    tokens: Vec<Token>,
+    head: usize,
+    flow_level: usize,
+    indent: isize,
+    indents: Vec<isize>,
+    simple_key_allowed: bool,
+    simple_keys: Vec<SimpleKey>,
+    /// The possible simple keys, by token number (`simple_keys_by_tok`).
+    simple_keys_by_tok: HashMap<usize, usize>,
+    comments: Vec<Comment>,
 }
 
 impl Scanner {
-    /// A scanner over the decoded input.
+    /// A scanner over the reader's output.
     pub(crate) fn new(decoded: Decoded) -> Self {
-        let chars: Rc<[char]> = decoded.chars.into();
-        let failed = Rc::new(Cell::new(false));
-        let error_at = decoded.error.map(|(_, at)| at);
-        let inner = Yr2Scanner::new(Chars::new(Rc::clone(&chars), error_at, Rc::clone(&failed)));
-        let lines = Lines::new(&chars);
         Scanner {
-            inner,
-            chars,
-            lines,
-            reader_failed: failed,
+            chars: decoded.chars,
             reader_problem: decoded.error.map(|(problem, _)| problem),
-            started: false,
-            stream_ended: false,
-            queue: VecDeque::new(),
+            mark: Mark::default(),
+            buffer_start: 0,
+            newlines: 0,
             error: None,
-            flows: Vec::new(),
-            block_depth: 0,
-            previous: None,
+            stream_start_produced: false,
+            token_available: false,
+            tokens: Vec::new(),
+            head: 0,
+            flow_level: 0,
+            indent: -1,
+            indents: Vec::new(),
+            simple_key_allowed: false,
+            simple_keys: Vec::new(),
+            simple_keys_by_tok: HashMap::new(),
+            comments: Vec::new(),
         }
     }
 
-    /// `peek_token`: the next token. yaml.v3 keeps two more tokens in the
-    /// queue (`yaml_parser_fetch_more_tokens`), so an error in them is
-    /// reported here.
+    /// The next token, fetching tokens as needed (`peek_token`).
     pub(crate) fn peek(&mut self) -> Result<&Token, SyntaxError> {
-        if let Some(e) = &self.error {
-            return Err(e.clone());
+        if !self.token_available {
+            self.fetch_more_tokens()?;
         }
-        while self.queue.len() < 3 && !self.stream_ended {
-            if let Err(e) = self.fetch() {
-                self.error = Some(e.clone());
-                return Err(e);
+        match self.tokens.get(self.head) {
+            Some(token) => Ok(token),
+            None => Err(SyntaxError {
+                kind: ErrorKind::Scanner,
+                problem: "invalid scanner state".to_owned(),
+                context_mark: Mark::default(),
+                problem_mark: self.mark,
+            }),
+        }
+    }
+
+    /// Consumes the next token (`skip_token`).
+    pub(crate) fn skip(&mut self) {
+        self.token_available = false;
+        self.head += 1;
+    }
+
+    /// The error the scanner latched, if any (libyaml's `parser.error`).
+    pub(crate) fn latched_error(&self) -> Option<&SyntaxError> {
+        self.error.as_ref()
+    }
+
+    /// The character `k` places after the next one, or NUL past the end of
+    /// the input. Callers make the lookahead available first, as libyaml's
+    /// `cache` does.
+    fn at(&self, k: usize) -> char {
+        self.chars.get(self.mark.index + k).copied().unwrap_or('\0')
+    }
+
+    /// The characters from the next one to the end of the decoded input.
+    fn unread(&self) -> usize {
+        self.chars.len().saturating_sub(self.mark.index)
+    }
+
+    /// `yaml_parser_update_buffer` for `n` characters: fails with the
+    /// reader's error when the input cannot provide them. Like libyaml, the
+    /// refill moves the next character to the start of the buffer.
+    fn ensure(&mut self, n: usize) -> Result<(), SyntaxError> {
+        if self.unread() >= n {
+            return Ok(());
+        }
+        self.buffer_start = self.mark.index;
+        match self.reader_problem {
+            Some(problem) => Err(self.reader_error(problem)),
+            None => Ok(()),
+        }
+    }
+
+    /// [`Self::ensure`] for a lookahead the scanner can do without: the
+    /// reader's error is latched and `false` returned, and the caller goes
+    /// on.
+    fn ensure_soft(&mut self, n: usize) -> bool {
+        match self.ensure(n) {
+            Ok(()) => true,
+            Err(e) => {
+                self.error = Some(e);
+                false
             }
         }
-        // After STREAM-END, libyaml appends further STREAM-END tokens.
-        self.queue.front().ok_or_else(|| self.parser_error_at_end())
     }
 
-    fn parser_error_at_end(&self) -> SyntaxError {
-        // Unreachable: the queue always ends with STREAM-END.
-        SyntaxError {
-            kind: ErrorKind::Parser,
-            problem: "did not find expected <stream-end>".to_owned(),
-            context_mark: Mark::default(),
-            problem_mark: Mark::default(),
-        }
-    }
-
-    /// `skip_token`.
-    pub(crate) fn skip(&mut self) {
-        if self.queue.len() > 1 || !matches!(self.queue.front().map(|t| &t.kind), Some(TokenKind::StreamEnd)) {
-            self.queue.pop_front();
-        }
-    }
-
-    fn mark(&self, index: usize) -> Mark {
-        Mark { line: self.lines.line(index) }
-    }
-
-    fn reader_error(&self) -> SyntaxError {
+    fn reader_error(&self, problem: &str) -> SyntaxError {
         SyntaxError {
             kind: ErrorKind::Reader,
-            problem: self.reader_problem.unwrap_or_default().to_owned(),
+            problem: problem.to_owned(),
             context_mark: Mark::default(),
             problem_mark: Mark::default(),
         }
     }
 
-    fn scanner_error(&self, problem: impl Into<String>, context: Option<usize>, problem_at: usize) -> SyntaxError {
+    /// `yaml_parser_set_scanner_error`: a scanner error at the current mark,
+    /// with `context_mark` as the context.
+    fn scanner_error(&self, context_mark: Mark, problem: &str) -> SyntaxError {
         SyntaxError {
             kind: ErrorKind::Scanner,
-            problem: problem.into(),
-            context_mark: context.map(|i| self.mark(i)).unwrap_or_default(),
-            problem_mark: self.mark(problem_at),
+            problem: problem.to_owned(),
+            context_mark,
+            problem_mark: self.mark,
         }
     }
 
-    /// Fetches the next token from `yaml-rust2` into the queue.
-    fn fetch(&mut self) -> Result<(), SyntaxError> {
-        if !self.started {
-            self.started = true;
-            // yaml_parser_fetch_next_token fills the buffer before
-            // STREAM-START, so an error in the first window comes first.
-            if self.reader_problem.is_some() && self.reader_failed_at_start() {
-                return Err(self.reader_error());
-            }
-        }
-        let next = self.inner.next_token();
-        if self.reader_failed.get() {
-            return Err(self.reader_error());
-        }
-        let token = match next {
-            Ok(Some(token)) => token,
-            Ok(None) => {
-                self.stream_ended = true;
-                return Ok(());
-            }
-            Err(e) => return self.scan_error(e.info(), e.marker().index()),
-        };
-        let index = token.0.index();
-        let kind = token.1;
-        let previous = self.previous.replace((kind.clone(), index));
-        let start = self.mark(index);
-        let kind = match kind {
-            TokenType::StreamStart(_) => TokenKind::StreamStart,
-            TokenType::StreamEnd => {
-                self.stream_ended = true;
-                // yaml_parser_fetch_stream_end forces a new line.
-                let line = if self.lines.column(index) != 0 { start.line + 1 } else { start.line };
-                let mark = Mark { line };
-                self.queue.push_back(Token { kind: TokenKind::StreamEnd, start: mark, end: mark });
-                return Ok(());
-            }
-            TokenType::VersionDirective(major, minor) => TokenKind::VersionDirective(major, minor),
-            TokenType::TagDirective(handle, prefix) => {
-                if handle.is_empty() && prefix.is_empty() {
-                    // yaml-rust2 skips a directive it does not know.
-                    return Err(self.scanner_error("found unknown directive name", Some(index), index));
-                }
-                TokenKind::TagDirective(handle, prefix)
-            }
-            TokenType::DocumentStart => TokenKind::DocumentStart,
-            TokenType::DocumentEnd => TokenKind::DocumentEnd,
-            TokenType::BlockSequenceStart | TokenType::BlockMappingStart => {
-                self.block_depth += 1;
-                if self.block_depth > MAX_DEPTH {
-                    let context = matches!(kind, TokenType::BlockMappingStart).then_some(index);
-                    return Err(self.scanner_error(format!("exceeded max depth of {MAX_DEPTH}"), context, index));
-                }
-                if matches!(kind, TokenType::BlockSequenceStart) {
-                    TokenKind::BlockSequenceStart
-                } else {
-                    TokenKind::BlockMappingStart
-                }
-            }
-            TokenType::BlockEnd => {
-                self.block_depth = self.block_depth.saturating_sub(1);
-                TokenKind::BlockEnd
-            }
-            TokenType::FlowSequenceStart => {
-                self.flows.push(false);
-                TokenKind::FlowSequenceStart
-            }
-            TokenType::FlowSequenceEnd => {
-                self.flows.pop();
-                TokenKind::FlowSequenceEnd
-            }
-            TokenType::FlowMappingStart => {
-                let implicit = self.chars.get(index) != Some(&'{');
-                self.flows.push(implicit);
-                if implicit {
-                    return Ok(());
-                }
-                TokenKind::FlowMappingStart
-            }
-            TokenType::FlowMappingEnd => {
-                if self.flows.pop() == Some(true) {
-                    return Ok(());
-                }
-                TokenKind::FlowMappingEnd
-            }
-            TokenType::BlockEntry => TokenKind::BlockEntry,
-            TokenType::FlowEntry => TokenKind::FlowEntry,
-            TokenType::Key => TokenKind::Key,
-            TokenType::Value => TokenKind::Value,
-            TokenType::Alias(name) => {
-                self.check_anchor(&name, index)?;
-                TokenKind::Alias(name)
-            }
-            TokenType::Anchor(name) => {
-                self.check_anchor(&name, index)?;
-                TokenKind::Anchor(name)
-            }
-            TokenType::Tag(handle, suffix) => TokenKind::Tag(handle, suffix),
-            TokenType::Scalar(style, value) => {
-                let style = match style {
-                    TScalarStyle::Plain => ScalarStyle::Plain,
-                    TScalarStyle::SingleQuoted => ScalarStyle::SingleQuoted,
-                    TScalarStyle::DoubleQuoted => ScalarStyle::DoubleQuoted,
-                    TScalarStyle::Literal => ScalarStyle::Literal,
-                    TScalarStyle::Folded => ScalarStyle::Folded,
+    /// `is_bom` of yaml.v3, which tests the first three bytes of libyaml's
+    /// buffer rather than the position it is given.
+    fn is_bom(&self) -> bool {
+        self.chars.get(self.buffer_start) == Some(&'\u{feff}')
+    }
+
+    /// `yaml_parser_fetch_more_tokens`: fetches tokens until the head of the
+    /// queue is settled.
+    fn fetch_more_tokens(&mut self) -> Result<(), SyntaxError> {
+        loop {
+            if self.tokens.len() - self.head > 2 {
+                let Some(&key) = self.simple_keys_by_tok.get(&self.head) else {
+                    break;
                 };
-                if matches!(style, ScalarStyle::Literal | ScalarStyle::Folded) {
-                    // libyaml marks a block scalar at its indicator;
-                    // yaml-rust2 at its content.
-                    if let Some(at) = self.block_scalar_indicator(previous) {
-                        let mark = self.mark(at);
-                        let value = if value.chars().all(|c| c == '\n') { self.empty_block_scalar(at) } else { value };
-                        self.queue.push_back(Token { kind: TokenKind::Scalar(value, style), start: mark, end: start });
-                        return Ok(());
-                    }
+                if !self.simple_key_is_valid(key)? {
+                    break;
                 }
-                TokenKind::Scalar(value, style)
             }
-        };
-        self.queue.push_back(Token { kind, start, end: start });
+            self.fetch_next_token()?;
+        }
+        self.token_available = true;
         Ok(())
     }
 
-    fn reader_failed_at_start(&self) -> bool {
-        // The window holding the error is the first one when no character
-        // precedes it.
-        self.chars.is_empty()
+    /// `yaml_parser_fetch_next_token`: scans the next token and queues it,
+    /// then the comment on its line.
+    fn fetch_next_token(&mut self) -> Result<(), SyntaxError> {
+        self.ensure(1)?;
+        if !self.stream_start_produced {
+            self.fetch_stream_start();
+            return Ok(());
+        }
+        let scan_mark = self.mark;
+        self.scan_to_next_token()?;
+        self.unroll_indent(self.mark.column as isize, scan_mark);
+        self.ensure(4)?;
+        if self.at(0) == '\0' {
+            return self.fetch_stream_end();
+        }
+        let column_zero = self.mark.column == 0;
+        let c = self.at(0);
+        if column_zero && c == '%' {
+            return self.fetch_directive();
+        }
+        if column_zero && self.at(0) == '-' && self.at(1) == '-' && self.at(2) == '-' && is_blankz(self.at(3)) {
+            return self.fetch_document_indicator(TokenKind::DocumentStart);
+        }
+        if column_zero && self.at(0) == '.' && self.at(1) == '.' && self.at(2) == '.' && is_blankz(self.at(3)) {
+            return self.fetch_document_indicator(TokenKind::DocumentEnd);
+        }
+        self.fetch_token()?;
+        if matches!(self.tokens.last(), Some(Token { kind: TokenKind::BlockEntry, .. })) {
+            return Ok(());
+        }
+        self.scan_line_comment()
     }
 
-    /// The index of the `|` or `>` of a block scalar, searched for after the
-    /// token before it.
-    fn block_scalar_indicator(&self, previous: Option<(TokenType, usize)>) -> Option<usize> {
-        let (kind, index) = previous?;
-        let mut i = match kind {
-            TokenType::StreamStart(_) | TokenType::BlockEntry => index,
-            TokenType::Value | TokenType::Key => index + 1,
-            TokenType::DocumentStart => index + 3,
-            TokenType::Tag(..) | TokenType::Anchor(..) => {
-                let mut i = index;
-                while self.chars.get(i).is_some_and(|c| !is_blank_or_break(*c)) {
-                    i += 1;
-                }
-                i
-            }
-            _ => return None,
-        };
-        while let Some(&c) = self.chars.get(i) {
-            match c {
-                '|' | '>' => return Some(i),
-                '#' => {
-                    while self.chars.get(i).is_some_and(|c| !is_break(*c)) {
-                        i += 1;
-                    }
-                }
-                c if is_blank_or_break(c) || c == '\u{feff}' => i += 1,
-                _ => return None,
-            }
+    /// The branches of `yaml_parser_fetch_next_token` after the stream end,
+    /// directive and document indicator checks.
+    fn fetch_token(&mut self) -> Result<(), SyntaxError> {
+        let c = self.at(0);
+        if c == '[' {
+            return self.fetch_flow_collection_start(TokenKind::FlowSequenceStart);
         }
-        None
+        if c == '{' {
+            return self.fetch_flow_collection_start(TokenKind::FlowMappingStart);
+        }
+        if c == ']' {
+            return self.fetch_flow_collection_end(TokenKind::FlowSequenceEnd);
+        }
+        if c == '}' {
+            return self.fetch_flow_collection_end(TokenKind::FlowMappingEnd);
+        }
+        if c == ',' {
+            return self.fetch_flow_entry();
+        }
+        if c == '-' && is_blankz(self.at(1)) {
+            return self.fetch_block_entry();
+        }
+        if c == '?' && (self.flow_level > 0 || is_blankz(self.at(1))) {
+            return self.fetch_key();
+        }
+        if c == ':' && (self.flow_level > 0 || is_blankz(self.at(1))) {
+            return self.fetch_value();
+        }
+        if c == '*' {
+            return self.fetch_anchor(true);
+        }
+        if c == '&' {
+            return self.fetch_anchor(false);
+        }
+        if c == '!' {
+            return self.fetch_tag();
+        }
+        if c == '|' && self.flow_level == 0 {
+            return self.fetch_block_scalar(true);
+        }
+        if c == '>' && self.flow_level == 0 {
+            return self.fetch_block_scalar(false);
+        }
+        if c == '\'' {
+            return self.fetch_flow_scalar(true);
+        }
+        if c == '"' {
+            return self.fetch_flow_scalar(false);
+        }
+        if self.starts_plain_scalar() {
+            return self.fetch_plain_scalar();
+        }
+        Err(self.scanner_error(self.mark, "found character that cannot start any token"))
     }
 
-    /// The value libyaml gives a block scalar without content lines, whose
-    /// indicator is at `at`: nothing, or with the keep indicator (`+`) one
-    /// line break per empty line after the header (`yaml-rust2` adds a line
-    /// break at the end of the stream).
-    fn empty_block_scalar(&self, at: usize) -> String {
-        let header: Vec<char> = self.chars[at + 1..].iter().take(2).copied().collect();
-        let keep = header.first() == Some(&'+') || (header.first().is_some_and(char::is_ascii_digit) && header.get(1) == Some(&'+'));
-        if !keep {
-            return String::new();
+    /// Whether the character at the mark starts a plain scalar.
+    fn starts_plain_scalar(&self) -> bool {
+        let c = self.at(0);
+        let indicator = matches!(
+            c,
+            '-' | '?' | ':' | ',' | '[' | ']' | '{' | '}' | '#' | '&' | '*' | '!' | '|' | '>' | '\'' | '"' | '%' | '@' | '`'
+        );
+        !(is_blankz(c) || indicator)
+            || (c == '-' && !is_blank(self.at(1)))
+            || (self.flow_level == 0 && (c == '?' || c == ':') && !is_blankz(self.at(1)))
+    }
+
+    /// `yaml_simple_key_is_valid`: whether the key may still be a simple key,
+    /// dropping it when it has run past the line or 1024 characters.
+    fn simple_key_is_valid(&mut self, key: usize) -> Result<bool, SyntaxError> {
+        let simple_key = self.simple_keys[key];
+        if !simple_key.possible {
+            return Ok(false);
         }
-        // Skip the header line; each later line of spaces ending in a line
-        // break adds one.
-        let mut i = at;
-        while self.chars.get(i).is_some_and(|c| !is_break(*c)) {
-            i += 1;
+        if simple_key.mark.line < self.mark.line || simple_key.mark.index + 1024 < self.mark.index {
+            if simple_key.required {
+                return Err(self.scanner_error(simple_key.mark, "could not find expected ':'"));
+            }
+            self.simple_keys[key].possible = false;
+            return Ok(false);
         }
-        let mut breaks = String::new();
+        Ok(true)
+    }
+
+    /// `yaml_parser_save_simple_key`: the next token may be a simple key.
+    fn save_simple_key(&mut self) -> Result<(), SyntaxError> {
+        let required = self.flow_level == 0 && self.indent == self.mark.column as isize;
+        if self.simple_key_allowed {
+            let key = SimpleKey {
+                possible: true,
+                required,
+                token_number: self.tokens.len(),
+                mark: self.mark,
+            };
+            self.remove_simple_key()?;
+            let top = self.simple_keys.len() - 1;
+            self.simple_keys[top] = key;
+            self.simple_keys_by_tok.insert(key.token_number, top);
+        }
+        Ok(())
+    }
+
+    /// `yaml_parser_remove_simple_key`: the innermost simple key cannot be a
+    /// key any more.
+    fn remove_simple_key(&mut self) -> Result<(), SyntaxError> {
+        let top = self.simple_keys.len() - 1;
+        let key = self.simple_keys[top];
+        if key.possible {
+            if key.required {
+                return Err(self.scanner_error(key.mark, "could not find expected ':'"));
+            }
+            self.simple_keys[top].possible = false;
+            self.simple_keys_by_tok.remove(&key.token_number);
+        }
+        Ok(())
+    }
+
+    /// `yaml_parser_increase_flow_level`.
+    fn increase_flow_level(&mut self) -> Result<(), SyntaxError> {
+        self.simple_keys.push(SimpleKey {
+            possible: false,
+            required: false,
+            token_number: self.tokens.len(),
+            mark: self.mark,
+        });
+        self.flow_level += 1;
+        if self.flow_level > MAX_FLOW_LEVEL {
+            let context = self.simple_keys[self.simple_keys.len() - 1].mark;
+            return Err(self
+                .scanner_error(context, &format!("exceeded max depth of {MAX_FLOW_LEVEL}")));
+        }
+        Ok(())
+    }
+
+    /// `yaml_parser_decrease_flow_level`.
+    fn decrease_flow_level(&mut self) {
+        if self.flow_level > 0 {
+            self.flow_level -= 1;
+            if let Some(key) = self.simple_keys.pop() {
+                self.simple_keys_by_tok.remove(&key.token_number);
+            }
+        }
+    }
+
+    /// `yaml_parser_roll_indent`: opens a block collection at `column`,
+    /// queuing its start token at token number `at` (or at the end).
+    fn roll_indent(&mut self, column: usize, at: Option<usize>, kind: TokenKind, mark: Mark) -> Result<(), SyntaxError> {
+        if self.flow_level > 0 {
+            return Ok(());
+        }
+        if self.indent < column as isize {
+            self.indents.push(self.indent);
+            self.indent = column as isize;
+            if self.indents.len() > MAX_INDENTS {
+                let context = self.simple_keys[self.simple_keys.len() - 1].mark;
+                return Err(self
+                    .scanner_error(context, &format!("exceeded max depth of {MAX_INDENTS}")));
+            }
+            self.insert_token(at, Token { kind, start: mark, end: mark });
+        }
+        Ok(())
+    }
+
+    /// `yaml_parser_unroll_indent`: closes the block collections deeper than
+    /// `column`, with block-end tokens placed at the marks of the comments
+    /// that belong to them.
+    fn unroll_indent(&mut self, column: isize, scan_mark: Mark) {
+        if self.flow_level > 0 {
+            return;
+        }
+        let mut block_mark = scan_mark;
+        block_mark.index = block_mark.index.saturating_sub(1);
+        while self.indent > column {
+            let mut stop_index = block_mark.index;
+            for comment in self.comments.iter().rev() {
+                if comment.end_mark.index < stop_index {
+                    break;
+                }
+                if comment.start_mark.column as isize == self.indent + 1 {
+                    block_mark = comment.start_mark;
+                }
+                stop_index = comment.scan_mark.index;
+            }
+            self.insert_token(None, Token { kind: TokenKind::BlockEnd, start: block_mark, end: block_mark });
+            self.indent = self.indents.pop().unwrap_or(-1);
+        }
+    }
+
+    /// `yaml_insert_token`: queues `token` at token number `at`, or at the end.
+    fn insert_token(&mut self, at: Option<usize>, token: Token) {
+        match at {
+            Some(number) => self.tokens.insert(number, token),
+            None => self.tokens.push(token),
+        }
+    }
+
+    /// Queues a token that spans `start..end`, with `kind`, at the end.
+    fn push_token(&mut self, kind: TokenKind, start: Mark, end: Mark) {
+        self.insert_token(None, Token { kind, start, end });
+    }
+
+    fn fetch_stream_start(&mut self) {
+        self.indent = -1;
+        self.simple_keys.push(SimpleKey::default());
+        self.simple_keys_by_tok = HashMap::new();
+        self.simple_key_allowed = true;
+        self.stream_start_produced = true;
+        self.push_token(TokenKind::StreamStart, self.mark, self.mark);
+    }
+
+    fn fetch_stream_end(&mut self) -> Result<(), SyntaxError> {
+        if self.mark.column != 0 {
+            self.mark.column = 0;
+            self.mark.line += 1;
+        }
+        self.unroll_indent(-1, self.mark);
+        self.remove_simple_key()?;
+        self.simple_key_allowed = false;
+        self.push_token(TokenKind::StreamEnd, self.mark, self.mark);
+        Ok(())
+    }
+
+    fn fetch_directive(&mut self) -> Result<(), SyntaxError> {
+        self.unroll_indent(-1, self.mark);
+        self.remove_simple_key()?;
+        self.simple_key_allowed = false;
+        let token = self.scan_directive()?;
+        self.insert_token(None, token);
+        Ok(())
+    }
+
+    fn fetch_document_indicator(&mut self, kind: TokenKind) -> Result<(), SyntaxError> {
+        self.unroll_indent(-1, self.mark);
+        self.remove_simple_key()?;
+        self.simple_key_allowed = false;
+        let start = self.mark;
+        self.skip_char();
+        self.skip_char();
+        self.skip_char();
+        self.push_token(kind, start, self.mark);
+        Ok(())
+    }
+
+    fn fetch_flow_collection_start(&mut self, kind: TokenKind) -> Result<(), SyntaxError> {
+        self.save_simple_key()?;
+        self.increase_flow_level()?;
+        self.simple_key_allowed = true;
+        let start = self.mark;
+        self.skip_char();
+        self.push_token(kind, start, self.mark);
+        Ok(())
+    }
+
+    fn fetch_flow_collection_end(&mut self, kind: TokenKind) -> Result<(), SyntaxError> {
+        self.remove_simple_key()?;
+        self.decrease_flow_level();
+        self.simple_key_allowed = false;
+        let start = self.mark;
+        self.skip_char();
+        self.push_token(kind, start, self.mark);
+        Ok(())
+    }
+
+    fn fetch_flow_entry(&mut self) -> Result<(), SyntaxError> {
+        self.remove_simple_key()?;
+        self.simple_key_allowed = true;
+        let start = self.mark;
+        self.skip_char();
+        self.push_token(TokenKind::FlowEntry, start, self.mark);
+        Ok(())
+    }
+
+    fn fetch_block_entry(&mut self) -> Result<(), SyntaxError> {
+        if self.flow_level == 0 {
+            if !self.simple_key_allowed {
+                return Err(self.scanner_error(self.mark, "block sequence entries are not allowed in this context"));
+            }
+            self.roll_indent(self.mark.column, None, TokenKind::BlockSequenceStart, self.mark)?;
+        }
+        self.remove_simple_key()?;
+        self.simple_key_allowed = true;
+        let start = self.mark;
+        self.skip_char();
+        self.push_token(TokenKind::BlockEntry, start, self.mark);
+        Ok(())
+    }
+
+    fn fetch_key(&mut self) -> Result<(), SyntaxError> {
+        if self.flow_level == 0 {
+            if !self.simple_key_allowed {
+                return Err(self.scanner_error(self.mark, "mapping keys are not allowed in this context"));
+            }
+            self.roll_indent(self.mark.column, None, TokenKind::BlockMappingStart, self.mark)?;
+        }
+        self.remove_simple_key()?;
+        self.simple_key_allowed = self.flow_level == 0;
+        let start = self.mark;
+        self.skip_char();
+        self.push_token(TokenKind::Key, start, self.mark);
+        Ok(())
+    }
+
+    fn fetch_value(&mut self) -> Result<(), SyntaxError> {
+        let top = self.simple_keys.len() - 1;
+        if self.simple_key_is_valid(top)? {
+            let key = self.simple_keys[top];
+            self.insert_token(
+                Some(key.token_number),
+                Token { kind: TokenKind::Key, start: key.mark, end: key.mark },
+            );
+            self.roll_indent(key.mark.column, Some(key.token_number), TokenKind::BlockMappingStart, key.mark)?;
+            self.simple_keys[top].possible = false;
+            self.simple_keys_by_tok.remove(&key.token_number);
+            self.simple_key_allowed = false;
+        } else {
+            if self.flow_level == 0 {
+                if !self.simple_key_allowed {
+                    return Err(self.scanner_error(self.mark, "mapping values are not allowed in this context"));
+                }
+                self.roll_indent(self.mark.column, None, TokenKind::BlockMappingStart, self.mark)?;
+            }
+            self.simple_key_allowed = self.flow_level == 0;
+        }
+        let start = self.mark;
+        self.skip_char();
+        self.push_token(TokenKind::Value, start, self.mark);
+        Ok(())
+    }
+
+    fn fetch_anchor(&mut self, alias: bool) -> Result<(), SyntaxError> {
+        self.save_simple_key()?;
+        self.simple_key_allowed = false;
+        let token = self.scan_anchor(alias)?;
+        self.insert_token(None, token);
+        Ok(())
+    }
+
+    fn fetch_tag(&mut self) -> Result<(), SyntaxError> {
+        self.save_simple_key()?;
+        self.simple_key_allowed = false;
+        let token = self.scan_tag()?;
+        self.insert_token(None, token);
+        Ok(())
+    }
+
+    fn fetch_block_scalar(&mut self, literal: bool) -> Result<(), SyntaxError> {
+        self.remove_simple_key()?;
+        self.simple_key_allowed = true;
+        let token = self.scan_block_scalar(literal)?;
+        self.insert_token(None, token);
+        Ok(())
+    }
+
+    fn fetch_flow_scalar(&mut self, single: bool) -> Result<(), SyntaxError> {
+        self.save_simple_key()?;
+        self.simple_key_allowed = false;
+        let token = self.scan_flow_scalar(single)?;
+        self.insert_token(None, token);
+        Ok(())
+    }
+
+    fn fetch_plain_scalar(&mut self) -> Result<(), SyntaxError> {
+        self.save_simple_key()?;
+        self.simple_key_allowed = false;
+        let token = self.scan_plain_scalar()?;
+        self.insert_token(None, token);
+        Ok(())
+    }
+
+    /// `yaml_parser_scan_to_next_token`: skips blanks, comments and line
+    /// breaks up to the next token.
+    fn scan_to_next_token(&mut self) -> Result<(), SyntaxError> {
+        let scan_mark = self.mark;
         loop {
-            match self.chars.get(i) {
-                Some('\r') if self.chars.get(i + 1) == Some(&'\n') => i += 2,
-                Some(c) if is_break(*c) => i += 1,
-                _ => break,
+            self.ensure(1)?;
+            if self.mark.column == 0 && self.is_bom() {
+                self.skip_char();
             }
-            while self.chars.get(i) == Some(&' ') {
-                i += 1;
+            self.ensure(1)?;
+            while self.at(0) == ' ' || ((self.flow_level > 0 || !self.simple_key_allowed) && self.at(0) == '\t') {
+                self.skip_char();
+                self.ensure(1)?;
             }
-            if !self.chars.get(i).is_some_and(|c| is_break(*c)) {
+            if self.at(0) == '#' {
+                self.scan_comments(scan_mark)?;
+            }
+            if is_break(self.at(0)) {
+                self.ensure(2)?;
+                self.skip_break();
+                if self.flow_level == 0 {
+                    self.simple_key_allowed = true;
+                }
+            } else {
                 break;
             }
-            breaks.push('\n');
-        }
-        breaks
-    }
-
-    /// libyaml's anchor names are ASCII letters, digits, `_` and `-`
-    /// (`yaml_parser_scan_anchor`); `yaml-rust2` takes any character but
-    /// blanks and flow indicators.
-    fn check_anchor(&self, name: &str, index: usize) -> Result<(), SyntaxError> {
-        let valid = name.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-').count();
-        let rest = name.chars().nth(valid);
-        // libyaml ends the name before these and scans them as tokens of
-        // their own; the port keeps yaml-rust2's longer name (a deviation).
-        let ends_name = |c: char| matches!(c, '?' | ':' | ',' | ']' | '}' | '%' | '@' | '`');
-        if valid == 0 || rest.is_some_and(|c| !ends_name(c)) {
-            let problem_at = index + 1 + valid;
-            return Err(self.scanner_error("did not find expected alphabetic or numeric character", Some(index), problem_at));
         }
         Ok(())
     }
 
-    /// Maps an error of `yaml-rust2` to libyaml's text and marks.
-    fn scan_error(&mut self, info: &str, at: usize) -> Result<(), SyntaxError> {
-        let current = self.inner.mark().index();
-        match info {
-            "invalid content after document end marker" => {
-                // libyaml scans the content after `...` as tokens of the next
-                // document, which the first document never reads; the
-                // stream ends here for the parser's lookahead.
-                self.stream_ended = true;
-                let mark = self.mark(at);
-                self.queue.push_back(Token { kind: TokenKind::StreamEnd, start: mark, end: mark });
-                return Ok(());
-            }
-            "simple key expect ':'" | "simple key expected" => {
-                let key = self.simple_key_line(at);
-                return Err(SyntaxError {
-                    kind: ErrorKind::Scanner,
-                    problem: "could not find expected ':'".to_owned(),
-                    context_mark: Mark { line: key },
-                    problem_mark: self.mark(at),
-                });
-            }
-            "recursion limit exceeded" => {
-                return Err(self.scanner_error(format!("exceeded max depth of {MAX_FLOW_DEPTH}"), None, at));
-            }
-            "mapping values are not allowed in this context"
-            | "block sequence entries are not allowed in this context"
-            | "mapping keys are not allowed in this context" => {
-                return Err(self.scanner_error(info, Some(at), at));
-            }
-            "did not find expected next token" => {
-                return Err(self.scanner_error("found character that cannot start any token", Some(at), at));
-            }
-            _ => {}
-        }
-        if info.starts_with("unexpected character: ") {
-            return Err(self.scanner_error("found character that cannot start any token", Some(at), at));
-        }
-        if let Some(rest) = info.strip_prefix("while ") {
-            if let Some((_, problem)) = rest.split_once(", ") {
-                let problem = match problem {
-                    "did not find expected hexadecimal number" => "did not find expected hexdecimal number",
-                    "found a tab" => "found a tab character that violates indentation",
-                    p => p,
-                };
-                return Err(self.scanner_error(problem, Some(at), current.max(at)));
-            }
-        }
-        // A YAML 1.2 rule of yaml-rust2 that libyaml does not have.
-        Err(self.scanner_error(info, Some(at), at))
+    /// `skip`: the character at the mark is consumed.
+    fn skip_char(&mut self) {
+        self.advance_char();
     }
 
-    /// The line of the simple key `yaml-rust2` gave up on: the last line
-    /// before the error position that holds something other than blanks
-    /// and comments (the key is the token after the last one returned).
-    fn simple_key_line(&self, at: usize) -> usize {
-        let line = self.lines.line(at);
-        let start = self.lines.starts[line];
-        if self.chars[start..at.min(self.chars.len())].iter().any(|c| !is_blank_or_break(*c)) {
-            return line;
-        }
-        let mut l = line;
-        while l > 0 {
-            l -= 1;
-            let from = self.lines.starts[l];
-            let to = self.lines.starts.get(l + 1).copied().unwrap_or(self.chars.len());
-            let first = self.chars[from..to].iter().find(|c| !is_blank_or_break(**c) && **c != '\u{feff}');
-            if first.is_some_and(|c| *c != '#') {
-                return l;
-            }
-        }
-        0
+    /// `is_z` at the mark: the end of the input.
+    fn at_end(&self) -> bool {
+        self.at(0) == '\0'
     }
+
+    /// `read` without the text: the character at the mark is consumed, and
+    /// returned.
+    fn advance_char(&mut self) -> char {
+        let c = self.at(0);
+        if !is_blank(c) {
+            self.newlines = 0;
+        }
+        self.mark.index += 1;
+        self.mark.column += 1;
+        c
+    }
+
+    /// `skip_line`: the line break at the mark is consumed.
+    fn skip_break(&mut self) {
+        if self.at(0) == '\r' && self.at(1) == '\n' {
+            self.mark.index += 2;
+        } else if is_break(self.at(0)) {
+            self.mark.index += 1;
+        } else {
+            return;
+        }
+        self.mark.column = 0;
+        self.mark.line += 1;
+        self.newlines += 1;
+    }
+
+    /// `read`: the character at the mark is consumed and appended to `s`.
+    fn take_char(&mut self, s: &mut String) {
+        let c = self.advance_char();
+        s.push(c);
+    }
+
+    /// `read_line`: the line break at the mark is consumed and appended to `s`
+    /// as a line feed (LS and PS are kept). Nothing happens at other characters.
+    fn take_break(&mut self, s: &mut String) {
+        match self.at(0) {
+            '\r' if self.at(1) == '\n' => {
+                s.push('\n');
+                self.mark.index += 1;
+            }
+            '\r' | '\n' => s.push('\n'),
+            c @ ('\u{2028}' | '\u{2029}') => s.push(c),
+            _ => return,
+        }
+        self.mark.index += 1;
+        self.mark.column = 0;
+        self.mark.line += 1;
+        self.newlines += 1;
+    }
+}
+
+fn is_blank(c: char) -> bool {
+    c == ' ' || c == '\t'
+}
+
+/// `is_alpha`: the characters an anchor, alias, tag handle or directive name
+/// may hold.
+fn is_alpha(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_' || c == '-'
+}
+
+fn is_hex(c: char) -> bool {
+    c.is_ascii_hexdigit()
 }
 
 fn is_break(c: char) -> bool {
     matches!(c, '\r' | '\n' | '\u{2028}' | '\u{2029}')
 }
 
-fn is_blank_or_break(c: char) -> bool {
-    c == ' ' || c == '\t' || is_break(c)
+fn is_breakz(c: char) -> bool {
+    is_break(c) || c == '\0'
+}
+
+fn is_blankz(c: char) -> bool {
+    is_blank(c) || is_breakz(c)
 }

@@ -11,13 +11,10 @@
 //! libyaml decodes lazily: each refill of its character buffer decodes the
 //! next window of at most 512 raw bytes, so a malformed byte is only
 //! reported once the scanner needs a character of its window. [`decode`]
-//! decodes the whole input up front but records where that window starts
-//! ([`Decoded::error_at`]); [`Chars`] hands the characters to the scanner
-//! and raises the error when the scanner asks for a character at or past
-//! that point.
+//! decodes the whole input up front and keeps the characters before the
+//! window that holds the error; the scanner raises the error when it needs a
+//! character past them.
 
-use std::cell::Cell;
-use std::rc::Rc;
 
 /// libyaml's `input_raw_buffer_size`: the raw bytes one refill reads.
 const RAW_BUFFER_SIZE: usize = 512;
@@ -200,35 +197,4 @@ fn allowed(value: u32) -> bool {
 fn char_of(value: u32) -> char {
     // decode_one only returns scalar values (surrogates are rejected).
     char::from_u32(value).unwrap_or(char::REPLACEMENT_CHARACTER)
-}
-
-/// The characters handed to the scanner. Asking for the character at
-/// [`Decoded::error_at`] sets the shared error flag and ends the stream.
-pub(crate) struct Chars {
-    chars: Rc<[char]>,
-    next: usize,
-    error_at: Option<usize>,
-    failed: Rc<Cell<bool>>,
-}
-
-impl Chars {
-    /// The scanner's input over `chars`; `failed` is set when the scanner
-    /// reaches `error_at`.
-    pub(crate) fn new(chars: Rc<[char]>, error_at: Option<usize>, failed: Rc<Cell<bool>>) -> Self {
-        Chars { chars, next: 0, error_at, failed }
-    }
-}
-
-impl Iterator for Chars {
-    type Item = char;
-
-    fn next(&mut self) -> Option<char> {
-        if Some(self.next) == self.error_at {
-            self.failed.set(true);
-            return None;
-        }
-        let c = self.chars.get(self.next).copied()?;
-        self.next += 1;
-        Some(c)
-    }
 }

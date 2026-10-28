@@ -129,11 +129,23 @@ impl Parser {
         if let Some(e) = &self.error {
             return Err(e.clone());
         }
+        if let Some(e) = self.scanner.latched_error().cloned() {
+            self.error = Some(e.clone());
+            return Err(e);
+        }
         if self.state == State::End {
             return Ok(None);
         }
         match self.state_machine() {
-            Ok(e) => Ok(Some(e)),
+            // yaml.v3's `peek` fails after a call whose scanner latched an
+            // error, even when the call produced an event.
+            Ok(e) => match self.scanner.latched_error().cloned() {
+                Some(latched) => {
+                    self.error = Some(latched.clone());
+                    Err(latched)
+                }
+                None => Ok(Some(e)),
+            },
             Err(e) => {
                 self.error = Some(e.clone());
                 Err(e)

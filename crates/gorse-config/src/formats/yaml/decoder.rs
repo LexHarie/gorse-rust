@@ -516,9 +516,9 @@ impl Decoder<'_> {
     fn terror(&mut self, n: NodeId, tag: &str, out_type: &str) {
         let node = self.tree.node(n);
         let tag = if node.tag.is_empty() { tag } else { node.tag.as_str() };
+        let v = node.value.as_bytes();
         let mut value = Vec::new();
         if tag != SEQ_TAG && tag != MAP_TAG {
-            let v = node.value.as_bytes();
             value.extend_from_slice(b" `");
             if v.len() > 10 {
                 value.extend_from_slice(&v[..7]);
@@ -527,6 +527,9 @@ impl Decoder<'_> {
                 value.extend_from_slice(v);
             }
             value.push(b'`');
+        } else {
+            // yaml.v3 appends a sequence's or mapping's value unquoted.
+            value.extend_from_slice(v);
         }
         self.terrors.push(format!(
             "line {}: cannot unmarshal {}{} into {}",

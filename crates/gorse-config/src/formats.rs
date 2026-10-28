@@ -6,5 +6,6 @@
 //! `map[string]any`, or the parser's error text, which viper wraps in
 //! `While parsing config: `.
 
+pub mod dotenv;
 pub mod toml;
 pub mod yaml;
