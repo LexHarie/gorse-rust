@@ -19,6 +19,10 @@ serde.workspace = true
 # `raw_value` writes a `json.Number`'s text as it is, as Go's `json.Marshal` does.
 serde_json = { workspace = true, features = ["raw_value"] }
 thiserror.workspace = true
+async-trait.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt", "time"] }
 
 [lints]
 workspace = true

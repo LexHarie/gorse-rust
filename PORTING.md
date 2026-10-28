@@ -30,7 +30,7 @@ Every Rust module names the Go files it ports with a
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); config.schema.json and config.keys.md not generated (X-49). WP-1-18 is in progress (it follows WP-1-16 and WP-1-17, both merged). All in `porting/work-packages.md` |
-| 2. Storage | not started | WP-2-1 to WP-2-13 |
+| 2. Storage | in progress | Done: WP-2-4 (cache core; its shared suite waits for the backends, O-28). Vectors (WP-2-8) and blob (WP-2-10) are not merged. WP-2-1 to WP-2-13 otherwise not started |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
@@ -1042,6 +1042,36 @@ or accepts a metric gap outside the Go tests' own tolerances.
   core (WP-2-8) keeps a sync trait in its notes (C-WP28-2), which this decision
   overrides: it must be converted before it merges. Decided by the integrator on
   the coordinator's request (2026-10-28). It binds WP-2-1 to WP-2-13.
+
+- **D-123 The `Database` trait is `async` through `async-trait` (0.1.92,
+  MIT/Apache-2.0, already in Cargo.lock).** Go's interface is used as a value
+  (`Open` returns it), so the trait must be dyn-compatible; native `async fn`
+  in traits is not. Storage WPs 2-1 and 2-8 face the same choice; this is the
+  pattern to follow. Adding `async-trait` to `porting/crate-selection.md` is the
+  integrator's call.
+
+- **D-124 tokio is 1.54.1, not the 1.53.3 in the crate-selection table.**
+  Ritchie's rule is the latest stable release, and 1.54.1 was published on
+  2026-10-21. Tokio is a dev-dependency of `gorse-storage` for `#[tokio::test]`
+  until a backend needs it in the library.
+
+- **D-125 Context is the `gocontext` handle, passed by reference.** Go's
+  `ctx context.Context` is the first parameter of each method. Deadlines do not
+  exist in `gocontext`, so the suite's `WithTimeout` test uses a context that a
+  timer thread cancels (see X-72).
+
+- **D-126 `Registry` replaces Go's package-level map.** Go registers
+  creators in `init`. Rust has no `init` for this, so the node builds a
+  `Registry` and registers the backends it was compiled with.
+
+- **D-127 `Error` carries Go's `errors.Is` as `Error::kind()`.** Sentinels
+  are `gorse_storage_core::errors::Error`. `DocumentCondition` is Go's
+  `fmt.Errorf("document condition: %w", ...)`. `Backend` is an
+  `Arc<dyn Error>`, so `Error` stays `Clone` for `ReturnValue`, which hands its
+  error out on every read, as Go's `ReturnValue` does.
+
+- **D-128 `ScorePatch` fields are `Option`.** Go's nil `Categories` (no
+  change) is `None`, and an empty non-nil slice (clear) is `Some(vec![])`.
 
 ## Open questions for Ritchie
 

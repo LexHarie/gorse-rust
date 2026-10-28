@@ -961,6 +961,23 @@ said otherwise), so the Rust result is Go's.
   touches the data types is in `master/rest.go`, and it decodes config. No
   Rust code needs the tags yet. The stores (WP-2-x) decide if they need them.
 
+### Cache core (WP-2-4)
+
+- **Q-183 `sort.Slice` is not stable.** Score documents with equal scores
+  come out in pdqsort's order, not input order. `gosort.rs` reproduces that
+  order. The two golden tests (40 and 200 items, with many ties) were generated
+  with Go 1.27.0 by `sort.Slice` on the same inputs and match exactly.
+
+- **Q-184 `Open` chooses among matching prefixes by map order in Go.** The
+  port takes the longest matching prefix. Two creators with the same prefix
+  replace each other, as `Register` does in Go.
+
+- **Q-185 `Time` values are written and read as Go does.** The writer is
+  `Time::string()` (with the `m=+` suffix for times from `now()`, Q-1). The
+  golden strings in `cache/mod.rs` tests come from Go 1.27.0's `Time.String()`:
+  `2026-01-02 03:04:05.678901 +0000 UTC`, `2023-01-01 00:00:00.0000005 +0000
+  UTC`, and the `CEST` case, which reads back as UTC.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -1313,6 +1330,23 @@ said otherwise), so the Rust result is Go's.
   before an error, together with the error. No caller reads those names, so
   `unzip` returns the error alone.
 
+### Cache core (WP-2-4)
+
+- **X-71 Strings are `String`, not bytes.** D-56 treats Go strings as bytes
+  where they can hold any byte. Here every backend but Redis stores text as
+  UTF-8, and Go's JSON and BSON encoders cannot store other bytes, so a
+  `String` API matches every reachable input. A Redis value that is not UTF-8
+  will be an error in WP-2-5 where Go returns its bytes; WP-2-5 must log that.
+
+- **X-72 A test deadline is a cancel.** `gocontext` has no deadlines. The
+  suite's `TestScanScores` timeout case cancels a context from a timer thread
+  after 1 ms and accepts `Canceled` (Go accepts `DeadlineExceeded`). The
+  backends must check `ctx.err()` between documents for the case to hold.
+
+- **X-73 `Integer` returns only an error.** Go's `ReturnValue.Integer`
+  returns the parsed number next to a range error. Every Gorse caller ignores
+  the number on error, so `integer()` returns `Err` alone.
+
 ## Open questions
 
 - **O-1** The Go CI's model tests read the datasets from `https://cdn.gorse.io`,
@@ -1442,3 +1476,19 @@ said otherwise), so the Rust result is Go's.
   budget. Only feedback that defeats pdqsort's pivot choices reaches that path,
   which real data is unlikely to do, but the dataset and logics WPs sort large
   slices, so the gap should close before WP-3-x.
+
+- **O-27 The cache core copies Go's pdqsort (WP-2-4).** `cache/gosort.rs` is a
+  private port of `sort.Slice`'s pdqsort. `gorse-common::gosort` (WP-1-17) already
+  ports the same algorithm for `sort.Sort`, so there are two copies. Owner: the
+  cache thread. Before WP-2-5 merges, it becomes a closure adapter over
+  `gorse_common::gosort`, so Go's pdqsort is in one place. Open.
+
+- **O-28 The shared suite has not run against a backend.** No backend
+  exists in this WP, and the acceptance command is `cache::no_database`. WP-2-5,
+  2-6 and 2-7 must call `cache::database_test::run` with their store. Until
+  then the suite is compiled and clippy-checked only.
+
+- **O-29 Benchmarks are not ported.** `benchmark`, `benchmarkAddDocuments`,
+  `benchmarkSearchDocuments`, `benchmarkUpdateDocuments`, the prime table and
+  `BENCHMARK_DATA_SIZE` are not run by `go test`. Phase 5 performance work is
+  the place for them.
