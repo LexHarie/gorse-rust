@@ -1751,15 +1751,27 @@ said otherwise), so the Rust result is Go's.
   flushes the whole database, which would make parallel Rust tests clobber each
   other. The assertions are unchanged.
 
-- **X-102 `rediss://` connects through rustls, with the system roots.** The redis
-  crate's `tokio-rustls-comp` feature is on, reusing the workspace's rustls. The
-  server certificate is checked against the system roots, which
-  `rustls-native-certs` loads, and `SSL_CERT_FILE` overrides them on Linux, as
-  Go does. Verified against `redis:8` with TLS on (self-signed CA, SAN
-  `localhost`): all seven tests pass with the CA in `SSL_CERT_FILE`, and the
-  connection fails with `invalid peer certificate: UnknownIssuer` without it.
-  Go's `skip_verify=true` query parameter is not mapped; it is not used by the
-  Go CI.
+- **X-102 `rediss://` connects through rustls, with the system roots (was X-81
+  before the merge with 7f23f5a).** The redis crate's `tokio-rustls-comp`
+  feature is on. In redis 1.8.0 it enables `tls-rustls`, so the feature set is
+  the one the coordinator named, and the TLS stack is the workspace's rustls.
+  The server certificate is checked against the system roots that
+  `rustls-native-certs` loads; on Linux `SSL_CERT_FILE` replaces them. Verified
+  against `redis:8` with TLS on (a self-signed CA, SAN `localhost`): all seven
+  tests pass with the CA in `SSL_CERT_FILE`. With `SSL_CERT_FILE` unset, the six
+  server tests fail with `invalid peer certificate: UnknownIssuer`, and the one
+  test that needs no server passes. In this sandbox the inherited
+  `SSL_CERT_FILE` is the proxy's CA bundle, which does not trust the test CA.
+
+- **X-103 `skip_verify=true` is not honoured (open, a decision for the
+  coordinator).** go-redis's `ParseURL` reads `skip_verify=true` and turns
+  certificate verification off (go-redis v9.18.0, `options.go`). This port
+  ignores the parameter, so `rediss://...?skip_verify=true` still fails with
+  `UnknownIssuer`, as the run against the TLS container shows. No Go test,
+  workflow or document in this repository uses the parameter (grep over `.go`,
+  `.yml`, `.yaml` and `.md`). Honouring it needs redis-rs's `#insecure` URL
+  fragment and its `tls-rustls-insecure` feature. That turns certificate checks
+  off, so the port leaves it to the coordinator.
 
 - **O-27 closed.** `cache::sort_documents` uses `gorse_common::gosort::sort` with
   a `DocumentSorter` adapter, and the local pdqsort copy is deleted. Go's
