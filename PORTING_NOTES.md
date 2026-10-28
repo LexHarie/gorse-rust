@@ -721,6 +721,44 @@ said otherwise), so the Rust result is Go's.
 - **Q-137 Invalid UTF-8 is a non-space rune.** `TrimSpace` stops at an
   invalid byte; the negated classes match it; error texts carry the bytes.
 
+### Neural networks: common/nn (WP-1-11)
+
+- **Q-138 Shape checks.** `add`, `sub`, `mul`, `div` and `pow` require
+  the second shape to be a suffix of the first, with Go's messages
+  (`functions.rs`). `TestTensor_*` and `nn_go_*` cover the messages.
+
+- **Q-139 Reads past the end.** `embedding` and `slice_indices` read past
+  the end of a slice where Go's unchecked index does (`nn.rs` module docs).
+
+- **Q-140 Shared data.** `slice`, `flatten` and `reshape` share their data
+  with the source, so writes through one show through the others (`Tensor` docs).
+
+- **Q-141 `Load` panics.** Where Go panics while loading a model, `load`
+  returns `Error::Panic` with Go's message (`layers.rs`, around lines 451-474).
+
+- **Q-142 Go's runtime messages** for index and slice bounds (`golang.rs`,
+  tested by `nn_go_bounds_messages`).
+
+### Float formatting and case mapping (WP-1-15)
+
+- **Q-143 Shortest float digits settle ties to even.** Go's shortest float
+  formatting settles a tie between two equally close shortest forms on the even
+  digit; Rust's `{:e}` takes the larger. 2^-25 prints as Go's
+  `2.9802322387695312e-08` (Rust alone: `...313`), and the float32 158164.125
+  as `158164.12`. `gostrconv::format_float` (`ftoa.rs`) takes Rust's digits and
+  settles the tie as Go does. `ftoa_golden.json` holds 75 such ties among 4,077
+  floats, every format, precision -1..40 and both bit sizes, and fails on all 75
+  without the rule.
+- **Q-144 Case mapping is Go's, not Rust's.** viper lower-cases keys with Go's
+  `strings.ToLower` and mapstructure matches them to fields with
+  `strings.EqualFold`. Both use Go's simple, one-code-point-to-one-code-point
+  mappings from Unicode 17.0.0, not Rust's full `to_lowercase` (`İ` becomes `i`,
+  a final sigma stays `σ`). `gounicode` ports `unicode.ToLower`,
+  `unicode.SimpleFold`, `strings.ToLower` and `strings.EqualFold` over tables Go
+  generates (`contracts/tools/casegolden`). `case_golden.json` checks ToLower on
+  every non-ASCII cased code point and about 7,000 strings, and EqualFold on
+  folding orbits, mixed strings and near misses, both ways round.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -928,6 +966,27 @@ said otherwise), so the Rust result is Go's.
   `decode` gives Go's text with the U+FFFD replacement for them and Go's text
   exactly for every other case.
 
+### Neural networks: common/nn (WP-1-11)
+
+- **X-41 `add` of a tensor without elements.** Go loops forever (`i += 0`).
+  The port panics with a message saying so (`tensor.rs`, `add`).
+
+- **X-42 Benchmarks not ported.** `tensor_test.go`'s `matMulLegacy`,
+  `batchMatMulLegacy` and the `Benchmark*` functions measure speed and assert
+  nothing, so they are not ported.
+
+- **X-43 Progress bar.** `TestMNIST`'s progress bar is not ported. The
+  per-epoch line and the test accuracy are printed.
+
+- **X-44 Go's top-level `rand` is a stand-in** (D-81): splitmix64
+  with a random seed, and Box-Muller for `NormFloat64` rather than Go's ziggurat.
+  Same distribution, different values, and Go's values are random too.
+
+- **X-45 Dataset tests ignored.** `TestIris` and `TestMNIST` need files
+  from `cdn.gorse.io`, which is blocked (O-1). They are `#[ignore]` as `ann`'s
+  are, and read `~/.gorse/dataset/{iris,mnist}`. `TestMNIST` also skips in Go
+  unless on Apple silicon or AVX-512. The Rust test does not repeat that check.
+
 ## Open questions
 
 - **O-1** The Go CI's model tests read the datasets from `https://cdn.gorse.io`,
@@ -992,3 +1051,22 @@ said otherwise), so the Rust result is Go's.
   dev-dependencies hex and serde_json), `Cargo.lock` and `src/formats.rs`
   conflicts were resolved when the dotenv part merged into the integration
   branch. Later parts add their own lines by hand.
+
+- **O-13 `parallel.For` stand-in.** `deps::parallel_for` (see For the
+  integrator) stays until WP-1-6 is on the integration branch.
+
+- **O-14 `GODEBUG` and `util::rand::math`.** `util::rand::math::use_fma`
+  reads the CPU directly, without `GODEBUG`. Go's `math.Exp` takes the FMA path
+  only when `internal/cpu` allows it, and `GODEBUG=cpu.avx=off` or
+  `cpu.fma=off` turns it off. So WP-1-4's `NormFloat64` and `ExpFloat64` differ
+  from Go under those `GODEBUG` settings, and `nn::deps::exp` does not.
+  Owner: WP-1-4. Fix: make `use_fma` use `Feature::current()`, as `nn` does.
+
+- **O-15 Dataset tests** (X-45) run once `cdn.gorse.io` is reachable,
+  and need `iris.data`, `train.libfm` and `test.libfm` under
+  `~/.gorse/dataset/`.
+
+- **O-16 `gorse-expr` keeps its own copies of Go's strconv pieces.** `gorse-expr/src/gostr.rs`
+  has its own quote, IsPrint, ParseInt and ParseFloat. Now that it depends on
+  `gorse-common`, they could call `gostrconv` instead. Not done in the config
+  drafts, to keep that change to the bug fix (C-26).

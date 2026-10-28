@@ -23,4 +23,5 @@ pub mod gourl;
 pub mod goutf8;
 pub mod heap;
 pub mod math32;
+pub mod nn;
 pub mod util;

@@ -46,8 +46,13 @@ import (
 	"golang.org/x/sys/cpu"
 )
 
-// rng is splitmix64.
-type rng struct{ state uint64 }
+// rng is splitmix64. With specials set, its floats mix NaNs of random
+// payloads and signs, quiet and signaling, infinities and zeros in with the
+// ordinary values, so that which operand's NaN a result carries is checked.
+type rng struct {
+	state    uint64
+	specials bool
+}
 
 func (r *rng) next() uint64 {
 	r.state += 0x9e3779b97f4a7c15
@@ -57,8 +62,25 @@ func (r *rng) next() uint64 {
 	return z ^ (z >> 31)
 }
 
-// float returns a multiple of 2^-23 in [-1, 1).
+// float returns a multiple of 2^-23 in [-1, 1), or with specials set, one
+// time in two a special value.
 func (r *rng) float() float32 {
+	if r.specials {
+		if k := r.next(); k%2 == 0 {
+			sign := uint32(k>>8) & 0x80000000
+			payload := uint32(k>>16) & 0x3fffff
+			switch (k >> 1) % 4 {
+			case 0: // quiet NaN
+				return math.Float32frombits(sign | 0x7fc00000 | payload)
+			case 1: // signaling NaN
+				return math.Float32frombits(sign | 0x7f800000 | payload | 1)
+			case 2:
+				return math.Float32frombits(sign | 0x7f800000)
+			default:
+				return math.Float32frombits(sign)
+			}
+		}
+	}
 	return float32(int32(r.next()>>40)-(1<<23)) / (1 << 23)
 }
 
@@ -273,28 +295,40 @@ func panics(f func()) (p bool) {
 	return false
 }
 
+// runLevel computes every function on ordinary inputs, and again, under the
+// name "specials/<name>", on inputs with special values (seeds offset by 1000).
 func runLevel() map[string]Result {
 	out := map[string]Result{}
-	for i, f := range functions() {
-		var res Result
-		for _, n := range lengths {
-			var h hasher
-			f.run(seed(i, n), n, &h)
-			res.Hashes = append(res.Hashes, h.sum())
+	for _, specials := range []bool{false, true} {
+		prefix, offset := "", 0
+		if specials {
+			prefix, offset = "specials/", 1000
 		}
-		res.EmptyPanics = panics(f.empty)
-		out[f.name] = res
-	}
-	for j, t := range [][2]bool{{false, false}, {false, true}, {true, false}, {true, true}} {
-		f := mm(t[0], t[1])
-		var res Result
-		for s := range Shapes {
-			var h hasher
-			f.run(seed(100+j, s), s, &h)
-			res.Hashes = append(res.Hashes, h.sum())
+		for i, f := range functions() {
+			var res Result
+			for _, n := range lengths {
+				var h hasher
+				r := seed(offset+i, n)
+				r.specials = specials
+				f.run(r, n, &h)
+				res.Hashes = append(res.Hashes, h.sum())
+			}
+			res.EmptyPanics = panics(f.empty)
+			out[prefix+f.name] = res
 		}
-		res.EmptyPanics = panics(f.empty)
-		out[f.name] = res
+		for j, t := range [][2]bool{{false, false}, {false, true}, {true, false}, {true, true}} {
+			f := mm(t[0], t[1])
+			var res Result
+			for s := range Shapes {
+				var h hasher
+				r := seed(offset+100+j, s)
+				r.specials = specials
+				f.run(r, s, &h)
+				res.Hashes = append(res.Hashes, h.sum())
+			}
+			res.EmptyPanics = panics(f.empty)
+			out[prefix+f.name] = res
+		}
 	}
 	return out
 }
