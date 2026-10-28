@@ -18,6 +18,7 @@ repository = "https://github.com/LexHarie/gorse-rust"
 gorse-protocol = { path = "crates/gorse-protocol" }
 gorse-common = { path = "crates/gorse-common" }
 gorse-expr = { path = "crates/gorse-expr" }
+gorse-ratelimit = { path = "crates/gorse-ratelimit" }
 gorse-storage-core = { path = "crates/gorse-storage-core" }
 gorse-config = { path = "crates/gorse-config" }
 gorse-model-core = { path = "crates/gorse-model-core" }
