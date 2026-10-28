@@ -1887,3 +1887,63 @@ said otherwise), so the Rust result is Go's.
   one-address cluster, six-address cluster and Kvrocks jobs in
   `.github/workflows/build_test.yml` all run here (see O-46). The MariaDB job and
   the rest of the Phase 2 exit gate belong to other work packages.
+
+## WP-2-11 meta store
+
+- **X-109 A nil `Params` encodes as `{}`, not `null`.** `Params` is a
+  `BTreeMap`, which has no nil. Go writes `"Params":null` for a model with nil
+  params (golden: `int_score`, `nil_params`). Both are read back the same by Go.
+  The golden test checks this case explicitly (`NIL_PARAMS`), it is not skipped.
+
+- **X-110 `ToJSON` returns `Result`.** Go's `lo.Must1` panics. The
+  error cases are a score that `encoding/json` refuses (a NaN) and
+  `ParamValue::Other`, which Gorse never stores. Phase 4 callers decide what to
+  do with the error.
+
+- **X-111 `FromJSON` matches JSON keys case-sensitively.** Go's
+  `json.Unmarshal` matches `"id"` to `ID` and `"type"` to `Type`. serde does not.
+  Go's own writer always writes the exact names, so the rows of both
+  implementations match.
+
+- **X-112 A type mismatch stops the decode.** Go's `json.Unmarshal` keeps
+  decoding the other fields and returns the first type error. The port stops
+  at the first error, so a partly-set model can differ from Go's after an error.
+
+- **X-113 Error texts are not Go's.** `encoding/json` texts (syntax, type
+  errors) are serde's and gojson's. The `Scan` failure keeps Go's text
+  (`Error::UnsupportedScan`). Only the error/no-error outcome is golden-checked.
+
+- **X-114 `Open` connects now; Go's `sql.Open` connects on first use.** An
+  unusable file fails at `Open` here, and at `Init` in Go. Both fail the same
+  start-up path.
+
+- **X-115 The DSN's query string is not parsed.** The file is the part
+  before any `?`. The busy timeout (10 s) and WAL mode are set on the
+  connection, as Go's `_pragma` parameters set them. No caller passes another
+  parameter (`master.go:287` passes none).
+
+- **X-116 One connection, not a pool.** Calls are serialised, where Go's
+  `database/sql` pool can run them in parallel. Results match; the node has
+  one meta writer, so nothing waits on the lock in practice.
+
+- **Q-209 `Equal` does not panic on slice parameters.** Go's `maps.Equal`
+  compares `any` values with `!=`, which panics when both sides hold the same
+  uncomparable type (for example two `[]int`). The port returns a value and
+  does not panic.
+
+- **O-48 Resolved by D-166.** The coordinator approved a `ParamValue`
+  variant that holds a JSON value (2026-10-28 12:00Z). The change is in
+  `crates/gorse-model-core/src/params.rs` (`ParamValue::Json`), with one case
+  added to `tests/params_go.rs` for the accessor mismatch.
+
+- **O-49 Phase 3 must give `cf.Score` and `ctr.Score` Go's encoding.**
+  `Model<T>` writes its `Score` with `jsonutil::marshal`, which matches Go for
+  numbers and strings, and reads it with serde. A struct score needs serde
+  renames that match Go's field names (Go has no tags here), and Go's
+  encoding of a `float64` field must be checked against the golden data then.
+
+- **O-50 Node JSON for the REST API is not defined here.** Go's `[]meta.Node` in
+  `master/rest.go` is the REST shape. `Node` has no serde impl; Phase 4 adds it
+  with Go's field names and RFC 3339 time text.
+
+- Evidence (the integrator's fold of the WP's tests): - Ported from Go, unchanged cases: `TestNodes`, `TestKeyValues` (`sqlite_test.rs`, each on a new SQLite file in a temp dir), `TestModel_Equal` (`database_test.rs`). - Golden, from Go 1.27.0: `golden_test.rs`, 7 tests (`round_trip_matches_go` added with D-166). - Mutation checks (sources restored after each): `float32` written as `float64` fails `to_json_matches_go`; the TTL sign dropped fails `test_nodes` and `go_written_rows_are_listed_and_pruned`; an unsorted object encoder fails `round_trip_matches_go`. - No test is ignored. SQLite is embedded, so no service is needed.

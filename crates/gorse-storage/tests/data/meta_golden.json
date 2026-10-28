@@ -1,0 +1,337 @@
+{
+  "go_version": "go1.27.0",
+  "times": [
+    {
+      "name": "fraction",
+      "date": [
+        2026,
+        10,
+        28,
+        8,
+        10,
+        4,
+        123456789
+      ],
+      "written": "2026-10-28 08:10:04.123456789 +0000 UTC",
+      "stored": "2026-10-28 08:10:04.123456789 +0000 UTC",
+      "read": "2026-10-28 08:10:04.123456789 +0000 UTC"
+    },
+    {
+      "name": "whole_seconds",
+      "date": [
+        1996,
+        4,
+        8,
+        0,
+        0,
+        0,
+        0
+      ],
+      "written": "1996-04-08 00:00:00 +0000 UTC",
+      "stored": "1996-04-08 00:00:00 +0000 UTC",
+      "read": "1996-04-08 00:00:00 +0000 UTC"
+    },
+    {
+      "name": "half_second",
+      "date": [
+        2023,
+        1,
+        1,
+        0,
+        0,
+        0,
+        500000000
+      ],
+      "written": "2023-01-01 00:00:00.5 +0000 UTC",
+      "stored": "2023-01-01 00:00:00.5 +0000 UTC",
+      "read": "2023-01-01 00:00:00.5 +0000 UTC"
+    },
+    {
+      "name": "micro",
+      "date": [
+        2026,
+        1,
+        2,
+        3,
+        4,
+        5,
+        678901000
+      ],
+      "written": "2026-01-02 03:04:05.678901 +0000 UTC",
+      "stored": "2026-01-02 03:04:05.678901 +0000 UTC",
+      "read": "2026-01-02 03:04:05.678901 +0000 UTC"
+    },
+    {
+      "name": "local_zone",
+      "date": [
+        2026,
+        10,
+        28,
+        8,
+        0,
+        0,
+        0
+      ],
+      "written": "2026-10-28 08:00:00 +0000 UTC",
+      "stored": "2026-10-28 08:00:00 +0000 UTC",
+      "read": "2026-10-28 08:00:00 +0000 UTC"
+    }
+  ],
+  "to_json": [
+    {
+      "name": "int_score",
+      "json": "{\"ID\":7,\"Type\":\"als\",\"Params\":null,\"Score\":42}"
+    },
+    {
+      "name": "params",
+      "json": "{\"ID\":7,\"Type\":\"als\",\"Params\":{\"Alpha\":0.007,\"AutoScale\":true,\"BatchSize\":256,\"HiddenLayers\":[64,32],\"InitStdDev\":0.1,\"Lr\":0.007,\"Missing\":null,\"NFactors\":80,\"Optimizer\":\"adam\",\"RandomState\":-3},\"Score\":42}"
+    },
+    {
+      "name": "number_forms",
+      "json": "{\"ID\":1,\"Type\":\"forms\",\"Params\":{\"big\":1e+21,\"big32\":1e+21,\"negzero\":-0,\"plain\":123456789,\"small\":1e-7,\"sum\":0.3,\"tiny32\":1e-7},\"Score\":0.5}"
+    },
+    {
+      "name": "string_escapes",
+      "json": "{\"ID\":2,\"Type\":\"\\u003ca\\u0026b\\u003e\\u2028\\u2029\\\"\\\\\\n\\t\\u0001é\",\"Params\":{\"s\":\"\\u003ca\\u0026b\\u003e\\u2028\\u2029\\\"\\\\\\n\\t\\u0001é\\b\\f\\r\"},\"Score\":0}"
+    },
+    {
+      "name": "empty_params",
+      "json": "{\"ID\":3,\"Type\":\"none\",\"Params\":{},\"Score\":0}"
+    },
+    {
+      "name": "nil_params",
+      "json": "{\"ID\":4,\"Type\":\"nil\",\"Params\":null,\"Score\":0}"
+    }
+  ],
+  "from_json": [
+    {
+      "name": "fresh_all_fields",
+      "input": "{\"ID\":5,\"Type\":\"als\",\"Params\":{\"Lr\":0.5,\"NFactors\":80,\"Optimizer\":\"adam\",\"Gone\":null,\"On\":true,\"HiddenLayers\":[64,32],\"Nested\":{\"x\":1}},\"Score\":9}",
+      "id": 5,
+      "type": "als",
+      "params_nil": false,
+      "params": [
+        {
+          "name": "Gone",
+          "go_type": "\u003cnil\u003e",
+          "value": "null"
+        },
+        {
+          "name": "HiddenLayers",
+          "go_type": "[]interface {}",
+          "value": "[64,32]"
+        },
+        {
+          "name": "Lr",
+          "go_type": "float64",
+          "value": "0.5"
+        },
+        {
+          "name": "NFactors",
+          "go_type": "float64",
+          "value": "80"
+        },
+        {
+          "name": "Nested",
+          "go_type": "map[string]interface {}",
+          "value": "{\"x\":1}"
+        },
+        {
+          "name": "On",
+          "go_type": "bool",
+          "value": "true"
+        },
+        {
+          "name": "Optimizer",
+          "go_type": "string",
+          "value": "\"adam\""
+        }
+      ],
+      "score": 9,
+      "err": false
+    },
+    {
+      "name": "absent_fields_keep_values",
+      "input": "{\"Params\":{\"Lr\":0.5}}",
+      "id": 5,
+      "type": "old",
+      "params_nil": false,
+      "params": [
+        {
+          "name": "Lr",
+          "go_type": "float64",
+          "value": "0.5"
+        },
+        {
+          "name": "keep",
+          "go_type": "int",
+          "value": "1"
+        }
+      ],
+      "score": 9,
+      "err": false
+    },
+    {
+      "name": "null_params_clears",
+      "input": "{\"Params\":null}",
+      "id": 5,
+      "type": "old",
+      "params_nil": true,
+      "params": null,
+      "score": 9,
+      "err": false
+    },
+    {
+      "name": "null_fields_are_noops",
+      "input": "{\"ID\":null,\"Type\":null,\"Score\":null}",
+      "id": 5,
+      "type": "old",
+      "params_nil": false,
+      "params": [
+        {
+          "name": "Lr",
+          "go_type": "float64",
+          "value": "0.1"
+        },
+        {
+          "name": "keep",
+          "go_type": "int",
+          "value": "1"
+        }
+      ],
+      "score": 9,
+      "err": false
+    },
+    {
+      "name": "top_level_null_is_noop",
+      "input": "null",
+      "id": 5,
+      "type": "old",
+      "params_nil": false,
+      "params": [
+        {
+          "name": "Lr",
+          "go_type": "float64",
+          "value": "0.1"
+        },
+        {
+          "name": "keep",
+          "go_type": "int",
+          "value": "1"
+        }
+      ],
+      "score": 9,
+      "err": false
+    },
+    {
+      "name": "numbers_are_float64",
+      "input": "{\"Params\":{\"NFactors\":80}}",
+      "id": 0,
+      "type": "",
+      "params_nil": false,
+      "params": [
+        {
+          "name": "NFactors",
+          "go_type": "float64",
+          "value": "80"
+        }
+      ],
+      "score": 0,
+      "err": false
+    },
+    {
+      "name": "array_param",
+      "input": "{\"Params\":{\"HiddenLayers\":[64,32]}}",
+      "id": 0,
+      "type": "",
+      "params_nil": false,
+      "params": [
+        {
+          "name": "HiddenLayers",
+          "go_type": "[]interface {}",
+          "value": "[64,32]"
+        }
+      ],
+      "score": 0,
+      "err": false
+    },
+    {
+      "name": "object_param",
+      "input": "{\"Params\":{\"o\":{\"x\":1}}}",
+      "id": 0,
+      "type": "",
+      "params_nil": false,
+      "params": [
+        {
+          "name": "o",
+          "go_type": "map[string]interface {}",
+          "value": "{\"x\":1}"
+        }
+      ],
+      "score": 0,
+      "err": false
+    },
+    {
+      "name": "params_not_an_object",
+      "input": "{\"Params\":[1]}",
+      "id": 0,
+      "type": "",
+      "params_nil": true,
+      "params": null,
+      "score": 0,
+      "err": true
+    },
+    {
+      "name": "invalid_json",
+      "input": "{\"ID\":",
+      "id": 0,
+      "type": "",
+      "params_nil": true,
+      "params": null,
+      "score": 0,
+      "err": true
+    }
+  ],
+  "round_trip": [
+    {
+      "name": "nested_objects_and_arrays",
+      "input": "{\"ID\":1,\"Type\":\"t\",\"Params\":{\"Opt\":{\"b\":1,\"a\":[true,null,\"x\u003cy\u0026z\u003e\"]},\"HiddenLayers\":[64,32]},\"Score\":3}",
+      "json": "{\"ID\":1,\"Type\":\"t\",\"Params\":{\"HiddenLayers\":[64,32],\"Opt\":{\"a\":[true,null,\"x\\u003cy\\u0026z\\u003e\"],\"b\":1}},\"Score\":3}"
+    },
+    {
+      "name": "numbers",
+      "input": "{\"Params\":{\"F\":[1.50,1e2,0.1,1e21,-0,123456789012345678,1e-7,5e-324,-2.5e-5]}}",
+      "json": "{\"ID\":0,\"Type\":\"\",\"Params\":{\"F\":[1.5,100,0.1,1e+21,-0,123456789012345680,1e-7,5e-324,-0.000025]},\"Score\":0}"
+    },
+    {
+      "name": "empty_array_and_object",
+      "input": "{\"Params\":{\"E\":[],\"O\":{}}}",
+      "json": "{\"ID\":0,\"Type\":\"\",\"Params\":{\"E\":[],\"O\":{}},\"Score\":0}"
+    },
+    {
+      "name": "duplicate_keys_keep_the_last",
+      "input": "{\"Params\":{\"O\":{\"a\":1,\"a\":2,\"b\":3}}}",
+      "json": "{\"ID\":0,\"Type\":\"\",\"Params\":{\"O\":{\"a\":2,\"b\":3}},\"Score\":0}"
+    },
+    {
+      "name": "keys_sorted_by_bytes",
+      "input": "{\"Params\":{\"b\":[1],\"a\":[2],\"B\":[3],\"é\":[4],\"Z\":{\"y\":1,\"x\":2}}}",
+      "json": "{\"ID\":0,\"Type\":\"\",\"Params\":{\"B\":[3],\"Z\":{\"x\":2,\"y\":1},\"a\":[2],\"b\":[1],\"é\":[4]},\"Score\":0}"
+    },
+    {
+      "name": "string_escapes",
+      "input": "{\"Params\":{\"S\":[\"\\u0001\\b\\f\\n\\r\\t\\\"\\\\/\\u2028\\u2029é😀\u003c\u003e\u0026\"]}}",
+      "json": "{\"ID\":0,\"Type\":\"\",\"Params\":{\"S\":[\"\\u0001\\b\\f\\n\\r\\t\\\"\\\\/\\u2028\\u2029é😀\\u003c\\u003e\\u0026\"]},\"Score\":0}"
+    },
+    {
+      "name": "nested_arrays_and_null",
+      "input": "{\"Params\":{\"L\":[{\"k\":[{}]},[[]],null,false]}}",
+      "json": "{\"ID\":0,\"Type\":\"\",\"Params\":{\"L\":[{\"k\":[{}]},[[]],null,false]},\"Score\":0}"
+    },
+    {
+      "name": "mixed_scalars_and_arrays",
+      "input": "{\"Params\":{\"Lr\":0.5,\"HiddenLayers\":[64,32],\"Optimizer\":\"adam\",\"On\":true,\"Gone\":null}}",
+      "json": "{\"ID\":0,\"Type\":\"\",\"Params\":{\"Gone\":null,\"HiddenLayers\":[64,32],\"Lr\":0.5,\"On\":true,\"Optimizer\":\"adam\"},\"Score\":0}"
+    }
+  ]
+}

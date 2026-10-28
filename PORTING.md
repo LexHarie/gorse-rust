@@ -30,7 +30,7 @@ Every Rust module names the Go files it ports with a
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); config.schema.json and config.keys.md not generated (X-49). WP-1-18 is in progress (it follows WP-1-16 and WP-1-17, both merged). All in `porting/work-packages.md` |
-| 2. Storage | in progress | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-2, 2-3, 2-6, 2-9, 2-11 to 2-13 not merged |
+| 2. Storage | in progress | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-11 (meta store, SQLite through rusqlite 0.39.0, D-160 to D-166; O-48 closed, O-49 and O-50 open for Phases 3 and 4). WP-2-2, 2-3, 2-6, 2-9, 2-12, 2-13 not merged |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
@@ -1246,12 +1246,56 @@ or accepts a metric gap outside the Go tests' own tolerances.
   a reproduced quirk. This overrides the integrator's recommendation to refuse
   the option, because the plan forbids behaviour changes.
 
-- **D-159 O-WP211-1 ruling: arrays and objects round-trip (coordinator).** Go
+- **D-159 O-48 ruling: arrays and objects round-trip (coordinator).** Go
   stores model params as `interface{}`, so an array or object param survives a
   load and a save. The port must do the same. The ruling adds a `ParamValue`
   variant that holds a JSON value for arrays and objects, in the model-core file.
   The meta thread (WP-2-11) makes that change. A golden test checks that a
   Go-written JSON value re-encodes byte-identically.
+
+- **D-160 rusqlite is 0.39.0, not the latest 0.41.0 (integrator).** The rule
+  is the latest stable crate. `sqlx` 0.9.0, also the latest, reaches
+  `libsqlite3-sys` through `sqlx-sqlite`, which needs a version below 0.38, and
+  cargo refuses a graph that holds two `links = "sqlite3"` packages. Checked with
+  `cargo generate-lockfile` on a scratch crate that has `sqlx` 0.9.0 (mysql and
+  postgres, sqlite off) and each rusqlite: 0.41.0 and 0.40.2 fail with the
+  `links` error, and 0.39.0 resolves with `libsqlite3-sys` 0.37.0. So 0.39.0 is
+  the newest rusqlite this graph holds (the lower 0.40.x releases were not tested).
+  The meta merge and the SQL branch (WP-2-6) use this pin. Revisit when
+  `sqlx-sqlite` accepts `libsqlite3-sys` 0.38 or later.
+
+- **D-161 The meta traits are async, `Open` is async.** D-122. `Database` is
+  `#[async_trait]` (dyn-compatible, since `Open` returns one), with no `ctx`
+  because Go's `meta.Database` takes none. Every method runs on
+  `tokio::task::spawn_blocking` (`porting/crate-selection.md`, rusqlite row).
+
+- **D-162 SQLite is `rusqlite` (bundled), not `sqlx`.** The crate-selection
+  row for gorm sqlite. The store has one connection behind a std `Mutex` that
+  only blocking tasks lock.
+
+- **D-163 The time text is Go's.** modernc writes `t.String()` of the UTC
+  time (`conn.go` `formatTime`, default `writeTimeFormat` is empty) and reads the
+  `String()` layout, with an optional `m=` suffix, then its seven layouts
+  (`conn.go` `parseTime`). The port does the same, so Go and Rust rows in one
+  file compare alike under `datetime('now', ...)`. Golden: `update_time_text_matches_go`,
+  `update_time_is_stored_as_go_stores_it`, `go_written_rows_are_listed_and_pruned`.
+
+- **D-164 `Node` and `Model` are plain structs.** `Node.Type` is `r#type`.
+  `ListNodes` returns `Vec<Node>` (Go's `[]*Node`). `Model` JSON keeps Go's field
+  names (`ID`, `Type`, `Params`, `Score`) through serde renames.
+
+- **D-165 `FromJSON` merges `Params` into the map it holds.** This follows
+  Go's `json.Unmarshal` into a map: keys the JSON names are replaced, the others
+  stay, and `null` clears the map. Absent fields keep their values, and a `null`
+  for `ID`, `Type` or `Score` is a no-op. Golden: `from_json_matches_go`.
+
+- **D-166 A decoded array or object is `ParamValue::Json`.** Resolves
+  O-48 (coordinator decision, 2026-10-28 12:00Z). `FromJSON` keeps the
+  `gojson::Value` of an array or object, so it encodes again as Go encodes the
+  value: numbers as float64s, object keys sorted by bytes, the same escapes as
+  `json.Marshal`. The accessors treat it as a type mismatch, as Go's do for a
+  `[]any`. Golden: `round_trip_matches_go` (8 cases, Go's bytes), and
+  `from_json_matches_go` compares the array values too.
 
 ## Open questions for Ritchie
 
