@@ -12,6 +12,7 @@ publish = false
 blake2.workspace = true
 gorse-protocol = { workspace = true }
 hex.workspace = true
+indexmap.workspace = true
 md-5.workspace = true
 regex.workspace = true
 rustls.workspace = true

@@ -1,4 +1,4 @@
-// Ports: $GOROOT/src/strconv/quote.go (Quote, AppendQuote, QuoteRune, IsPrint), number.go (ParseUint, ParseInt, Atoi, NumError), $GOROOT/src/internal/strconv/atoi.go @ go1.27.0 (the toolchain add21b5 builds with)
+// Ports: $GOROOT/src/strconv/quote.go (Quote, AppendQuote, QuoteRune, IsPrint), number.go (ParseUint, ParseInt, Atoi, ParseFloat, ParseBool, FormatBool, AppendBool, NumError), $GOROOT/src/internal/strconv/atoi.go @ go1.27.0 (the toolchain add21b5 builds with)
 //
 // Derived from Go's strconv package: Copyright 2009 The Go Authors. All
 // rights reserved. Use of this source code is governed by a BSD-style license
@@ -6,16 +6,21 @@
 
 //! The parts of Go's `strconv` that error texts depend on: `%q` formats with
 //! [`quote`], so every Go error that quotes user input needs it to read the
-//! same; and the integer parsers and [`parse_float`] with their [`NumError`]
-//! texts.
+//! same; and the integer parsers, [`parse_float`] and [`parse_bool`] with
+//! their [`NumError`] texts.
 //!
-//! Go strings are bytes, so [`quote`] takes bytes: a byte that does not start
-//! a valid UTF-8 sequence is written as `\xNN`, as Go writes it.
+//! Go strings are bytes, so [`quote`] and the parsers take bytes: a byte
+//! that does not start a valid UTF-8 sequence is written as `\xNN`, as Go
+//! writes it.
 
+mod atob;
 mod atof;
+#[doc(hidden)]
+pub mod decimal;
+mod pow10tab;
 mod tables;
-
-pub use atof::parse_float;
+#[doc(hidden)]
+pub mod uscale;
 
 use thiserror::Error;
 
@@ -127,7 +132,8 @@ pub enum NumErrorKind {
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("strconv.{func}: parsing {}: {err}", quote(num))]
 pub struct NumError {
-    /// The failing function (`ParseInt`, `ParseUint`, `Atoi`, `ParseFloat`).
+    /// The failing function (`ParseInt`, `ParseUint`, `Atoi`, `ParseFloat`,
+    /// `ParseBool`).
     pub func: &'static str,
     /// The input.
     pub num: Vec<u8>,
@@ -172,6 +178,59 @@ pub fn atoi(s: impl AsRef<[u8]>) -> (i64, Option<NumError>) {
         Ok(n) => (n, None),
         Err((n, err)) => (n, Some(num_error("Atoi", s, err))),
     }
+}
+
+/// Go's `strconv.ParseFloat`: s as the nearest float of the bit size (32
+/// rounds to the nearest `float32` and widens it; any other bit size means
+/// 64). Decimal and hexadecimal Go float literals with underscores, and
+/// "Inf", "Infinity" and "NaN" in any case, are accepted. Like Go it returns
+/// the value together with the error: ±Inf on a range error, 0 on a syntax
+/// error.
+pub fn parse_float(s: impl AsRef<[u8]>, bit_size: i64) -> (f64, Option<NumError>) {
+    parse_float_with_optimize(s, bit_size, true)
+}
+
+/// [`parse_float`] with Go's `optimize` switch as a parameter: false forces
+/// the slow multiprecision path, as Go's tests do with `SetOptimize(false)`.
+#[doc(hidden)]
+pub fn parse_float_with_optimize(
+    s: impl AsRef<[u8]>,
+    bit_size: i64,
+    optimize: bool,
+) -> (f64, Option<NumError>) {
+    let s = s.as_ref();
+    let (f, err) = atof::parse_float(s, bit_size, optimize);
+    (f, err.map(|err| num_error("ParseFloat", s, err)))
+}
+
+/// `internal/strconv.parseFloatPrefix` (Go's tests call it
+/// `ParseFloatPrefix`): the float at the start of s, the number of bytes it
+/// takes, and the bare error.
+#[doc(hidden)]
+pub fn parse_float_prefix(
+    s: impl AsRef<[u8]>,
+    bit_size: i64,
+) -> (f64, usize, Option<NumErrorKind>) {
+    atof::parse_float_prefix(s.as_ref(), bit_size, true)
+}
+
+/// Go's `strconv.ParseBool`: true for "1", "t", "T", "true", "TRUE" and
+/// "True", false for "0", "f", "F", "false", "FALSE" and "False", and a
+/// syntax error (with false) for anything else.
+pub fn parse_bool(s: impl AsRef<[u8]>) -> (bool, Option<NumError>) {
+    let s = s.as_ref();
+    let (b, err) = atob::parse_bool(s);
+    (b, err.map(|err| num_error("ParseBool", s, err)))
+}
+
+/// Go's `strconv.FormatBool`: "true" or "false".
+pub const fn format_bool(b: bool) -> &'static str {
+    atob::format_bool(b)
+}
+
+/// Go's `strconv.AppendBool`: appends "true" or "false" to dst.
+pub fn append_bool(dst: &mut Vec<u8>, b: bool) {
+    atob::append_bool(dst, b);
 }
 
 fn num_error(func: &'static str, s: &[u8], err: NumErrorKind) -> NumError {
@@ -457,5 +516,23 @@ mod tests {
         for &(input, out) in tests {
             assert_eq!(quote_rune(input), out, "QuoteRune({input:?})");
         }
+    }
+
+    // WP-1-4's unit test of parse_float, moved here unchanged from the
+    // gostrconv/atof.rs it replaced.
+    #[test]
+    fn errors_display_like_go() {
+        let (value, err) = parse_float("1x", 64);
+        assert_eq!(value.to_bits(), 0);
+        assert_eq!(
+            err.expect("syntax error").to_string(),
+            r#"strconv.ParseFloat: parsing "1x": invalid syntax"#
+        );
+        let (value, err) = parse_float("-1e400", 64);
+        assert_eq!(value, f64::NEG_INFINITY);
+        assert_eq!(
+            err.expect("range error").to_string(),
+            r#"strconv.ParseFloat: parsing "-1e400": value out of range"#
+        );
     }
 }
