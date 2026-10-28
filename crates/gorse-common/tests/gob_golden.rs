@@ -15,6 +15,7 @@ use std::collections::BTreeMap;
 
 use gorse_common::encoding::gob::{self, Params, Value};
 use gorse_common::encoding::{self, read_gob, write_gob};
+use gorse_common::gotime::Time;
 use serde_json::Value as Json;
 
 fn load(name: &str) -> Vec<Json> {
@@ -106,7 +107,7 @@ where
 #[test]
 fn encodings_match_go() {
     let cases = load("gob_golden.json");
-    assert_eq!(cases.len(), 68);
+    assert_eq!(cases.len(), 72);
     for case in &cases {
         let name = str_of(&case["name"]);
         let value = &case["value"];
@@ -139,6 +140,16 @@ fn encodings_match_go() {
                 assert_eq!(hex::encode(&encoded), hex::encode(&bytes), "{name}");
             }
             "params" => check_gob(name, &bytes, &params(value), deterministic),
+            "time" => {
+                // Compared by MarshalBinary bytes: the decoded location is a
+                // fixed offset, which `==` on `Time` would compare by identity.
+                let decoded: Time = read_gob(&mut bytes.as_slice()).expect("decode");
+                let marshaled = decoded.marshal_binary().expect("marshal");
+                assert_eq!(hex::encode(&marshaled), str_of(value), "{name}");
+                let mut encoded = Vec::new();
+                write_gob(&mut encoded, &decoded).expect("encode");
+                assert_eq!(hex::encode(&encoded), hex::encode(&bytes), "{name}");
+            }
             "slice-f32" => {
                 let expected = floats(value);
                 let decoded: Vec<f32> =
@@ -196,6 +207,13 @@ fn decode_as(target: &str, data: &[u8]) -> Result<Json, gob::Error> {
                 .map(|x| Json::String(format!("{:08x}", x.to_bits())))
                 .collect(),
         ),
+        "time" => {
+            let t = gob::decode::<Time>(data)?;
+            let marshaled = t
+                .marshal_binary()
+                .map_err(|e| gob::Error::Invalid(e.to_string()))?;
+            Json::String(hex::encode(marshaled))
+        }
         "params" => {
             return Err(gob::Error::Invalid(
                 "params are compared separately".to_owned(),

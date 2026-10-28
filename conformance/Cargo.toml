@@ -11,6 +11,7 @@ publish = false
 [dependencies]
 gorse-common = { workspace = true }
 gorse-config = { workspace = true }
+gorse-logics = { workspace = true }
 gorse-storage = { workspace = true, features = ["mysql", "postgres", "sqlite", "mongodb", "redis"] }
 futures-core.workspace = true
 futures-util.workspace = true

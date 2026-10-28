@@ -9,17 +9,19 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+fixedbitset.workspace = true
 gorse-common = { workspace = true }
 gorse-protocol = { workspace = true }
 gorse-model-core = { workspace = true }
 gorse-dataset = { workspace = true }
 gorse-storage = { workspace = true }
-thiserror = { workspace = true }
-tracing = { workspace = true }
+prost.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
-serde = { workspace = true }
-serde_json = { workspace = true }
+serde.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

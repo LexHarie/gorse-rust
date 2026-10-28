@@ -59,6 +59,9 @@ go run ./contracts/tools/consistentgolden -out crates/gorse-common/tests/data/co
 go run ./contracts/tools/anngolden -out crates/gorse-common/tests/data/ann_golden.json
 # strconv.FormatFloat, FormatInt and FormatUint (gorse-common)
 go run ./contracts/tools/ftoagolden -out crates/gorse-common/tests/data/ftoa_golden.json
+# model/cf replay data, BPR and ALS (gorse-model; conformance/tests/cf_golden.rs runs
+# this command and requires the output to equal the committed files)
+go run ./contracts/tools/modelreplay -mode cf -out crates/gorse-model/testdata/cf -epochs 5
 # unicode.ToLower, unicode.SimpleFold, strings.ToLower and strings.EqualFold:
 # tables and golden (gorse-common)
 go run ./contracts/tools/casegolden \

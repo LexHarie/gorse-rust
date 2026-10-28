@@ -37,10 +37,10 @@ import (
 // not depend on the global one that the model draws its weights from.
 const ctrSeed = 20261028
 
-// golden is the file the Rust replay test reads: the dataset, the score after
+// ctrGolden is the file the Rust replay test reads: the dataset, the score after
 // every epoch and the final parameters of the golden fit.
-type golden struct {
-	Params             params       `json:"params"`
+type ctrGolden struct {
+	Params             ctrParams    `json:"params"`
 	InitSeed           int64        `json:"init_seed"`
 	Names              names        `json:"names"`
 	UserLabels         [][]feature  `json:"user_labels"`
@@ -49,13 +49,13 @@ type golden struct {
 	ItemEmbeddings     [][][]uint16 `json:"item_embeddings"`
 	Train              split        `json:"train"`
 	Test               split        `json:"test"`
-	Epochs             []score      `json:"epochs"`
+	Epochs             []ctrScore   `json:"epochs"`
 	Parameters         []tensor     `json:"parameters"`
 }
 
-// params are the hyper-parameters of the golden fit. NEpochs is the largest
+// ctrParams are the hyper-parameters of the golden fit. NEpochs is the largest
 // epoch count; the replay fits every count up to it.
-type params struct {
+type ctrParams struct {
 	BatchSize  int     `json:"batch_size"`
 	NFactors   int     `json:"n_factors"`
 	NEpochs    int     `json:"n_epochs"`
@@ -94,8 +94,8 @@ type split struct {
 	Target        []float32   `json:"target"`
 }
 
-// score is the classification score after an epoch.
-type score struct {
+// ctrScore is the classification score after an epoch.
+type ctrScore struct {
 	Epoch     int     `json:"epoch"`
 	Precision float32 `json:"precision"`
 	Recall    float32 `json:"recall"`
@@ -112,15 +112,16 @@ type tensor struct {
 // fitResult is what a child process writes: the score after its epochs and
 // the parameters after them.
 type fitResult struct {
-	Score      score    `json:"score"`
+	Score      ctrScore `json:"score"`
 	Parameters []tensor `json:"parameters"`
 }
 
-// writeCTR fits the model once for each epoch count, each in a fresh process,
-// and writes the golden file to out.
-func writeCTR(out string) error {
-	if out == "" {
-		return errors.New("-out is required")
+// writeCTR fits the model once for each epoch count up to epochs, each in a
+// fresh process, and writes the golden file afm_replay.json into the directory
+// out.
+func writeCTR(out string, epochs int) error {
+	if epochs < 1 {
+		return fmt.Errorf("-epochs must be at least 1, got %d", epochs)
 	}
 	self, err := os.Executable()
 	if err != nil {
@@ -133,15 +134,16 @@ func writeCTR(out string) error {
 	defer os.RemoveAll(dir)
 
 	g := newCTRGolden()
-	for epochs := 1; epochs <= g.Params.NEpochs; epochs++ {
-		result := filepath.Join(dir, "fit-"+strconv.Itoa(epochs)+".json")
-		cmd := exec.Command(self, "-mode", "ctr", "-fit-epochs", strconv.Itoa(epochs), "-fit-out", result)
+	g.Params.NEpochs = epochs
+	for k := 1; k <= epochs; k++ {
+		result := filepath.Join(dir, "fit-"+strconv.Itoa(k)+".json")
+		cmd := exec.Command(self, "-mode", "ctr", "-fit-epochs", strconv.Itoa(k), "-fit-out", result)
 		cmd.Env = append(os.Environ(), "GODEBUG=randautoseed=0")
 		// The fit logs to stdout, so the child's output goes to stderr.
 		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("fit %d epochs: %w", epochs, err)
+			return fmt.Errorf("fit %d epochs: %w", k, err)
 		}
 		data, err := os.ReadFile(result)
 		if err != nil {
@@ -152,7 +154,7 @@ func writeCTR(out string) error {
 			return err
 		}
 		g.Epochs = append(g.Epochs, fit.Score)
-		if epochs == g.Params.NEpochs {
+		if k == epochs {
 			g.Parameters = fit.Parameters
 		}
 	}
@@ -161,10 +163,7 @@ func writeCTR(out string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(out, append(data, '\n'), 0o644)
+	return os.WriteFile(filepath.Join(out, "afm_replay.json"), append(data, '\n'), 0o644)
 }
 
 // fitCTR fits the golden model for epochs epochs in this process and writes
@@ -178,7 +177,7 @@ func fitCTR(epochs int, out string) error {
 	config := &ctr.FitConfig{Jobs: 1, Verbose: 1, Patience: 0}
 	s := fm.Fit(context.Background(), g.dataset(g.Train), g.dataset(g.Test), config)
 	data, err := json.Marshal(fitResult{
-		Score: score{
+		Score: ctrScore{
 			Epoch:     epochs,
 			Precision: s.Precision,
 			Recall:    s.Recall,
@@ -198,13 +197,12 @@ func fitCTR(epochs int, out string) error {
 // negative for some users. Items have a category, a price and a rating. Each
 // sample has an hour, which is numerical, and a device. A user and an item are
 // positive when their categories agree, with a tenth of the targets flipped.
-func newCTRGolden() *golden {
+func newCTRGolden() *ctrGolden {
 	rng := rand.New(rand.NewSource(ctrSeed))
-	g := &golden{
-		Params: params{
+	g := &ctrGolden{
+		Params: ctrParams{
 			BatchSize:  16,
 			NFactors:   4,
-			NEpochs:    5,
 			Lr:         0.05,
 			Reg:        0.0002,
 			InitMean:   0,
@@ -251,7 +249,7 @@ func newCTRGolden() *golden {
 }
 
 // sample draws n samples of the golden dataset.
-func (g *golden) sample(rng *rand.Rand, n int) split {
+func (g *ctrGolden) sample(rng *rand.Rand, n int) split {
 	// The context labels follow the user and item labels in the unified index.
 	ctxBase := int32(len(g.Names.Users) + len(g.Names.Items) + len(g.Names.UserLabels) + len(g.Names.ItemLabels))
 	var s split
@@ -276,7 +274,7 @@ func (g *golden) sample(rng *rand.Rand, n int) split {
 }
 
 // index builds the unified index of the names, in their order.
-func (g *golden) index() dataset.UnifiedIndex {
+func (g *ctrGolden) index() dataset.UnifiedIndex {
 	builder := dataset.NewUnifiedMapIndexBuilder()
 	for _, name := range g.Names.Users {
 		builder.AddUser(name)
@@ -298,7 +296,7 @@ func (g *golden) index() dataset.UnifiedIndex {
 
 // dataset makes the Go dataset of a split. The item and user tables are shared
 // by the splits.
-func (g *golden) dataset(s split) *ctr.Dataset {
+func (g *ctrGolden) dataset(s split) *ctr.Dataset {
 	embeddingIndex := dataset.NewMapIndex()
 	for _, name := range g.Names.Embeddings {
 		embeddingIndex.Add(name)
@@ -326,7 +324,7 @@ func (g *golden) dataset(s split) *ctr.Dataset {
 }
 
 // modelParams are the parameters of the model, with the given epoch count.
-func (p params) modelParams(epochs int) model.Params {
+func (p ctrParams) modelParams(epochs int) model.Params {
 	return model.Params{
 		model.BatchSize:  p.BatchSize,
 		model.NFactors:   p.NFactors,

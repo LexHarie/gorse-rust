@@ -469,5 +469,53 @@
         "value": null
       }
     ]
+  },
+  {
+    "name": "time.Time into int64",
+    "target": "int64",
+    "hex": "0f7f0501010454696d6501ff8000000013ff80000f010000000ee273dac0075bcd15ffff",
+    "ok": false,
+    "error": "gob: decoding into local type *int64, received remote type Time",
+    "value": null
+  },
+  {
+    "name": "time stream into time",
+    "target": "time",
+    "hex": "0f7f0501010454696d6501ff8000000013ff80000f010000000ee273dac0075bcd15ffff",
+    "ok": true,
+    "error": "",
+    "value": "010000000ee273dac0075bcd15ffff"
+  },
+  {
+    "name": "time with no data",
+    "target": "time",
+    "hex": "0f7f0501010454696d6501ff8000000004ff800000",
+    "ok": false,
+    "error": "Time.UnmarshalBinary: no data",
+    "value": null
+  },
+  {
+    "name": "time with unsupported version",
+    "target": "time",
+    "hex": "0f7f0501010454696d6501ff8000000005ff80000109",
+    "ok": false,
+    "error": "Time.UnmarshalBinary: unsupported version",
+    "value": null
+  },
+  {
+    "name": "time with invalid length",
+    "target": "time",
+    "hex": "0f7f0501010454696d6501ff8000000006ff8000020100",
+    "ok": false,
+    "error": "Time.UnmarshalBinary: invalid length",
+    "value": null
+  },
+  {
+    "name": "time length exceeds data",
+    "target": "time",
+    "hex": "0f7f0501010454696d6501ff8000000006ff8000050100",
+    "ok": false,
+    "error": "gob: GobDecoder: length too large for buffer",
+    "value": null
   }
 ]

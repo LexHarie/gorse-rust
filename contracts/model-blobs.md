@@ -32,13 +32,14 @@ boundary at the pinned commit (every `WriteGob` call site was listed):
   `float64`, `bool`, `string` and `[]int`. Values decoded from the meta store's JSON
   are `float64` even when the original was an `int` (`PORTING_NOTES.md`).
 
-Top-level `string` and `[]float32` are also gob-encoded, but only by
-`logics.MatrixFactorizationItems.Marshal` (the `[]float32` vectors through
-`ann.HNSW.Marshal`, one `WriteGob` each) and `encoding_test.go`, none of which
-crosses a process boundary: only `logics/cf_test.go` creates a
-`MatrixFactorizationItems`. The Rust codec (`gorse-common`, `encoding::gob`)
-covers all of the above plus `int32` inside `Params`; it rejects other
-gob-registered types and strings that are not UTF-8 (`PORTING_NOTES.md` X-8).
+Top-level `string`, `[]float32` and `time.Time` are also gob-encoded, but only by
+`logics.MatrixFactorizationItems.Marshal` (the timestamp as a `GobEncoder` value, and the
+`[]float32` vectors through `ann.HNSW.Marshal`, one `WriteGob` each) and `encoding_test.go`.
+No process reads those blobs at the pinned commit: only `logics/cf_test.go` creates a
+`MatrixFactorizationItems`. The port still writes Go's bytes, so a Go node could read them.
+The Rust codec (`gorse-common`, `encoding::gob`) covers all of the above plus `int32` inside
+`Params`; it rejects other gob-registered types and strings that are not UTF-8
+(`PORTING_NOTES.md` X-8).
 
 Golden encodings produced by the Go code (`encoding.WriteGob`, so each line starts
 with the `i32` length prefix), each in a fresh Go process:

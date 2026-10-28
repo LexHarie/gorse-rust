@@ -2,6 +2,7 @@
 
 //! Collaborative-filtering (BPR, ALS) and click-through-rate (factorization machine) models.
 //!
-//! Click-through-rate models are ported in [`ctr`].
+//! [`cf`] holds the collaborative-filtering models, and [`ctr`] the click-through-rate models.
 
+pub mod cf;
 pub mod ctr;

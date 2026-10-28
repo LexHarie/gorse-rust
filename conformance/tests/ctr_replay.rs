@@ -26,11 +26,14 @@ fn golden_path() -> PathBuf {
     repo_root().join("crates/gorse-model/testdata/ctr/afm_replay.json")
 }
 
+/// The epoch count of the committed golden, as the generator's `-epochs` flag.
+const EPOCHS: &str = "5";
+
 /// Runs `contracts/tools/modelreplay -mode ctr` from the repository root, writing
-/// the replay to `out`. The global random source of the process is seeded with 1
-/// (`GODEBUG=randautoseed=0`), as the replay requires, and the generator fits each
-/// epoch count in a child process that sets it again. A missing Go and a failing
-/// run are both test failures, with the reason.
+/// the replay into the directory `out`. The global random source of the process is
+/// seeded with 1 (`GODEBUG=randautoseed=0`), as the replay requires, and the
+/// generator fits each epoch count in a child process that sets it again. A missing
+/// Go and a failing run are both test failures, with the reason.
 fn write_replay(out: &Path) {
     let output = Command::new("go")
         .current_dir(repo_root())
@@ -40,6 +43,8 @@ fn write_replay(out: &Path) {
             "./contracts/tools/modelreplay",
             "-mode",
             "ctr",
+            "-epochs",
+            EPOCHS,
             "-out",
         ])
         .arg(out)
@@ -82,8 +87,8 @@ fn assert_matches_golden(got: &str, golden: &str) {
 #[test]
 fn ctr_oracle_matches_golden() {
     let dir = tempfile::tempdir().expect("temporary directory");
+    write_replay(dir.path());
     let written = dir.path().join("afm_replay.json");
-    write_replay(&written);
     let got = std::fs::read_to_string(&written).expect("the generator writes the replay file");
     let golden = std::fs::read_to_string(golden_path()).expect("the committed golden file");
     assert_matches_golden(&got, &golden);
