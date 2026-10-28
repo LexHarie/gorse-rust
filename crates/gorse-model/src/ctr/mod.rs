@@ -2,12 +2,13 @@
 
 //! Click-through-rate models (Go `model/ctr`): the datasets of sparse features,
 //! their scalers, the factorization machine with attention (`fm.go`) and its
-//! evaluation. The tuning hook of `fm.go` and `optimize.go` belongs to WP-3-3.
+//! evaluation, and the hyper-parameter search in [`optimize`] on [`crate::tpe`].
 
 pub mod data;
 pub mod evaluator;
 pub mod fm;
 pub mod model;
+pub mod optimize;
 pub mod transformer;
 
 #[cfg(test)]
