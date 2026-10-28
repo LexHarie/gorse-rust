@@ -2695,6 +2695,80 @@ said otherwise), so the Rust result is Go's.
   `Distribution.Contains`, `EnqueueTrial`, the storage tests, and `GetParamsGrid` are left out. Gorse's
   tuning calls none of them. `GetParamsGrid` appears only in Go's test mock (`ctr/optimize_test.go`).
 
+- **Q-259 Tags come only from processed labels (WP-3-5, quirk 1).** `flatten` in Go's
+  `logics/item_to_item.go` (around 250 to 260) has no case for a string, a `[]string` or a `[]any`, so a
+  raw label gives no tags. The port reproduces this. A tags or auto recommender over raw labels writes an
+  empty tag set.
+
+- **Q-260 Expression failures are logged, not returned (WP-3-5, quirk 2).** Go's item embedding
+  recommender logs `failed to evaluate column expression` (`item_to_item.go` 157) and `failed to convert
+  column to FP16 slice` (162), then returns nil. Its `Add` also returns nil for an empty vector (140 to
+  143). The item tags recommender logs the expression failure (185) and returns nil. The user embedding
+  recommender logs the expression failure (`user_to_user.go` 144) and `invalid embedding column type`
+  (149, for a conversion failure or an empty vector), and returns nil. The user tags recommender logs the
+  expression failure (176) and returns nil. The port logs the same messages with `tracing::error!` and
+  returns `Ok`.
+
+- **Q-261 Errors come in Go's order (WP-3-5, quirk 3).** `new_item_to_item` checks the vector store, then
+  the IDF of the type, then the column of the users type, which is the only column error (`column is not
+  supported in users item-to-item`, `item_to_item.go` 207). `new_user_to_user` checks the store, then the
+  IDF, then the column of the items type (`column is not supported in items user-to-user`,
+  `user_to_user.go` 196). The messages are Go's `errors.New` texts.
+
+- **Q-262 A query drops the row's own ID and a non-positive dot score (WP-3-5, quirk 4).** `QueryItemToItem`
+  does it at `item_to_item.go` 73 to 74, and `QueryUserToUser` at `user_to_user.go` 73 to 74.
+
+- **Q-263 Scores depend on the type (WP-3-5, quirk 5).** The `auto` type halves the store's score
+  (`item_to_item.go` 67 to 69). An `embedding` score is `1 / (1 - s)` on the Euclidean distance (76 to 78).
+  `user_to_user.go` has the same scaling (67 to 78).
+
+- **X-199 Go sorts the feedback slice in place (WP-3-5, deviation 1).** `usersItemToItem.Add` and
+  `autoItemToItem.Add` call `slices.Sort(feedback)` (`item_to_item.go` 213, 236 to 237), and so do
+  `itemsUserToUser.Add` and `autoUserToUser.Add` (`user_to_user.go` 205, 231). That reorders the caller's
+  `dataset.GetItemFeedback()[i]`. The port takes `&[i32]` and does not reorder. The vector does not depend
+  on the order: Go's pruner (`logics/vector_writer.go` 243 to 275) keeps the top `maxSparseVectorNNZ`
+  entries (1024, line 36) by value, breaks ties toward the smaller index, and skips an index it has already
+  seen. The Rust pruner (`vector_writer.rs` 100 to 112) uses the same rule. The only reads of the feedback
+  slices in `master/tasks.go` are at 197 to 204 (before the update) and at 818 and 867 (the calls), so no
+  later code sees the sorted order.
+
+- **X-200 The tests pass processed labels (WP-3-5, deviation 2).** Go's tests pass raw labels, such as a
+  bare `[]float32` (`item_to_item_test.go` 109) or `map[string]any{"embedding": []float32{...}}` (from 128).
+  The Rust tests pass what the dataset gives for them: `[]float32` as FP16 bits (Go's `floats.FromAny`
+  produces the same bits, so the stored vectors are the same), tag IDs as `dataset.ID` values, and the raw
+  string `"hello"` as a plain label. The "Column does not exist" case passes a bare float list as the
+  labels, as Go does at line 109. The Go suite methods keep their assertions.
+
+- **X-201 An empty result is an empty `Vec`, not `nil` (WP-3-5, deviation 3, open).** Go's
+  `QueryItemToItem` returns `nil` when the query row has no vector (`item_to_item.go` 56 to 58), and an
+  empty non-nil slice when the row has no neighbours. The port returns an empty `Vec` in both cases. Go's
+  callers reassign or filter the result before writing a response (`server/rest.go` 860 to 872 and 906,
+  1130, and `master/rest.go` 1129 to 1135 and 1177 to 1186, which sets `nil` itself). The REST work must
+  confirm that both encode the same way. Open as O-76.
+
+- **X-202 `n` is `usize` (WP-3-5, deviation 4).** Go's `n` is an `int`. A negative `n` makes Go's `make` in
+  `QueryItemToItem` (`item_to_item.go` 71) panic at runtime. The port cannot take a negative count.
+
+- **X-203 `IDF[T]` is not ported (WP-3-5, deviation 5).** `item_to_item.go` 247 declares a generic `IDF`
+  type that nothing else in Go uses. It has no behaviour to port.
+
+- **X-204 `labels_value` is copied three times (WP-3-5, deviation 6).** `item_to_item.rs`,
+  `non_personalized.rs` and `reranker.rs` each have a private `labels_value`. The court checked the two
+  expression copies against D-228: both map a JSON number to a float, as Q-255 records. The third, in
+  `reranker.rs`, is a template value, which gonja prints as text, so it keeps the number's text. That
+  matches Go's template output, and it is not an expression value. Q-255 covers the first two.
+
+- **X-205 Neighbours come from an exact store (WP-3-5, deviation 7).** Go's `xvec` answers with HNSW, which
+  is approximate (O-30). The port's store scans exactly (X-75). Neighbour order at score ties and the last
+  bit of a score can therefore differ. The oracle compares around both (D-234).
+
+- **O-75 The master must pass processed items to the logics (WP-3-5, open).** The Rust master's item and
+  user update tasks must build `DatasetItem` and `DatasetUser` from the processed dataset, not from storage
+  items (D-WP35-2, D-233). That master code is not in WP-3-5. Open until the master WP merges.
+
+- **O-76 The REST work must confirm nil against empty results (WP-3-5, open).** X-201. Open until the REST
+  WP checks both encodings against Go's `server/rest.go` and `master/rest.go`.
+
 Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
 version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does
 this port; newer versions are not tested), MariaDB 10.2.44 (`mariadb:10.2`, CI's

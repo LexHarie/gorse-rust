@@ -31,7 +31,7 @@ Every Rust module names the Go files it ports with a
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-18, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); the frozen config.schema.json and config.keys.md match a fresh run of the Go generator byte for byte (X-49, closed 2026-10-28). WP-1-18 (dataset) is merged: Q-210 to Q-217, X-117 to X-129, O-51 and O-52 open, and the ml-1m test is ignored (O-1). Every Phase 1 WP is merged. All in `porting/work-packages.md` |
 | 2. Storage | exited (D-207) | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-3 (MongoDB data store, feature `mongodb`, MongoDB 6.0.28; O-53 open for 8.0; the `get_item_stream` doc is corrected, O-54). WP-2-11 (meta store, SQLite through rusqlite 0.39.0, D-160 to D-166; O-48 closed, O-49 and O-50 open for Phases 3 and 4). WP-2-2 (SQL data store, MySQL, Postgres and SQLite as one build; D-177 to D-181; O-36 closed by the SQL and MongoDB runs; O-57 and O-59 closed by the Go and Rust cross-reads on PostgreSQL, MySQL and SQLite, D-177 to D-181). WP-2-6 (SQL cache store: MySQL and Postgres on sqlx 0.9.0, SQLite on rusqlite 0.39.0; D-167 to D-175; Q-232 MySQL auth open). WP-2-9 (D-197 to D-200), WP-2-12 (D-202 to D-206) and WP-2-13 (D-186 to D-193) merged. The court audit of the env-gated backend tests is O-66 (D-201). Phase 2 exited (D-207): `test_gcs` stays ignored with its reason, and O-62 stays open for a real-GCS run before Phase 5. |
-| 3. Models and logics | in progress | Accepted: WP-3-1 (D-216), WP-3-4 (D-217), WP-3-2 (D-224), WP-3-3 (D-230, contract touches D-231) and WP-3-6 (D-229; Q-254 closed by D-232, Q-255 open). WP-3-5 can start now. WP-3-7 waits for WP-3-5 and WP-3-6, WP-3-8 needs the datasets (O-1, O-70 to O-72) |
+| 3. Models and logics | in progress | Accepted: WP-3-1 (D-216), WP-3-4 (D-217), WP-3-2 (D-224), WP-3-3 (D-230, contract touches D-231) WP-3-5 (D-234, design D-233), and WP-3-6 (D-229; Q-254 closed by D-232, Q-255 open). WP-3-7 is unblocked, as WP-3-5 and WP-3-6 are accepted. WP-3-8 needs the datasets (O-1, O-70 to O-72). The master must pass processed items (O-75), and REST must confirm nil against empty results (O-76) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
 
@@ -1994,6 +1994,53 @@ or accepts a metric gap outside the Go tests' own tolerances.
     --workspace --no-fail-fast`: TEST section 1085 passed, 0 failed, 54 ignored. That is 2 more than
     D-230's 1083, the two `Send` checks. The Redis TLS unset check exits 101, as O-66 expects.
   - Q-255 stays open. `WP-3-5` can now use `NonPersonalized` and the expression types across threads.
+  - Verdict: accepted.
+
+- **D-233 Design of the item-to-item and user-to-user logics (WP-3-5, the fold of D-WP35-1 to D-WP35-4).**
+  1. Enums over four concrete recommenders (D-WP35-1). Go's `ItemToItem` and `UserToUser` interfaces are
+     the enums `ItemToItem` and `UserToUser`. Each wraps one struct for a Go type: embedding, tags, users
+     and auto for items; embedding, tags, items and auto for users. Go's unexported constructors fold into
+     `new_item_to_item` and `new_user_to_user`, which dispatch on the configured type and read the IDF from
+     the options. Go's interface has a closed set of four implementations, so an enum needs no trait object
+     and no boxed future.
+  2. `add` takes the processed item (D-WP35-2). Go's master passes `dataset.GetItems()` and
+     `dataset.GetUsers()` to `Add` (`master/tasks.go` 816 to 818 and 865 to 867). The dataset's `AddItem`
+     and `AddUser` run `processLabels` (`dataset/dataset.go` 198 to 225), so Go's `Add` sees processed
+     labels. The port's `add` takes `DatasetItem` and `DatasetUser` for the same reason, and the master
+     must do the same (O-75). The non-personalised path reads raw storage items, as D-225 records.
+  3. The expression sees Go's types (D-WP35-3). The `item` variable is a `Value::Struct` of Go's
+     `data.Item`, and `user` one of `data.User`. A processed label is the Go value it is in Go:
+     `dataset.ID` a named `int32`, `[]dataset.ID` a slice of it, FP16 bits a `[]uint16`, and a map a
+     `map[string]any`. `data.Item.UpdateAt` is not copied by `AddItem`, so the port's `UpdateAt` is the
+     zero time, as in Go.
+  4. Go's type switches are exact (D-WP35-4). `flatten`, `floats.FromAny` and `anyToFloat32` match exact
+     types, and the port does the same. A named type such as `dataset.ID` does not convert.
+
+- **D-234 Court acceptance for WP-3-5 on the head `65e6308` (integrator, 2026-10-28).** The branch
+  `claude/wp-3-5-logics` is merged as `91a35815` on the integration head `1c4505a9`. The branch already
+  contains `1c4505a`, so the merge was clean. Q-254 is closed on this branch by D-232.
+  - The ports are `logics/item_to_item.go` and `user_to_user.go` @ add21b5, in `gorse-logics`. Fourteen
+    unit tests mirror the Go suite methods: eight item-to-item and six user-to-user, and each module's
+    `recommender_is_send_and_sync` is one of them. None is ignored.
+  - The Go oracle. `conformance/tests/item_to_item_oracle.rs` runs `contracts/tools/item2itemgolden` with
+    `go run`. It writes 40 seeded cases over eight kinds, and the test asserts 40. Stored vectors match bit
+    for bit. Each row's neighbours match as a set, and their scores agree within 1e-6 of `max(|score|, 1)`.
+    Only neighbours tied at the lowest score may differ (X-205). The test fails when the Go toolchain is
+    missing. The court read both early returns in the test: one follows an equal missing-collection flag,
+    and the other follows equal neighbour counts, which are asserted first. Neither skips a comparison.
+  - The court's mutation check. Changing the `auto` score scale from 0.5 to 1.0 at
+    `item_to_item.rs` line 331 makes `recommenders_match_go` fail (exit 101, a panic at
+    `item_to_item_oracle.rs` line 405). The file was restored byte for byte.
+  - The gate on the merged tree, with every URI set: fmt, clippy, rustdoc, the config and YAML goldens,
+    `go vet`, the cloud and Mongo clippy runs, the vector acceptance with `--include-ignored` (skipping
+    `vectors::weaviate::tests::sparse`, as D-224 records), the vector cross-read, the proxy conformance and
+    the proxy store tests all exit 0. `cargo test --workspace --no-fail-fast`: TEST section 1100 passed,
+    0 failed, 54 ignored. That is 15 more than D-232's 1085: 14 unit tests and the oracle. The Redis TLS
+    unset check exits 101, as O-66 expects. The thread's own gate had 23 failures, all in backend suites
+    without their services, and none with the URIs set.
+  - Open: O-75 (the master passes processed items), O-76 (the REST work confirms nil against empty results),
+    and Q-255 (`json.Number`, which the item and user label copies follow, X-204). Q-255 stays open until
+    Phase 5.
   - Verdict: accepted.
 
 ## Open questions for Ritchie
