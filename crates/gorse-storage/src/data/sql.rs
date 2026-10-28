@@ -3,15 +3,15 @@
 //! The SQL data store: MySQL, PostgreSQL and SQLite behind one
 //! [`Database`] (Go's `SQLDatabase`).
 //!
-//! The statements are written out in [`query`]-built SQL, with the dialect
-//! differences in the module that owns each table: [`items`], [`users`] and
-//! [`feedback`] hold the methods, [`search`] the full-text index, [`schema`]
-//! the `Init()` tables, [`time`] the time values and [`open`] the three
+//! The statements are written out in `query`-built SQL, with the dialect
+//! differences in the module that owns each table: `items`, `users` and
+//! `feedback` hold the methods, `search` the full-text index, `schema`
+//! the `Init()` tables, `time` the time values and `open` the three
 //! creators. The SQLite connections register the `json_contains` function Go
-//! registers (see [`sqlite`]).
+//! registers (see `sqlite`).
 //!
 //! The dialect is a value, not a type: one store holds one of three pools
-//! ([`Pools`]), and each method dispatches on it. The row decoders are generic
+//! (`Pools`), and each method dispatches on it. The row decoders are generic
 //! over the sqlx database, so each dispatch is one line.
 //!
 //! Deviations are logged in `PORTING_NOTES.md` (X-WP22-1 to X-WP22-6).

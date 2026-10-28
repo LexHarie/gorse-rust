@@ -7,7 +7,7 @@
 //! PostgreSQL a GIN index over `to_tsvector` expressions, and SQLite an FTS5
 //! table kept in step by three triggers. Each column expression is sorted
 //! before it is joined, so the index text does not depend on the order of the
-//! config (Go's `sort.Strings`, here [`gosort`]).
+//! config (Go's `sort.Strings`, here `gosort`).
 //!
 //! Go's matching checks compare the text of the existing index with the text
 //! this build would write, after lower-casing and dropping the spaces. The
