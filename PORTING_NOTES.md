@@ -2059,3 +2059,115 @@ said otherwise), so the Rust result is Go's.
 - Tests (the integrator's fold of the WP's notes): - `dataset/dict_test.go`, `index_test.go`, `unified_index_test.go` and `dataset_test.go` are ported in `src/{dict,index,unified_index,dataset}/tests.rs`, case for case. `TestDataset_LoadMovieLens1M` is ignored (O-1: it downloads ml-1m from cdn.gorse.io, which this container cannot reach). - Extra tests, not in Go: `index_unmarshal_drops_repeated_names`, `index_unmarshal_rejects_negative_length`, `unified_index_nil_round_trip`, `unified_index_unknown_type_tag`, `load_train_and_test_read_ncf_files` and `load_test_rejects_a_line_without_parentheses`. They cover the error paths and the file parsers, which only the ignored test reaches in Go.
 
 - Gates on the merge: - `cargo fmt --all --check`: exit 0. - `cargo clippy --workspace --all-targets -- -D warnings`: exit 0. - `cargo test --workspace --no-fail-fast`: exit 0. `gorse_dataset` unit tests: 18 passed, 0 failed, 1 ignored (`dataset_load_movie_lens_1m`, O-1). - `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps`: exit 0. - `cd contracts/tools && go vet ./...`: exit 0.
+
+## WP-2-3 MongoDB data store
+
+- **Q-218 `GetFeedback` with neither bound finds nothing.** Go always sets
+  the `timestamp` condition, to an empty document when both `beginTime` and
+  `endTime` are nil. An empty document matches only a time stamp equal to `{}`.
+  Probe against the Go store (MongoDB 6): `GetFeedback(nil, nil)` returned 0
+  records, `GetFeedback(nil, ts)` returned 2. The port always sets the
+  condition, as Go does.
+
+- **Q-219 `GetItemStream` keeps items strictly after `timeLimit`.** Go uses
+  `$gt`, where the SQL store uses `time_stamp >= ?` (`storage/data/sql.go:952`).
+  Probe: a limit equal to a stored time excluded that item, an earlier limit
+  included it. The port uses `$gt`.
+
+- **Q-220 The three streams ignore the context.** They run on
+  `context.Background()` in Go. The port does too: cancelling `ctx` does not stop
+  `GetUserStream`, `GetItemStream` or `GetFeedbackStream`.
+
+- **Q-221 Scan loops ignore cursor errors.** Go's loops never check `r.Err()`
+  (except `SearchItems`), so a cursor error ends the rows silently. The port
+  does the same, and returns the cursor error from `SearchItems` only.
+
+- **Q-222 `Reconcile` rebuilds the text index on every call.** `listIndexes`
+  reports a text index with the keys `_fts` and `_ftsx`
+  (`contracts/schema/data/mongodb.search.json`). `mongoSearchIndexKeysMatch`
+  compares the expected `field: "text"` keys with those, so it never matches:
+  Go drops `gorse_search_index` and creates it again on every call. The port
+  does the same.
+
+- **Q-223 JSON number labels are stored as numbers, not text.** The Go
+  driver's `JSONNumberEncodeValue` writes a `json.Number` as an int64 when its
+  text parses as one, and as a double otherwise. Probe: `n: 3` read back as
+  `int64`. `Labels::Number` is written the same way (`number_to_bson`).
+
+- **Q-224 Feedback cursor JSON.** The cursor is the base64 of
+  `json.Marshal(FeedbackKey)`, which escapes `<`, `>`, `&`, U+2028 and U+2029.
+  The port writes it with `go_json_quote`, so the bytes match Go's.
+
+- **Q-225 Cursors accept non-zero trailing bits.** Go's `StdEncoding` decodes
+  `QR==` to `A`. The crate's `STANDARD` engine rejects it, so the port uses its
+  own engine with `decode_allow_trailing_bits` (`GO_STANDARD`).
+
+- **Q-226 Upserts write whole structs.** `BatchInsertUsers` and
+  `BatchInsertItems` `$set` the whole struct, so a nil slice is `null` and a
+  nil label is `null`. `BatchInsertFeedback` inserts users and items with
+  `$setOnInsert` of the whole struct, so a new item has `categories: null`,
+  `labels: null`, `comment: ""` and the zero time stamp.
+
+- **Q-227 Feedback merge.** With `overwrite` false, the upsert uses `$inc`
+  on `value`, `$min` on `timestamp`, `$max` on `updated`, and `$set` on `labels`
+  and `comment`. The port uses the same operators.
+
+- **Q-228 Field names.** Go's BSON codec lower-cases the field names, so the
+  documents use `userid`, `itemid`, `ishidden`, `updateat` and
+  `feedbackkey.{feedbacktype,userid,itemid}`. The port writes the same names in
+  the same order.
+
+- **X-130 No `bulk_write`.** The Rust driver's `bulk_write` needs MongoDB 8.0,
+  and this store runs on 6.0 too (`mongo:6` in `storage/docker-compose.yml`).
+  Each write is sent on its own, in order, and the first error stops the batch,
+  as Go's ordered bulk write does. Batches cost one round trip per row. This is
+  the cache store's choice too (`cache/mongodb.rs`).
+
+- **X-131 `GetItems` and `GetUsers` with `n = 0`.** Go reads `items[n-1]` when
+  the page is full, so `n = 0` panics on an empty collection. The port returns an
+  empty cursor.
+
+- **X-132 Labels of an array's elements.** Go's `unpack` does not unpack the
+  elements of an array. The port unpacks them too. `ValidateLabels` keeps array
+  elements to strings and numbers, so Go's output is the same for every label
+  Gorse accepts.
+
+- **X-133 Labels that are int32 or int64.** Go keeps the typed value. `Labels`
+  has no integer variant, so the port holds it as `Labels::Number` with the same
+  JSON text.
+
+- **X-134 Labels of other BSON types.** A date, an ObjectId or a binary in a
+  label returns a backend error. Go returns the typed value. Gorse never writes
+  these, so only a document from another program can hold one.
+
+- **X-135 `ErrNotFound` text.** Go wraps `storage.ErrNotFound` as
+  `item <id> not found`. The port returns the sentinel with `Error::kind()`
+  matching `errors.Is`. The message text is not kept, as WP-2-1's `Error` has no
+  wrapped-text variant.
+
+- **X-136 Cursor keys match case-sensitively.** Go's `json.Unmarshal` matches
+  the `FeedbackKey` keys without regard to case. The port's `serde` matches them
+  exactly. Go's own cursors always use the exact names.
+
+- **X-137 `Close` returns `Ok` after shutdown.** The driver's `shutdown` gives
+  no error, where Go's `Disconnect` can return one.
+
+- **O-53 MongoDB 8.0 is not tested.** The suite ran on MongoDB 6.0.x, the
+  version in `storage/docker-compose.yml` and the schema dumps. The batch writes
+  do not use `bulk_write`, so 8.0 should behave the same, but this is not run.
+
+- **O-54 (closed at merge) The trait doc for `get_item_stream` was wrong for both stores.** It
+  says the stream skips items stamped after `time_limit`. Go's Mongo keeps them
+  (Q-219), and the SQL store skips items stamped before it. The doc in
+  `data/mod.rs` now states Go's behaviour for each store.
+
+- **O-55 The `connect` option mapping is copied.** `driver_uri` (the Go
+  `connect=direct` and `connect=automatic` options) and the BSON date helpers
+  are private copies of the ones in `cache/mongodb.rs`. They can move to one
+  shared module once the two stores are merged.
+
+- **O-56 (closed at merge) No built-in registration yet.** `mongodb::register` registers the
+  creator for both prefixes, as Go's `init` does. `data::register_builtin`, added at the merge,
+  registers it under the `mongodb` feature, as `cache::register_builtin` does.
+
+- Oracle evidence (the thread's run against MongoDB 6.0.28 and the Go TestMongo): - Go `TestMongo` at add21b5 against `mongo:6` (`MONGO_URI=mongodb://root:password@127.0.0.1:27017/`): 13 subtests PASS (`TestBatchGetItems` through `TestUsers`). - Go writes, Rust reads (`gorse_interop_go`): the user, both items (including the nil categories and labels), the feedback with its labels, and the three counts match the Go values. - Rust writes, Go reads (`gorse_interop_rs`): the same records read back in Go with the same values; the counts are 1, 2 and 2.
