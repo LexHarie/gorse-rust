@@ -283,7 +283,7 @@ correction below states the evidence.
   (`tokio-util`'s `CancellationToken` is async only, and the schedulers'
   callers block on the context from plain threads).
 
-- **C-30 The shared suite is run by the xvec tests only.** `testQuantization`
+0 The shared suite is run by the xvec tests only.** `testQuantization`
   in `database_test.go` is called only from the Qdrant and Milvus suites. It is
   ported in `suite.rs` and run for xvec with `QuantizationNone`, the one
   quantization xvec accepts (`xvec::tests::quantization_none`). WP-2-9 calls
@@ -296,6 +296,8 @@ correction below states the evidence.
   head. The xvec store does its file IO and scans on tokio's blocking pool
   (`spawn_blocking`), and holds no std lock across an `.await`. WP-2-9 and
   WP-2-12 use the same shape.
+
+- **C-32 The Redis crate moves to 1.8.0, with `connection-manager`.** The crate choice in `porting/crate-selection.md` (`redis`, with `tokio-comp` and `cluster-async`) is unchanged. Its version was 1.7.1, and Ritchie's rule of 2026-10-17 requires the latest stable version (1.8.0; checked against the crates.io index). `connection-manager` is added so a store reconnects by itself, as go-redis does. `tokio-rustls-comp` enables `tls-rustls`, which gives `rediss://` its rustls TLS (X-102). `tls-rustls-insecure` gives `skip_verify=true` its insecure mode, which go-redis also honours (Q-202). `base64` (0.23.1) is an optional dependency of the `redis` feature, for category encoding. `tokio` is a normal dependency of the crate, since the blob stores need it, and the Redis store's lazy connection uses its `sync` feature.
 
 ## Decision log
 
