@@ -437,7 +437,7 @@ impl Feature {
 
 /// The scalar loops of `floats.go` and `mm.go`.
 mod native {
-    use super::{Feature, f16_bits_to_f32, f32_to_f16_bits};
+    use super::{Feature, add_first, f16_bits_to_f32, f32_to_f16_bits, mul_first};
 
     pub(super) fn from_float32(a: &[f32], dst: &mut [u16]) {
         for (d, &x) in dst.iter_mut().zip(a) {
@@ -451,10 +451,13 @@ mod native {
         }
     }
 
+    // The operands of `+` and `*` are in the order of the instructions Go
+    // compiles, which decides which NaN a result carries (see `add_first`).
+
     pub(super) fn dot(a: &[f32], b: &[f32]) -> f32 {
         let mut ret = 0.0_f32;
         for (&x, &y) in a.iter().zip(b) {
-            ret += x * y;
+            ret = add_first(ret, mul_first(x, y));
         }
         ret
     }
@@ -462,14 +465,14 @@ mod native {
     pub(super) fn euclidean(a: &[f32], b: &[f32]) -> f32 {
         let mut ret = 0.0_f32;
         for (&x, &y) in a.iter().zip(b) {
-            ret += (x - y) * (x - y);
+            ret = add_first(ret, (x - y) * (x - y));
         }
         ret.sqrt()
     }
 
     pub(super) fn add_const(a: &mut [f32], c: f32) {
         for x in a {
-            *x += c;
+            *x = add_first(*x, c);
         }
     }
 
@@ -487,31 +490,32 @@ mod native {
 
     pub(super) fn mul_to(a: &[f32], b: &[f32], c: &mut [f32]) {
         for ((z, &x), &y) in c.iter_mut().zip(a).zip(b) {
-            *z = x * y;
+            *z = mul_first(x, y);
         }
     }
 
     pub(super) fn mul_const_add_to(a: &[f32], b: f32, c: &[f32], dst: &mut [f32]) {
         for ((d, &x), &y) in dst.iter_mut().zip(a).zip(c) {
-            *d = x * b + y;
+            *d = add_first(mul_first(x, b), y);
         }
     }
 
+    /// `dst[i] += a[i] * c`, which Go computes as `a[i] * c + dst[i]`.
     pub(super) fn mul_const_add(a: &[f32], c: f32, dst: &mut [f32]) {
         for (d, &x) in dst.iter_mut().zip(a) {
-            *d += x * c;
+            *d = add_first(mul_first(x, c), *d);
         }
     }
 
     pub(super) fn mul_const_to(a: &[f32], b: f32, c: &mut [f32]) {
         for (z, &x) in c.iter_mut().zip(a) {
-            *z = x * b;
+            *z = mul_first(x, b);
         }
     }
 
     pub(super) fn mul_const(a: &mut [f32], b: f32) {
         for x in a {
-            *x *= b;
+            *x = mul_first(*x, b);
         }
     }
 
@@ -582,7 +586,10 @@ mod native {
                 for i in 0..m {
                     for j in 0..n {
                         for l in 0..k {
-                            c[i * ldc + j] += a[l * lda + i] * b[j * ldb + l];
+                            c[i * ldc + j] = add_first(
+                                c[i * ldc + j],
+                                mul_first(a[l * lda + i], b[j * ldb + l]),
+                            );
                         }
                     }
                 }
@@ -707,7 +714,7 @@ pub fn sub_to(a: &[f32], b: &[f32], dst: &mut [f32]) {
 pub fn add(dst: &mut [f32], s: &[f32]) {
     check(dst.len() == s.len());
     for (d, &x) in dst.iter_mut().zip(s) {
-        *d += x;
+        *d = add_first(*d, x);
     }
 }
 
@@ -749,11 +756,11 @@ pub fn mul_const_add(a: &[f32], c: f32, dst: &mut [f32]) {
     Feature::current().mul_const_add(a, c, dst);
 }
 
-/// `MulAddTo`: `c += a * b`.
+/// `MulAddTo`: `c += a * b`, which Go computes as `a * b + c`.
 pub fn mul_add_to(a: &[f32], b: &[f32], c: &mut [f32]) {
     check(a.len() == b.len() && a.len() == c.len());
     for ((z, &x), &y) in c.iter_mut().zip(a).zip(b) {
-        *z += x * y;
+        *z = add_first(mul_first(x, y), *z);
     }
 }
 
@@ -761,7 +768,37 @@ pub fn mul_add_to(a: &[f32], b: &[f32], c: &mut [f32]) {
 pub fn add_to(a: &[f32], b: &[f32], dst: &mut [f32]) {
     check(a.len() == b.len() && a.len() == dst.len());
     for ((d, &x), &y) in dst.iter_mut().zip(a).zip(b) {
-        *d = x + y;
+        *d = add_first(x, y);
+    }
+}
+
+/// `x + y` as Go computes it on amd64, with `ADDSS y, x`: when both are NaNs
+/// the result is `x` quieted, as x86 returns the NaN of the first operand
+/// (Intel SDM vol. 1, table 4-7). LLVM may swap the operands of `+`, which
+/// would carry `y`'s NaN instead, so the NaN is chosen here.
+#[inline]
+pub(crate) fn add_first(x: f32, y: f32) -> f32 {
+    first_nan(x, y, x + y)
+}
+
+/// `x * y` with `x`'s NaN first, as [`add_first`].
+#[inline]
+pub(crate) fn mul_first(x: f32, y: f32) -> f32 {
+    first_nan(x, y, x * y)
+}
+
+/// `r`, the result of an x86 arithmetic instruction on `x` and `y`, with the
+/// NaN that instruction returns when `x` or `y` is one: `x`'s, else `y`'s,
+/// quieted.
+#[inline]
+fn first_nan(x: f32, y: f32, r: f32) -> f32 {
+    const QUIET: u32 = 0x0040_0000;
+    if x.is_nan() {
+        f32::from_bits(x.to_bits() | QUIET)
+    } else if y.is_nan() {
+        f32::from_bits(y.to_bits() | QUIET)
+    } else {
+        r
     }
 }
 

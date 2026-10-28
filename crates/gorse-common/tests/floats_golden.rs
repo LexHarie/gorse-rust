@@ -31,24 +31,46 @@ struct Outcome {
     empty_panics: bool,
 }
 
-/// splitmix64, as `rng` in the generator.
-struct Rng(u64);
+/// splitmix64, as `rng` in the generator, with its `specials`: NaNs of
+/// random payloads and signs, quiet and signaling, infinities and zeros mixed
+/// in with the ordinary values.
+struct Rng {
+    state: u64,
+    specials: bool,
+}
 
 impl Rng {
     fn seed(index: u64, n: usize) -> Rng {
-        Rng(index << 32 | u64::try_from(n).expect("length"))
+        Rng {
+            state: index << 32 | u64::try_from(n).expect("length"),
+            specials: false,
+        }
     }
 
     fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9e37_79b9_7f4a_7c15);
-        let mut z = self.0;
+        self.state = self.state.wrapping_add(0x9e37_79b9_7f4a_7c15);
+        let mut z = self.state;
         z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
         z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
         z ^ (z >> 31)
     }
 
-    /// A multiple of 2^-23 in [-1, 1).
+    /// A multiple of 2^-23 in [-1, 1), or with `specials`, one time in two a
+    /// special value.
     fn float(&mut self) -> f32 {
+        if self.specials {
+            let k = self.next();
+            if k.is_multiple_of(2) {
+                let sign = (k >> 8) as u32 & 0x8000_0000;
+                let payload = (k >> 16) as u32 & 0x3f_ffff;
+                return f32::from_bits(match (k >> 1) % 4 {
+                    0 => sign | 0x7fc0_0000 | payload,
+                    1 => sign | 0x7f80_0000 | payload | 1,
+                    2 => sign | 0x7f80_0000,
+                    _ => sign,
+                });
+            }
+        }
         let v = i32::try_from(self.next() >> 40).expect("24 bits") - (1 << 23);
         v as f32 / (1 << 23) as f32
     }
@@ -362,6 +384,7 @@ fn every_level_matches_go() {
     let golden = load();
     let functions = functions();
     let mut checked = 0;
+    let mut mismatches = Vec::new();
     for (level, godebug) in LEVELS {
         let f = Feature::detect(Some(godebug));
         if level_name(f) != level {
@@ -385,42 +408,61 @@ fn every_level_matches_go() {
         let expected = &golden.levels[level];
         assert_eq!(
             expected.len(),
-            functions.len() + TRANSPOSES.len(),
+            2 * (functions.len() + TRANSPOSES.len()),
             "{level}: functions"
         );
-        for (index, (name, run, empty)) in functions.iter().enumerate() {
-            let outcome = &expected[*name];
-            assert_eq!(outcome.hashes.len(), golden.lengths.len());
-            for (&n, want) in golden.lengths.iter().zip(&outcome.hashes) {
-                let mut h = Hasher::default();
-                run(f, &mut Rng::seed(index as u64, n), n, &mut h);
-                assert_eq!(&h.sum(), want, "{level}: {name} on length {n}");
+        // Ordinary inputs, then inputs with special values under
+        // "specials/<name>" with seeds offset by 1000, as the generator does.
+        for (specials, prefix, offset) in [(false, "", 0), (true, "specials/", 1000)] {
+            let rng = |index: u64, n: usize| Rng {
+                specials,
+                ..Rng::seed(offset + index, n)
+            };
+            for (index, (name, run, empty)) in functions.iter().enumerate() {
+                let name = format!("{prefix}{name}");
+                let outcome = &expected[&name];
+                assert_eq!(outcome.hashes.len(), golden.lengths.len());
+                for (&n, want) in golden.lengths.iter().zip(&outcome.hashes) {
+                    let mut h = Hasher::default();
+                    run(f, &mut rng(index as u64, n), n, &mut h);
+                    if &h.sum() != want {
+                        mismatches.push(format!("{level}: {name} on length {n}"));
+                    }
+                }
+                check_empty(level, &name[prefix.len()..], outcome.empty_panics);
+                empty(f);
             }
-            check_empty(level, name, outcome.empty_panics);
-            empty(f);
-        }
-        for (j, (trans_a, trans_b)) in TRANSPOSES.into_iter().enumerate() {
-            let name = format!("mm_{trans_a}_{trans_b}");
-            let outcome = &expected[&name];
-            assert_eq!(outcome.hashes.len(), golden.shapes.len());
-            for (s, (&shape, want)) in golden.shapes.iter().zip(&outcome.hashes).enumerate() {
-                let mut h = Hasher::default();
-                run_mm(
-                    f,
-                    trans_a,
-                    trans_b,
-                    &mut Rng::seed(100 + j as u64, s),
-                    shape,
-                    &mut h,
-                );
-                assert_eq!(&h.sum(), want, "{level}: {name} on shape {shape:?}");
+            for (j, (trans_a, trans_b)) in TRANSPOSES.into_iter().enumerate() {
+                let name = format!("{prefix}mm_{trans_a}_{trans_b}");
+                let outcome = &expected[&name];
+                assert_eq!(outcome.hashes.len(), golden.shapes.len());
+                for (s, (&shape, want)) in golden.shapes.iter().zip(&outcome.hashes).enumerate() {
+                    let mut h = Hasher::default();
+                    run_mm(
+                        f,
+                        trans_a,
+                        trans_b,
+                        &mut rng(100 + j as u64, s),
+                        shape,
+                        &mut h,
+                    );
+                    if &h.sum() != want {
+                        mismatches.push(format!("{level}: {name} on shape {shape:?}"));
+                    }
+                }
+                check_empty(level, &name[prefix.len()..], outcome.empty_panics);
+                f.mm(trans_a, trans_b, 0, 0, 0, &[], 0, &[], 0, &mut [], 0);
             }
-            check_empty(level, &name, outcome.empty_panics);
-            f.mm(trans_a, trans_b, 0, 0, 0, &[], 0, &[], 0, &mut [], 0);
         }
         checked += 1;
-        eprintln!("level {level} ({f}) matches Go");
+        eprintln!("level {level} ({f}) checked");
     }
+    assert!(
+        mismatches.is_empty(),
+        "{} results differ from Go's:\n{}",
+        mismatches.len(),
+        mismatches.join("\n")
+    );
     assert!(checked > 0, "no level of the golden file runs on this CPU");
 }
 

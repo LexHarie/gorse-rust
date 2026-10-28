@@ -238,6 +238,17 @@ correction below states the evidence.
   test passes. The port (`scan.rs`, `gotenv_test_scanner`) asserts Go 1.27's
   lines, Q-125.
 
+
+
+- **C-26 The `%v` float printers of WP-1-7 and WP-1-19 must settle ties as Go does
+  (WP-1-15 config drafts).** `gorse-common/src/expression.rs` (WP-1-7) and
+  `gorse-expr/src/gostr.rs` (WP-1-19) took Rust's shortest digits as they are, so a
+  feedback type expression or an expr-lang float literal at a shortest-digit tie
+  printed differently from Go. Both now call `gostrconv::format_float(v, b'g', -1, 64)`;
+  `gorse-expr` depends on `gorse-common` for it. `expression_golden.json` gained 2^-25
+  (format cases) and its decimal form (parse cases); the old code fails them. Found
+  by the config-drafts thread's ftoa work.
+
 ## Decision log
 
 Ritchie's instruction of 2026-10-17 02:58Z, "btw don't do PRs. Just
@@ -709,6 +720,30 @@ or accepts a metric gap outside the Go tests' own tolerances.
   golden, 11 gotenv, 6 TOML deep (1 ignored), 1 TOML golden with 10,970 cases,
   24 TOML unit), `cargo clippy -p gorse-config --all-targets -- -D warnings` and
   `cargo fmt --all --check` pass.
+
+- **D-79 Operand order of `+` and `*` on NaN (WP-1-3 `floats.rs`).** Go
+  computes `dst[i] += c` as `ADDSS X0, X1`, with the destination element first
+  (`go tool objdump` of the golden tool, `Feature.addConst`, `floats.go:126`).
+  `Feature.mulConstAdd` (`floats.go:156`) computes `(a[i] * c) + dst[i]` as
+  `MULSS X0, X1` followed by `ADDSS 0(SI)(AX*4), X1`. When both operands are
+  NaN, x86 SSE returns the NaN of the first source operand (Intel SDM vol. 1,
+  table 4-7), and LLVM may swap the operands of `+` and `*`. The change adds
+  `add_first`, `mul_first` and `first_nan` (`floats.rs`). Each operation the
+  Go code performs with the destination first now goes through them: the native
+  kernels (`add`, `add_to`, `add_const`, `mul_to`, `mul_const_add`,
+  `mul_add_to`, `dot`, `euclidean`, the scalar `mm`) and the public `add` and
+  `mul_add_to`. The release golden is the test (see Evidence).
+
+- **D-80 `Exp` in `nn::deps`.** `deps::exp` calls WP-1-4's
+  `util::rand::math::exp_with`, with the FMA choice from `Feature::current()`,
+  which honours `GODEBUG` as Go's `internal/cpu` does. `util::rand::math` itself
+  was a copy here until this part; `util::rand` now exposes `math` to the crate
+  (`pub(crate) mod math`). See O-14.
+
+- **D-81 Go's top-level `rand` in `nn::deps::global`.** Used where Go calls
+  `rand.NormFloat64` and `rand.Perm` without a generator (`TestSaveAndLoad`'s
+  spiral, and `rand(None, ..)` and `normal_init(None, ..)`). Go seeds that source
+  randomly, so no test depends on its values, and nothing else uses it.
 
 ## Open questions for Ritchie
 
