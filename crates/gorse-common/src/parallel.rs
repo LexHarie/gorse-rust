@@ -763,12 +763,17 @@ mod tests {
         let caught = panic::catch_unwind(AssertUnwindSafe(|| {
             detachable(&ctx, 1000, 2, 2, |c, job_id| {
                 started.fetch_add(1, Ordering::SeqCst);
-                c.detach();
                 if job_id == 0 {
+                    c.detach();
                     let _unwound = Unwound(&unwound);
                     panic!("job {job_id}");
                 }
+                // Only job 0 detaches before it has unwound. A job that detached
+                // while it waited could take both detached slots before job 0
+                // started, and then job 0 could never detach to panic. Go's
+                // Detach blocks in the same way.
                 wait_for(&unwound);
+                c.detach();
                 thread::sleep(Duration::from_millis(1));
                 c.attach();
             })
