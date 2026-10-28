@@ -1155,6 +1155,18 @@ dependencies = [
 [[package]]
 name = "gorse-conformance"
 version = "0.0.0"
+dependencies = [
+ "futures-core",
+ "futures-util",
+ "gorse-common",
+ "gorse-storage",
+ "indexmap",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+]
 
 [[package]]
 name = "gorse-dataset"

@@ -1,18 +1,13 @@
-//! The Rust peer of the proxy wire check that `contracts/tools/proxygolden` runs
-//! against Go (WP-2-12). Ports: `contracts/tools/proxygolden`.
-//!
-//! Build it with the SQL features, which the data store needs:
-//!
-//! ```text
-//! cargo build -p gorse-storage --example proxy_peer --features mysql,postgres,sqlite
-//! ```
+//! The Rust peer of the proxy wire check (WP-2-12). `tests/proxy_wire.rs` runs
+//! it against Go's proxies through `contracts/tools/proxygolden`, in both
+//! directions. Ports: `contracts/tools/proxygolden`.
 //!
 //! - `proxy_peer serve` serves the Rust proxy servers on a free local port,
 //!   prints `listening <addr>`, and exits when stdin closes.
 //! - `proxy_peer client <addr>` runs the scenario through the Rust proxy clients
 //!   on `<addr>`, and prints the transcript.
 
-#[path = "../tests/common/proxy_scenario.rs"]
+#[path = "../../../crates/gorse-storage/tests/common/proxy_scenario.rs"]
 mod proxy_scenario;
 
 use std::error::Error;

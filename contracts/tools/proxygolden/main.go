@@ -16,16 +16,18 @@
 // {"err":text}. Records are written as maps, so their keys are sorted, and
 // every error is the text Go's client shows.
 //
-// Usage (from the repository root):
+// The Rust side is the proxy_peer binary of the conformance crate
+// (conformance/src/bin/proxy_peer.rs). conformance/tests/proxy_wire.rs runs
+// these modes under `cargo test -p gorse-conformance proxy`, so the checks need
+// no manual steps. By hand, from the repository root:
 //
 //	go run ./contracts/tools/proxygolden \
 //		-out crates/gorse-storage/tests/data/proxy_transcript.txt
-//	cargo build -p gorse-storage --example proxy_peer \
-//		--features mysql,postgres,sqlite
+//	cargo build -p gorse-conformance --bin proxy_peer
 //	go run ./contracts/tools/proxygolden \
-//		-rust-server target/debug/examples/proxy_peer
+//		-rust-server target/debug/proxy_peer
 //	go run ./contracts/tools/proxygolden \
-//		-rust-client target/debug/examples/proxy_peer
+//		-rust-client target/debug/proxy_peer
 package main
 
 import (

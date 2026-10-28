@@ -4,8 +4,8 @@
 // Go's client and server produce is the golden file
 // `tests/data/proxy_transcript.txt`, so each line here must match Go's line.
 //
-// Both tests/proxy_wire.rs and examples/proxy_peer.rs include this file, so
-// the scenario is the same wherever it runs.
+// tests/proxy_wire.rs (this crate) and conformance/src/bin/proxy_peer.rs include
+// this file, so the scenario is the same wherever it runs.
 
 use std::fmt::Display;
 
