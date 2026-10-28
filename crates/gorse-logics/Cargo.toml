@@ -16,8 +16,9 @@ gorse-expr = { workspace = true }
 gorse-storage-core = { workspace = true }
 gorse-storage = { workspace = true }
 # The vector writer holds its lock across the store's awaits, as Go holds
-# `mu` across the store's calls.
-tokio = { workspace = true, features = ["sync"] }
+# `mu` across the store's calls. The external recommender runs its script on a
+# blocking thread (`recommend.rs`).
+tokio = { workspace = true, features = ["sync", "rt"] }
 minijinja.workspace = true
 reqwest.workspace = true
 rquickjs.workspace = true
@@ -27,6 +28,8 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+gorse-storage = { workspace = true, features = ["mysql", "postgres", "sqlite"] }
+indexmap = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
 
