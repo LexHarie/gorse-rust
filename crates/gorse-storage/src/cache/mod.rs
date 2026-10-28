@@ -33,6 +33,8 @@ pub mod mongodb;
 pub mod no_database;
 #[cfg(feature = "redis")]
 pub mod redis;
+#[cfg(any(feature = "mysql", feature = "postgres", feature = "sqlite"))]
+pub mod sql;
 
 #[cfg(test)]
 mod database_test;
@@ -536,7 +538,15 @@ pub fn register_builtin(registry: &mut Registry) {
     registry.register(&[MONGO_PREFIX, MONGO_SRV_PREFIX], mongodb::creator);
     #[cfg(feature = "redis")]
     redis::register(registry);
-    #[cfg(not(any(feature = "mongodb", feature = "redis")))]
+    #[cfg(any(feature = "mysql", feature = "postgres", feature = "sqlite"))]
+    sql::register(registry);
+    #[cfg(not(any(
+        feature = "mongodb",
+        feature = "redis",
+        feature = "mysql",
+        feature = "postgres",
+        feature = "sqlite"
+    )))]
     let _ = registry;
 }
 

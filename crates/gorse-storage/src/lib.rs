@@ -10,4 +10,6 @@ pub mod blob;
 pub mod cache;
 pub mod data;
 pub mod meta;
+#[cfg(any(feature = "mysql", feature = "postgres", feature = "sqlite"))]
+pub mod sqlconn;
 pub mod vectors;
