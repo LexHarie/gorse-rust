@@ -1,0 +1,566 @@
+{
+ "labels": [
+  {
+   "name": "nil",
+   "labels": {
+    "kind": "nil"
+   },
+   "error": null
+  },
+  {
+   "name": "empty_list",
+   "labels": {
+    "items": [],
+    "kind": "array"
+   },
+   "error": null
+  },
+  {
+   "name": "strings",
+   "labels": {
+    "items": [
+     {
+      "kind": "string",
+      "value": "a"
+     },
+     {
+      "kind": "string",
+      "value": "b"
+     }
+    ],
+    "kind": "array"
+   },
+   "error": null
+  },
+  {
+   "name": "numbers",
+   "labels": {
+    "items": [
+     {
+      "kind": "number",
+      "text": "1"
+     },
+     {
+      "kind": "number",
+      "text": "2.50"
+     }
+    ],
+    "kind": "array"
+   },
+   "error": null
+  },
+  {
+   "name": "mixed_string_first",
+   "labels": {
+    "items": [
+     {
+      "kind": "string",
+      "value": "a"
+     },
+     {
+      "kind": "number",
+      "text": "1"
+     }
+    ],
+    "kind": "array"
+   },
+   "error": "unsupported labels: [\"a\",1]"
+  },
+  {
+   "name": "mixed_number_first",
+   "labels": {
+    "items": [
+     {
+      "kind": "number",
+      "text": "1"
+     },
+     {
+      "kind": "string",
+      "value": "a"
+     }
+    ],
+    "kind": "array"
+   },
+   "error": "unsupported labels: [1,\"a\"]"
+  },
+  {
+   "name": "nil_first",
+   "labels": {
+    "items": [
+     {
+      "kind": "nil"
+     }
+    ],
+    "kind": "array"
+   },
+   "error": "unsupported labels: [null]"
+  },
+  {
+   "name": "bool_first",
+   "labels": {
+    "items": [
+     {
+      "kind": "bool",
+      "value": true
+     }
+    ],
+    "kind": "array"
+   },
+   "error": "unsupported labels: [true]"
+  },
+  {
+   "name": "nested_list_first",
+   "labels": {
+    "items": [
+     {
+      "items": [
+       {
+        "kind": "number",
+        "text": "1"
+       }
+      ],
+      "kind": "array"
+     }
+    ],
+    "kind": "array"
+   },
+   "error": "unsupported labels: [[1]]"
+  },
+  {
+   "name": "object_first",
+   "labels": {
+    "items": [
+     {
+      "entries": [
+       {
+        "key": "a",
+        "value": {
+         "kind": "number",
+         "text": "1"
+        }
+       }
+      ],
+      "kind": "object"
+     }
+    ],
+    "kind": "array"
+   },
+   "error": "unsupported labels: [{\"a\":1}]"
+  },
+  {
+   "name": "float_first",
+   "labels": {
+    "items": [
+     {
+      "kind": "float64",
+      "value": 1.5
+     },
+     {
+      "kind": "string",
+      "value": "x"
+     }
+    ],
+    "kind": "array"
+   },
+   "error": "unsupported labels: [1.5,\"x\"]"
+  },
+  {
+   "name": "float_big",
+   "labels": {
+    "items": [
+     {
+      "kind": "float64",
+      "value": 1e+21
+     }
+    ],
+    "kind": "array"
+   },
+   "error": "unsupported labels: [1e+21]"
+  },
+  {
+   "name": "html_in_string",
+   "labels": {
+    "items": [
+     {
+      "kind": "string",
+      "value": "\u003ca\u003e"
+     },
+     {
+      "kind": "number",
+      "text": "1"
+     }
+    ],
+    "kind": "array"
+   },
+   "error": "unsupported labels: [\"\\u003ca\\u003e\",1]"
+  },
+  {
+   "name": "string_then_nil",
+   "labels": {
+    "items": [
+     {
+      "kind": "string",
+      "value": "x"
+     },
+     {
+      "kind": "string",
+      "value": "y"
+     },
+     {
+      "kind": "nil"
+     }
+    ],
+    "kind": "array"
+   },
+   "error": "unsupported labels: [\"x\",\"y\",null]"
+  },
+  {
+   "name": "map_of_valid",
+   "labels": {
+    "entries": [
+     {
+      "key": "city",
+      "value": {
+       "kind": "string",
+       "value": "wenzhou"
+      }
+     },
+     {
+      "key": "n",
+      "value": {
+       "items": [
+        {
+         "kind": "number",
+         "text": "1"
+        }
+       ],
+       "kind": "array"
+      }
+     },
+     {
+      "key": "tags",
+      "value": {
+       "items": [
+        {
+         "kind": "string",
+         "value": "1"
+        },
+        {
+         "kind": "string",
+         "value": "2"
+        }
+       ],
+       "kind": "array"
+      }
+     }
+    ],
+    "kind": "object"
+   },
+   "error": null
+  },
+  {
+   "name": "nested_maps",
+   "labels": {
+    "entries": [
+     {
+      "key": "x",
+      "value": {
+       "entries": [
+        {
+         "key": "y",
+         "value": {
+          "entries": [
+           {
+            "key": "z",
+            "value": {
+             "items": [
+              {
+               "kind": "number",
+               "text": "1"
+              },
+              {
+               "kind": "number",
+               "text": "2"
+              }
+             ],
+             "kind": "array"
+            }
+           }
+          ],
+          "kind": "object"
+         }
+        }
+       ],
+       "kind": "object"
+      }
+     }
+    ],
+    "kind": "object"
+   },
+   "error": null
+  },
+  {
+   "name": "map_with_bool",
+   "labels": {
+    "entries": [
+     {
+      "key": "ok",
+      "value": {
+       "kind": "bool",
+       "value": true
+      }
+     }
+    ],
+    "kind": "object"
+   },
+   "error": "unsupported type in labels: bool"
+  },
+  {
+   "name": "map_with_float",
+   "labels": {
+    "entries": [
+     {
+      "key": "price",
+      "value": {
+       "kind": "float64",
+       "value": 1.5
+      }
+     }
+    ],
+    "kind": "object"
+   },
+   "error": "unsupported type in labels: float64"
+  },
+  {
+   "name": "map_list_of_float",
+   "labels": {
+    "entries": [
+     {
+      "key": "a",
+      "value": {
+       "items": [
+        {
+         "kind": "float64",
+         "value": 1.5
+        }
+       ],
+       "kind": "array"
+      }
+     }
+    ],
+    "kind": "object"
+   },
+   "error": "unsupported labels: [1.5]"
+  },
+  {
+   "name": "map_list_mixed",
+   "labels": {
+    "entries": [
+     {
+      "key": "a",
+      "value": {
+       "items": [
+        {
+         "kind": "number",
+         "text": "1"
+        },
+        {
+         "kind": "string",
+         "value": "2"
+        }
+       ],
+       "kind": "array"
+      }
+     }
+    ],
+    "kind": "object"
+   },
+   "error": "unsupported labels: [1,\"2\"]"
+  },
+  {
+   "name": "map_deep_bool",
+   "labels": {
+    "entries": [
+     {
+      "key": "a",
+      "value": {
+       "entries": [
+        {
+         "key": "b",
+         "value": {
+          "items": [
+           {
+            "kind": "bool",
+            "value": true
+           }
+          ],
+          "kind": "array"
+         }
+        }
+       ],
+       "kind": "object"
+      }
+     }
+    ],
+    "kind": "object"
+   },
+   "error": "unsupported labels: [true]"
+  },
+  {
+   "name": "string_value",
+   "labels": {
+    "kind": "string",
+    "value": "label"
+   },
+   "error": null
+  },
+  {
+   "name": "number_value",
+   "labels": {
+    "kind": "number",
+    "text": "1"
+   },
+   "error": null
+  },
+  {
+   "name": "exponent_number",
+   "labels": {
+    "kind": "number",
+    "text": "1e2"
+   },
+   "error": null
+  },
+  {
+   "name": "bool_value",
+   "labels": {
+    "kind": "bool",
+    "value": true
+   },
+   "error": "unsupported type in labels: bool"
+  },
+  {
+   "name": "float_value",
+   "labels": {
+    "kind": "float64",
+    "value": 1.5
+   },
+   "error": "unsupported type in labels: float64"
+  }
+ ],
+ "marshal": [
+  {
+   "type": "Item",
+   "name": "all_fields",
+   "input": "{\"ItemId\":\"1\",\"IsHidden\":true,\"Categories\":[\"a\",\"b\"],\"Timestamp\":\"2000-10-01T12:30:00.5+08:00\",\"Labels\":{\"z\":1.50,\"a\":[1e2,\"x\"]},\"Comment\":\"\u003cc\u003e\u0026\"}",
+   "output": "{\"ItemId\":\"1\",\"IsHidden\":true,\"Categories\":[\"a\",\"b\"],\"Timestamp\":\"2000-10-01T12:30:00.5+08:00\",\"Labels\":{\"a\":[100,\"x\"],\"z\":1.5},\"Comment\":\"\\u003cc\\u003e\\u0026\"}"
+  },
+  {
+   "type": "Item",
+   "name": "missing_fields",
+   "input": "{\"ItemId\":\"2\"}",
+   "output": "{\"ItemId\":\"2\",\"IsHidden\":false,\"Categories\":null,\"Timestamp\":\"0001-01-01T00:00:00Z\",\"Labels\":null,\"Comment\":\"\"}"
+  },
+  {
+   "type": "Item",
+   "name": "null_categories",
+   "input": "{\"ItemId\":\"3\",\"Categories\":null,\"Labels\":null}",
+   "output": "{\"ItemId\":\"3\",\"IsHidden\":false,\"Categories\":null,\"Timestamp\":\"0001-01-01T00:00:00Z\",\"Labels\":null,\"Comment\":\"\"}"
+  },
+  {
+   "type": "Item",
+   "name": "empty_categories",
+   "input": "{\"ItemId\":\"4\",\"Categories\":[]}",
+   "output": "{\"ItemId\":\"4\",\"IsHidden\":false,\"Categories\":[],\"Timestamp\":\"0001-01-01T00:00:00Z\",\"Labels\":null,\"Comment\":\"\"}"
+  },
+  {
+   "type": "Item",
+   "name": "unknown_and_update_at_ignored",
+   "input": "{\"UpdateAt\":\"2001-01-01T00:00:00Z\",\"ItemId\":\"5\",\"Extra\":1}",
+   "output": "{\"ItemId\":\"5\",\"IsHidden\":false,\"Categories\":null,\"Timestamp\":\"0001-01-01T00:00:00Z\",\"Labels\":null,\"Comment\":\"\"}"
+  },
+  {
+   "type": "Item",
+   "name": "utc_time_with_nanoseconds",
+   "input": "{\"ItemId\":\"6\",\"Timestamp\":\"2020-01-02T03:04:05.123456789Z\"}",
+   "output": "{\"ItemId\":\"6\",\"IsHidden\":false,\"Categories\":null,\"Timestamp\":\"2020-01-02T03:04:05.123456789Z\",\"Labels\":null,\"Comment\":\"\"}"
+  },
+  {
+   "type": "Item",
+   "name": "big_number_label",
+   "input": "{\"ItemId\":\"7\",\"Labels\":12345678901234567890}",
+   "output": "{\"ItemId\":\"7\",\"IsHidden\":false,\"Categories\":null,\"Timestamp\":\"0001-01-01T00:00:00Z\",\"Labels\":12345678901234567000,\"Comment\":\"\"}"
+  },
+  {
+   "type": "Item",
+   "name": "exponent_label",
+   "input": "{\"ItemId\":\"8\",\"Labels\":[1e21, 1e-7, 0.000001]}",
+   "output": "{\"ItemId\":\"8\",\"IsHidden\":false,\"Categories\":null,\"Timestamp\":\"0001-01-01T00:00:00Z\",\"Labels\":[1e+21,1e-7,0.000001],\"Comment\":\"\"}"
+  },
+  {
+   "type": "ScoredItem",
+   "name": "flattened_item",
+   "input": "{\"ItemId\":\"9\",\"Score\":0.25,\"Comment\":\"c\",\"IsHidden\":true}",
+   "output": "{\"ItemId\":\"9\",\"IsHidden\":true,\"Categories\":null,\"Timestamp\":\"0001-01-01T00:00:00Z\",\"Labels\":null,\"Comment\":\"c\",\"Score\":0.25}"
+  },
+  {
+   "type": "ItemPatch",
+   "name": "empty_patch",
+   "input": "{}",
+   "output": "{\"IsHidden\":null,\"Categories\":null,\"Timestamp\":null,\"Labels\":null,\"Comment\":null}"
+  },
+  {
+   "type": "ItemPatch",
+   "name": "set_some",
+   "input": "{\"IsHidden\":null,\"Categories\":[],\"Timestamp\":null,\"Labels\":null,\"Comment\":\"x\"}",
+   "output": "{\"IsHidden\":null,\"Categories\":[],\"Timestamp\":null,\"Labels\":null,\"Comment\":\"x\"}"
+  },
+  {
+   "type": "ItemPatch",
+   "name": "set_all",
+   "input": "{\"IsHidden\":false,\"Categories\":[\"q\"],\"Timestamp\":\"2010-05-06T07:08:09Z\",\"Labels\":{\"k\":[true]},\"Comment\":\"\"}",
+   "output": "{\"IsHidden\":false,\"Categories\":[\"q\"],\"Timestamp\":\"2010-05-06T07:08:09Z\",\"Labels\":{\"k\":[true]},\"Comment\":\"\"}"
+  },
+  {
+   "type": "User",
+   "name": "labels_list",
+   "input": "{\"UserId\":\"u\",\"Labels\":[\"x\",\"y\"],\"Comment\":\"\"}",
+   "output": "{\"UserId\":\"u\",\"Labels\":[\"x\",\"y\"],\"Comment\":\"\"}"
+  },
+  {
+   "type": "User",
+   "name": "update_at_skipped",
+   "input": "{\"UserId\":\"v\",\"UpdateAt\":\"2001-01-01T00:00:00Z\"}",
+   "output": "{\"UserId\":\"v\",\"Labels\":null,\"Comment\":\"\"}"
+  },
+  {
+   "type": "UserPatch",
+   "name": "bool_label",
+   "input": "{\"Labels\":{\"b\":true}}",
+   "output": "{\"Labels\":{\"b\":true},\"Comment\":null}"
+  },
+  {
+   "type": "UserPatch",
+   "name": "empty_patch",
+   "input": "{}",
+   "output": "{\"Labels\":null,\"Comment\":null}"
+  },
+  {
+   "type": "FeedbackKey",
+   "name": "key",
+   "input": "{\"FeedbackType\":\"star\",\"UserId\":\"u\",\"ItemId\":\"i\"}",
+   "output": "{\"FeedbackType\":\"star\",\"UserId\":\"u\",\"ItemId\":\"i\"}"
+  },
+  {
+   "type": "Feedback",
+   "name": "all_fields",
+   "input": "{\"FeedbackType\":\"star\",\"UserId\":\"u\",\"ItemId\":\"i\",\"Value\":0.1,\"Timestamp\":\"2020-01-01T00:00:00Z\",\"Updated\":\"2020-01-02T03:04:05.5Z\",\"Labels\":[1,2],\"Comment\":\"c\"}",
+   "output": "{\"FeedbackType\":\"star\",\"UserId\":\"u\",\"ItemId\":\"i\",\"Value\":0.1,\"Timestamp\":\"2020-01-01T00:00:00Z\",\"Updated\":\"2020-01-02T03:04:05.5Z\",\"Labels\":[1,2],\"Comment\":\"c\"}"
+  },
+  {
+   "type": "Feedback",
+   "name": "value_exponent",
+   "input": "{\"FeedbackType\":\"like\",\"UserId\":\"u\",\"ItemId\":\"i\",\"Value\":1e21,\"Labels\":\"s\"}",
+   "output": "{\"FeedbackType\":\"like\",\"UserId\":\"u\",\"ItemId\":\"i\",\"Value\":1e+21,\"Timestamp\":\"0001-01-01T00:00:00Z\",\"Updated\":\"0001-01-01T00:00:00Z\",\"Labels\":\"s\",\"Comment\":\"\"}"
+  }
+ ]
+}

@@ -2,4 +2,7 @@
 
 //! Data, cache, vector, blob and meta stores, one feature per backend.
 //!
-//! Skeleton only (Phase 0): no Go code has been ported into this crate yet.
+//! The data store's record types are in [`data::types`]. The rest of the
+//! stores are Phase 2 work and are not ported yet.
+
+pub mod data;
