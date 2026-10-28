@@ -604,14 +604,14 @@ mod tests {
     use crate::vectors::{open, suite};
     use gorse_storage_core::options::Opt;
 
-    /// Go's `weaviateUri`, from `WEAVIATE_URI`. Unset, the Weaviate tests are
-    /// skipped, as Go's `t.Skip` skips them.
-    fn weaviate_dsn() -> Option<String> {
-        let dsn = std::env::var("WEAVIATE_URI").ok().filter(|s| !s.is_empty());
-        if dsn.is_none() {
-            eprintln!("WEAVIATE_URI is not set, skipping Weaviate test");
-        }
-        dsn
+    /// Go's `weaviateUri`, from `WEAVIATE_URI`. Unset, the case fails rather than passes:
+    /// these tests are `#[ignore]`d, so they run only when asked for, and then a
+    /// missing server is an error.
+    fn weaviate_dsn() -> String {
+        std::env::var("WEAVIATE_URI")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .expect("WEAVIATE_URI must name the Weaviate server; run with `-- --include-ignored`")
     }
 
     /// The cases of this module share one server and the collections' names, so
@@ -620,9 +620,7 @@ mod tests {
 
     /// Runs one case on the server at `WEAVIATE_URI`, then closes the store.
     async fn run(case: impl for<'a> AsyncFnOnce(&'a Context, &'a dyn Database)) {
-        let Some(dsn) = weaviate_dsn() else {
-            return;
-        };
+        let dsn = weaviate_dsn();
         let _serial = SERIAL.lock().await;
         let db = open(&dsn, "gorse_", &[] as &[Opt]).await.expect("open");
         db.init().await.expect("init");
@@ -631,26 +629,31 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "needs a Weaviate server at WEAVIATE_URI; run with -- --include-ignored"]
     async fn purge() {
         run(suite::test_purge).await;
     }
 
     #[tokio::test]
+    #[ignore = "needs a Weaviate server at WEAVIATE_URI; run with -- --include-ignored"]
     async fn collections() {
         run(suite::test_collections).await;
     }
 
     #[tokio::test]
+    #[ignore = "needs a Weaviate server at WEAVIATE_URI; run with -- --include-ignored"]
     async fn vectors() {
         run(suite::test_vectors).await;
     }
 
     #[tokio::test]
+    #[ignore = "needs a Weaviate server at WEAVIATE_URI; run with -- --include-ignored"]
     async fn half_vectors() {
         run(suite::test_half_vectors).await;
     }
 
     #[tokio::test]
+    #[ignore = "needs a Weaviate server at WEAVIATE_URI; run with -- --include-ignored"]
     async fn get_vectors() {
         run(suite::test_get_vectors).await;
     }
@@ -663,16 +666,19 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "needs a Weaviate server at WEAVIATE_URI; run with -- --include-ignored"]
     async fn hidden() {
         run(suite::test_hidden).await;
     }
 
     #[tokio::test]
+    #[ignore = "needs a Weaviate server at WEAVIATE_URI; run with -- --include-ignored"]
     async fn dot() {
         run(suite::test_dot).await;
     }
 
     #[tokio::test]
+    #[ignore = "needs a Weaviate server at WEAVIATE_URI; run with -- --include-ignored"]
     async fn delete_vectors() {
         run(suite::test_delete_vectors).await;
     }
@@ -680,6 +686,7 @@ mod tests {
     /// Go's `TestQuantization` for Weaviate: every quantization the store accepts,
     /// with the bits it accepts.
     #[tokio::test]
+    #[ignore = "needs a Weaviate server at WEAVIATE_URI; run with -- --include-ignored"]
     async fn quantization() {
         run(async |ctx, db| {
             suite::test_quantization(ctx, db, QuantizationType::None, 0).await;
