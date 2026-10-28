@@ -30,7 +30,7 @@ Every Rust module names the Go files it ports with a
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-18, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); the frozen config.schema.json and config.keys.md match a fresh run of the Go generator byte for byte (X-49, closed 2026-10-28). WP-1-18 (dataset) is merged: Q-210 to Q-217, X-117 to X-129, O-51 and O-52 open, and the ml-1m test is ignored (O-1). Every Phase 1 WP is merged. All in `porting/work-packages.md` |
-| 2. Storage | in progress | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-3 (MongoDB data store, feature `mongodb`, MongoDB 6.0.28; O-53 open for 8.0; the `get_item_stream` doc is corrected, O-54). WP-2-11 (meta store, SQLite through rusqlite 0.39.0, D-160 to D-166; O-48 closed, O-49 and O-50 open for Phases 3 and 4). WP-2-6 (SQL cache store: MySQL and Postgres on sqlx 0.9.0, SQLite on rusqlite 0.39.0; D-167 to D-175; Q-232 MySQL auth open). WP-2-2, 2-9, 2-12, 2-13 not merged |
+| 2. Storage | in progress | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-3 (MongoDB data store, feature `mongodb`, MongoDB 6.0.28; O-53 open for 8.0; the `get_item_stream` doc is corrected, O-54). WP-2-11 (meta store, SQLite through rusqlite 0.39.0, D-160 to D-166; O-48 closed, O-49 and O-50 open for Phases 3 and 4). WP-2-2 (SQL data store, MySQL, Postgres and SQLite as one build; D-177 to D-181; O-36 closed by the SQL and MongoDB runs; O-57 and O-59 open for Go runs). WP-2-6 (SQL cache store: MySQL and Postgres on sqlx 0.9.0, SQLite on rusqlite 0.39.0; D-167 to D-175; Q-232 MySQL auth open). WP-2-9, 2-12, 2-13 not merged |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
@@ -1379,6 +1379,16 @@ or accepts a metric gap outside the Go tests' own tolerances.
   TCP fails with `RSA auth backend disabled` (X-144, Q-232), and the store code is
   unchanged. The MongoDB container also stopped once when the host disk filled; it
   was restarted and the runs repeated. The runs above are the ones that count.
+
+- **D-177 one build, all three dialects.** The store is compiled only when `mysql`, `postgres` and `sqlite` are all on (`cfg(all(...))` in `data/mod.rs` and in `data::register_builtin`). Go links all three drivers into every binary. The alternative was a `cfg` on every `Pools` variant and every dispatch arm.
+
+- **D-178 explicit SQL on sqlx 0.9.** One generic query layer (`sql/query.rs`) binds every value (`Bind`). The dialect differences are written out per module. Text passed to `sqlx::query` is wrapped in `AssertSqlSafe` (sqlx 0.9 requires the assertion for any dynamic text). Each wrap is justified at the site: the text holds only literals, the table names from the operator's prefix, and placeholders. The `SET` statements come from the operator's DSN.
+
+- **D-179 `json_contains` through the SQLite C API.** sqlx-sqlite 0.9 has no scalar function API, so `sql/sqlite.rs` calls `sqlite3_create_function_v2` on each connection's handle in `after_connect`. The `unsafe` is confined to that module (`#![allow(unsafe_code)]` with a reason; a `SAFETY:` comment on every block). Argument and error rules come from `gorse_storage_core::json_contains`.
+
+- **D-180 streams run on a task.** Each stream runs its query on a spawned task and sends batches over `mpsc(1)`, as Go's `GetItemStream` sends over a goroutine with `bufSize = 1`. The context is checked before each batch. The item stream keeps items at or after `time_limit` (`>=`), as Go does.
+
+- **D-181 `AssertSqlSafe` and the audit.** See D-178. No request data is ever written into SQL text. Every user value is bound.
 
 ## Open questions for Ritchie
 

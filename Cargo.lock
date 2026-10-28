@@ -1231,6 +1231,7 @@ dependencies = [
  "gorse-storage-core",
  "hex",
  "indexmap",
+ "libsqlite3-sys",
  "mongodb",
  "object_store",
  "percent-encoding",

@@ -1749,7 +1749,7 @@ said otherwise), so the Rust result is Go's.
   makes its rotations apart in time (for example a 2 ms sleep between writes). It must
   not lower the count. Closed by 0842e4d (merged as 42f9f103): the test sleeps 2 ms before each write and keeps the name format and the count of 2.
 
-- **O-36 The suite is compiled and not run.** `data/database_test.rs` is called by no test in this crate. WP-2-2 (SQL) and WP-2-3 (MongoDB) run it against their stores. The acceptance command of this WP, `cargo test -p gorse-storage data::no_database`, runs only the NoDatabase case.
+- **O-36 The suite is compiled and not run.** `data/database_test.rs` is called by no test in this crate. WP-2-2 (SQL) and WP-2-3 (MongoDB) run it against their stores. The acceptance command of this WP, `cargo test -p gorse-storage data::no_database`, runs only the NoDatabase case. **Closed (2026-10-28):** the SQL run (WP-2-2, `data::sql`, D-177 to D-181) and the MongoDB run (WP-2-3, `data::mongodb`, D-176) both pass the shared suite on their backends.
 
 - **O-37 (closed by the WP-2-1 merge) Merged with the integration head 9c89272 (f8b3662).** The cache and vector cores are in integration now. The `Cargo.toml` and `Cargo.lock` overlap is resolved: `async-trait` and `tokio` come from integration, and this WP adds `futures-core` and `futures-util` (0.3.34). The dev-dependency `tokio` already had `macros`, `rt` and `time`.
 
@@ -2241,3 +2241,61 @@ said otherwise), so the Rust result is Go's.
 - `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` is clean.
 
 - `MYSQL_URI=... POSTGRES_URI=... cargo test --workspace --no-fail-fast`: 905 passed, 0 failed, 13 ignored. The ignored tests are the dataset tests that need `cdn.gorse.io`, `math32_exhaustive` and `deeper_than_go_stack_limit` (release only, about 5 GB), and the two `godebug_child` tests, which their parent tests run. The Redis and MongoDB suites return early without `REDIS_URI` or `MONGO_URI`, so this gate does not exercise them.
+
+## WP-2-2 SQL data store
+
+- **Q-233 PostgreSQL `Reconcile` rebuilds an unchanged search index.** Observed: a second `Reconcile` with the same columns changed the index OID (16583 to 16584). The port copies Go's index-match check, which compares the definition as the server rewrites it, so it never matches. Not yet confirmed by running Go. MySQL's `Reconcile` check is ported the same way, and not observed.
+
+- **Q-234 SQLite `Reconcile` rebuild is unverified.** The trigger row id probe was inconclusive: a dropped and recreated trigger can reuse its row id. The port's SQLite check passes on an unchanged index, so it does not drop and recreate the triggers. Go's check was not run.
+
+- **Q-235 labels NULL versus "null".** Go writes a nil feedback label as SQL `NULL`. Items and users store the JSON text `null`. The port matches, and the missing-id rows the feedback write inserts use `'null'` for users and items.
+
+- **Q-236 time text per driver.** MySQL truncates `time_stamp` to whole seconds. `update_at` is `datetime(6)` and keeps microseconds. PostgreSQL rounds to microseconds. SQLite stores modernc's `time.String()` form (UTC, with `+0000 UTC`) and reads it back with a hand parser that follows modernc. The suite's timezone case covers PostgreSQL and SQLite.
+
+- **Q-237 SQLite time comparison is textual.** Go's `time_stamp <= DATETIME()` compares text, so rows in the same second with a fraction compare greater. The port keeps the same comparison.
+
+- **Q-238 counts are estimates on MySQL and PostgreSQL.** Go's `Count*` reads `SHOW TABLE STATUS` (MySQL) and `reltuples` (PostgreSQL). The port does the same. The suite runs `ANALYZE` before counting on PostgreSQL, as Go's `analyzeTables` does.
+
+- **Q-239 one statement per batch.** Each write batch is one `INSERT`, as the Go code in this file writes it. Batches larger than the server's placeholder limit are not tested.
+
+- **X-145 `Init` creates, it does not migrate.** Go's `Init` runs GORM `AutoMigrate`, which also alters tables that already exist. The port runs `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`. A fresh database dumps byte-identical to Go's (see Evidence). A database created by an older Go version is not altered.
+
+- **X-146 `ErrNotFound` is the bare sentinel.** Go wraps it with the id (`item X not found`). The port returns `Error::Storage(NotFound)`, so the kind matches and the message does not.
+
+- **X-147 pool size defaults differ.** Go's `MaxOpenConns` unset means no limit. sqlx's default is 10 when the option is not set.
+
+- **X-148 `MaxIdleConns` is not applied.** sqlx has no cap on idle connections, so the option is ignored. `ConnMaxLifetime` and `MaxOpenConns` are applied.
+
+- **X-149 MySQL DSN parameters.** The store adds `sql_mode`, the isolation variable and `parseTime` as Go does. Every other DSN parameter that is not a driver option is run as `SET name = value` on connect, as go-sql-driver does. The driver's own options (`tls`, `charset`, `collation`, `loc`, timeouts, `interpolateParams`) are not mapped. sqlx's defaults apply to them.
+
+- **X-150 SQLite URL parameters.** The file is the part before `?`. The two pragmas Go adds (`busy_timeout(10000)`, `journal_mode(wal)`) are applied. Other `_pragma` values in the URL are ignored.
+
+- **X-151 PostgreSQL TLS default.** lib/pq requires TLS when `sslmode` is unset. sqlx defaults to `prefer`. This is not checked against a TLS server, so deployments that depend on the default should set `sslmode=require` explicitly.
+
+- **X-152 the MySQL timezone case reports a pass.** Go's `testTimezone` calls `Skipf` for MySQL. The shared suite here returns without assertions for `TimeStamps::Unknown`, so `cargo test` shows the MySQL case as a pass where Go shows a skip. No assertion is lost; the reporting differs.
+
+- **O-57 the Go-to-Rust read path.** The contract's "a database initialised by Go is used by Rust without migration" has not run. Only Rust-initialised databases were used in the suite.
+
+- **O-58 (closed at merge) O-36.** The brief asks for the shared suite against each backend, which closes O-36 with the MongoDB data store. The SQL half passes. The integrator closes the item.
+
+- **O-59 Q-233 and Q-234 need Go runs.** Run Go's `TestPostgres` and `TestSQLite` with the same services and compare the index behaviour.
+
+Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`), SQLite
+bundled through libsqlite3-sys 0.37.0. All three suites run `database_test::run`.
+No skips (`grep -c skipping` on the log is 0).
+
+```
+MYSQL_URI=mysql://root:password@tcp(127.0.0.1:3306)/ \
+POSTGRES_URI=postgres://gorse:gorse_pass@127.0.0.1:5432/ \
+cargo test -p gorse-storage --features mysql,postgres,sqlite data::sql
+test data::sql::tests::test_sqlite ... ok
+test data::sql::tests::test_postgres ... ok
+test data::sql::tests::test_mysql ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored
+```
+
+Schema dumps (Rust-created, `contracts/tools/dump-schemas.sh` format, compared
+with `contracts/schema/data/`): `mysql.sql`, `mysql.search.sql`, `sqlite.sql`,
+`sqlite.search.sql`, `postgres.sql` and `postgres.search.sql` are byte-identical
+to the committed Go-generated files. The PostgreSQL files needed one trailing
+newline from the dumper, which is in the dump script, not in the store.

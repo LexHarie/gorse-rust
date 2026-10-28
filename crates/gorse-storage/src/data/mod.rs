@@ -29,6 +29,10 @@ use types::{Feedback, Item, ItemPatch, ScoredItem, User, UserPatch};
 #[cfg(feature = "mongodb")]
 pub mod mongodb;
 pub mod no_database;
+/// The SQL stores (MySQL, PostgreSQL, SQLite). Go links all three drivers into
+/// every binary, so the store is built only when all three features are on.
+#[cfg(all(feature = "mysql", feature = "postgres", feature = "sqlite"))]
+pub mod sql;
 pub mod types;
 
 #[cfg(test)]
@@ -357,7 +361,12 @@ pub type Creator =
 pub fn register_builtin(registry: &mut Registry) {
     #[cfg(feature = "mongodb")]
     mongodb::register(registry);
-    #[cfg(not(feature = "mongodb"))]
+    #[cfg(all(feature = "mysql", feature = "postgres", feature = "sqlite"))]
+    sql::register(registry);
+    #[cfg(not(any(
+        feature = "mongodb",
+        all(feature = "mysql", feature = "postgres", feature = "sqlite")
+    )))]
     let _ = registry;
 }
 

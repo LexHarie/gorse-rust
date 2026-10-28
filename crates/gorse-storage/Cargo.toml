@@ -48,6 +48,10 @@ object_store = { version = "0.14.2", default-features = false, optional = true }
 # The MongoDB driver, for `cache::mongodb`. Optional, so a build that needs no
 # MongoDB store does not link it.
 mongodb = { workspace = true, optional = true }
+# The SQLite SDK, for `data::sql::sqlite`, which registers `json_contains` through
+# the C API because sqlx-sqlite has no scalar function API. It is the copy
+# sqlx-sqlite links, so there is one SQLite in the build.
+libsqlite3-sys = { version = "0.37.0", optional = true }
 
 [features]
 redis = ["dep:redis", "dep:base64"]
@@ -55,9 +59,9 @@ s3 = ["dep:object_store", "dep:bytes", "object_store/aws"]
 gcs = ["dep:object_store", "dep:bytes", "object_store/gcp"]
 azure = ["dep:object_store", "dep:bytes", "object_store/azure"]
 mongodb = ["dep:mongodb", "dep:base64"]
-mysql = ["dep:sqlx", "sqlx/mysql"]
-postgres = ["dep:sqlx", "sqlx/postgres"]
-sqlite = []
+mysql = ["dep:sqlx", "sqlx/mysql", "dep:base64"]
+postgres = ["dep:sqlx", "sqlx/postgres", "dep:base64"]
+sqlite = ["dep:sqlx", "sqlx/sqlite", "dep:libsqlite3-sys", "dep:base64"]
 
 [dev-dependencies]
 hex.workspace = true
