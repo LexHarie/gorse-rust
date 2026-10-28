@@ -1572,6 +1572,48 @@ or accepts a metric gap outside the Go tests' own tolerances.
   - Verdict: accepted for the in-process listener and for the list, read and remove path against
     fake-gcs-server 1.56.1 with `-public-host`. O-62 stays open for `test_gcs` only.
 
+- **D-195 Metric-parity tolerance for Phase 3 (proposed by the integrator, 2026-10-28; for the coordinator's ruling).**
+  The plan's Phase 3 exit gate asks for NDCG, precision and recall of every model within "the
+  tolerance the Go tests themselves assert (`benchDelta`)", on the same dataset files.
+  The facts. The Go CF tests assert NDCG within `benchDelta` = 0.01 of 0.36 on ml-1m
+  (`model/cf/model_test.go`). The CTR tests assert accuracy within `classificationDelta` = 0.01
+  (Frappe at least 0.919 − 0.01, ml-tag 0.815), and Criteo 0.77 within 0.025, and within 0.02 for
+  the clone (`model/ctr/model_test.go`). No Go test asserts precision or recall. Every dataset
+  these tests load comes from `cdn.gorse.io`, which fails to connect from this container.
+  `files.grouplens.org` also fails, and no copy of any dataset exists on disk (O-1).
+  The proposal has two gates.
+  1. Metric gate, on the datasets. For each model and dataset a Go test uses, the Rust metric
+     must lie within the Go test's own delta of the Go test's own reference value. The deltas
+     are not widened. For precision and recall, which Go does not assert, the reference is a
+     Go run of the same configuration on the same dataset file, and the band is `benchDelta`
+     (0.01). Reasoning: the Go tests fit with `SetJobs(NumCPU)`, so Go's own values vary from
+     run to run. The deltas are the band the project already accepts for that variation and for
+     implementation differences. Widening a delta until a port passes would be a weakened test,
+     which the no-cheating rule forbids.
+  2. Replay gate, runnable offline. A Go generator fits small synthetic datasets, which it
+     writes to a file, with one job and a fixed seed. It records the fitted parameters and the
+     per-epoch metrics. Rust must reproduce them within 1e-5 absolute, which allows for f32
+     summation order. The thread records the largest difference. Reasoning: the Rust port uses
+     the Go `math/rand` port (`gorse_common::util::rand`), so with one job the random streams
+     should match. The thread must confirm that. A 0.01 band on NDCG would hide algorithm drift
+     that the replay catches. A difference above 1e-5 is a finding for the court, not a reason
+     to widen the bound.
+  Until the datasets are provided, only gate 2 can run here. The gate 1 runs need the six dataset
+  archives (`ml-1m`, `ml-100k`, `pinterest-20`, `ml-tag`, `frappe`, `criteo`) placed under
+  `/mnt/project-files/datasets/` with their SHA-256 sums recorded. Ritchie or the coordinator
+  must supply them.
+
+- **D-196 Phase 3 scope and crate versions (integrator, 2026-10-28).**
+  - Scope. `model/ctr/fm.go` is ported. `model/ctr/fm_xla.go` (build tags `cgo && xla`) and
+    `model/ctr/model.py` are not, as D-8 already says. Each WP's notes record the omission.
+  - Crate versions, from the crates index on 2026-10-28. `rquickjs` 0.14.0 is the planned version.
+    `minijinja` is 3.0.4, not the 3.0.1 that `porting/crate-selection.md` listed. Newer patch
+    releases came out after the plan was written, and the rule is the latest stable, so the row
+    is corrected here and in `porting/crate-selection.md`. `bitset` (bits-and-blooms, used by
+    `model/cf/model.go`) becomes `fixedbitset` 0.5.7, unless the thread shows a behaviour
+    difference. `golang-set` becomes `std::collections::HashSet`, with no crate.
+  - goptuna's TPE sampler is a hand port (`crate-selection.md`), as WP-3-3 says.
+
 ## Open questions for Ritchie
 
 - **Datasets.** The network policy of this environment blocks
