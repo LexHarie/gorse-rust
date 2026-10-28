@@ -67,7 +67,7 @@ pub struct Redis {
 /// How a store reaches Redis.
 enum Backend {
     /// One server.
-    Standalone(redis::Client),
+    Standalone(Box<redis::Client>),
     /// A cluster, whose primaries are scanned one by one.
     Cluster(Box<redis::cluster::ClusterClient>),
 }
@@ -129,7 +129,11 @@ pub fn open(path: &str, table_prefix: &str, opts: &[Opt]) -> Result<Redis, Error
         return open_cluster(path, table_prefix, opts);
     }
     let client = redis::Client::open(path).map_err(backend)?;
-    Ok(Redis::new(Backend::Standalone(client), table_prefix, opts))
+    Ok(Redis::new(
+        Backend::Standalone(Box::new(client)),
+        table_prefix,
+        opts,
+    ))
 }
 
 /// Opens a cluster store on a `redis+cluster://` or `rediss+cluster://` URL.
