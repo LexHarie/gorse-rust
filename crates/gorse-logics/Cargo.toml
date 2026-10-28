@@ -15,6 +15,8 @@ gorse-dataset = { workspace = true }
 gorse-storage-core = { workspace = true }
 gorse-storage = { workspace = true }
 minijinja.workspace = true
+reqwest.workspace = true
+rquickjs.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

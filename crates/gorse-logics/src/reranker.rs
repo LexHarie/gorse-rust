@@ -93,24 +93,22 @@ impl RankerTemplates {
         feedback: &[FeedbackItem],
         items: &[Item],
     ) -> Result<(String, Vec<String>), minijinja::Error> {
-        let query = self.env.get_template(self.query_name)?.render(Value::from(
-            BTreeMap::from([
+        let query = self
+            .env
+            .get_template(self.query_name)?
+            .render(Value::from(BTreeMap::from([
                 ("user", user_value(user)),
                 (
                     "feedback",
                     Value::from(feedback.iter().map(feedback_value).collect::<Vec<_>>()),
                 ),
-            ]),
-        ))?;
+            ])))?;
         let documents = items
             .iter()
             .map(|item| {
                 self.env
                     .get_template(self.document_name)?
-                    .render(Value::from(BTreeMap::from([(
-                        "item",
-                        item_value(item),
-                    )])))
+                    .render(Value::from(BTreeMap::from([("item", item_value(item))])))
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok((query, documents))

@@ -2,4 +2,8 @@
 
 //! Recommendation pipeline logic shared by the master, worker and server nodes.
 
+pub mod external;
 pub mod reranker;
+
+#[cfg(test)]
+mod testing;

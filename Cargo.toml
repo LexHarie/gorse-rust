@@ -50,6 +50,7 @@ prost-types = "0.14.4"
 protox = "0.10.0"
 redis = { version = "1.8.0", default-features = false, features = ["tokio-comp", "cluster-async", "connection-manager", "tokio-rustls-comp", "tls-rustls-insecure"] }
 regex = "1.13.1"
+rquickjs = "0.14.0"
 reqwest = { version = "0.13.5", default-features = false, features = ["blocking", "rustls"] }
 rusqlite = { version = "0.39.0", default-features = false, features = ["bundled", "functions"] }
 rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "prefer-post-quantum", "std", "tls12"] }
