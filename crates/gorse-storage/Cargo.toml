@@ -20,6 +20,12 @@ serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
 thiserror.workspace = true
 async-trait.workspace = true
+# The MongoDB driver, for `cache::mongodb`. Optional, so a build that needs no
+# MongoDB store does not link it.
+mongodb = { workspace = true, optional = true }
+
+[features]
+mongodb = ["dep:mongodb"]
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time"] }
