@@ -69,7 +69,7 @@ fn duration_gt_zero(value: Duration, field: &str) -> Check {
 
 /// `validate:"gt=0"` on a float64; NaN fails the comparison.
 fn float_gt_zero(value: f64, field: &str) -> Check {
-    if !(value > 0.0) {
+    if value.is_nan() || value <= 0.0 {
         return fail(format!("{field} must be greater than 0"));
     }
     Ok(())
@@ -149,11 +149,19 @@ impl Config {
             }
         }
         check_duplicates(
-            self.recommend.non_personalized.iter().flatten().map(|c| c.name.as_str()),
+            self.recommend
+                .non_personalized
+                .iter()
+                .flatten()
+                .map(|c| c.name.as_str()),
             "non-personalized",
         )?;
         check_duplicates(
-            self.recommend.item_to_item.iter().flatten().map(|c| c.name.as_str()),
+            self.recommend
+                .item_to_item
+                .iter()
+                .flatten()
+                .map(|c| c.name.as_str()),
             "item-to-item",
         )?;
 
@@ -172,21 +180,45 @@ impl Config {
         check_recommenders(&self.recommend, recommenders)?;
         check_recommenders(
             &self.recommend,
-            self.recommend.fallback.recommenders.as_deref().unwrap_or_default(),
+            self.recommend
+                .fallback
+                .recommenders
+                .as_deref()
+                .unwrap_or_default(),
         )
     }
 
     /// The struct tags, in the order the validator visits the fields.
     fn validate_fields(&self) -> Check {
         let db = &self.database;
-        store(&db.data_store, "data_store", DATA_STORE_PREFIXES, "unsupported data storage backend")?;
-        store(&db.cache_store, "cache_store", CACHE_STORE_PREFIXES, "unsupported cache storage backend")?;
-        store(&db.vector_store, "vector_store", VECTOR_STORE_PREFIXES, "unsupported vector storage backend")?;
+        store(
+            &db.data_store,
+            "data_store",
+            DATA_STORE_PREFIXES,
+            "unsupported data storage backend",
+        )?;
+        store(
+            &db.cache_store,
+            "cache_store",
+            CACHE_STORE_PREFIXES,
+            "unsupported cache storage backend",
+        )?;
+        store(
+            &db.vector_store,
+            "vector_store",
+            VECTOR_STORE_PREFIXES,
+            "unsupported vector storage backend",
+        )?;
         // [database.mysql]
         one_of(
             &db.mysql.isolation_level,
             "isolation_level",
-            &["READ-UNCOMMITTED", "READ-COMMITTED", "REPEATABLE-READ", "SERIALIZABLE"],
+            &[
+                "READ-UNCOMMITTED",
+                "READ-COMMITTED",
+                "REPEATABLE-READ",
+                "SERIALIZABLE",
+            ],
         )?;
         gte_zero(db.mysql.max_open_conns, "max_open_conns")?;
         gte_zero(db.mysql.max_idle_conns, "max_idle_conns")?;
@@ -199,7 +231,11 @@ impl Config {
         gt_zero(db.redis.max_search_results, "max_search_results")?;
         // [database.vector]
         if !db.vector.quantization_type.is_empty() {
-            one_of(&db.vector.quantization_type, "quantization_type", &["sq", "pq", "rq"])?;
+            one_of(
+                &db.vector.quantization_type,
+                "quantization_type",
+                &["sq", "pq", "rq"],
+            )?;
         }
         gte_zero(db.vector.quantization_bits, "quantization_bits")?;
 
@@ -219,10 +255,16 @@ impl Config {
         self.recommend.validate_fields()?;
 
         // [tracing]
-        one_of(&self.tracing.exporter, "exporter", &["zipkin", "otlp", "otlphttp"])?;
+        one_of(
+            &self.tracing.exporter,
+            "exporter",
+            &["zipkin", "otlp", "otlphttp"],
+        )?;
 
         // [oidc]
-        if !self.oidc.redirect_url.is_empty() && !self.oidc.redirect_url.ends_with("/callback/oauth2") {
+        if !self.oidc.redirect_url.is_empty()
+            && !self.oidc.redirect_url.ends_with("/callback/oauth2")
+        {
             return fail(
                 "Key: 'Config.oidc.redirect_url' Error:Field validation for 'redirect_url' failed on the 'endswith' tag",
             );
@@ -272,8 +314,14 @@ impl RecommendConfig {
         gt_zero(c.optimize_trials, "optimize_trials")?;
         // [recommend.external]: `ExternalConfig` has no tags.
         // [recommend.replacement]
-        float_gt_zero(self.replacement.positive_replacement_decay, "positive_replacement_decay")?;
-        float_gt_zero(self.replacement.read_replacement_decay, "read_replacement_decay")?;
+        float_gt_zero(
+            self.replacement.positive_replacement_decay,
+            "positive_replacement_decay",
+        )?;
+        float_gt_zero(
+            self.replacement.read_replacement_decay,
+            "read_replacement_decay",
+        )?;
         // [recommend.ranker]
         let r = &self.ranker;
         one_of(&r.kind, "type", &["none", "fm", "reranker", "decision"])?;
@@ -315,7 +363,13 @@ fn check_duplicates<'a>(names: impl Iterator<Item = &'a str>, kind: &str) -> Che
 /// the collaborative one is only named when it is enabled.
 fn check_recommenders(config: &RecommendConfig, recommenders: &[String]) -> Check {
     let mut available: HashSet<String> = HashSet::new();
-    available.extend(config.non_personalized.iter().flatten().map(|r| r.full_name()));
+    available.extend(
+        config
+            .non_personalized
+            .iter()
+            .flatten()
+            .map(|r| r.full_name()),
+    );
     available.extend(config.item_to_item.iter().flatten().map(|r| r.full_name()));
     available.extend(config.user_to_user.iter().flatten().map(|r| r.full_name()));
     available.extend(config.external.iter().flatten().map(|r| r.full_name()));

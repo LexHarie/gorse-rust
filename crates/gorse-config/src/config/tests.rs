@@ -12,10 +12,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use gorse_common::expression::must_parse_feedback_type_expression as expr;
 use gorse_common::gotime::Duration;
 
+use super::CONFIG_TOML;
 use super::defaults::{get_default_config, mk_dir, set_default, set_root_dir};
 use super::load::{BINDINGS, load_config_with_env, unmarshal};
 use super::schema::*;
-use super::CONFIG_TOML;
 use crate::viper::Viper;
 
 const SECOND: i64 = 1_000_000_000;
@@ -27,17 +27,17 @@ const HOUR: i64 = 60 * MINUTE;
 fn temp_dir(name: &str) -> PathBuf {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let dir = std::env::temp_dir().join(format!(
-        "gorse-config-{}-{n}-{name}",
-        std::process::id()
-    ));
+    let dir = std::env::temp_dir().join(format!("gorse-config-{}-{n}-{name}", std::process::id()));
     fs::create_dir_all(&dir).expect("create a temporary directory");
     dir
 }
 
-/// Points `MkDir` at a temporary directory, as the Go tests' `$HOME` does.
+/// Points `MkDir` at one temporary directory for the whole test binary, as the
+/// Go tests' `$HOME` does. The root is process-wide, so every test sets the same
+/// value; a per-test root would change it under a test that runs in parallel.
 fn isolate_root() {
-    set_root_dir(temp_dir("root").join(".gorse").join("var").join("lib"));
+    static ROOT: std::sync::Once = std::sync::Once::new();
+    ROOT.call_once(|| set_root_dir(temp_dir("root").join(".gorse").join("var").join("lib")));
 }
 
 /// `os.LookupEnv` over a fixed set of variables.
@@ -60,8 +60,14 @@ fn unmarshal_text() -> String {
         ("ssl_ca = \"\"", "ssl_ca = \"ca.pem\""),
         ("ssl_cert = \"\"", "ssl_cert = \"cert.pem\""),
         ("ssl_key = \"\"", "ssl_key = \"key.pem\""),
-        ("dashboard_user_name = \"\"", "dashboard_user_name = \"admin\""),
-        ("dashboard_password = \"\"", "dashboard_password = \"password\""),
+        (
+            "dashboard_user_name = \"\"",
+            "dashboard_user_name = \"admin\"",
+        ),
+        (
+            "dashboard_password = \"\"",
+            "dashboard_password = \"password\"",
+        ),
         ("admin_api_key = \"\"", "admin_api_key = \"super_api_key\""),
         ("api_key = \"\"", "api_key = \"19260817\""),
         ("table_prefix = \"\"", "table_prefix = \"gorse_\""),
@@ -85,7 +91,10 @@ fn unmarshal_text() -> String {
             "redirect_url = \"\"",
             "redirect_url = \"http://localhost:8088/callback/oauth2\"",
         ),
-        ("auth_token = \"\"", "auth_token = \"<reranker_auth_token>\""),
+        (
+            "auth_token = \"\"",
+            "auth_token = \"<reranker_auth_token>\"",
+        ),
         (
             "url = \"https://dashscope.aliyuncs.com/compatible-api/v1/reranks\"",
             "url = \"<reranker_url>\"",
@@ -131,7 +140,11 @@ fn assert_unmarshal_config(config: &Config) {
     assert_eq!(config.master.http_cors_domains, Some(vec![".*".to_owned()]));
     assert_eq!(
         config.master.http_cors_methods,
-        Some(vec!["GET".to_owned(), "PATCH".to_owned(), "POST".to_owned()])
+        Some(vec![
+            "GET".to_owned(),
+            "PATCH".to_owned(),
+            "POST".to_owned()
+        ])
     );
     assert_eq!(config.master.n_jobs, 1);
     assert_eq!(config.master.meta_timeout, Duration(10 * SECOND));
@@ -174,7 +187,10 @@ fn assert_unmarshal_config(config: &Config) {
     );
     // [recommend.collaborative]
     assert_eq!(config.recommend.collaborative.kind, "mf");
-    assert_eq!(config.recommend.collaborative.fit_period, Duration(60 * MINUTE));
+    assert_eq!(
+        config.recommend.collaborative.fit_period,
+        Duration(60 * MINUTE)
+    );
     assert_eq!(config.recommend.collaborative.fit_epoch, 100);
     assert_eq!(
         config.recommend.collaborative.optimize_period,
@@ -261,7 +277,10 @@ fn assert_unmarshal_config(config: &Config) {
     assert_eq!(config.oidc.issuer, "https://accounts.google.com");
     assert_eq!(config.oidc.client_id, "client_id");
     assert_eq!(config.oidc.client_secret, "client_secret");
-    assert_eq!(config.oidc.redirect_url, "http://localhost:8088/callback/oauth2");
+    assert_eq!(
+        config.oidc.redirect_url,
+        "http://localhost:8088/callback/oauth2"
+    );
     // [openai]
     assert_eq!(config.openai.base_url, "http://localhost:11434/v1");
     assert_eq!(config.openai.auth_token, "ollama");
@@ -280,8 +299,8 @@ fn test_unmarshal_toml() {
     let dir = temp_dir("unmarshal");
     let path = dir.join("config.toml");
     fs::write(&path, unmarshal_text()).expect("write the config");
-    let config = load_config_with_env(path.to_str().expect("utf-8"), &no_env)
-        .expect("load the config");
+    let config =
+        load_config_with_env(path.to_str().expect("utf-8"), &no_env).expect("load the config");
     assert_unmarshal_config(&config);
 }
 
@@ -294,8 +313,8 @@ fn test_unmarshal_json() {
     let dir = temp_dir("unmarshal-json");
     let path = dir.join("config.json");
     fs::write(&path, text).expect("write the config");
-    let config = load_config_with_env(path.to_str().expect("utf-8"), &no_env)
-        .expect("load the config");
+    let config =
+        load_config_with_env(path.to_str().expect("utf-8"), &no_env).expect("load the config");
     assert_unmarshal_config(&config);
 }
 
@@ -309,8 +328,8 @@ fn test_unmarshal_yaml() {
     let dir = temp_dir("unmarshal-yaml");
     let path = dir.join("config.yaml");
     fs::write(&path, text).expect("write the config");
-    let config = load_config_with_env(path.to_str().expect("utf-8"), &no_env)
-        .expect("load the config");
+    let config =
+        load_config_with_env(path.to_str().expect("utf-8"), &no_env).expect("load the config");
     assert_unmarshal_config(&config);
 }
 
@@ -344,7 +363,10 @@ fn test_reload_config() {
 
     let second = load_config_with_env(second.to_str().expect("utf-8"), &no_env)
         .expect("load the second config");
-    assert_eq!(second.server.default_n, get_default_config().server.default_n);
+    assert_eq!(
+        second.server.default_n,
+        get_default_config().server.default_n
+    );
 }
 
 #[test]
@@ -389,13 +411,19 @@ fn test_bind_env() {
         ("GORSE_OIDC_ISSUER", "https://accounts.google.com"),
         ("GORSE_OIDC_CLIENT_ID", "client_id"),
         ("GORSE_OIDC_CLIENT_SECRET", "client_secret"),
-        ("GORSE_OIDC_REDIRECT_URL", "http://localhost:8088/callback/oauth2"),
+        (
+            "GORSE_OIDC_REDIRECT_URL",
+            "http://localhost:8088/callback/oauth2",
+        ),
         ("GORSE_BLOB_URI", "s3://<bucket>/path"),
         ("S3_ENDPOINT", "https://s3.example.com"),
         ("S3_ACCESS_KEY_ID", "<access_key_id>"),
         ("S3_SECRET_ACCESS_KEY", "<secret_access_key>"),
         ("GCS_CREDENTIALS_FILE", "/path/to/credentials.json"),
-        ("AZURE_STORAGE_ENDPOINT", "https://<account>.blob.core.windows.net"),
+        (
+            "AZURE_STORAGE_ENDPOINT",
+            "https://<account>.blob.core.windows.net",
+        ),
         ("AZURE_STORAGE_ACCOUNT_NAME", "<account_name>"),
         ("AZURE_STORAGE_ACCOUNT_KEY", "<account_key>"),
         (
@@ -429,7 +457,10 @@ fn test_bind_env() {
     assert_eq!(config.database.vector_store, "qdrant://<vector_store>");
     assert_eq!(config.database.table_prefix, "gorse_");
     assert_eq!(config.database.cache_table_prefix, "gorse_cache_");
-    assert_eq!(config.database.cache_client_name, "gorse_cache_client_from_env");
+    assert_eq!(
+        config.database.cache_client_name,
+        "gorse_cache_client_from_env"
+    );
     assert_eq!(config.database.data_table_prefix, "gorse_data_");
     assert_eq!(config.database.vector_table_prefix, "gorse_vector_");
     assert_eq!(config.database.vector.quantization_type, "rq");
@@ -452,13 +483,22 @@ fn test_bind_env() {
     assert_eq!(config.oidc.issuer, "https://accounts.google.com");
     assert_eq!(config.oidc.client_id, "client_id");
     assert_eq!(config.oidc.client_secret, "client_secret");
-    assert_eq!(config.oidc.redirect_url, "http://localhost:8088/callback/oauth2");
+    assert_eq!(
+        config.oidc.redirect_url,
+        "http://localhost:8088/callback/oauth2"
+    );
     assert_eq!(config.blob.uri, "s3://<bucket>/path");
     assert_eq!(config.blob.s3.endpoint, "https://s3.example.com");
     assert_eq!(config.blob.s3.access_key_id, "<access_key_id>");
     assert_eq!(config.blob.s3.secret_access_key, "<secret_access_key>");
-    assert_eq!(config.blob.gcs.credentials_file, "/path/to/credentials.json");
-    assert_eq!(config.blob.azure.endpoint, "https://<account>.blob.core.windows.net");
+    assert_eq!(
+        config.blob.gcs.credentials_file,
+        "/path/to/credentials.json"
+    );
+    assert_eq!(
+        config.blob.azure.endpoint,
+        "https://<account>.blob.core.windows.net"
+    );
     assert_eq!(config.blob.azure.account_name, "<account_name>");
     assert_eq!(config.blob.azure.account_key, "<account_key>");
     assert_eq!(
@@ -468,12 +508,24 @@ fn test_bind_env() {
     assert_eq!(config.openai.base_url, "https://api.openai.com/v1");
     assert_eq!(config.openai.auth_token, "<auth_token>");
     assert_eq!(config.openai.chat_completion_model, "gpt-4");
-    assert_eq!(config.recommend.ranker.reranker_api.auth_token, "<reranker_auth_token>");
+    assert_eq!(
+        config.recommend.ranker.reranker_api.auth_token,
+        "<reranker_auth_token>"
+    );
     assert_eq!(config.recommend.ranker.reranker_api.url, "<reranker_url>");
-    assert_eq!(config.recommend.ranker.reranker_api.model, "<reranker_model>");
-    assert_eq!(config.recommend.ranker.decision_api.auth_token, "<decision_auth_token>");
+    assert_eq!(
+        config.recommend.ranker.reranker_api.model,
+        "<reranker_model>"
+    );
+    assert_eq!(
+        config.recommend.ranker.decision_api.auth_token,
+        "<decision_auth_token>"
+    );
     assert_eq!(config.recommend.ranker.decision_api.url, "<decision_url>");
-    assert_eq!(config.recommend.ranker.decision_api.model, "<decision_model>");
+    assert_eq!(
+        config.recommend.ranker.decision_api.model,
+        "<decision_model>"
+    );
     assert_eq!(config.quota.max_users_count, 9);
     assert_eq!(config.quota.max_items_count, 10);
     assert_eq!(config.quota.max_labels_size, 11);
@@ -519,8 +571,8 @@ fn test_table_prefix_compat() {
     let dir = temp_dir("prefix");
     let path = dir.join("config.toml");
     fs::write(&path, text).expect("write the config");
-    let config = load_config_with_env(path.to_str().expect("utf-8"), &no_env)
-        .expect("load the config");
+    let config =
+        load_config_with_env(path.to_str().expect("utf-8"), &no_env).expect("load the config");
     assert_eq!(config.database.table_prefix, "gorse_");
     assert_eq!(config.database.cache_table_prefix, "gorse_");
     assert_eq!(config.database.data_table_prefix, "gorse_");
@@ -532,18 +584,36 @@ fn test_non_personalized_config() {
     let b = NonPersonalizedConfig::default();
     assert_eq!(a.hash(), b.hash());
 
-    let a = NonPersonalizedConfig { name: "a".into(), ..Default::default() };
-    let b = NonPersonalizedConfig { name: "b".into(), ..Default::default() };
+    let a = NonPersonalizedConfig {
+        name: "a".into(),
+        ..Default::default()
+    };
+    let b = NonPersonalizedConfig {
+        name: "b".into(),
+        ..Default::default()
+    };
     assert_ne!(a.hash(), b.hash());
     assert_eq!(a.full_name(), "non-personalized/a");
     assert_eq!(b.full_name(), "non-personalized/b");
 
-    let a = NonPersonalizedConfig { score: "a".into(), ..Default::default() };
-    let b = NonPersonalizedConfig { score: "b".into(), ..Default::default() };
+    let a = NonPersonalizedConfig {
+        score: "a".into(),
+        ..Default::default()
+    };
+    let b = NonPersonalizedConfig {
+        score: "b".into(),
+        ..Default::default()
+    };
     assert_ne!(a.hash(), b.hash());
 
-    let a = NonPersonalizedConfig { filter: "a".into(), ..Default::default() };
-    let b = NonPersonalizedConfig { filter: "b".into(), ..Default::default() };
+    let a = NonPersonalizedConfig {
+        filter: "a".into(),
+        ..Default::default()
+    };
+    let b = NonPersonalizedConfig {
+        filter: "b".into(),
+        ..Default::default()
+    };
     assert_ne!(a.hash(), b.hash());
 }
 
@@ -553,21 +623,42 @@ fn test_item_to_item_config() {
     let b = ItemToItemConfig::default();
     assert_eq!(a.hash(None), b.hash(None));
 
-    let a = ItemToItemConfig { name: "a".into(), ..Default::default() };
-    let b = ItemToItemConfig { name: "b".into(), ..Default::default() };
+    let a = ItemToItemConfig {
+        name: "a".into(),
+        ..Default::default()
+    };
+    let b = ItemToItemConfig {
+        name: "b".into(),
+        ..Default::default()
+    };
     assert_ne!(a.hash(None), b.hash(None));
     assert_eq!(a.full_name(), "item-to-item/a");
     assert_eq!(b.full_name(), "item-to-item/b");
 
-    let a = ItemToItemConfig { kind: "a".into(), ..Default::default() };
-    let b = ItemToItemConfig { kind: "b".into(), ..Default::default() };
+    let a = ItemToItemConfig {
+        kind: "a".into(),
+        ..Default::default()
+    };
+    let b = ItemToItemConfig {
+        kind: "b".into(),
+        ..Default::default()
+    };
     assert_ne!(a.hash(None), b.hash(None));
 
-    let a = ItemToItemConfig { column: "a".into(), ..Default::default() };
-    let b = ItemToItemConfig { column: "b".into(), ..Default::default() };
+    let a = ItemToItemConfig {
+        column: "a".into(),
+        ..Default::default()
+    };
+    let b = ItemToItemConfig {
+        column: "b".into(),
+        ..Default::default()
+    };
     assert_ne!(a.hash(None), b.hash(None));
 
-    let c = ItemToItemConfig { kind: "users".into(), ..Default::default() };
+    let c = ItemToItemConfig {
+        kind: "users".into(),
+        ..Default::default()
+    };
     let mut d = RecommendConfig::default();
     let mut e = RecommendConfig::default();
     assert_eq!(c.hash(Some(&d)), c.hash(Some(&e)));
@@ -583,21 +674,42 @@ fn test_user_to_user_config() {
     let b = UserToUserConfig::default();
     assert_eq!(a.hash(None), b.hash(None));
 
-    let a = UserToUserConfig { name: "a".into(), ..Default::default() };
-    let b = UserToUserConfig { name: "b".into(), ..Default::default() };
+    let a = UserToUserConfig {
+        name: "a".into(),
+        ..Default::default()
+    };
+    let b = UserToUserConfig {
+        name: "b".into(),
+        ..Default::default()
+    };
     assert_ne!(a.hash(None), b.hash(None));
     assert_eq!(a.full_name(), "user-to-user/a");
     assert_eq!(b.full_name(), "user-to-user/b");
 
-    let a = UserToUserConfig { kind: "a".into(), ..Default::default() };
-    let b = UserToUserConfig { kind: "b".into(), ..Default::default() };
+    let a = UserToUserConfig {
+        kind: "a".into(),
+        ..Default::default()
+    };
+    let b = UserToUserConfig {
+        kind: "b".into(),
+        ..Default::default()
+    };
     assert_ne!(a.hash(None), b.hash(None));
 
-    let a = UserToUserConfig { column: "a".into(), ..Default::default() };
-    let b = UserToUserConfig { column: "b".into(), ..Default::default() };
+    let a = UserToUserConfig {
+        column: "a".into(),
+        ..Default::default()
+    };
+    let b = UserToUserConfig {
+        column: "b".into(),
+        ..Default::default()
+    };
     assert_ne!(a.hash(None), b.hash(None));
 
-    let c = UserToUserConfig { kind: "items".into(), ..Default::default() };
+    let c = UserToUserConfig {
+        kind: "items".into(),
+        ..Default::default()
+    };
     let mut d = RecommendConfig::default();
     let mut e = RecommendConfig::default();
     assert_eq!(c.hash(Some(&d)), c.hash(Some(&e)));
@@ -625,14 +737,26 @@ fn test_external_config() {
     let b = ExternalConfig::default();
     assert_eq!(a.hash(), b.hash());
 
-    let a = ExternalConfig { name: "a".into(), ..Default::default() };
-    let b = ExternalConfig { name: "b".into(), ..Default::default() };
+    let a = ExternalConfig {
+        name: "a".into(),
+        ..Default::default()
+    };
+    let b = ExternalConfig {
+        name: "b".into(),
+        ..Default::default()
+    };
     assert_ne!(a.hash(), b.hash());
     assert_eq!(a.full_name(), "external/a");
     assert_eq!(b.full_name(), "external/b");
 
-    let a = ExternalConfig { script: "a".into(), ..Default::default() };
-    let b = ExternalConfig { script: "b".into(), ..Default::default() };
+    let a = ExternalConfig {
+        script: "a".into(),
+        ..Default::default()
+    };
+    let b = ExternalConfig {
+        script: "b".into(),
+        ..Default::default()
+    };
     assert_ne!(a.hash(), b.hash());
 }
 
@@ -642,26 +766,50 @@ fn test_recommend_config() {
     let mut b = RecommendConfig::default();
     assert_eq!(a.hash(), b.hash());
 
-    a.non_personalized = Some(vec![NonPersonalizedConfig { name: "a".into(), ..Default::default() }]);
-    b.non_personalized = Some(vec![NonPersonalizedConfig { name: "b".into(), ..Default::default() }]);
+    a.non_personalized = Some(vec![NonPersonalizedConfig {
+        name: "a".into(),
+        ..Default::default()
+    }]);
+    b.non_personalized = Some(vec![NonPersonalizedConfig {
+        name: "b".into(),
+        ..Default::default()
+    }]);
     assert_ne!(a.hash(), b.hash());
     a.non_personalized = Some(vec![]);
     b.non_personalized = Some(vec![]);
 
-    a.item_to_item = Some(vec![ItemToItemConfig { name: "a".into(), ..Default::default() }]);
-    b.item_to_item = Some(vec![ItemToItemConfig { name: "b".into(), ..Default::default() }]);
+    a.item_to_item = Some(vec![ItemToItemConfig {
+        name: "a".into(),
+        ..Default::default()
+    }]);
+    b.item_to_item = Some(vec![ItemToItemConfig {
+        name: "b".into(),
+        ..Default::default()
+    }]);
     assert_ne!(a.hash(), b.hash());
     a.item_to_item = Some(vec![]);
     b.item_to_item = Some(vec![]);
 
-    a.user_to_user = Some(vec![UserToUserConfig { name: "a".into(), ..Default::default() }]);
-    b.user_to_user = Some(vec![UserToUserConfig { name: "b".into(), ..Default::default() }]);
+    a.user_to_user = Some(vec![UserToUserConfig {
+        name: "a".into(),
+        ..Default::default()
+    }]);
+    b.user_to_user = Some(vec![UserToUserConfig {
+        name: "b".into(),
+        ..Default::default()
+    }]);
     assert_ne!(a.hash(), b.hash());
     a.user_to_user = Some(vec![]);
     b.user_to_user = Some(vec![]);
 
-    a.external = Some(vec![ExternalConfig { name: "a".into(), ..Default::default() }]);
-    b.external = Some(vec![ExternalConfig { name: "b".into(), ..Default::default() }]);
+    a.external = Some(vec![ExternalConfig {
+        name: "a".into(),
+        ..Default::default()
+    }]);
+    b.external = Some(vec![ExternalConfig {
+        name: "b".into(),
+        ..Default::default()
+    }]);
     assert_ne!(a.hash(), b.hash());
     a.external = Some(vec![]);
     b.external = Some(vec![]);
@@ -675,12 +823,24 @@ fn test_recommend_config() {
     assert_ne!(a.hash(), b.hash());
 
     a.user_to_user = Some(vec![
-        UserToUserConfig { name: "a".into(), ..Default::default() },
-        UserToUserConfig { name: "b".into(), ..Default::default() },
+        UserToUserConfig {
+            name: "a".into(),
+            ..Default::default()
+        },
+        UserToUserConfig {
+            name: "b".into(),
+            ..Default::default()
+        },
     ]);
     b.user_to_user = Some(vec![
-        UserToUserConfig { name: "b".into(), ..Default::default() },
-        UserToUserConfig { name: "a".into(), ..Default::default() },
+        UserToUserConfig {
+            name: "b".into(),
+            ..Default::default()
+        },
+        UserToUserConfig {
+            name: "a".into(),
+            ..Default::default()
+        },
     ]);
     a.ranker.recommenders = Some(vec!["user-to-user/a".into(), "user-to-user/b".into()]);
     b.ranker.recommenders = Some(vec!["user-to-user/b".into(), "user-to-user/a".into()]);
@@ -691,13 +851,22 @@ fn test_recommend_config() {
 fn test_recommend_config_get_item_to_item_config() {
     let config = RecommendConfig {
         item_to_item: Some(vec![
-            ItemToItemConfig { name: "a".into(), ..Default::default() },
-            ItemToItemConfig { name: "b".into(), ..Default::default() },
+            ItemToItemConfig {
+                name: "a".into(),
+                ..Default::default()
+            },
+            ItemToItemConfig {
+                name: "b".into(),
+                ..Default::default()
+            },
         ]),
         ..Default::default()
     };
     let items = config.item_to_item.as_ref().expect("two");
-    assert!(std::ptr::eq(&items[1], config.get_item_to_item_config("b").expect("b")));
+    assert!(std::ptr::eq(
+        &items[1],
+        config.get_item_to_item_config("b").expect("b")
+    ));
     assert!(config.get_item_to_item_config("missing").is_none());
 }
 
@@ -705,13 +874,22 @@ fn test_recommend_config_get_item_to_item_config() {
 fn test_recommend_config_get_user_to_user_config() {
     let config = RecommendConfig {
         user_to_user: Some(vec![
-            UserToUserConfig { name: "a".into(), ..Default::default() },
-            UserToUserConfig { name: "b".into(), ..Default::default() },
+            UserToUserConfig {
+                name: "a".into(),
+                ..Default::default()
+            },
+            UserToUserConfig {
+                name: "b".into(),
+                ..Default::default()
+            },
         ]),
         ..Default::default()
     };
     let users = config.user_to_user.as_ref().expect("two");
-    assert!(std::ptr::eq(&users[1], config.get_user_to_user_config("b").expect("b")));
+    assert!(std::ptr::eq(
+        &users[1],
+        config.get_user_to_user_config("b").expect("b")
+    ));
     assert!(config.get_user_to_user_config("missing").is_none());
 }
 

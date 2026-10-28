@@ -215,7 +215,9 @@ fn json_list<T: Default>(
 }
 
 fn json_strings(value: &Json, out: &mut Option<Vec<String>>, at: &str) -> Result<()> {
-    json_list(value, out, at, |item, s: &mut String| json_string(item, s, at))
+    json_list(value, out, at, |item, s: &mut String| {
+        json_string(item, s, at)
+    })
 }
 
 fn json_expressions(
@@ -223,11 +225,16 @@ fn json_expressions(
     out: &mut Option<Vec<FeedbackTypeExpression>>,
     at: &str,
 ) -> Result<()> {
-    json_list(value, out, at, |item, expr: &mut FeedbackTypeExpression| match item {
-        Json::String(s) => expr.from_string(s).map_err(|err| err.to_string()),
-        Json::Null => expr.from_string("").map_err(|err| err.to_string()),
-        other => Err(mismatch(other, at, "expression.FeedbackTypeExpression")),
-    })
+    json_list(
+        value,
+        out,
+        at,
+        |item, expr: &mut FeedbackTypeExpression| match item {
+            Json::String(s) => expr.from_string(s).map_err(|err| err.to_string()),
+            Json::Null => expr.from_string("").map_err(|err| err.to_string()),
+            other => Err(mismatch(other, at, "expression.FeedbackTypeExpression")),
+        },
+    )
 }
 
 /// A JSON object of the struct `go_type`, which `body` decodes field by field.
@@ -316,7 +323,10 @@ impl DatabaseConfig {
             ("DataTablePrefix", go_json_quote(&self.data_table_prefix)),
             ("CacheTablePrefix", go_json_quote(&self.cache_table_prefix)),
             ("CacheClientName", go_json_quote(&self.cache_client_name)),
-            ("VectorTablePrefix", go_json_quote(&self.vector_table_prefix)),
+            (
+                "VectorTablePrefix",
+                go_json_quote(&self.vector_table_prefix),
+            ),
             ("MySQL", self.mysql.marshal_json()),
             ("Postgres", self.postgres.marshal_json()),
             ("Redis", self.redis.marshal_json()),
@@ -326,14 +336,46 @@ impl DatabaseConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "DatabaseConfig", |f| {
-            field(f, "DataStore", |v| json_string(v, &mut self.data_store, "DatabaseConfig.DataStore"))?;
-            field(f, "CacheStore", |v| json_string(v, &mut self.cache_store, "DatabaseConfig.CacheStore"))?;
-            field(f, "VectorStore", |v| json_string(v, &mut self.vector_store, "DatabaseConfig.VectorStore"))?;
-            field(f, "TablePrefix", |v| json_string(v, &mut self.table_prefix, "DatabaseConfig.TablePrefix"))?;
-            field(f, "DataTablePrefix", |v| json_string(v, &mut self.data_table_prefix, "DatabaseConfig.DataTablePrefix"))?;
-            field(f, "CacheTablePrefix", |v| json_string(v, &mut self.cache_table_prefix, "DatabaseConfig.CacheTablePrefix"))?;
-            field(f, "CacheClientName", |v| json_string(v, &mut self.cache_client_name, "DatabaseConfig.CacheClientName"))?;
-            field(f, "VectorTablePrefix", |v| json_string(v, &mut self.vector_table_prefix, "DatabaseConfig.VectorTablePrefix"))?;
+            field(f, "DataStore", |v| {
+                json_string(v, &mut self.data_store, "DatabaseConfig.DataStore")
+            })?;
+            field(f, "CacheStore", |v| {
+                json_string(v, &mut self.cache_store, "DatabaseConfig.CacheStore")
+            })?;
+            field(f, "VectorStore", |v| {
+                json_string(v, &mut self.vector_store, "DatabaseConfig.VectorStore")
+            })?;
+            field(f, "TablePrefix", |v| {
+                json_string(v, &mut self.table_prefix, "DatabaseConfig.TablePrefix")
+            })?;
+            field(f, "DataTablePrefix", |v| {
+                json_string(
+                    v,
+                    &mut self.data_table_prefix,
+                    "DatabaseConfig.DataTablePrefix",
+                )
+            })?;
+            field(f, "CacheTablePrefix", |v| {
+                json_string(
+                    v,
+                    &mut self.cache_table_prefix,
+                    "DatabaseConfig.CacheTablePrefix",
+                )
+            })?;
+            field(f, "CacheClientName", |v| {
+                json_string(
+                    v,
+                    &mut self.cache_client_name,
+                    "DatabaseConfig.CacheClientName",
+                )
+            })?;
+            field(f, "VectorTablePrefix", |v| {
+                json_string(
+                    v,
+                    &mut self.vector_table_prefix,
+                    "DatabaseConfig.VectorTablePrefix",
+                )
+            })?;
             field(f, "MySQL", |v| self.mysql.unmarshal_json(v))?;
             field(f, "Postgres", |v| self.postgres.unmarshal_json(v))?;
             field(f, "Redis", |v| self.redis.unmarshal_json(v))?;
@@ -354,10 +396,32 @@ impl MySQLConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "MySQLConfig", |f| {
-            field(f, "IsolationLevel", |v| json_string(v, &mut self.isolation_level, "MySQLConfig.IsolationLevel"))?;
-            field(f, "MaxOpenConns", |v| json_int(v, &mut self.max_open_conns, "MySQLConfig.MaxOpenConns", "int"))?;
-            field(f, "MaxIdleConns", |v| json_int(v, &mut self.max_idle_conns, "MySQLConfig.MaxIdleConns", "int"))?;
-            field(f, "ConnMaxLifetime", |v| json_duration(v, &mut self.conn_max_lifetime, "MySQLConfig.ConnMaxLifetime"))
+            field(f, "IsolationLevel", |v| {
+                json_string(v, &mut self.isolation_level, "MySQLConfig.IsolationLevel")
+            })?;
+            field(f, "MaxOpenConns", |v| {
+                json_int(
+                    v,
+                    &mut self.max_open_conns,
+                    "MySQLConfig.MaxOpenConns",
+                    "int",
+                )
+            })?;
+            field(f, "MaxIdleConns", |v| {
+                json_int(
+                    v,
+                    &mut self.max_idle_conns,
+                    "MySQLConfig.MaxIdleConns",
+                    "int",
+                )
+            })?;
+            field(f, "ConnMaxLifetime", |v| {
+                json_duration(
+                    v,
+                    &mut self.conn_max_lifetime,
+                    "MySQLConfig.ConnMaxLifetime",
+                )
+            })
         })
     }
 }
@@ -373,9 +437,15 @@ impl SQLConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "SQLConfig", |f| {
-            field(f, "MaxOpenConns", |v| json_int(v, &mut self.max_open_conns, "SQLConfig.MaxOpenConns", "int"))?;
-            field(f, "MaxIdleConns", |v| json_int(v, &mut self.max_idle_conns, "SQLConfig.MaxIdleConns", "int"))?;
-            field(f, "ConnMaxLifetime", |v| json_duration(v, &mut self.conn_max_lifetime, "SQLConfig.ConnMaxLifetime"))
+            field(f, "MaxOpenConns", |v| {
+                json_int(v, &mut self.max_open_conns, "SQLConfig.MaxOpenConns", "int")
+            })?;
+            field(f, "MaxIdleConns", |v| {
+                json_int(v, &mut self.max_idle_conns, "SQLConfig.MaxIdleConns", "int")
+            })?;
+            field(f, "ConnMaxLifetime", |v| {
+                json_duration(v, &mut self.conn_max_lifetime, "SQLConfig.ConnMaxLifetime")
+            })
         })
     }
 }
@@ -387,7 +457,14 @@ impl RedisConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "RedisConfig", |f| {
-            field(f, "MaxSearchResults", |v| json_int(v, &mut self.max_search_results, "RedisConfig.MaxSearchResults", "int"))
+            field(f, "MaxSearchResults", |v| {
+                json_int(
+                    v,
+                    &mut self.max_search_results,
+                    "RedisConfig.MaxSearchResults",
+                    "int",
+                )
+            })
         })
     }
 }
@@ -402,8 +479,21 @@ impl VectorConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "VectorConfig", |f| {
-            field(f, "QuantizationType", |v| json_string(v, &mut self.quantization_type, "VectorConfig.QuantizationType"))?;
-            field(f, "QuantizationBits", |v| json_int(v, &mut self.quantization_bits, "VectorConfig.QuantizationBits", "int"))
+            field(f, "QuantizationType", |v| {
+                json_string(
+                    v,
+                    &mut self.quantization_type,
+                    "VectorConfig.QuantizationType",
+                )
+            })?;
+            field(f, "QuantizationBits", |v| {
+                json_int(
+                    v,
+                    &mut self.quantization_bits,
+                    "VectorConfig.QuantizationBits",
+                    "int",
+                )
+            })
         })
     }
 }
@@ -423,7 +513,10 @@ impl MasterConfig {
             ("HttpCorsMethods", strings_json(&self.http_cors_methods)?),
             ("NumJobs", int_json(self.n_jobs)),
             ("MetaTimeout", duration_json(self.meta_timeout)),
-            ("DashboardUserName", go_json_quote(&self.dashboard_user_name)),
+            (
+                "DashboardUserName",
+                go_json_quote(&self.dashboard_user_name),
+            ),
             ("DashboardPassword", go_json_quote(&self.dashboard_password)),
             ("DashboardRedacted", bool_json(self.dashboard_redacted)),
             ("AdminAPIKey", go_json_quote(&self.admin_api_key)),
@@ -432,22 +525,74 @@ impl MasterConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "MasterConfig", |f| {
-            field(f, "Port", |v| json_int(v, &mut self.port, "MasterConfig.Port", "int"))?;
-            field(f, "Host", |v| json_string(v, &mut self.host, "MasterConfig.Host"))?;
-            field(f, "SSLMode", |v| json_bool(v, &mut self.ssl_mode, "MasterConfig.SSLMode"))?;
-            field(f, "SSLCA", |v| json_string(v, &mut self.ssl_ca, "MasterConfig.SSLCA"))?;
-            field(f, "SSLCert", |v| json_string(v, &mut self.ssl_cert, "MasterConfig.SSLCert"))?;
-            field(f, "SSLKey", |v| json_string(v, &mut self.ssl_key, "MasterConfig.SSLKey"))?;
-            field(f, "HttpPort", |v| json_int(v, &mut self.http_port, "MasterConfig.HttpPort", "int"))?;
-            field(f, "HttpHost", |v| json_string(v, &mut self.http_host, "MasterConfig.HttpHost"))?;
-            field(f, "HttpCorsDomains", |v| json_strings(v, &mut self.http_cors_domains, "MasterConfig.HttpCorsDomains"))?;
-            field(f, "HttpCorsMethods", |v| json_strings(v, &mut self.http_cors_methods, "MasterConfig.HttpCorsMethods"))?;
-            field(f, "NumJobs", |v| json_int(v, &mut self.n_jobs, "MasterConfig.NumJobs", "int"))?;
-            field(f, "MetaTimeout", |v| json_duration(v, &mut self.meta_timeout, "MasterConfig.MetaTimeout"))?;
-            field(f, "DashboardUserName", |v| json_string(v, &mut self.dashboard_user_name, "MasterConfig.DashboardUserName"))?;
-            field(f, "DashboardPassword", |v| json_string(v, &mut self.dashboard_password, "MasterConfig.DashboardPassword"))?;
-            field(f, "DashboardRedacted", |v| json_bool(v, &mut self.dashboard_redacted, "MasterConfig.DashboardRedacted"))?;
-            field(f, "AdminAPIKey", |v| json_string(v, &mut self.admin_api_key, "MasterConfig.AdminAPIKey"))
+            field(f, "Port", |v| {
+                json_int(v, &mut self.port, "MasterConfig.Port", "int")
+            })?;
+            field(f, "Host", |v| {
+                json_string(v, &mut self.host, "MasterConfig.Host")
+            })?;
+            field(f, "SSLMode", |v| {
+                json_bool(v, &mut self.ssl_mode, "MasterConfig.SSLMode")
+            })?;
+            field(f, "SSLCA", |v| {
+                json_string(v, &mut self.ssl_ca, "MasterConfig.SSLCA")
+            })?;
+            field(f, "SSLCert", |v| {
+                json_string(v, &mut self.ssl_cert, "MasterConfig.SSLCert")
+            })?;
+            field(f, "SSLKey", |v| {
+                json_string(v, &mut self.ssl_key, "MasterConfig.SSLKey")
+            })?;
+            field(f, "HttpPort", |v| {
+                json_int(v, &mut self.http_port, "MasterConfig.HttpPort", "int")
+            })?;
+            field(f, "HttpHost", |v| {
+                json_string(v, &mut self.http_host, "MasterConfig.HttpHost")
+            })?;
+            field(f, "HttpCorsDomains", |v| {
+                json_strings(
+                    v,
+                    &mut self.http_cors_domains,
+                    "MasterConfig.HttpCorsDomains",
+                )
+            })?;
+            field(f, "HttpCorsMethods", |v| {
+                json_strings(
+                    v,
+                    &mut self.http_cors_methods,
+                    "MasterConfig.HttpCorsMethods",
+                )
+            })?;
+            field(f, "NumJobs", |v| {
+                json_int(v, &mut self.n_jobs, "MasterConfig.NumJobs", "int")
+            })?;
+            field(f, "MetaTimeout", |v| {
+                json_duration(v, &mut self.meta_timeout, "MasterConfig.MetaTimeout")
+            })?;
+            field(f, "DashboardUserName", |v| {
+                json_string(
+                    v,
+                    &mut self.dashboard_user_name,
+                    "MasterConfig.DashboardUserName",
+                )
+            })?;
+            field(f, "DashboardPassword", |v| {
+                json_string(
+                    v,
+                    &mut self.dashboard_password,
+                    "MasterConfig.DashboardPassword",
+                )
+            })?;
+            field(f, "DashboardRedacted", |v| {
+                json_bool(
+                    v,
+                    &mut self.dashboard_redacted,
+                    "MasterConfig.DashboardRedacted",
+                )
+            })?;
+            field(f, "AdminAPIKey", |v| {
+                json_string(v, &mut self.admin_api_key, "MasterConfig.AdminAPIKey")
+            })
         })
     }
 }
@@ -466,12 +611,24 @@ impl ServerConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "ServerConfig", |f| {
-            field(f, "APIKey", |v| json_string(v, &mut self.api_key, "ServerConfig.APIKey"))?;
-            field(f, "DefaultN", |v| json_int(v, &mut self.default_n, "ServerConfig.DefaultN", "int"))?;
-            field(f, "ClockError", |v| json_duration(v, &mut self.clock_error, "ServerConfig.ClockError"))?;
-            field(f, "AutoInsertUser", |v| json_bool(v, &mut self.auto_insert_user, "ServerConfig.AutoInsertUser"))?;
-            field(f, "AutoInsertItem", |v| json_bool(v, &mut self.auto_insert_item, "ServerConfig.AutoInsertItem"))?;
-            field(f, "CacheExpire", |v| json_duration(v, &mut self.cache_expire, "ServerConfig.CacheExpire"))
+            field(f, "APIKey", |v| {
+                json_string(v, &mut self.api_key, "ServerConfig.APIKey")
+            })?;
+            field(f, "DefaultN", |v| {
+                json_int(v, &mut self.default_n, "ServerConfig.DefaultN", "int")
+            })?;
+            field(f, "ClockError", |v| {
+                json_duration(v, &mut self.clock_error, "ServerConfig.ClockError")
+            })?;
+            field(f, "AutoInsertUser", |v| {
+                json_bool(v, &mut self.auto_insert_user, "ServerConfig.AutoInsertUser")
+            })?;
+            field(f, "AutoInsertItem", |v| {
+                json_bool(v, &mut self.auto_insert_item, "ServerConfig.AutoInsertItem")
+            })?;
+            field(f, "CacheExpire", |v| {
+                json_duration(v, &mut self.cache_expire, "ServerConfig.CacheExpire")
+            })
         })
     }
 }
@@ -485,11 +642,23 @@ impl RecommendConfig {
             ("ActiveUserTTL", int_json(self.active_user_ttl)),
             ("DataSource", self.data_source.marshal_json()?),
             ("Search", self.search.marshal_json()?),
-            ("NonPersonalized", list(&self.non_personalized, NonPersonalizedConfig::marshal_json)?),
-            ("ItemToItem", list(&self.item_to_item, ItemToItemConfig::marshal_json)?),
-            ("UserToUser", list(&self.user_to_user, UserToUserConfig::marshal_json)?),
+            (
+                "NonPersonalized",
+                list(&self.non_personalized, NonPersonalizedConfig::marshal_json)?,
+            ),
+            (
+                "ItemToItem",
+                list(&self.item_to_item, ItemToItemConfig::marshal_json)?,
+            ),
+            (
+                "UserToUser",
+                list(&self.user_to_user, UserToUserConfig::marshal_json)?,
+            ),
             ("Collaborative", self.collaborative.marshal_json()?),
-            ("External", list(&self.external, ExternalConfig::marshal_json)?),
+            (
+                "External",
+                list(&self.external, ExternalConfig::marshal_json)?,
+            ),
             ("Replacement", self.replacement.marshal_json()?),
             ("Ranker", self.ranker.marshal_json()?),
             ("Fallback", self.fallback.marshal_json()?),
@@ -498,24 +667,62 @@ impl RecommendConfig {
 
     fn decode(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "RecommendConfig", |f| {
-            field(f, "CacheSize", |v| json_int(v, &mut self.cache_size, "RecommendConfig.CacheSize", "int"))?;
-            field(f, "CacheExpire", |v| json_duration(v, &mut self.cache_expire, "RecommendConfig.CacheExpire"))?;
-            field(f, "ContextSize", |v| json_int(v, &mut self.context_size, "RecommendConfig.ContextSize", "int"))?;
-            field(f, "ActiveUserTTL", |v| json_int(v, &mut self.active_user_ttl, "RecommendConfig.ActiveUserTTL", "int"))?;
+            field(f, "CacheSize", |v| {
+                json_int(v, &mut self.cache_size, "RecommendConfig.CacheSize", "int")
+            })?;
+            field(f, "CacheExpire", |v| {
+                json_duration(v, &mut self.cache_expire, "RecommendConfig.CacheExpire")
+            })?;
+            field(f, "ContextSize", |v| {
+                json_int(
+                    v,
+                    &mut self.context_size,
+                    "RecommendConfig.ContextSize",
+                    "int",
+                )
+            })?;
+            field(f, "ActiveUserTTL", |v| {
+                json_int(
+                    v,
+                    &mut self.active_user_ttl,
+                    "RecommendConfig.ActiveUserTTL",
+                    "int",
+                )
+            })?;
             field(f, "DataSource", |v| self.data_source.unmarshal_json(v))?;
             field(f, "Search", |v| self.search.unmarshal_json(v))?;
             field(f, "NonPersonalized", |v| {
-                json_list(v, &mut self.non_personalized, "RecommendConfig.NonPersonalized", NonPersonalizedConfig::unmarshal_json)
+                json_list(
+                    v,
+                    &mut self.non_personalized,
+                    "RecommendConfig.NonPersonalized",
+                    NonPersonalizedConfig::unmarshal_json,
+                )
             })?;
             field(f, "ItemToItem", |v| {
-                json_list(v, &mut self.item_to_item, "RecommendConfig.ItemToItem", ItemToItemConfig::unmarshal_json)
+                json_list(
+                    v,
+                    &mut self.item_to_item,
+                    "RecommendConfig.ItemToItem",
+                    ItemToItemConfig::unmarshal_json,
+                )
             })?;
             field(f, "UserToUser", |v| {
-                json_list(v, &mut self.user_to_user, "RecommendConfig.UserToUser", UserToUserConfig::unmarshal_json)
+                json_list(
+                    v,
+                    &mut self.user_to_user,
+                    "RecommendConfig.UserToUser",
+                    UserToUserConfig::unmarshal_json,
+                )
             })?;
             field(f, "Collaborative", |v| self.collaborative.unmarshal_json(v))?;
             field(f, "External", |v| {
-                json_list(v, &mut self.external, "RecommendConfig.External", ExternalConfig::unmarshal_json)
+                json_list(
+                    v,
+                    &mut self.external,
+                    "RecommendConfig.External",
+                    ExternalConfig::unmarshal_json,
+                )
             })?;
             field(f, "Replacement", |v| self.replacement.unmarshal_json(v))?;
             field(f, "Ranker", |v| self.ranker.unmarshal_json(v))?;
@@ -527,10 +734,22 @@ impl RecommendConfig {
 impl DataSourceConfig {
     fn marshal_json(&self) -> Result<String> {
         Ok(object(&[
-            ("PositiveFeedbackTypes", expressions_json(&self.positive_feedback_types)?),
-            ("NegativeFeedbackTypes", expressions_json(&self.negative_feedback_types)?),
-            ("ReadFeedbackTypes", expressions_json(&self.read_feedback_types)?),
-            ("PositiveFeedbackTTL", self.positive_feedback_ttl.to_string()),
+            (
+                "PositiveFeedbackTypes",
+                expressions_json(&self.positive_feedback_types)?,
+            ),
+            (
+                "NegativeFeedbackTypes",
+                expressions_json(&self.negative_feedback_types)?,
+            ),
+            (
+                "ReadFeedbackTypes",
+                expressions_json(&self.read_feedback_types)?,
+            ),
+            (
+                "PositiveFeedbackTTL",
+                self.positive_feedback_ttl.to_string(),
+            ),
             ("ItemTTL", self.item_ttl.to_string()),
         ]))
     }
@@ -538,16 +757,36 @@ impl DataSourceConfig {
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "DataSourceConfig", |f| {
             field(f, "PositiveFeedbackTypes", |v| {
-                json_expressions(v, &mut self.positive_feedback_types, "DataSourceConfig.PositiveFeedbackTypes")
+                json_expressions(
+                    v,
+                    &mut self.positive_feedback_types,
+                    "DataSourceConfig.PositiveFeedbackTypes",
+                )
             })?;
             field(f, "NegativeFeedbackTypes", |v| {
-                json_expressions(v, &mut self.negative_feedback_types, "DataSourceConfig.NegativeFeedbackTypes")
+                json_expressions(
+                    v,
+                    &mut self.negative_feedback_types,
+                    "DataSourceConfig.NegativeFeedbackTypes",
+                )
             })?;
             field(f, "ReadFeedbackTypes", |v| {
-                json_expressions(v, &mut self.read_feedback_types, "DataSourceConfig.ReadFeedbackTypes")
+                json_expressions(
+                    v,
+                    &mut self.read_feedback_types,
+                    "DataSourceConfig.ReadFeedbackTypes",
+                )
             })?;
-            field(f, "PositiveFeedbackTTL", |v| json_uint(v, &mut self.positive_feedback_ttl, "DataSourceConfig.PositiveFeedbackTTL"))?;
-            field(f, "ItemTTL", |v| json_uint(v, &mut self.item_ttl, "DataSourceConfig.ItemTTL"))
+            field(f, "PositiveFeedbackTTL", |v| {
+                json_uint(
+                    v,
+                    &mut self.positive_feedback_ttl,
+                    "DataSourceConfig.PositiveFeedbackTTL",
+                )
+            })?;
+            field(f, "ItemTTL", |v| {
+                json_uint(v, &mut self.item_ttl, "DataSourceConfig.ItemTTL")
+            })
         })
     }
 }
@@ -559,7 +798,9 @@ impl SearchConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "SearchConfig", |f| {
-            field(f, "Columns", |v| json_strings(v, &mut self.columns, "SearchConfig.Columns"))
+            field(f, "Columns", |v| {
+                json_strings(v, &mut self.columns, "SearchConfig.Columns")
+            })
         })
     }
 }
@@ -575,9 +816,15 @@ impl NonPersonalizedConfig {
 
     fn unmarshal_json(value: &Json, out: &mut Self) -> Result<()> {
         json_struct(value, "NonPersonalizedConfig", |f| {
-            field(f, "name", |v| json_string(v, &mut out.name, "NonPersonalizedConfig.name"))?;
-            field(f, "score", |v| json_string(v, &mut out.score, "NonPersonalizedConfig.score"))?;
-            field(f, "filter", |v| json_string(v, &mut out.filter, "NonPersonalizedConfig.filter"))
+            field(f, "name", |v| {
+                json_string(v, &mut out.name, "NonPersonalizedConfig.name")
+            })?;
+            field(f, "score", |v| {
+                json_string(v, &mut out.score, "NonPersonalizedConfig.score")
+            })?;
+            field(f, "filter", |v| {
+                json_string(v, &mut out.filter, "NonPersonalizedConfig.filter")
+            })
         })
     }
 }
@@ -593,9 +840,15 @@ impl ItemToItemConfig {
 
     fn unmarshal_json(value: &Json, out: &mut Self) -> Result<()> {
         json_struct(value, "ItemToItemConfig", |f| {
-            field(f, "name", |v| json_string(v, &mut out.name, "ItemToItemConfig.name"))?;
-            field(f, "type", |v| json_string(v, &mut out.kind, "ItemToItemConfig.type"))?;
-            field(f, "column", |v| json_string(v, &mut out.column, "ItemToItemConfig.column"))
+            field(f, "name", |v| {
+                json_string(v, &mut out.name, "ItemToItemConfig.name")
+            })?;
+            field(f, "type", |v| {
+                json_string(v, &mut out.kind, "ItemToItemConfig.type")
+            })?;
+            field(f, "column", |v| {
+                json_string(v, &mut out.column, "ItemToItemConfig.column")
+            })
         })
     }
 }
@@ -611,9 +864,15 @@ impl UserToUserConfig {
 
     fn unmarshal_json(value: &Json, out: &mut Self) -> Result<()> {
         json_struct(value, "UserToUserConfig", |f| {
-            field(f, "name", |v| json_string(v, &mut out.name, "UserToUserConfig.name"))?;
-            field(f, "type", |v| json_string(v, &mut out.kind, "UserToUserConfig.type"))?;
-            field(f, "column", |v| json_string(v, &mut out.column, "UserToUserConfig.column"))
+            field(f, "name", |v| {
+                json_string(v, &mut out.name, "UserToUserConfig.name")
+            })?;
+            field(f, "type", |v| {
+                json_string(v, &mut out.kind, "UserToUserConfig.type")
+            })?;
+            field(f, "column", |v| {
+                json_string(v, &mut out.column, "UserToUserConfig.column")
+            })
         })
     }
 }
@@ -632,12 +891,38 @@ impl CollaborativeConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "CollaborativeConfig", |f| {
-            field(f, "Type", |v| json_string(v, &mut self.kind, "CollaborativeConfig.Type"))?;
-            field(f, "FitPeriod", |v| json_duration(v, &mut self.fit_period, "CollaborativeConfig.FitPeriod"))?;
-            field(f, "FitEpoch", |v| json_int(v, &mut self.fit_epoch, "CollaborativeConfig.FitEpoch", "int"))?;
-            field(f, "OptimizePeriod", |v| json_duration(v, &mut self.optimize_period, "CollaborativeConfig.OptimizePeriod"))?;
-            field(f, "OptimizeTrials", |v| json_int(v, &mut self.optimize_trials, "CollaborativeConfig.OptimizeTrials", "int"))?;
-            field(f, "EarlyStopping", |v| self.early_stopping.unmarshal_json(v))
+            field(f, "Type", |v| {
+                json_string(v, &mut self.kind, "CollaborativeConfig.Type")
+            })?;
+            field(f, "FitPeriod", |v| {
+                json_duration(v, &mut self.fit_period, "CollaborativeConfig.FitPeriod")
+            })?;
+            field(f, "FitEpoch", |v| {
+                json_int(
+                    v,
+                    &mut self.fit_epoch,
+                    "CollaborativeConfig.FitEpoch",
+                    "int",
+                )
+            })?;
+            field(f, "OptimizePeriod", |v| {
+                json_duration(
+                    v,
+                    &mut self.optimize_period,
+                    "CollaborativeConfig.OptimizePeriod",
+                )
+            })?;
+            field(f, "OptimizeTrials", |v| {
+                json_int(
+                    v,
+                    &mut self.optimize_trials,
+                    "CollaborativeConfig.OptimizeTrials",
+                    "int",
+                )
+            })?;
+            field(f, "EarlyStopping", |v| {
+                self.early_stopping.unmarshal_json(v)
+            })
         })
     }
 }
@@ -649,7 +934,9 @@ impl EarlyStoppingConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "EarlyStoppingConfig", |f| {
-            field(f, "Patience", |v| json_int(v, &mut self.patience, "EarlyStoppingConfig.Patience", "int"))
+            field(f, "Patience", |v| {
+                json_int(v, &mut self.patience, "EarlyStoppingConfig.Patience", "int")
+            })
         })
     }
 }
@@ -664,8 +951,12 @@ impl ExternalConfig {
 
     fn unmarshal_json(value: &Json, out: &mut Self) -> Result<()> {
         json_struct(value, "ExternalConfig", |f| {
-            field(f, "name", |v| json_string(v, &mut out.name, "ExternalConfig.name"))?;
-            field(f, "script", |v| json_string(v, &mut out.script, "ExternalConfig.script"))
+            field(f, "name", |v| {
+                json_string(v, &mut out.name, "ExternalConfig.name")
+            })?;
+            field(f, "script", |v| {
+                json_string(v, &mut out.script, "ExternalConfig.script")
+            })
         })
     }
 }
@@ -674,16 +965,40 @@ impl ReplacementConfig {
     fn marshal_json(&self) -> Result<String> {
         Ok(object(&[
             ("EnableReplacement", bool_json(self.enable_replacement)),
-            ("PositiveReplacementDecay", float_json(self.positive_replacement_decay)?),
-            ("ReadReplacementDecay", float_json(self.read_replacement_decay)?),
+            (
+                "PositiveReplacementDecay",
+                float_json(self.positive_replacement_decay)?,
+            ),
+            (
+                "ReadReplacementDecay",
+                float_json(self.read_replacement_decay)?,
+            ),
         ]))
     }
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "ReplacementConfig", |f| {
-            field(f, "EnableReplacement", |v| json_bool(v, &mut self.enable_replacement, "ReplacementConfig.EnableReplacement"))?;
-            field(f, "PositiveReplacementDecay", |v| json_float(v, &mut self.positive_replacement_decay, "ReplacementConfig.PositiveReplacementDecay"))?;
-            field(f, "ReadReplacementDecay", |v| json_float(v, &mut self.read_replacement_decay, "ReplacementConfig.ReadReplacementDecay"))
+            field(f, "EnableReplacement", |v| {
+                json_bool(
+                    v,
+                    &mut self.enable_replacement,
+                    "ReplacementConfig.EnableReplacement",
+                )
+            })?;
+            field(f, "PositiveReplacementDecay", |v| {
+                json_float(
+                    v,
+                    &mut self.positive_replacement_decay,
+                    "ReplacementConfig.PositiveReplacementDecay",
+                )
+            })?;
+            field(f, "ReadReplacementDecay", |v| {
+                json_float(
+                    v,
+                    &mut self.read_replacement_decay,
+                    "ReplacementConfig.ReadReplacementDecay",
+                )
+            })
         })
     }
 }
@@ -706,14 +1021,35 @@ impl RankerConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "RankerConfig", |f| {
-            field(f, "Type", |v| json_string(v, &mut self.kind, "RankerConfig.Type"))?;
-            field(f, "Recommenders", |v| json_strings(v, &mut self.recommenders, "RankerConfig.Recommenders"))?;
-            field(f, "CacheExpire", |v| json_duration(v, &mut self.cache_expire, "RankerConfig.CacheExpire"))?;
-            field(f, "FitPeriod", |v| json_duration(v, &mut self.fit_period, "RankerConfig.FitPeriod"))?;
-            field(f, "FitEpoch", |v| json_int(v, &mut self.fit_epoch, "RankerConfig.FitEpoch", "int"))?;
-            field(f, "OptimizePeriod", |v| json_duration(v, &mut self.optimize_period, "RankerConfig.OptimizePeriod"))?;
-            field(f, "OptimizeTrials", |v| json_int(v, &mut self.optimize_trials, "RankerConfig.OptimizeTrials", "int"))?;
-            field(f, "EarlyStopping", |v| self.early_stopping.unmarshal_json(v))?;
+            field(f, "Type", |v| {
+                json_string(v, &mut self.kind, "RankerConfig.Type")
+            })?;
+            field(f, "Recommenders", |v| {
+                json_strings(v, &mut self.recommenders, "RankerConfig.Recommenders")
+            })?;
+            field(f, "CacheExpire", |v| {
+                json_duration(v, &mut self.cache_expire, "RankerConfig.CacheExpire")
+            })?;
+            field(f, "FitPeriod", |v| {
+                json_duration(v, &mut self.fit_period, "RankerConfig.FitPeriod")
+            })?;
+            field(f, "FitEpoch", |v| {
+                json_int(v, &mut self.fit_epoch, "RankerConfig.FitEpoch", "int")
+            })?;
+            field(f, "OptimizePeriod", |v| {
+                json_duration(v, &mut self.optimize_period, "RankerConfig.OptimizePeriod")
+            })?;
+            field(f, "OptimizeTrials", |v| {
+                json_int(
+                    v,
+                    &mut self.optimize_trials,
+                    "RankerConfig.OptimizeTrials",
+                    "int",
+                )
+            })?;
+            field(f, "EarlyStopping", |v| {
+                self.early_stopping.unmarshal_json(v)
+            })?;
             field(f, "RerankerAPI", |v| self.reranker_api.unmarshal_json(v))?;
             field(f, "DecisionAPI", |v| self.decision_api.unmarshal_json(v))
         })
@@ -722,12 +1058,17 @@ impl RankerConfig {
 
 impl FallbackConfig {
     fn marshal_json(&self) -> Result<String> {
-        Ok(object(&[("Recommenders", strings_json(&self.recommenders)?)]))
+        Ok(object(&[(
+            "Recommenders",
+            strings_json(&self.recommenders)?,
+        )]))
     }
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "FallbackConfig", |f| {
-            field(f, "Recommenders", |v| json_strings(v, &mut self.recommenders, "FallbackConfig.Recommenders"))
+            field(f, "Recommenders", |v| {
+                json_strings(v, &mut self.recommenders, "FallbackConfig.Recommenders")
+            })
         })
     }
 }
@@ -745,11 +1086,25 @@ impl TracingConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "TracingConfig", |f| {
-            field(f, "EnableTracing", |v| json_bool(v, &mut self.enable_tracing, "TracingConfig.EnableTracing"))?;
-            field(f, "Exporter", |v| json_string(v, &mut self.exporter, "TracingConfig.Exporter"))?;
-            field(f, "CollectorEndpoint", |v| json_string(v, &mut self.collector_endpoint, "TracingConfig.CollectorEndpoint"))?;
-            field(f, "Sampler", |v| json_string(v, &mut self.sampler, "TracingConfig.Sampler"))?;
-            field(f, "Ratio", |v| json_float(v, &mut self.ratio, "TracingConfig.Ratio"))
+            field(f, "EnableTracing", |v| {
+                json_bool(v, &mut self.enable_tracing, "TracingConfig.EnableTracing")
+            })?;
+            field(f, "Exporter", |v| {
+                json_string(v, &mut self.exporter, "TracingConfig.Exporter")
+            })?;
+            field(f, "CollectorEndpoint", |v| {
+                json_string(
+                    v,
+                    &mut self.collector_endpoint,
+                    "TracingConfig.CollectorEndpoint",
+                )
+            })?;
+            field(f, "Sampler", |v| {
+                json_string(v, &mut self.sampler, "TracingConfig.Sampler")
+            })?;
+            field(f, "Ratio", |v| {
+                json_float(v, &mut self.ratio, "TracingConfig.Ratio")
+            })
         })
     }
 }
@@ -767,11 +1122,21 @@ impl OIDCConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "OIDCConfig", |f| {
-            field(f, "Enable", |v| json_bool(v, &mut self.enable, "OIDCConfig.Enable"))?;
-            field(f, "Issuer", |v| json_string(v, &mut self.issuer, "OIDCConfig.Issuer"))?;
-            field(f, "ClientID", |v| json_string(v, &mut self.client_id, "OIDCConfig.ClientID"))?;
-            field(f, "ClientSecret", |v| json_string(v, &mut self.client_secret, "OIDCConfig.ClientSecret"))?;
-            field(f, "RedirectURL", |v| json_string(v, &mut self.redirect_url, "OIDCConfig.RedirectURL"))
+            field(f, "Enable", |v| {
+                json_bool(v, &mut self.enable, "OIDCConfig.Enable")
+            })?;
+            field(f, "Issuer", |v| {
+                json_string(v, &mut self.issuer, "OIDCConfig.Issuer")
+            })?;
+            field(f, "ClientID", |v| {
+                json_string(v, &mut self.client_id, "OIDCConfig.ClientID")
+            })?;
+            field(f, "ClientSecret", |v| {
+                json_string(v, &mut self.client_secret, "OIDCConfig.ClientSecret")
+            })?;
+            field(f, "RedirectURL", |v| {
+                json_string(v, &mut self.redirect_url, "OIDCConfig.RedirectURL")
+            })
         })
     }
 }
@@ -780,7 +1145,10 @@ impl DecisionAPIConfig {
     fn marshal_json(&self) -> String {
         object(&[
             ("StateTemplate", go_json_quote(&self.state_template)),
-            ("InstructionsTemplate", go_json_quote(&self.instructions_template)),
+            (
+                "InstructionsTemplate",
+                go_json_quote(&self.instructions_template),
+            ),
             ("AuthToken", go_json_quote(&self.auth_token)),
             ("Model", go_json_quote(&self.model)),
             ("URL", go_json_quote(&self.url)),
@@ -789,11 +1157,29 @@ impl DecisionAPIConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "DecisionAPIConfig", |f| {
-            field(f, "StateTemplate", |v| json_string(v, &mut self.state_template, "DecisionAPIConfig.StateTemplate"))?;
-            field(f, "InstructionsTemplate", |v| json_string(v, &mut self.instructions_template, "DecisionAPIConfig.InstructionsTemplate"))?;
-            field(f, "AuthToken", |v| json_string(v, &mut self.auth_token, "DecisionAPIConfig.AuthToken"))?;
-            field(f, "Model", |v| json_string(v, &mut self.model, "DecisionAPIConfig.Model"))?;
-            field(f, "URL", |v| json_string(v, &mut self.url, "DecisionAPIConfig.URL"))
+            field(f, "StateTemplate", |v| {
+                json_string(
+                    v,
+                    &mut self.state_template,
+                    "DecisionAPIConfig.StateTemplate",
+                )
+            })?;
+            field(f, "InstructionsTemplate", |v| {
+                json_string(
+                    v,
+                    &mut self.instructions_template,
+                    "DecisionAPIConfig.InstructionsTemplate",
+                )
+            })?;
+            field(f, "AuthToken", |v| {
+                json_string(v, &mut self.auth_token, "DecisionAPIConfig.AuthToken")
+            })?;
+            field(f, "Model", |v| {
+                json_string(v, &mut self.model, "DecisionAPIConfig.Model")
+            })?;
+            field(f, "URL", |v| {
+                json_string(v, &mut self.url, "DecisionAPIConfig.URL")
+            })
         })
     }
 }
@@ -811,11 +1197,29 @@ impl RerankerAPIConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "RerankerAPIConfig", |f| {
-            field(f, "QueryTemplate", |v| json_string(v, &mut self.query_template, "RerankerAPIConfig.QueryTemplate"))?;
-            field(f, "DocumentTemplate", |v| json_string(v, &mut self.document_template, "RerankerAPIConfig.DocumentTemplate"))?;
-            field(f, "AuthToken", |v| json_string(v, &mut self.auth_token, "RerankerAPIConfig.AuthToken"))?;
-            field(f, "Model", |v| json_string(v, &mut self.model, "RerankerAPIConfig.Model"))?;
-            field(f, "URL", |v| json_string(v, &mut self.url, "RerankerAPIConfig.URL"))
+            field(f, "QueryTemplate", |v| {
+                json_string(
+                    v,
+                    &mut self.query_template,
+                    "RerankerAPIConfig.QueryTemplate",
+                )
+            })?;
+            field(f, "DocumentTemplate", |v| {
+                json_string(
+                    v,
+                    &mut self.document_template,
+                    "RerankerAPIConfig.DocumentTemplate",
+                )
+            })?;
+            field(f, "AuthToken", |v| {
+                json_string(v, &mut self.auth_token, "RerankerAPIConfig.AuthToken")
+            })?;
+            field(f, "Model", |v| {
+                json_string(v, &mut self.model, "RerankerAPIConfig.Model")
+            })?;
+            field(f, "URL", |v| {
+                json_string(v, &mut self.url, "RerankerAPIConfig.URL")
+            })
         })
     }
 }
@@ -825,7 +1229,10 @@ impl OpenAIConfig {
         Ok(object(&[
             ("BaseURL", go_json_quote(&self.base_url)),
             ("AuthToken", go_json_quote(&self.auth_token)),
-            ("ChatCompletionModel", go_json_quote(&self.chat_completion_model)),
+            (
+                "ChatCompletionModel",
+                go_json_quote(&self.chat_completion_model),
+            ),
             ("ChatCompletionRPM", int_json(self.chat_completion_rpm)),
             ("ChatCompletionTPM", int_json(self.chat_completion_tpm)),
             ("EmbeddingModel", go_json_quote(&self.embedding_model)),
@@ -838,16 +1245,65 @@ impl OpenAIConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "OpenAIConfig", |f| {
-            field(f, "BaseURL", |v| json_string(v, &mut self.base_url, "OpenAIConfig.BaseURL"))?;
-            field(f, "AuthToken", |v| json_string(v, &mut self.auth_token, "OpenAIConfig.AuthToken"))?;
-            field(f, "ChatCompletionModel", |v| json_string(v, &mut self.chat_completion_model, "OpenAIConfig.ChatCompletionModel"))?;
-            field(f, "ChatCompletionRPM", |v| json_int(v, &mut self.chat_completion_rpm, "OpenAIConfig.ChatCompletionRPM", "int"))?;
-            field(f, "ChatCompletionTPM", |v| json_int(v, &mut self.chat_completion_tpm, "OpenAIConfig.ChatCompletionTPM", "int"))?;
-            field(f, "EmbeddingModel", |v| json_string(v, &mut self.embedding_model, "OpenAIConfig.EmbeddingModel"))?;
-            field(f, "EmbeddingDimensions", |v| json_int(v, &mut self.embedding_dimensions, "OpenAIConfig.EmbeddingDimensions", "int"))?;
-            field(f, "EmbeddingRPM", |v| json_int(v, &mut self.embedding_rpm, "OpenAIConfig.EmbeddingRPM", "int"))?;
-            field(f, "EmbeddingTPM", |v| json_int(v, &mut self.embedding_tpm, "OpenAIConfig.EmbeddingTPM", "int"))?;
-            field(f, "LogFile", |v| json_string(v, &mut self.log_file, "OpenAIConfig.LogFile"))
+            field(f, "BaseURL", |v| {
+                json_string(v, &mut self.base_url, "OpenAIConfig.BaseURL")
+            })?;
+            field(f, "AuthToken", |v| {
+                json_string(v, &mut self.auth_token, "OpenAIConfig.AuthToken")
+            })?;
+            field(f, "ChatCompletionModel", |v| {
+                json_string(
+                    v,
+                    &mut self.chat_completion_model,
+                    "OpenAIConfig.ChatCompletionModel",
+                )
+            })?;
+            field(f, "ChatCompletionRPM", |v| {
+                json_int(
+                    v,
+                    &mut self.chat_completion_rpm,
+                    "OpenAIConfig.ChatCompletionRPM",
+                    "int",
+                )
+            })?;
+            field(f, "ChatCompletionTPM", |v| {
+                json_int(
+                    v,
+                    &mut self.chat_completion_tpm,
+                    "OpenAIConfig.ChatCompletionTPM",
+                    "int",
+                )
+            })?;
+            field(f, "EmbeddingModel", |v| {
+                json_string(v, &mut self.embedding_model, "OpenAIConfig.EmbeddingModel")
+            })?;
+            field(f, "EmbeddingDimensions", |v| {
+                json_int(
+                    v,
+                    &mut self.embedding_dimensions,
+                    "OpenAIConfig.EmbeddingDimensions",
+                    "int",
+                )
+            })?;
+            field(f, "EmbeddingRPM", |v| {
+                json_int(
+                    v,
+                    &mut self.embedding_rpm,
+                    "OpenAIConfig.EmbeddingRPM",
+                    "int",
+                )
+            })?;
+            field(f, "EmbeddingTPM", |v| {
+                json_int(
+                    v,
+                    &mut self.embedding_tpm,
+                    "OpenAIConfig.EmbeddingTPM",
+                    "int",
+                )
+            })?;
+            field(f, "LogFile", |v| {
+                json_string(v, &mut self.log_file, "OpenAIConfig.LogFile")
+            })
         })
     }
 }
@@ -864,7 +1320,9 @@ impl BlobConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "BlobConfig", |f| {
-            field(f, "URI", |v| json_string(v, &mut self.uri, "BlobConfig.URI"))?;
+            field(f, "URI", |v| {
+                json_string(v, &mut self.uri, "BlobConfig.URI")
+            })?;
             field(f, "S3", |v| self.s3.unmarshal_json(v))?;
             field(f, "GCS", |v| self.gcs.unmarshal_json(v))?;
             field(f, "Azure", |v| self.azure.unmarshal_json(v))
@@ -883,9 +1341,15 @@ impl S3Config {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "S3Config", |f| {
-            field(f, "Endpoint", |v| json_string(v, &mut self.endpoint, "S3Config.Endpoint"))?;
-            field(f, "AccessKeyID", |v| json_string(v, &mut self.access_key_id, "S3Config.AccessKeyID"))?;
-            field(f, "SecretAccessKey", |v| json_string(v, &mut self.secret_access_key, "S3Config.SecretAccessKey"))
+            field(f, "Endpoint", |v| {
+                json_string(v, &mut self.endpoint, "S3Config.Endpoint")
+            })?;
+            field(f, "AccessKeyID", |v| {
+                json_string(v, &mut self.access_key_id, "S3Config.AccessKeyID")
+            })?;
+            field(f, "SecretAccessKey", |v| {
+                json_string(v, &mut self.secret_access_key, "S3Config.SecretAccessKey")
+            })
         })
     }
 }
@@ -897,7 +1361,9 @@ impl GCSConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "GCSConfig", |f| {
-            field(f, "CredentialsFile", |v| json_string(v, &mut self.credentials_file, "GCSConfig.CredentialsFile"))
+            field(f, "CredentialsFile", |v| {
+                json_string(v, &mut self.credentials_file, "GCSConfig.CredentialsFile")
+            })
         })
     }
 }
@@ -914,10 +1380,22 @@ impl AzureBlobConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "AzureBlobConfig", |f| {
-            field(f, "Endpoint", |v| json_string(v, &mut self.endpoint, "AzureBlobConfig.Endpoint"))?;
-            field(f, "AccountName", |v| json_string(v, &mut self.account_name, "AzureBlobConfig.AccountName"))?;
-            field(f, "AccountKey", |v| json_string(v, &mut self.account_key, "AzureBlobConfig.AccountKey"))?;
-            field(f, "ConnectionString", |v| json_string(v, &mut self.connection_string, "AzureBlobConfig.ConnectionString"))
+            field(f, "Endpoint", |v| {
+                json_string(v, &mut self.endpoint, "AzureBlobConfig.Endpoint")
+            })?;
+            field(f, "AccountName", |v| {
+                json_string(v, &mut self.account_name, "AzureBlobConfig.AccountName")
+            })?;
+            field(f, "AccountKey", |v| {
+                json_string(v, &mut self.account_key, "AzureBlobConfig.AccountKey")
+            })?;
+            field(f, "ConnectionString", |v| {
+                json_string(
+                    v,
+                    &mut self.connection_string,
+                    "AzureBlobConfig.ConnectionString",
+                )
+            })
         })
     }
 }
@@ -936,12 +1414,54 @@ impl QuotaConfig {
 
     fn unmarshal_json(&mut self, value: &Json) -> Result<()> {
         json_struct(value, "QuotaConfig", |f| {
-            field(f, "MaxUsersCount", |v| json_int(v, &mut self.max_users_count, "QuotaConfig.MaxUsersCount", "int"))?;
-            field(f, "MaxItemsCount", |v| json_int(v, &mut self.max_items_count, "QuotaConfig.MaxItemsCount", "int"))?;
-            field(f, "MaxLabelsSize", |v| json_int(v, &mut self.max_labels_size, "QuotaConfig.MaxLabelsSize", "int"))?;
-            field(f, "MaxCommentSize", |v| json_int(v, &mut self.max_comment_size, "QuotaConfig.MaxCommentSize", "int"))?;
-            field(f, "MaxCategoriesCount", |v| json_int(v, &mut self.max_categories_count, "QuotaConfig.MaxCategoriesCount", "int"))?;
-            field(f, "MaxCategoriesSize", |v| json_int(v, &mut self.max_categories_size, "QuotaConfig.MaxCategoriesSize", "int"))
+            field(f, "MaxUsersCount", |v| {
+                json_int(
+                    v,
+                    &mut self.max_users_count,
+                    "QuotaConfig.MaxUsersCount",
+                    "int",
+                )
+            })?;
+            field(f, "MaxItemsCount", |v| {
+                json_int(
+                    v,
+                    &mut self.max_items_count,
+                    "QuotaConfig.MaxItemsCount",
+                    "int",
+                )
+            })?;
+            field(f, "MaxLabelsSize", |v| {
+                json_int(
+                    v,
+                    &mut self.max_labels_size,
+                    "QuotaConfig.MaxLabelsSize",
+                    "int",
+                )
+            })?;
+            field(f, "MaxCommentSize", |v| {
+                json_int(
+                    v,
+                    &mut self.max_comment_size,
+                    "QuotaConfig.MaxCommentSize",
+                    "int",
+                )
+            })?;
+            field(f, "MaxCategoriesCount", |v| {
+                json_int(
+                    v,
+                    &mut self.max_categories_count,
+                    "QuotaConfig.MaxCategoriesCount",
+                    "int",
+                )
+            })?;
+            field(f, "MaxCategoriesSize", |v| {
+                json_int(
+                    v,
+                    &mut self.max_categories_size,
+                    "QuotaConfig.MaxCategoriesSize",
+                    "int",
+                )
+            })
         })
     }
 }

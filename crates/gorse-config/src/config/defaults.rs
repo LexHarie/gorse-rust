@@ -165,62 +165,158 @@ pub fn set_default(viper: &mut Viper<'_>) {
     viper.set_default("database.cache_store", string(&d.database.cache_store));
     viper.set_default("database.vector_store", string(&d.database.vector_store));
     viper.set_default("database.table_prefix", string(&d.database.table_prefix));
-    viper.set_default("database.data_table_prefix", string(&d.database.data_table_prefix));
-    viper.set_default("database.cache_table_prefix", string(&d.database.cache_table_prefix));
-    viper.set_default("database.vector_table_prefix", string(&d.database.vector_table_prefix));
-    viper.set_default("database.cache_client_name", string(&d.database.cache_client_name));
+    viper.set_default(
+        "database.data_table_prefix",
+        string(&d.database.data_table_prefix),
+    );
+    viper.set_default(
+        "database.cache_table_prefix",
+        string(&d.database.cache_table_prefix),
+    );
+    viper.set_default(
+        "database.vector_table_prefix",
+        string(&d.database.vector_table_prefix),
+    );
+    viper.set_default(
+        "database.cache_client_name",
+        string(&d.database.cache_client_name),
+    );
     // [database.mysql]
-    viper.set_default("database.mysql.isolation_level", string(&d.database.mysql.isolation_level));
-    viper.set_default("database.mysql.max_open_conns", int(d.database.mysql.max_open_conns));
-    viper.set_default("database.mysql.max_idle_conns", int(d.database.mysql.max_idle_conns));
-    viper.set_default("database.mysql.conn_max_lifetime", duration(d.database.mysql.conn_max_lifetime));
+    viper.set_default(
+        "database.mysql.isolation_level",
+        string(&d.database.mysql.isolation_level),
+    );
+    viper.set_default(
+        "database.mysql.max_open_conns",
+        int(d.database.mysql.max_open_conns),
+    );
+    viper.set_default(
+        "database.mysql.max_idle_conns",
+        int(d.database.mysql.max_idle_conns),
+    );
+    viper.set_default(
+        "database.mysql.conn_max_lifetime",
+        duration(d.database.mysql.conn_max_lifetime),
+    );
     // [database.postgres]
-    viper.set_default("database.postgres.max_open_conns", int(d.database.postgres.max_open_conns));
-    viper.set_default("database.postgres.max_idle_conns", int(d.database.postgres.max_idle_conns));
-    viper.set_default("database.postgres.conn_max_lifetime", duration(d.database.postgres.conn_max_lifetime));
+    viper.set_default(
+        "database.postgres.max_open_conns",
+        int(d.database.postgres.max_open_conns),
+    );
+    viper.set_default(
+        "database.postgres.max_idle_conns",
+        int(d.database.postgres.max_idle_conns),
+    );
+    viper.set_default(
+        "database.postgres.conn_max_lifetime",
+        duration(d.database.postgres.conn_max_lifetime),
+    );
     // [database.redis]
-    viper.set_default("database.redis.max_search_results", int(d.database.redis.max_search_results));
+    viper.set_default(
+        "database.redis.max_search_results",
+        int(d.database.redis.max_search_results),
+    );
     // [database.vector]
-    viper.set_default("database.vector.quantization_type", string(&d.database.vector.quantization_type));
-    viper.set_default("database.vector.quantization_bits", int(d.database.vector.quantization_bits));
+    viper.set_default(
+        "database.vector.quantization_type",
+        string(&d.database.vector.quantization_type),
+    );
+    viper.set_default(
+        "database.vector.quantization_bits",
+        int(d.database.vector.quantization_bits),
+    );
     // [master]
     viper.set_default("master.port", int(d.master.port));
     viper.set_default("master.host", string(&d.master.host));
     viper.set_default("master.http_port", int(d.master.http_port));
     viper.set_default("master.http_host", string(&d.master.http_host));
-    viper.set_default("master.http_cors_domains", strings(&d.master.http_cors_domains));
-    viper.set_default("master.http_cors_methods", strings(&d.master.http_cors_methods));
+    viper.set_default(
+        "master.http_cors_domains",
+        strings(&d.master.http_cors_domains),
+    );
+    viper.set_default(
+        "master.http_cors_methods",
+        strings(&d.master.http_cors_methods),
+    );
     viper.set_default("master.n_jobs", int(d.master.n_jobs));
     viper.set_default("master.meta_timeout", duration(d.master.meta_timeout));
     // [server]
     viper.set_default("server.api_key", string(&d.server.api_key));
     viper.set_default("server.default_n", int(d.server.default_n));
     viper.set_default("server.clock_error", duration(d.server.clock_error));
-    viper.set_default("server.auto_insert_user", Value::Bool(d.server.auto_insert_user));
-    viper.set_default("server.auto_insert_item", Value::Bool(d.server.auto_insert_item));
+    viper.set_default(
+        "server.auto_insert_user",
+        Value::Bool(d.server.auto_insert_user),
+    );
+    viper.set_default(
+        "server.auto_insert_item",
+        Value::Bool(d.server.auto_insert_item),
+    );
     viper.set_default("server.cache_expire", duration(d.server.cache_expire));
     // [recommend]
     viper.set_default("recommend.cache_size", int(d.recommend.cache_size));
     viper.set_default("recommend.cache_expire", duration(d.recommend.cache_expire));
     viper.set_default("recommend.context_size", int(d.recommend.context_size));
     // [recommend.collaborative]
-    viper.set_default("recommend.collaborative.type", string(&d.recommend.collaborative.kind));
-    viper.set_default("recommend.collaborative.fit_period", duration(d.recommend.collaborative.fit_period));
-    viper.set_default("recommend.collaborative.fit_epoch", int(d.recommend.collaborative.fit_epoch));
-    viper.set_default("recommend.collaborative.optimize_period", duration(d.recommend.collaborative.optimize_period));
-    viper.set_default("recommend.collaborative.optimize_trials", int(d.recommend.collaborative.optimize_trials));
+    viper.set_default(
+        "recommend.collaborative.type",
+        string(&d.recommend.collaborative.kind),
+    );
+    viper.set_default(
+        "recommend.collaborative.fit_period",
+        duration(d.recommend.collaborative.fit_period),
+    );
+    viper.set_default(
+        "recommend.collaborative.fit_epoch",
+        int(d.recommend.collaborative.fit_epoch),
+    );
+    viper.set_default(
+        "recommend.collaborative.optimize_period",
+        duration(d.recommend.collaborative.optimize_period),
+    );
+    viper.set_default(
+        "recommend.collaborative.optimize_trials",
+        int(d.recommend.collaborative.optimize_trials),
+    );
     // [recommend.replacement]
-    viper.set_default("recommend.replacement.enable_replacement", Value::Bool(d.recommend.replacement.enable_replacement));
-    viper.set_default("recommend.replacement.positive_replacement_decay", Value::Float64(d.recommend.replacement.positive_replacement_decay));
-    viper.set_default("recommend.replacement.read_replacement_decay", Value::Float64(d.recommend.replacement.read_replacement_decay));
+    viper.set_default(
+        "recommend.replacement.enable_replacement",
+        Value::Bool(d.recommend.replacement.enable_replacement),
+    );
+    viper.set_default(
+        "recommend.replacement.positive_replacement_decay",
+        Value::Float64(d.recommend.replacement.positive_replacement_decay),
+    );
+    viper.set_default(
+        "recommend.replacement.read_replacement_decay",
+        Value::Float64(d.recommend.replacement.read_replacement_decay),
+    );
     // [recommend.ranker]
     viper.set_default("recommend.ranker.type", string(&d.recommend.ranker.kind));
-    viper.set_default("recommend.ranker.cache_expire", duration(d.recommend.ranker.cache_expire));
-    viper.set_default("recommend.ranker.fit_period", duration(d.recommend.ranker.fit_period));
-    viper.set_default("recommend.ranker.fit_epoch", int(d.recommend.ranker.fit_epoch));
-    viper.set_default("recommend.ranker.optimize_period", duration(d.recommend.ranker.optimize_period));
-    viper.set_default("recommend.ranker.optimize_trials", int(d.recommend.ranker.optimize_trials));
-    viper.set_default("recommend.ranker.recommenders", strings(&d.recommend.ranker.recommenders));
+    viper.set_default(
+        "recommend.ranker.cache_expire",
+        duration(d.recommend.ranker.cache_expire),
+    );
+    viper.set_default(
+        "recommend.ranker.fit_period",
+        duration(d.recommend.ranker.fit_period),
+    );
+    viper.set_default(
+        "recommend.ranker.fit_epoch",
+        int(d.recommend.ranker.fit_epoch),
+    );
+    viper.set_default(
+        "recommend.ranker.optimize_period",
+        duration(d.recommend.ranker.optimize_period),
+    );
+    viper.set_default(
+        "recommend.ranker.optimize_trials",
+        int(d.recommend.ranker.optimize_trials),
+    );
+    viper.set_default(
+        "recommend.ranker.recommenders",
+        strings(&d.recommend.ranker.recommenders),
+    );
     // [recommend.fallback]
     viper.set_default(
         "recommend.fallback",
@@ -242,8 +338,14 @@ pub fn set_default(viper: &mut Viper<'_>) {
     viper.set_default("quota.max_items_count", int(d.quota.max_items_count));
     viper.set_default("quota.max_labels_size", int(d.quota.max_labels_size));
     viper.set_default("quota.max_comment_size", int(d.quota.max_comment_size));
-    viper.set_default("quota.max_categories_count", int(d.quota.max_categories_count));
-    viper.set_default("quota.max_categories_size", int(d.quota.max_categories_size));
+    viper.set_default(
+        "quota.max_categories_count",
+        int(d.quota.max_categories_count),
+    );
+    viper.set_default(
+        "quota.max_categories_size",
+        int(d.quota.max_categories_size),
+    );
 }
 
 fn string(s: &str) -> Value {

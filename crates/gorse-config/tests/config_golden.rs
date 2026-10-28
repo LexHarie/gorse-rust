@@ -16,14 +16,18 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
+use gorse_common::expression::{ExprType, FeedbackTypeExpression};
 use gorse_config::config::{
     Config, LoadError, RecommendConfig, get_default_config, load_config_with_env, set_root_dir,
 };
-use gorse_common::expression::{ExprType, FeedbackTypeExpression};
 use gorse_config::viper::ReadError;
 use serde_json::Value as Json;
 
 const GOLDEN: &str = include_str!("data/config_golden.json");
+
+/// One feedback type expression as the golden file writes it: the feedback
+/// type, the expression type's number and the value's bits in hex.
+type ExprRow = (String, i64, String);
 
 /// What a case records, the fields the Go program writes for one call.
 #[derive(Debug, PartialEq)]
@@ -32,7 +36,7 @@ struct Outcome {
     parse_error: bool,
     meta: Option<String>,
     meta_error: Option<String>,
-    exprs: Option<BTreeMap<String, Vec<(String, i64, String)>>>,
+    exprs: Option<BTreeMap<String, Vec<ExprRow>>>,
     hashes: Option<Hashes>,
 }
 
@@ -57,7 +61,10 @@ fn outcome_of(case: &Json) -> Outcome {
                     .iter()
                     .map(|e| {
                         (
-                            e["feedback_type"].as_str().expect("feedback type").to_owned(),
+                            e["feedback_type"]
+                                .as_str()
+                                .expect("feedback type")
+                                .to_owned(),
                             e["expr_type"].as_i64().expect("expr type"),
                             e["value"].as_str().expect("value").to_owned(),
                         )
@@ -89,7 +96,10 @@ fn outcome_of(case: &Json) -> Outcome {
     });
     Outcome {
         error: str_field(case, "error"),
-        parse_error: case.get("parse_error").and_then(Json::as_bool).unwrap_or(false),
+        parse_error: case
+            .get("parse_error")
+            .and_then(Json::as_bool)
+            .unwrap_or(false),
         meta: str_field(case, "meta"),
         meta_error: str_field(case, "meta_error"),
         exprs,
@@ -188,8 +198,10 @@ fn run_load_case(sandbox: &Sandbox, index: usize, case: &Json) -> Outcome {
 
     // The Go harness sets HOME for the whole process before any case runs, so
     // the case's own variables are layered over it.
-    let mut env: HashMap<String, String> =
-        HashMap::from([("HOME".to_owned(), sandbox.home.to_string_lossy().into_owned())]);
+    let mut env: HashMap<String, String> = HashMap::from([(
+        "HOME".to_owned(),
+        sandbox.home.to_string_lossy().into_owned(),
+    )]);
     if let Some(map) = case.get("env").and_then(Json::as_object) {
         for (k, v) in map {
             env.insert(k.clone(), v.as_str().expect("env value").to_owned());
@@ -200,7 +212,8 @@ fn run_load_case(sandbox: &Sandbox, index: usize, case: &Json) -> Outcome {
     match load_config_with_env(&path, &lookup) {
         Err(err) => Outcome {
             error: Some(clean(
-                &err.to_string().replace(&*case_dir.to_string_lossy(), "${DIR}"),
+                &err.to_string()
+                    .replace(&*case_dir.to_string_lossy(), "${DIR}"),
                 &sandbox.dir,
                 &sandbox.home,
             )),
@@ -233,9 +246,18 @@ fn outcome_of_config(config: &Config, sandbox: &Sandbox) -> Outcome {
     };
     let ds = &config.recommend.data_source;
     let exprs = BTreeMap::from([
-        ("positive_feedback_types".to_owned(), expr_list(&ds.positive_feedback_types)),
-        ("negative_feedback_types".to_owned(), expr_list(&ds.negative_feedback_types)),
-        ("read_feedback_types".to_owned(), expr_list(&ds.read_feedback_types)),
+        (
+            "positive_feedback_types".to_owned(),
+            expr_list(&ds.positive_feedback_types),
+        ),
+        (
+            "negative_feedback_types".to_owned(),
+            expr_list(&ds.negative_feedback_types),
+        ),
+        (
+            "read_feedback_types".to_owned(),
+            expr_list(&ds.read_feedback_types),
+        ),
     ]);
     Outcome {
         error: None,
@@ -268,8 +290,14 @@ fn check_load_cases(want_yaml: bool) -> Vec<String> {
     let golden = golden();
     let sandbox = Sandbox::new(if want_yaml { "yaml" } else { "load" });
     let mut failures = Vec::new();
-    for (index, case) in golden["load"].as_array().expect("load cases").iter().enumerate() {
-        let is_yaml = str_field(case, "file").is_some_and(|f| f.ends_with(".yaml") || f.ends_with(".yml"));
+    for (index, case) in golden["load"]
+        .as_array()
+        .expect("load cases")
+        .iter()
+        .enumerate()
+    {
+        let is_yaml =
+            str_field(case, "file").is_some_and(|f| f.ends_with(".yaml") || f.ends_with(".yml"));
         if is_yaml != want_yaml {
             continue;
         }
@@ -285,7 +313,10 @@ fn check_load_cases(want_yaml: bool) -> Vec<String> {
         );
         let actual = run_load_case(&sandbox, index, case);
         if !results.contains(&actual) {
-            failures.push(format!("{name}:\n  want {:?}\n  got  {actual:?}", results[0]));
+            failures.push(format!(
+                "{name}:\n  want {:?}\n  got  {actual:?}",
+                results[0]
+            ));
         }
     }
     failures
@@ -298,7 +329,12 @@ fn load_cases_match_go() {
         failures.is_empty(),
         "{} load cases differ from Go:\n{}",
         failures.len(),
-        failures.iter().take(20).cloned().collect::<Vec<_>>().join("\n")
+        failures
+            .iter()
+            .take(20)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
     );
 }
 
@@ -310,7 +346,12 @@ fn load_yaml_cases() {
         failures.is_empty(),
         "{} YAML load cases differ from Go:\n{}",
         failures.len(),
-        failures.iter().take(20).cloned().collect::<Vec<_>>().join("\n")
+        failures
+            .iter()
+            .take(20)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
     );
 }
 
@@ -324,7 +365,8 @@ fn validate_cases_match_go() {
         let mut config = get_default_config();
         if case["base"].as_str() == Some("suite") {
             config.database.cache_store = "redis://localhost:6379/0".into();
-            config.database.data_store = "mysql://gorse:gorse_pass@tcp(localhost:3306)/gorse".into();
+            config.database.data_store =
+                "mysql://gorse:gorse_pass@tcp(localhost:3306)/gorse".into();
         }
         let patch = case["patch"].as_str().expect("patch");
         config
@@ -382,15 +424,48 @@ fn default_config_matches_go() {
     let sandbox = Sandbox::new("default");
     let want = golden()["default"].as_str().expect("default").to_owned();
     let got = clean(
-        &get_default_config().marshal_json().expect("marshal the default config"),
+        &get_default_config()
+            .marshal_json()
+            .expect("marshal the default config"),
         &sandbox.dir,
         &sandbox.home,
     );
     assert_eq!(got, want);
 }
 
-/// The Rust port's choice where Go gave alternatives: the results are the
-/// ones `Q-` entries of `porting/notes/WP-1-15-config.md` record.
+/// The two `Meta.config` contracts the generator writes from the defaults and
+/// from the shipped `config.toml` (contracts/tools/configschema). This is the
+/// WP-1-15 acceptance check that the port produces them.
+#[test]
+fn meta_config_matches_contracts() {
+    let sandbox = Sandbox::new("meta-config");
+    let rendered = |config: &Config| -> Json {
+        let json = config.marshal_json().expect("marshal the config");
+        serde_json::from_str(&clean(&json, &sandbox.dir, &sandbox.home)).expect("JSON")
+    };
+    let contract = |name: &str| -> Json {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../contracts/config")
+            .join(name);
+        let text = fs::read_to_string(path).expect("read the contract");
+        serde_json::from_str(&text).expect("contract JSON")
+    };
+
+    assert_eq!(
+        rendered(&get_default_config()),
+        contract("meta-config.default.json")
+    );
+
+    let home = sandbox.home.to_string_lossy().into_owned();
+    let lookup = |k: &str| (k == "HOME").then(|| home.clone());
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../config/config.toml");
+    let sample = load_config_with_env(path, &lookup).expect("load the shipped config.toml");
+    assert_eq!(rendered(&sample), contract("meta-config.sample.json"));
+}
+
+/// Where Go's output depends on its random map order, the port takes the
+/// second recorded outcome every time. The choice and its reason are Q-145
+/// and Q-146 in `porting/notes/WP-1-15-config.md`.
 #[test]
 fn pinned_alternatives() {
     let golden = golden();
@@ -407,12 +482,7 @@ fn pinned_alternatives() {
             .find(|(_, c)| c["name"] == name)
             .expect("case");
         let actual = run_load_case(&sandbox, index, case);
-        let alternatives = case["alternatives"].as_array().expect("alternatives");
-        assert!(
-            std::iter::once(outcome_of(case))
-                .chain(alternatives.iter().map(outcome_of))
-                .any(|o| o == actual),
-            "{name}: {actual:?}"
-        );
+        let chosen = &case["alternatives"].as_array().expect("alternatives")[0];
+        assert_eq!(actual, outcome_of(chosen), "{name}");
     }
 }
