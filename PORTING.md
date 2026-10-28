@@ -283,6 +283,8 @@ correction below states the evidence.
   (`tokio-util`'s `CancellationToken` is async only, and the schedulers'
   callers block on the context from plain threads).
 
+- **C-30 The Redis crate moves to 1.8.0, with `connection-manager`.** The crate choice in `porting/crate-selection.md` (`redis`, with `tokio-comp` and `cluster-async`) is unchanged. Its version was 1.7.1, and Ritchie's rule of 2026-10-17 requires the latest stable version (1.8.0; checked against the crates.io index). `connection-manager` is added so a store reconnects by itself, as go-redis does. `base64` (0.23.1) and `tokio` are optional dependencies of the `redis` feature, for category encoding and the lazy connection.
+
 ## Decision log
 
 Ritchie's instruction of 2026-10-17 02:58Z, "btw don't do PRs. Just

@@ -1492,3 +1492,84 @@ said otherwise), so the Rust result is Go's.
   `benchmarkSearchDocuments`, `benchmarkUpdateDocuments`, the prime table and
   `BENCHMARK_DATA_SIZE` are not run by `go test`. Phase 5 performance work is
   the place for them.
+
+## WP-2-5 Redis cache store
+
+- **Q-186 `UpdateScores` checks, then writes, with no transaction.** Go's
+  `Watch` runs its function on one connection with no `MULTI`/`EXEC`, so the
+  watch guards nothing. `EXISTS` and then `HSET` are two commands another client
+  can interleave. The port sends the same two commands.
+
+- **Q-187 `ScanScores` fails on a key deleted between `SCAN` and `HGETALL`.**
+  Go's `redis.Nil` check, meant to skip such a key, never fires: `HGETALL` on a
+  missing key returns an empty map with no error. The empty `timestamp` then
+  fails to parse and the scan returns the error. The port does the same.
+
+- **Q-188 A search with `begin == end == 0` has no `LIMIT`.** go-redis sends
+  `LIMIT` only when the offset is positive or the limit is positive. A search
+  for `[0, 0)` therefore gets RediSearch's default of 10 results. The port keeps
+  that condition.
+
+- **Q-189 `Scan` and `Purge` also visit score documents and points.** Both match
+  `prefix*`, so they see the `documents:` and `time_series_points:` keys, with
+  the prefix stripped. The port does the same.
+
+- **Q-190 A category token that decodes to nothing panics in Go.**
+  `decodeCategory` slices `b[1:]` without a length check. The port returns an
+  error for that token.
+
+- **Q-191 A missing time series is matched by text.** Go checks for the
+  `TSDB: the key does not exist` and `key does not exist` prefixes. The port
+  checks for either text anywhere in the error, since the driver's message can
+  wrap the server's.
+
+- **X-74 `Close` drops the connection.** The `ConnectionManager` closes with the
+  store, which has the same effect as go-redis's `client.Close()`.
+
+- **X-75 Cancellation is checked at call boundaries.** go-redis aborts a command
+  in flight when its context is cancelled. The port checks the context when a
+  method starts and after each reply of a score scan, as Go's `ScanScores` does.
+  A command already sent runs to completion. Open for the WP-4 review.
+
+- **X-76 `CLIENT SETNAME` is sent once, on the first connection.** go-redis names
+  every connection it makes. A `ConnectionManager` reconnect does not resend the
+  name.
+
+- **X-77 A cluster sends pipelines one command at a time.** redis-rs refuses a
+  pipeline whose keys span slots (CROSSSLOT). Go's cluster client splits the
+  pipeline per node. The replies are the same. The port makes more round trips.
+  Not measured.
+
+- **X-78 Cluster primaries come from one `CLUSTER NODES` reply.** Go's
+  `ForEachMaster` walks the client's slot map. The port scans each node whose
+  flags include `master`. Untested: no cluster is reachable from this
+  environment.
+
+- **X-79 Cluster `addr` parameters take the base URL's credentials.** Go's
+  `ParseClusterURL` does the same. The port does not decode percent escapes in
+  the parameters.
+
+- **X-80 Each test owns a table prefix and purges it, not `FLUSHDB`.** Go's suite
+  flushes the whole database, which would make parallel Rust tests clobber each
+  other. The assertions are unchanged.
+
+- **X-81 `rediss://` does not connect in this build.** The `redis` crate's TLS
+  feature is not enabled, so `Client::open` fails with "can't connect with TLS,
+  the feature is not enabled". Go accepts `rediss://`. Enabling the feature pulls
+  a TLS backend that must be reconciled with the patched rustls in
+  `third_party/`. Decision needed from the coordinator.
+
+- **O-27 closed.** `cache::sort_documents` uses `gorse_common::gosort::sort` with
+  a `DocumentSorter` adapter, and the local pdqsort copy is deleted. Go's
+  `sort.Slice` and `sort.Sort` share one algorithm.
+
+- **O-30 The RediSearch and RedisTimeSeries paths are unrun.** The shared suite's
+  `Init` (`FT._LIST`), the search, update and delete paths, and the time series
+  paths need Redis 8 or Redis Stack, as `storage/docker-compose.yml` runs. This
+  environment has Redis 7.0.15 with no modules. `packages.redis.io` and
+  `download.redis.io` are denied by the network policy, and there is no docker
+  daemon. The gate is `REDIS_URI=<redis:8> cargo test -p gorse-storage --features
+  redis cache::redis` against redis:8.
+
+- **O-31 Cluster and Kvrocks are unrun.** The Go CI's compatibility job runs a
+  six-node Redis cluster and Kvrocks. Neither is reachable here.

@@ -68,7 +68,7 @@ enum Backend {
     /// One server.
     Standalone(redis::Client),
     /// A cluster, whose primaries are scanned one by one.
-    Cluster(redis::cluster::ClusterClient),
+    Cluster(Box<redis::cluster::ClusterClient>),
 }
 
 /// An open connection to a server or a cluster.
@@ -112,7 +112,11 @@ fn create_standalone(
 }
 
 /// Go's cluster creator, as a [`Creator`].
-fn create_cluster(path: &str, table_prefix: &str, opts: &[Opt]) -> Result<Box<dyn Database>, Error> {
+fn create_cluster(
+    path: &str,
+    table_prefix: &str,
+    opts: &[Opt],
+) -> Result<Box<dyn Database>, Error> {
     Ok(Box::new(open_cluster(path, table_prefix, opts)?))
 }
 
@@ -130,7 +134,11 @@ pub fn open_cluster(path: &str, table_prefix: &str, opts: &[Opt]) -> Result<Redi
     let client = redis::cluster::ClusterClientBuilder::new(cluster_urls(path))
         .build()
         .map_err(backend)?;
-    Ok(Redis::new(Backend::Cluster(client), table_prefix, opts))
+    Ok(Redis::new(
+        Backend::Cluster(Box::new(client)),
+        table_prefix,
+        opts,
+    ))
 }
 
 /// The node URLs of a cluster path, in the `redis://` or `rediss://` form the
@@ -201,12 +209,9 @@ impl Redis {
     /// Opens the connection and, when one is configured, names it.
     async fn connect(&self) -> Result<Conn, Error> {
         let mut conn = match &self.client {
-            Backend::Standalone(client) => Conn::Standalone(
-                client
-                    .get_connection_manager()
-                    .await
-                    .map_err(backend)?,
-            ),
+            Backend::Standalone(client) => {
+                Conn::Standalone(client.get_connection_manager().await.map_err(backend)?)
+            }
             Backend::Cluster(client) => {
                 Conn::Cluster(client.get_async_connection().await.map_err(backend)?)
             }
@@ -534,7 +539,7 @@ impl Database for Redis {
 
     async fn scan(
         &self,
-        work: &mut (dyn FnMut(&str) -> Result<(), Error> + Send),
+        work: &mut (dyn for<'a> FnMut(&'a str) -> Result<(), Error> + Send),
     ) -> Result<(), Error> {
         let pattern = format!("{}*", self.prefix);
         for node in self.nodes().await? {
@@ -670,7 +675,11 @@ impl Database for Redis {
                 escape(&encode_category(category))
             ));
         }
-        let limit = if end == -1 { MAX_SEARCH_LIMIT } else { end - begin };
+        let limit = if end == -1 {
+            MAX_SEARCH_LIMIT
+        } else {
+            end - begin
+        };
         let reply = self.ft_search(&builder, begin, limit).await?;
         reply
             .docs
@@ -796,7 +805,10 @@ impl Database for Redis {
     async fn scan_scores(
         &self,
         ctx: &Context,
-        callback: &mut (dyn FnMut(&str, &str, &str, Time) -> Result<(), Error> + Send),
+        callback: &mut (
+                 dyn for<'a, 'b, 'c> FnMut(&'a str, &'b str, &'c str, Time) -> Result<(), Error>
+                     + Send
+             ),
     ) -> Result<(), Error> {
         check_context(ctx)?;
         let pattern = format!("{}*", self.document_table());
@@ -819,8 +831,7 @@ impl Database for Redis {
                         .collect();
                     for reply in self.exec(&cmds).await? {
                         check_context(ctx)?;
-                        let row: HashMap<String, String> =
-                            parse(reply)?;
+                        let row: HashMap<String, String> = parse(reply)?;
                         // A key deleted between SCAN and HGETALL reads as an
                         // empty row, so its timestamp fails to parse and the
                         // scan fails. Go does the same: its `redis.Nil` skip
@@ -1019,13 +1030,7 @@ mod tests {
                 .search_scores(&ctx, &collection, &subset, &["b".into()], 0, -1)
                 .await
                 .unwrap();
-            assert_docs(
-                &documents,
-                &[Score {
-                    score: 1.0,
-                    ..doc
-                }],
-            );
+            assert_docs(&documents, &[Score { score: 1.0, ..doc }]);
 
             db.delete_scores(
                 &ctx,

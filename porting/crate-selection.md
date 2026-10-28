@@ -22,7 +22,7 @@ carries unused dependencies.
 | gorm + MySQL/Postgres drivers | `sqlx` (`mysql`, `postgres`) | 0.9.0 | MIT/Apache | Async, explicit SQL, the plan's choice; we write the SQL gorm generates by hand | `diesel` (ORM, sync), `sea-orm` (ORM on sqlx) |
 | gorm sqlite (gorse-io fork on modernc) | `rusqlite` (`bundled`) on `spawn_blocking` | 0.40.2 | MIT | Gorse registers a custom `json_contains` SQL function per connection; `rusqlite` exposes `create_scalar_function` safely, `sqlx-sqlite` only through a raw handle and `unsafe`. `sqlx`'s `sqlite` feature stays off so only one `libsqlite3-sys` is linked | `sqlx` `sqlite` |
 | mongo-driver | `mongodb` | 3.9.1 | Apache-2.0 | Official driver | — |
-| go-redis (standalone, cluster, RediSearch, RedisTimeSeries) | `redis` (`tokio-comp`, `cluster-async`) | 1.7.1 | BSD-3-Clause | Most used client; cluster support; `FT.*`/`TS.*` sent as raw commands like go-redis does | `fred` 10.1.0 (smaller user base) |
+| go-redis (standalone, cluster, RediSearch, RedisTimeSeries) | `redis` (`tokio-comp`, `cluster-async`, `connection-manager`) | 1.8.0 | BSD-3-Clause | Most used client; cluster support; `FT.*`/`TS.*` sent as raw commands like go-redis does | `fred` 10.1.0 (smaller user base) |
 | qdrant go-client | `qdrant-client` | 1.19.0 | Apache-2.0 | Official client, gRPC like the Go one | hand-written gRPC |
 | milvus client v2 | hand-written adapter over the Milvus REST v2 API with `reqwest` | — | — | `milvus-sdk-rust` 3.0.2 declares a non-standard licence, which the plan forbids | `milvus-sdk-rust` |
 | weaviate-go-client | hand-written REST + GraphQL adapter with `reqwest` | — | — | `weaviate-community` 0.2.2 is unmaintained since 2024-02 | `weaviate-community` |
