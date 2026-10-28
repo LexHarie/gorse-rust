@@ -32,6 +32,7 @@ postgres = ["dep:sqlx", "sqlx/postgres"]
 sqlite = ["dep:rusqlite", "dep:tokio"]
 
 [dev-dependencies]
+tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "time"] }
 
 [lints]

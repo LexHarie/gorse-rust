@@ -26,6 +26,8 @@ use gorse_storage_core::errors::Error as StorageError;
 use gorse_storage_core::options::Opt;
 
 pub mod no_database;
+#[cfg(any(feature = "mysql", feature = "postgres", feature = "sqlite"))]
+pub mod sql;
 
 #[cfg(test)]
 mod database_test;
