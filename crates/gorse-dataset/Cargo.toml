@@ -12,6 +12,12 @@ publish = false
 gorse-common = { workspace = true }
 gorse-model-core = { workspace = true }
 gorse-storage = { workspace = true }
+indexmap.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true
