@@ -42,7 +42,7 @@ pub use format::{
 };
 pub use rfc3339::UnmarshalError;
 pub use zoneinfo::{Location, fixed_zone, local, set_local, utc};
-pub use zoneinfo_read::{LocationError, load_location, load_location_from_tz_data};
+pub use zoneinfo_read::{LocationError, errno_text, load_location, load_location_from_tz_data};
 
 #[doc(hidden)]
 pub mod internal {

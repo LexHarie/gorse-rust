@@ -20,6 +20,8 @@ use std::sync::LazyLock;
 use gorse_protocol as pb;
 use regex::Regex;
 
+use crate::gostrconv;
+
 /// `expressionPattern` in Go, unchanged.
 static EXPRESSION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
@@ -379,60 +381,7 @@ fn parse_float(s: &str) -> (f64, Option<ParseFloatError>) {
 /// exponent is below -4 or at least 6 (`1e+06`, `1e-05`), plus `+Inf`, `-Inf`
 /// and `NaN`.
 fn format_float_v(v: f64) -> String {
-    if v.is_nan() {
-        return "NaN".to_owned();
-    }
-    if v.is_infinite() {
-        return if v > 0.0 { "+Inf" } else { "-Inf" }.to_owned();
-    }
-    let sign = if v.is_sign_negative() { "-" } else { "" };
-    if v == 0.0 {
-        return format!("{sign}0");
-    }
-    // Rust's `{:e}` writes the shortest round-trip digits too, as
-    // `d[.ddd]e<exp>`; only the layout differs from Go's.
-    let sci = format!("{:e}", v.abs());
-    let (mantissa, exp) = sci.split_once('e').expect("`{:e}` writes an exponent");
-    let exp: i32 = exp.parse().expect("`{:e}` writes a decimal exponent");
-    let digits: Vec<u8> = mantissa.bytes().filter(|&b| b != b'.').collect();
-    let nd = i32::try_from(digits.len()).expect("at most 17 digits");
-    let mut out = String::from(sign);
-    // Go: `exp < -4 || exp >= eprec`, with `eprec` 6 for shortest output.
-    if !(-4..6).contains(&exp) {
-        out.push(char::from(digits[0]));
-        if digits.len() > 1 {
-            out.push('.');
-            out.extend(digits[1..].iter().map(|&b| char::from(b)));
-        }
-        out.push('e');
-        out.push(if exp < 0 { '-' } else { '+' });
-        let exp = exp.unsigned_abs();
-        if exp < 10 {
-            out.push('0');
-        }
-        out.push_str(&exp.to_string());
-    } else {
-        // Digit `i` of the number, counting from the first significant one
-        // at position `dp - 1` before the point.
-        let dp = exp + 1;
-        let digit = |i: i32| {
-            usize::try_from(i)
-                .ok()
-                .and_then(|i| digits.get(i))
-                .map_or('0', |&b| char::from(b))
-        };
-        if dp > 0 {
-            out.extend((0..dp).map(digit));
-        } else {
-            out.push('0');
-        }
-        let decimals = (nd - dp).max(0);
-        if decimals > 0 {
-            out.push('.');
-            out.extend((dp..dp + decimals).map(digit));
-        }
-    }
-    out
+    gostrconv::format_float(v, b'g', -1, 64)
 }
 
 /// Go's `json.Marshal` of a string: escapes `"`, `\`, control characters,

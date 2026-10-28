@@ -18,6 +18,7 @@ pub mod gonet;
 pub mod gostrconv;
 pub mod gostrings;
 pub mod gotime;
+pub mod gounicode;
 pub mod gourl;
 pub mod goutf8;
 pub mod heap;

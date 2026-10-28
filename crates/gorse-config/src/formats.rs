@@ -7,5 +7,6 @@
 //! `While parsing config: `.
 
 pub mod dotenv;
+pub mod json;
 pub mod toml;
 pub mod yaml;

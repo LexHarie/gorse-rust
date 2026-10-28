@@ -473,6 +473,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "stacker",
+ "thiserror",
 ]
 
 [[package]]
@@ -492,6 +493,7 @@ dependencies = [
 name = "gorse-expr"
 version = "0.0.0"
 dependencies = [
+ "gorse-common",
  "hex",
  "serde_json",
  "sha2",

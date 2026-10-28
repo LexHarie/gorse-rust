@@ -48,8 +48,9 @@ pub enum LocationError {
     Other(String),
 }
 
-/// `syscall.Errno.Error` on linux/amd64.
-fn errno_text(errno: i32) -> String {
+/// `syscall.Errno.Error` on linux/amd64: Go's text for an errno, or
+/// `errno N` for one it does not name. `os` errors (`*PathError`) end with it.
+pub fn errno_text(errno: i32) -> String {
     match ERRNO_TEXT.binary_search_by_key(&errno, |&(e, _)| e) {
         Ok(i) => ERRNO_TEXT[i].1.to_owned(),
         Err(_) => format!("errno {errno}"),

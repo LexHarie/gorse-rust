@@ -7,4 +7,6 @@
 //! viper reads configuration files with.
 
 pub mod formats;
+pub mod mapstructure;
 pub mod value;
+pub mod viper;
