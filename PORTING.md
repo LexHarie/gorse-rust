@@ -1162,6 +1162,16 @@ or accepts a metric gap outside the Go tests' own tolerances.
 - **D-144 gRPC list uses a background context.** The gRPC `ListBlobs` call
   carries no Go context. A dropped call is the only cancellation.
 
+- **D-145 Callback lifetimes for `async-trait` (WP-2-4, fixed in WP-2-7).** The
+  `scan` and `scan_scores` callbacks of the cache `Database` trait take explicit
+  higher-ranked lifetimes: `for<'a> FnMut(&'a str)` and
+  `for<'a, 'b, 'c> FnMut(&'a str, &'b str, &'c str, Time)`. The elided form
+  (`FnMut(&str)`) is rewritten by `async-trait` to one named lifetime, so a backend
+  that passes a borrowed string fails with E0597. Every backend hits this. The
+  change is the signature only. Approved by the coordinator as a government decision
+  (2026-10-28). Merged as `0c9bf1bb` (fix commit `9e3aa927`). The Redis and SQL
+  threads take it by cherry-pick.
+
 ## Open questions for Ritchie
 
 - **Datasets.** The network policy of this environment blocks
