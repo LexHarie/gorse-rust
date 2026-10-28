@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-13, WP-1-14, WP-1-19. WP-1-11 part 1 (math32) merged; part 2 (nn) is in its own thread. WP-1-15: TOML, dotenv, config.go and YAML merged (D-78, D-82 to D-95). Open: the log placeholder is swapped for WP-1-8's log in a follow-up (X-48); config.schema.json and config.keys.md not generated (X-49); YAML part in its own thread, config core here. WP-1-6, WP-1-8 and WP-1-12 run in parallel threads (D-26). WP-1-16 to WP-1-18 follow WP-1-8 and WP-1-15. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-13, WP-1-14, WP-1-19. WP-1-11 part 1 (math32) merged; part 2 (nn) is in its own thread. WP-1-15: TOML, dotenv, config.go and YAML merged (D-78, D-82 to D-95). Open: config.schema.json and config.keys.md not generated (X-49). The log placeholder is closed (X-48); YAML part in its own thread, config core here. WP-1-6, WP-1-8 and WP-1-12 run in parallel threads (D-26). WP-1-16 to WP-1-18 follow WP-1-8 and WP-1-15. All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |

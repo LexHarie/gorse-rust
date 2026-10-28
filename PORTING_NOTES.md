@@ -1093,7 +1093,7 @@ said otherwise), so the Rust result is Go's.
   and the golden `load_yaml_cases` ran as ignored until the YAML decoder merged
   (WP-1-15, YAML part). They pass now.
 
-- **X-48 Log output is missing** until WP-1-8 merges (D-84).
+- **X-48 Log output: closed.** Until WP-1-8 merged, `LoadConfig` had a placeholder logger (D-84). The log-swap merge (0dfc872) replaces it with `tracing::info!` and `tracing::warn!` carrying the same text, and removes `log.rs`.
 
 - **X-49 `contracts/config/config.schema.json` and `config.keys.md` are not
   generated** by this port. They come from `contracts/tools/configschema`
