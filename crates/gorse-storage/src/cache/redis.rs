@@ -128,7 +128,7 @@ pub fn open(path: &str, table_prefix: &str, opts: &[Opt]) -> Result<Redis, Error
     if path.starts_with(REDIS_CLUSTER_PREFIX) || path.starts_with(REDISS_CLUSTER_PREFIX) {
         return open_cluster(path, table_prefix, opts);
     }
-    let client = redis::Client::open(path).map_err(backend)?;
+    let client = redis::Client::open(connection_url(path)?).map_err(backend)?;
     Ok(Redis::new(
         Backend::Standalone(Box::new(client)),
         table_prefix,
@@ -174,6 +174,41 @@ fn cluster_urls(path: &str) -> Vec<String> {
         }
     }
     urls
+}
+
+/// The URL redis-rs connects to. With `skip_verify=true` on `rediss://`, the
+/// `#insecure` fragment turns verification off, as go-redis turns it off. Any
+/// other URL is passed on unchanged.
+fn connection_url(path: &str) -> Result<String, Error> {
+    if !skip_verify(path)? {
+        return Ok(path.to_owned());
+    }
+    let mut url = url::Url::parse(path).map_err(|err| Error::Backend(Arc::new(err)))?;
+    url.set_fragment(Some("insecure"));
+    Ok(url.to_string())
+}
+
+/// go-redis's `skip_verify` query parameter, read as go-redis reads it: `true`
+/// or `1` turn it on, `false`, `0` or an empty value leave it off, and anything
+/// else is an error. go-redis reads it for `rediss://` only, so `redis://` is
+/// never an error here. Absent is false.
+fn skip_verify(path: &str) -> Result<bool, Error> {
+    if !path.starts_with(REDISS_PREFIX) {
+        return Ok(false);
+    }
+    let Ok(url) = url::Url::parse(path) else {
+        return Ok(false);
+    };
+    let Some((_, value)) = url.query_pairs().find(|(key, _)| key == "skip_verify") else {
+        return Ok(false);
+    };
+    match value.as_ref() {
+        "true" | "1" => Ok(true),
+        "false" | "0" | "" => Ok(false),
+        other => Err(Error::Backend(Arc::new(std::io::Error::other(format!(
+            "redis: invalid skip_verify boolean: expected true/false/1/0 or an empty string, got {other:?}"
+        ))))),
+    }
 }
 
 impl Redis {
@@ -1242,6 +1277,92 @@ mod tests {
     }
 
     /// Go's `TestEncodeDecodeCategories`. It needs no server.
+    /// go-redis reads `skip_verify` for `rediss://` only, with its own boolean
+    /// spellings: `true` and `1` are on, `false`, `0` and empty are off, and
+    /// anything else is an error.
+    #[test]
+    fn skip_verify_is_read_as_go_reads_it() {
+        assert!(skip_verify("rediss://localhost/?skip_verify=true").unwrap());
+        assert!(skip_verify("rediss://localhost/?skip_verify=1").unwrap());
+        assert!(!skip_verify("rediss://localhost/").unwrap());
+        assert!(!skip_verify("rediss://localhost/?skip_verify=false").unwrap());
+        assert!(!skip_verify("rediss://localhost/?skip_verify=0").unwrap());
+        assert!(!skip_verify("rediss://localhost/?skip_verify=").unwrap());
+        assert!(skip_verify("rediss://localhost/?skip_verify=yes").is_err());
+        assert!(!skip_verify("redis://localhost/?skip_verify=yes").unwrap());
+    }
+
+    /// `skip_verify=true` sets the insecure mode of a `rediss://` address, and
+    /// nothing else does: the default verifies, and `redis://` is plain.
+    #[test]
+    fn skip_verify_sets_the_insecure_mode_of_rediss_only() {
+        let insecure = |path: &str| {
+            let client = redis::Client::open(connection_url(path).unwrap()).unwrap();
+            match client.get_connection_info().addr() {
+                redis::ConnectionAddr::TcpTls { insecure, .. } => Some(*insecure),
+                _ => None,
+            }
+        };
+        assert_eq!(insecure("rediss://localhost:6390/"), Some(false));
+        assert_eq!(
+            insecure("rediss://localhost:6390/?skip_verify=true"),
+            Some(true)
+        );
+        assert_eq!(insecure("redis://localhost:6379/?skip_verify=true"), None);
+    }
+
+    /// The four schemes open through the registry without a server, since a
+    /// store connects on its first call.
+    #[tokio::test]
+    async fn registry_opens_each_scheme_without_a_server() {
+        let mut registry = Registry::default();
+        register(&mut registry);
+        for path in [
+            "redis://127.0.0.1:1/",
+            "rediss://127.0.0.1:1/",
+            "redis+cluster://127.0.0.1:1",
+            "rediss+cluster://127.0.0.1:1",
+        ] {
+            assert!(registry.open(path, "t_", &[]).await.is_ok(), "{path}");
+        }
+    }
+
+    /// A `rediss://` URL of a server with a self-signed certificate, with no
+    /// query, as the TLS acceptance run sets it.
+    fn redis_tls_dsn() -> Option<String> {
+        std::env::var("REDIS_TLS_URI").ok()
+    }
+
+    /// `skip_verify=true` connects to a self-signed server, whether or not its
+    /// CA is trusted.
+    #[tokio::test]
+    async fn tls_skip_verify_connects_to_a_self_signed_server() {
+        let Some(dsn) = redis_tls_dsn() else {
+            eprintln!("REDIS_TLS_URI is not set, skipping the TLS test");
+            return;
+        };
+        let store = open(&format!("{dsn}?skip_verify=true"), "gorse_tls_", &[]).unwrap();
+        store.ping().await.unwrap();
+    }
+
+    /// Without `skip_verify`, a self-signed server is refused by a process that
+    /// does not trust its CA. The run that sets `REDIS_TLS_UNTRUSTED` says the
+    /// CA is not trusted, and then expects that refusal.
+    #[tokio::test]
+    async fn tls_verifies_the_server_by_default() {
+        let Some(dsn) = redis_tls_dsn() else {
+            eprintln!("REDIS_TLS_URI is not set, skipping the TLS test");
+            return;
+        };
+        if std::env::var_os("REDIS_TLS_UNTRUSTED").is_none() {
+            eprintln!("REDIS_TLS_UNTRUSTED is not set, skipping the verification test");
+            return;
+        }
+        let store = open(&dsn, "gorse_tls_", &[]).unwrap();
+        let err = store.ping().await.unwrap_err();
+        assert!(format!("{err:?}").contains("UnknownIssuer"), "{err:?}");
+    }
+
     #[test]
     fn encode_decode_categories() {
         let encoded = encode_categories(&["z".into(), "h".into()]);
