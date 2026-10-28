@@ -19,12 +19,12 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use gorse_common::dateparse;
 use gorse_common::gocontext::{Context, ContextError};
+use gorse_common::gosort;
 use gorse_common::gostrconv;
 use gorse_common::gotime::{self, Duration, Time};
 use gorse_storage_core::errors::Error as StorageError;
 use gorse_storage_core::options::Opt;
 
-mod gosort;
 pub mod no_database;
 
 #[cfg(test)]
@@ -273,8 +273,29 @@ pub struct Score {
 /// Go's `cache.SortDocuments`: sorts by score, highest first, with Go's
 /// `sort.Slice`. The sort is not stable, so documents with equal scores come
 /// out in the order Go's pattern-defeating quicksort gives, not in input order.
+/// `gorse_common::gosort` ports `sort.Sort`, which runs the same algorithm as
+/// `sort.Slice` behind a different interface, so the comparisons and swaps are
+/// the same.
 pub fn sort_documents(documents: &mut [Score]) {
-    gosort::slice(documents, |a, b| a.score > b.score);
+    gosort::sort(&mut ByScore(documents));
+}
+
+/// The documents as the `sort.Interface` that `gosort` sorts: `less` compares
+/// scores, as the closure does in Go's `SortDocuments`.
+struct ByScore<'a>(&'a mut [Score]);
+
+impl gosort::Interface for ByScore<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn less(&self, i: usize, j: usize) -> bool {
+        self.0[i].score > self.0[j].score
+    }
+
+    fn swap(&mut self, i: usize, j: usize) {
+        self.0.swap(i, j);
+    }
 }
 
 /// Go's `cache.ConvertDocumentsToValues`: the ids of the documents, in order.
@@ -611,4 +632,85 @@ mod tests {
         assert_eq!(message("x://y/z"), "long t_x://y/z");
         assert_eq!(message("w://"), "Unknown database: w://");
     }
+
+    /// Score documents whose ids are their input positions, so the order
+    /// `sort_documents` gives shows in the ids.
+    fn scored(scores: &[u8]) -> Vec<Score> {
+        scores
+            .iter()
+            .enumerate()
+            .map(|(i, s)| Score {
+                id: i.to_string(),
+                score: f64::from(*s),
+                is_hidden: false,
+                categories: Vec::new(),
+                timestamp: Time::default(),
+            })
+            .collect()
+    }
+
+    /// The input positions of the documents, in the order they are in.
+    fn positions(documents: &[Score]) -> Vec<usize> {
+        documents.iter().map(|d| d.id.parse().unwrap()).collect()
+    }
+
+    #[test]
+    fn sort_documents_sorts_highest_first() {
+        let scores: Vec<u8> = (0..200u32).map(|i| ((i * 37) % 101) as u8).collect();
+        let mut documents = scored(&scores);
+        sort_documents(&mut documents);
+        assert!(documents.windows(2).all(|w| w[0].score >= w[1].score));
+    }
+
+    #[test]
+    fn sort_documents_handles_short_and_empty_slices() {
+        let mut documents = scored(&[]);
+        sort_documents(&mut documents);
+        assert!(documents.is_empty());
+        let mut documents = scored(&[3]);
+        sort_documents(&mut documents);
+        assert_eq!(positions(&documents), [0]);
+        let mut documents = scored(&[1, 2]);
+        sort_documents(&mut documents);
+        assert_eq!(positions(&documents), [1, 0]);
+    }
+
+    /// `sort.Slice` output (Go 1.27.0) for the 40 scores `(i * 7) % 5`: the
+    /// input positions, highest score first.
+    #[test]
+    fn sort_documents_breaks_ties_as_go_does_for_40_items() {
+        let scores: Vec<u8> = (0..40u32).map(|i| ((i * 7) % 5) as u8).collect();
+        let mut documents = scored(&scores);
+        sort_documents(&mut documents);
+        assert_eq!(positions(&documents), GO_40);
+    }
+
+    /// `sort.Slice` output (Go 1.27.0) for the 200 scores `(i * 37) % 101`,
+    /// which are mostly ties. It takes the pattern-breaking and heap paths
+    /// that the 40-item input does not.
+    #[test]
+    fn sort_documents_breaks_ties_as_go_does_for_200_items() {
+        let scores: Vec<u8> = (0..200u32).map(|i| ((i * 37) % 101) as u8).collect();
+        let mut documents = scored(&scores);
+        sort_documents(&mut documents);
+        assert_eq!(positions(&documents), GO_200);
+    }
+
+    const GO_40: [usize; 40] = [
+        22, 37, 2, 27, 32, 17, 12, 7, 4, 9, 24, 19, 34, 39, 14, 29, 16, 26, 31, 11, 36, 21, 1, 6,
+        8, 23, 13, 3, 28, 38, 33, 18, 20, 30, 25, 35, 0, 15, 10, 5,
+    ];
+
+    const GO_200: [usize; 200] = [
+        131, 30, 161, 60, 90, 191, 120, 19, 150, 49, 180, 79, 8, 109, 38, 139, 68, 169, 98, 199,
+        128, 27, 57, 158, 188, 87, 16, 117, 46, 147, 76, 177, 5, 106, 136, 35, 65, 166, 196, 95,
+        125, 24, 54, 155, 185, 84, 114, 13, 144, 43, 174, 73, 103, 2, 133, 32, 163, 62, 92, 193,
+        21, 122, 51, 152, 81, 182, 10, 111, 141, 40, 70, 171, 100, 130, 29, 160, 59, 89, 190, 18,
+        119, 149, 48, 179, 78, 7, 108, 138, 37, 168, 67, 198, 97, 26, 127, 56, 157, 86, 187, 116,
+        15, 146, 45, 176, 75, 105, 4, 135, 34, 64, 165, 94, 195, 124, 23, 154, 53, 184, 83, 113,
+        12, 42, 143, 173, 72, 102, 1, 132, 31, 61, 162, 192, 91, 121, 20, 151, 50, 181, 80, 9, 110,
+        140, 39, 170, 69, 99, 28, 129, 58, 159, 88, 189, 118, 17, 47, 148, 77, 178, 6, 107, 36,
+        137, 66, 167, 96, 197, 25, 126, 55, 156, 186, 85, 115, 14, 145, 44, 74, 175, 104, 3, 33,
+        134, 164, 63, 93, 194, 123, 22, 52, 153, 82, 183, 11, 112, 142, 41, 71, 172, 0, 101,
+    ];
 }
