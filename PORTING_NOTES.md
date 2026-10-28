@@ -541,6 +541,186 @@ said otherwise), so the Rust result is Go's.
   address, the TLS config and server public key names, bool values, time
   zones, `timeTruncate`, and a reserved TLS key.
 
+### Config loading: TOML and dotenv (WP-1-15)
+
+- **Q-111 One expression at a time.** `Unmarshal` parses one top-level
+  expression, checks its keys and decodes it before it parses the next
+  (`unmarshaler.go:251-260` `fromParser`, `unstable/parser.go:99`
+  `NextExpression`). An error in expression n (a key defined twice, an
+  integer out of range, an impossible date) wins over a syntax error after
+  it, even on the same line: `a=1\na=2 x` is `toml: key a is already
+  defined`, `a=2021-13-01 x` is `toml: impossible date`, `a=1\n=\na=2` is
+  the syntax error. Evidence: golden `edge order 0` to `14`.
+
+- **Q-112 Swapped arguments and a double space** in
+  `internal/tracker/seen.go:268`: `toml: key %s already exists as a %s,  but
+  should be an array table` gets the kind first and the key second
+  (`toml: key value already exists as a fruit,  but should be an array
+  table`). Evidence: golden `go-toml toml_testgen_test.go:114`, `:1629`,
+  `:1644`.
+
+- **Q-113 Message texts kept verbatim**, grammar included: `toml: key a
+  should be a table, not a array table` (`seen.go:213`), `hour cannot be
+  greater 23`, `seconds cannot be greater 60` (`decode.go`), `couldn't parse
+  octal number: strconv.ParseInt: parsing "1000000000000000000000": value out
+  of range` (strconv's text inside). Evidence: golden `edge order 9`, `edge
+  integer 63`, `TestUnmarshalDecodeErrors` port.
+
+- **Q-114 `nan`, `+nan` and `-nan` are all `math.NaN()`**, bits
+  `0x7FF8000000000001`; the sign of `-nan` is dropped (`decode.go:285`).
+  Evidence: golden `edge keyword 18` to `20`, unit test `nan_is_gos`.
+
+- **Q-115 A leading zero at the very end of the document.** The `0`
+  prefix check in `scanIntOrFloat` needs more than two bytes
+  (`unstable/parser.go:1125`): `a=01` is `toml: leading zero not allowed on
+  decimal number` (1:3), `a=01\n` is `toml: expected newline but got U+0031
+  '1'` (1:4), `a=0x` is `expected newline but got U+0078 'x'`. Evidence:
+  golden `edge integer 6`, `7`, `36`.
+
+- **Q-116 The space of a date-time skips a byte.** `scanDateTime` adds 2
+  at a space followed by a digit and the loop adds 1
+  (`unstable/parser.go:1083`), so the byte after the first digit of the time
+  is never looked at: `a=1979-05-27 0x:32:00` is `toml: expected digit (0-9)`
+  at 1:15, not a newline error. Evidence: golden `edge datetime 65`.
+
+- **Q-117 Two messages for a control character in a string.** A string
+  without escapes is validated in one pass and reports `invalid UTF-8`
+  (`unstable/parser.go:711`, `:904`); once it has an escape, the slow path
+  reports `invalid character U+0001` (`:797`, `:957`). Evidence: golden
+  `edge basic string 33`/`34`, `edge multiline basic string 36`/`37`.
+
+- **Q-118 Fractional seconds past nine digits are cut, not rounded**,
+  and the precision stays 9 (`decode.go:253-262`): `00:00:00.1111111119` is
+  111111111 ns. Evidence: `TestIssue710` port, golden.
+
+- **Q-119 `\e` is accepted** (TOML 1.1, `unstable/parser.go:773`,
+  `:932`). Evidence: golden `toml-test tests/valid/string/escape-esc.toml`,
+  `config golden toml 1.1 escape e`.
+
+- **Q-120 `%c` of a byte** prints the byte as the rune of the same
+  number, so byte 0xEF is `ï` (`unstable/parser.go:867`, `:1237`, `:1241`);
+  `%#U` quotes the rune only when `strconv.IsPrint` says so (`U+0020 ' '`,
+  `U+00A0` unquoted). Evidence: golden (`invalid character at start of key:
+  ï` and others from mutations), unit test `sharp_u_matches_go`.
+
+- **Q-121 A value that starts with `}` is an `incomplete number`**:
+  `parseVal` hands anything it does not recognise to the number scanner
+  (`unstable/parser.go:1198`), so `a={a=}` fails there. Evidence: golden
+  `edge nesting 2`, `3`.
+
+- **Q-122 Key redefinition follows go-toml's tracker**
+  (`internal/tracker/seen.go`): a table header marks its parents explicit
+  (`setExplicitFlag`, `:144`), re-entering an array table forgets the keys of
+  the previous element (`clear`, `:101`, `:270`), each inline table has its
+  own tracker, and `[foo.bar.baz]`, `[foo]`, `[foo.bar]` is accepted
+  (issue 739). Evidence: golden, `TestUnmarshal` and `TestIssue*` ports.
+
+- **Q-123 Where an error at the end of the document is reported
+  depends on the input's spare capacity.** Go reslices `b[len(b):]` to zero
+  capacity without moving the pointer when `len == cap`, and
+  `danger.SubsliceOffset` (`internal/danger/danger.go:11`) then measures
+  from the start of the slice being scanned. With `len == cap`, `a=[` is
+  reported at 1:3, `a = "abc` at 1:5, `x=1\ny=[1,` at 2:5; with spare
+  capacity at 1:4, 1:9 and 2:6. viper always has spare capacity: it reads
+  the file into a `bytes.Buffer` (`viper.go:1707`), whose `ReadFrom` leaves
+  at least 512 free bytes. The port gives the spare-capacity result
+  (D-66); the golden tool decodes through `bytes.Buffer.ReadFrom` as
+  viper does and checks the spare capacity.
+
+- **Q-124 Go's stack limit.** Go's goroutine stacks grow to 1 GB; at
+  about 828,000 nested arrays go-toml's `parseVal`/`parseValArray`
+  recursion (`unstable/parser.go:355`, `:586`) passes it and the process dies
+  with `fatal error: stack overflow` (827,734 levels decode, 828,613 crash;
+  measured with go1.27.0 on linux/amd64). See X-38.
+
+- **Q-125 No empty final line.** A trailing `\n`, `\r` or `\r\n` gives no
+  last empty line on go1.27.0 (C-25). In `strictParse` an empty line is
+  skipped, and inside an open quote it cannot close it, so this changes no
+  result; it is visible only to gotenv's own scanner test.
+
+- **Q-126 A `\r` at the end of the buffered data ends the line.**
+  `splitLines` (gotenv.go) returns `data[:idx]` when the `\r` is the last byte
+  it was given, without waiting to see a `\n`; the `\n` then reads as an empty
+  line, which a multi-line quoted value keeps: `A="xxxx\r\ny"` gives
+  `xxxx\n\ny` when the `\r` lands on the last byte of the scanner's buffer.
+  Where that happens: the first read is the probe's 3 bytes (`ab\r\ncd`
+  scans as `ab`, ``, `cd`); after the first lines, the partial line is shifted
+  to the front and the buffer refilled, so the break hits at line start + 4096
+  (then 8192, …, 65536 as the buffer doubles); through x/text, UTF-16 ASCII
+  text arrives 2048 decoded bytes per read and UTF-8+BOM text 4096. 96 golden
+  cases show it (`boundary/prefix 0 quoted crlf 4096+0` →
+  `x×4092 + "\n\ny"`, `…4096-1` and `…4096+1` → one `\n`; also 8192, 16384,
+  32768, 65536, `utf16le … 2048+0`, `utf8 … 4096+0`, 24 random files).
+
+- **Q-127 The opening-quote check indexes the wrong string.**
+  `idx = strings.LastIndex(strings.TrimSpace(val[1:]), quote); if idx >= 0 &&
+  val[idx] != '\\'` (gotenv.go `strictParse`): `idx` is into the trimmed
+  `val[1:]` but is used on `val`. With no space after the opening quote it
+  tests the byte before the last quote; with spaces it tests some other byte.
+  `A=" x\"` closes on its line (`A` = ` x\`), `A="  x\"⏎y"` closes on line 1
+  and then fails on `y"`, and `A="\t\""⏎B=1` stays open to "missing quotes".
+
+- **Q-128 A backslash before the last quote of a line keeps the value
+  open,** for single quotes too: `A='x\ny\$FOO\\'` → "missing quotes";
+  `A='x\'⏎y'` → `x\'⏎y`. Continuation lines test only the last quote of the
+  line and the byte before it.
+
+- **Q-129 `StrictParse` rejects every `export NAME` line.** `export B`
+  never matches `linePattern` (a separator is required), so `checkFormat` runs
+  `parseExport`: the line starts with `export` (`HasPrefix`, so `exporter B`
+  counts), it is split at the first space only, and if the rest is not a key
+  set earlier in the file (the environment is not consulted) the error is
+  "line `…` has an unset variable"; otherwise it is "doesn't match format".
+  `export  B` looks up ` B`; `export\tB` has no space and only gets "doesn't
+  match format". gotenv's `TestParse` row "allows export line" passes only
+  because `Parse` drops the error.
+
+- **Q-130 Double-quoted escapes.** `\n` and `\r` are replaced first, then
+  `\X` becomes `X` for any `X` but `$`, then `\$` is left to the expansion. So
+  `"\\n"` is a line break, `"\t"` is `t`, `"\\$FOO"` is `$FOO` and `"\é"` is
+  `é`. Unquoted values keep their backslashes except before `$`.
+
+- **Q-131 Expansion.** `variablePattern` takes the braces as optional on
+  each side, so `${FOO` and `$FOO}` expand; names are `[A-Z0-9_]+` (`$1`,
+  `$FOO_` expand, `$foo`, `${a.b}`, `${}` and `$` stay). The process
+  environment wins even when the variable is set to "", then keys set earlier
+  in the file (`A=1⏎A=${A}2` reads the environment's `A` if set), else "".
+  Expanded text is not expanded again.
+
+- **Q-132 A too-long line inside a quoted value is "missing quotes".**
+  The continuation loop ends when `Scan` fails and `quote` is still set, so
+  `bufio.ErrTooLong` is never reported there. Elsewhere it is
+  "bufio.Scanner: token too long". A line must fit with its terminator in
+  64 KiB (65535 bytes and `\n` fit; 65536 do not, also at EOF where the
+  buffer is full before the reader says EOF); a value of many short lines may
+  be longer.
+
+- **Q-133 x/text's decoders.** UTF-16: a lone surrogate is U+FFFD per
+  unit, but a trail surrogate followed by another trail surrogate is one
+  U+FFFD for both (`isHighSurrogate` tests DC00–DFFF); an odd last byte is
+  U+FFFD; a second BOM is kept as U+FEFF, which is not white space, so the
+  line fails. UTF-8 with a BOM: each maximal ill-formed subpart is one U+FFFD
+  (W3C), unlike Go's one per byte, so a file with a BOM never yields invalid
+  UTF-8.
+
+- **Q-134 `\r` alone ends a line,** inside quotes too (`A="x\ry\r"` →
+  `x\ny\n`); `\r\n` inside quotes becomes `\n`.
+
+- **Q-135 Separators.** `=` takes white space on both sides; `:` needs at
+  least one white space after it and none before (`A:1`, `A :1` fail). The
+  multi-line check looks for `=` before `:`, so `A: "x=y` is the unquoted
+  value `"x=y`. `A==1` is `=1`. Leading and trailing Unicode spaces of a line
+  are trimmed, but `\v` or U+00A0 between the key and `=` fails, while after
+  the `=` `strings.TrimSpace` removes them.
+
+- **Q-136 Comments and trailing text.** `#` starts a comment anywhere in
+  an unquoted value (`A=x#y` → `x`, `A=#x` → ""); a quoted value followed by
+  text on its line is read whole as an unquoted value (`A="x" y` →
+  `"x" y`); `A="x" "y"` → `x" "y`; across lines the same input fails.
+
+- **Q-137 Invalid UTF-8 is a non-space rune.** `TrimSpace` stops at an
+  invalid byte; the negated classes match it; error texts carry the bytes.
+
 ## Deviations
 
 - **X-1 xvec on-disk format** (`PORTING.md` D-6). The Rust master implements the
@@ -712,6 +892,42 @@ said otherwise), so the Rust result is Go's.
 - **X-37 TLS handshake error texts are rustls's, not Go's (WP-1-4,
   `PORTING.md` D-47).** Credential errors at start-up keep Go's texts.
 
+### Config loading: TOML and dotenv (WP-1-15)
+
+- **X-38 No stack limit.** Where Go dies (Q-124), the port
+  decodes: its recursion runs on a stack that `stacker` grows on demand
+  (D-65). Mirroring Go would mean aborting the process at a depth that
+  depends on Go's frame sizes. Test: `toml_deep::deeper_than_go_stack_limit`
+  decodes 1,000,000 nested arrays. It needs about 5 GB and 20 s in a debug
+  build, so it is `#[ignore]`d with that reason and run on request:
+  `cargo test -p gorse-config --release --test toml_deep -- --ignored`
+  (1.9 s, 1.8 GB peak; passes).
+
+- **X-39 Floats with more than 800 digits before the point: closed
+  (WP-1-15).** Go's `strconv.ParseFloat` falls back to its 800-digit `decimal`
+  for a number with more than 800 digits before the point, a non-zero digit
+  past the 800th, and a value the fast path cannot round. That `decimal`
+  puts the point after its 800th stored digit (`internal/strconv/atof.go:110`
+  and `:131-133`), so Go's value is off by a power of ten: `9007199254740993`
+  + 790 zeros + `1e-791` is `9.007199254740993e+08` in Go. The first
+  `ParseFloat` (WP-1-4) rounded the exact value instead. The go1.27 port in
+  `gorse_common::gostrconv` (D-52) reproduces Go's fallback, and the four
+  golden cases that deviated now match Go, so `toml_golden.rs` no longer
+  carries a deviation table and requires all 10,970 cases to match.
+
+- **X-40 Bytes that are not UTF-8 in a value or an error text.** Go
+  keeps them in its strings; `decode` returns Rust strings, where each byte
+  that does not start a valid sequence becomes one U+FFFD, as Go's
+  `for _, r := range s` reads it. `strict_parse` returns Go's exact bytes for
+  every golden case. Only files without a BOM can produce such bytes
+  (Q-133). Test: `decode_matches_go_except_listed_invalid_utf8` lists the
+  31 named cases (`bom/fe fe`, `bom/ff ff`, `bom/fffe after newline`,
+  `bom/not a bom fe`, `bom/not a bom ff`, `bom/utf8 partial bom`,
+  `bom/utf8 partial bom 1` and 24 `invalid/…` cases) and 582 mutation cases
+  by number, checks that exactly those have non-UTF-8 output in Go, and that
+  `decode` gives Go's text with the U+FFFD replacement for them and Go's text
+  exactly for every other case.
+
 ## Open questions
 
 - **O-1** The Go CI's model tests read the datasets from `https://cdn.gorse.io`,
@@ -748,3 +964,31 @@ said otherwise), so the Rust result is Go's.
   WP's call: a query error is the natural one.
 - **O-7** The MySQL stores call `probe_mysql_isolation_variable_name`
   with their driver, and `apply_sql_pool` on their pool.
+
+- **O-8 Dropping very deep results.** The compiler's drop of a
+  `Value` recurses once per level, so a caller that drops a successfully
+  decoded document nested tens of thousands of levels deep can overflow a
+  2 MiB thread (Go's garbage collector does not recurse). viper's merging
+  and mapstructure's decoding recurse too. The viper part of WP-1-15 should
+  decide whether `Value` (shared `value.rs`) gets an iterative `Drop`; the
+  tests here drop iteratively.
+
+- **O-9 `gostrconv::parse_float` and Go's 800-digit decimal: closed.**
+  The go1.27 port (D-52) reproduces `decimal.set`'s point placement, so the
+  deviation of X-39 is gone.
+
+- **O-10 `cargo doc` fails on the base commit: closed.** `src/value.rs`
+  linked ``[`Value::kind_name`]``, which does not exist. The link is now
+  `Value::kind` (cherry-picked from 09777e7 into the TOML part), so
+  `RUSTDOCFLAGS="-D warnings" cargo doc -p gorse-config --no-deps` passes.
+
+- **O-11 Environment values that are not UTF-8.** Go's `os.LookupEnv`
+  returns any bytes; the `env` callback returns `Option<String>`, so the
+  caller (the `LoadConfig` port) decides what such a variable becomes
+  (`std::env::var` reports it as not Unicode). The decoder uses whatever the
+  callback returns byte for byte.
+
+- **O-12 Merge points: resolved.** The `Cargo.toml` (regex, stacker, and the
+  dev-dependencies hex and serde_json), `Cargo.lock` and `src/formats.rs`
+  conflicts were resolved when the dotenv part merged into the integration
+  branch. Later parts add their own lines by hand.

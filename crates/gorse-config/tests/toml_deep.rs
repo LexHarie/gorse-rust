@@ -218,7 +218,7 @@ fn deep_errors() {
     );
 }
 
-/// X-WP115T-1: Go's goroutine stacks stop at 1 GB, and go-toml's parser
+/// X-38: Go's goroutine stacks stop at 1 GB, and go-toml's parser
 /// recursion reaches that at about 828,000 nested arrays: Go dies with
 /// `fatal error: stack overflow` (827,734 levels decode, 828,613 crash; see
 /// the notes). The port grows its stack without a limit and decodes them.

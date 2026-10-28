@@ -114,44 +114,6 @@ fn flatten(m: &Map) -> Vec<Json> {
     out
 }
 
-/// X-WP115T-2 (inherited from `gorse_common::gostrconv`): Go's
-/// `strconv.ParseFloat` falls back to its 800-digit decimal for these
-/// numbers (more than 800 significant digits before the decimal point, a
-/// non-zero digit past the 800th, and a value the fast path cannot round),
-/// and that decimal puts the point after its 800th digit rather than after
-/// the last one (`internal/strconv/atof.go:110` and `:131-133`), so Go's
-/// value is off by a power of ten. `parse_float` rounds the exact value.
-/// Each entry: the case, the key's float64 bits from Go, the bits from Rust.
-const PARSE_FLOAT_DEVIATIONS: &[(&str, &str, &str)] = &[
-    ("edge long float 3", "41cad7f29abcaf49", "4340000000000001"),
-    (
-        "mutation of #3423: replace with 0x31 at 684",
-        "4200c6f7a0b5ed8e",
-        "4340000000000001",
-    ),
-    (
-        "mutation of #3423: replace with 0x37 at 295",
-        "4200c6f7a0b5ed8e",
-        "4340000000000001",
-    ),
-    (
-        "mutation of #3424: replace with 0x32 at 72",
-        "41cad7f29abcaf49",
-        "4340000000000001",
-    ),
-];
-
-/// For a case of [`PARSE_FLOAT_DEVIATIONS`], the float bits Go and Rust give
-/// node `i`; for any other case, `None`.
-fn deviation(case: &Json, i: usize) -> Option<(&'static str, &'static str)> {
-    let name = case["name"].as_str()?;
-    PARSE_FLOAT_DEVIATIONS
-        .iter()
-        .find(|(n, _, _)| *n == name)
-        .filter(|_| i == 1)
-        .map(|(_, go, rust)| (*go, *rust))
-}
-
 /// What differs between the golden case and the Rust result, if anything.
 fn check(case: &Json) -> Option<String> {
     let input = bytes_of(case, "input");
@@ -167,19 +129,6 @@ fn check(case: &Json) -> Option<String> {
                 return Some(format!("{} nodes, want {}", have.len(), want.len()));
             }
             for (i, (h, w)) in have.iter().zip(want).enumerate() {
-                if let Some((go, rust)) = deviation(case, i) {
-                    // The exact difference: Go's bits in the golden, Rust's
-                    // here, the rest of the node the same.
-                    let mut expected = w.clone();
-                    expected["v"] = json!(rust);
-                    if w["v"] != json!(go) || *h != expected {
-                        return Some(format!(
-                            "node {i}: got {h}, want {w}: the deviation is no longer \
-                             Go {go} and Rust {rust}"
-                        ));
-                    }
-                    continue;
-                }
                 if h != w {
                     return Some(format!("node {i}: got {h}, want {w}"));
                 }
@@ -262,11 +211,5 @@ fn toml_golden() {
     }
     let total = cases.len();
     assert!(total > 10_000, "only {total} cases");
-    for (name, _, _) in PARSE_FLOAT_DEVIATIONS {
-        assert!(
-            cases.iter().any(|c| c["name"] == *name),
-            "deviation case {name:?} is not in the golden"
-        );
-    }
     assert_eq!(failures, 0, "{failures} of {total} cases differ:\n{report}");
 }

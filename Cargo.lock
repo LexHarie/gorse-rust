@@ -468,6 +468,8 @@ version = "0.0.0"
 dependencies = [
  "gorse-common",
  "gorse-storage-core",
+ "hex",
+ "regex",
  "serde_json",
  "stacker",
 ]
