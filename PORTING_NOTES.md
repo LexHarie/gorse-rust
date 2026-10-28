@@ -2605,7 +2605,9 @@ said otherwise), so the Rust result is Go's.
   `NonPersonalized` is not `Send`, because its compiled programs hold `Rc`s. Go's `Push` runs on
   `parallel.Parallel` workers (`master/tasks.go`, 607 to 630). The ruling is D-227: the master work
   package makes the expression types `Send`, recommended as `Arc`-based, before it merges. Open until
-  that package merges.
+  that package merges. On 2026-10-28 the coordinator asked the WP-3-6 thread to make the change now on
+  `claude/q-254-send` (`Arc`-based, with a compile-time `Send` assertion), so it does not wait for the
+  master package. Q-254 closes when that branch is reviewed and merged.
 
 - **Q-255 `json.Number` labels become floats in expressions (WP-3-6, open).** Go keeps a
   `json.Number` as a named string type, and the port turns it into a float. So `len`, string
@@ -2680,12 +2682,13 @@ said otherwise), so the Rust result is Go's.
   The sources are `c-bata/goptuna@v0.9.0`, the version the root `go.mod` pins, and Go's standard library
   at go1.27.0. They are not the add21b5 Gorse pin.
 
-- **X-197 The tuning hook is `SuggestTrial` in model-core (WP-3-3, X-WP33-5, closes X-65).** Go's
+- **X-197 The tuning hook is `SuggestTrial` in model-core (WP-3-3, X-WP33-5, closes X-65 in a changed form).** Go's
   `SuggestParams(trial goptuna.Trial)` takes goptuna's `Trial`, which lives in `gorse-model`, a crate
   that depends on model-core. So model-core defines `SuggestTrial`, with the two methods the models call
   (`suggest_log_float` and `suggest_discrete_float`), and `Model::suggest_params(&self, &mut dyn
-  SuggestTrial) -> Params`. `gorse_model::tpe::Trial` implements it. WP-3-3 records the coordinator's
-  approval, and the court has not seen the ruling itself.
+  SuggestTrial) -> Params`. `gorse_model::tpe::Trial` implements it. This deviates from X-65's plan,
+  which put `SuggestParams` with goptuna's `Trial` on the trait. The coordinator approved it on
+  2026-10-28 (D-231).
 
 - **X-198 goptuna's relative sampling, pruners and storage are not ported (WP-3-3, scope).** The relative
   sampler and the intersection search space, pruners, user and system attributes, `ShouldPrune`,
