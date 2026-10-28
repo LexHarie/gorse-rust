@@ -1155,6 +1155,19 @@ dependencies = [
 [[package]]
 name = "gorse-conformance"
 version = "0.0.0"
+dependencies = [
+ "gorse-common",
+ "gorse-config",
+ "gorse-storage",
+ "indexmap",
+ "mongodb",
+ "redis",
+ "rusqlite",
+ "sqlx",
+ "tempfile",
+ "thiserror",
+ "tokio",
+]
 
 [[package]]
 name = "gorse-dataset"
