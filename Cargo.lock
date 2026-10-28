@@ -592,6 +592,11 @@ version = "0.0.0"
 dependencies = [
  "gorse-common",
  "gorse-storage-core",
+ "hex",
+ "regex",
+ "serde_json",
+ "stacker",
+ "thiserror",
 ]
 
 [[package]]
@@ -611,6 +616,7 @@ dependencies = [
 name = "gorse-expr"
 version = "0.0.0"
 dependencies = [
+ "gorse-common",
  "hex",
  "serde_json",
  "sha2",

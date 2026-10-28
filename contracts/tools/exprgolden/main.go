@@ -262,6 +262,7 @@ var corpus = []struct{ source, input string }{
 	{"edge", "a<0.0001"},
 	{"edge", "a<0.00001"},
 	{"edge", "a<123456.7"},
+	{"edge", "a<0.000000029802322387695312"}, // 2^-25: its two shortest forms tie
 	{"edge", "a<9007199254740993"},
 	{"edge", "a<179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"},
 	{"edge", "a<" + strings.Repeat("9", 309)},
@@ -345,6 +346,7 @@ func formatCases(rng *rand.Rand) []FormatCase {
 		math.SmallestNonzeroFloat64, -math.SmallestNonzeroFloat64, 2.2250738585072014e-308,
 		math.Pi, math.E, 9007199254740993, 9007199254740992, 1 << 53, 1<<63 - 1, 5e-324,
 		math.Inf(1), math.Inf(-1), math.NaN(),
+		math.Ldexp(1, -25), // 2.9802322387695312e-08: its two shortest forms tie
 	}
 	for e := -30; e <= 30; e++ {
 		values = append(values, math.Pow(10, float64(e)), 1.5*math.Pow(10, float64(e)))

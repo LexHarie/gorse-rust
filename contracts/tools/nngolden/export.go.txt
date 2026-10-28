@@ -1,0 +1,37 @@
+//go:build nngolden
+
+// This file is not part of package nn. contracts/tools/nngolden/run.sh adds it
+// to the package with `go run -overlay`, so that the golden tool can reach the
+// unexported functions the Rust port ports too, without changing the Go tree.
+
+package nn
+
+func GoldenPartition(n, p int) [][2]int {
+	out := [][2]int{}
+	for _, t := range partition(n, p) {
+		out = append(out, [2]int{t.A, t.B})
+	}
+	return out
+}
+
+func GoldenPartitionAligned(n, m, k int) [][2]int {
+	out := [][2]int{}
+	for _, t := range partitionAligned(n, m, k) {
+		out = append(out, [2]int{t.A, t.B})
+	}
+	return out
+}
+
+func (t *Tensor) GoldenMax(axis int, keepDim bool) *Tensor { return t.max(axis, keepDim) }
+
+func (t *Tensor) GoldenSum(axis int, keepDim bool) *Tensor { return t.sum(axis, keepDim) }
+
+func (t *Tensor) GoldenArgmax() []int { return t.argmax() }
+
+func (t *Tensor) GoldenTranspose() *Tensor { return t.transpose() }
+
+func (t *Tensor) GoldenCap() int { return cap(t.data) }
+
+func (t *Tensor) GoldenGeneration() int { return t.generation() }
+
+func (t *Tensor) GoldenSetGrad(g *Tensor) { t.grad = g }

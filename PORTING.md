@@ -29,7 +29,7 @@ Every Rust module names the Go files it ports with a
 | Phase | State | Notes |
 |---|---|---|
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
-| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-7, WP-1-9, WP-1-10, WP-1-13, WP-1-14, WP-1-19. WP-1-11 part 1 (math32) merged. WP-1-6, WP-1-8, WP-1-11 and WP-1-12 run in parallel threads (D-26); WP-1-15 to WP-1-18 here. All in `porting/work-packages.md` |
+| 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-7, WP-1-9, WP-1-10, WP-1-13, WP-1-14, WP-1-19. WP-1-11 part 1 (math32) merged; part 2 (nn) is in its own thread. WP-1-15: TOML and dotenv parts merged (D-78); YAML part in its own thread, config core here. WP-1-6, WP-1-8 and WP-1-12 run in parallel threads (D-26). WP-1-16 to WP-1-18 follow WP-1-8 and WP-1-15. All in `porting/work-packages.md` |
 | 2. Storage | not started | WP-2-1 to WP-2-13 |
 | 3. Models and logics | not started | WP-3-1 to WP-3-8; metric parity blocked on datasets (O-1) |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
@@ -215,6 +215,39 @@ correction below states the evidence.
 
   WP-1-14 ports the logic. The SQL stores (WP-2-2, WP-2-6 and, for SQLite,
   WP-2-11) wire it up, with the obligations in O-6.
+
+- **C-23** `porting/crate-selection.md` names the `toml` crate (1.1.8)
+  for viper's TOML. The port does not use it: go-toml's accepted syntax,
+  error texts and positions, `\e`, `int64`/`LocalDate` types and the quirks
+  above differ from any other TOML parser, and viper's errors reach the user
+  (`config.LoadConfig` returns them, `config/config.go:826`). That row is not
+  edited here (not this part's file).
+
+- **C-24** `porting/work-packages.md` lists only Gorse's
+  `config/config.go` for WP-1-15; part T ports third-party code (go-toml
+  v2.2.4) under `crates/gorse-config/src/formats/toml/`.
+
+- **C-25 gotenv's `TestScanner` does not pass on go1.27.0.** Three of its
+  seven cases expect a final empty line after a trailing terminator
+  (`"aa\nbb\ncc\n"` → `aa, bb, cc, ""`). Since Go 1.22, `Scanner.Scan` returns
+  `token != nil` for `ErrFinalToken`, and `splitLines` returns a nil token at
+  EOF, so Go 1.27 gives three lines. Evidence: gotenv v1.6.0's tests run with
+  `$GOROOT/bin/go test` (go1.27.0, x/text v0.36.0, testify v1.11.1 from the
+  module cache, in a scratch copy): `--- FAIL: TestScanner … expected: 4
+  actual: 3` for "regular LF/CR/CRLF split with trailing …"; every other gotenv
+  test passes. The port (`scan.rs`, `gotenv_test_scanner`) asserts Go 1.27's
+  lines, Q-125.
+
+
+
+- **C-26 The `%v` float printers of WP-1-7 and WP-1-19 must settle ties as Go does
+  (WP-1-15 config drafts).** `gorse-common/src/expression.rs` (WP-1-7) and
+  `gorse-expr/src/gostr.rs` (WP-1-19) took Rust's shortest digits as they are, so a
+  feedback type expression or an expr-lang float literal at a shortest-digit tie
+  printed differently from Go. Both now call `gostrconv::format_float(v, b'g', -1, 64)`;
+  `gorse-expr` depends on `gorse-common` for it. `expression_golden.json` gained 2^-25
+  (format cases) and its decimal form (parse cases); the old code fails them. Found
+  by the config-drafts thread's ftoa work.
 
 ## Decision log
 
@@ -544,6 +577,173 @@ or accepts a metric gap outside the Go tests' own tolerances.
   The counts are `i64`, because Go's `int` is 64 bits on every platform
   Gorse ships for. `apply_sql_pool` takes a `SqlPool` trait standing in for
   `*sql.DB`.
+
+- **D-62 Only the `map[string]interface{}` path of the decoder.** The
+  reflect-based decoder is ported as `Target::Interface` (an `interface{}`
+  slot: a map entry, a slice element) and `Target::Concrete` (a value of
+  concrete type: `map[string]interface{}`, `[]interface{}`), which is all a
+  map root reaches. Not ported: structs, pointers, typed maps and slices,
+  arrays, `encoding.TextUnmarshaler`, `unstable.Unmarshaler`, strict mode
+  (`DisallowUnknownFields`, `internal/tracker/key.go`, `DecodeError.Key`,
+  which only strict mode sets: `errors.go:168` from `strict.go:58`, `:70`),
+  `KeepComments` comment nodes, `Parser.Shape`, the `LocalDate`/`LocalTime`/
+  `LocalDateTime` methods (`AsTime`, `String`, `MarshalText`,
+  `UnmarshalText`), `Decoder`/`NewDecoder` (viper calls `Unmarshal`), and
+  the marshaler.
+
+- **D-63 Unreachable branches stay as panics.** Where go-toml panics on
+  an impossible state (`decode.go:22` invalid base, `:93` missing timezone,
+  `seen.go:170` node kind, `unmarshaler.go:299`, `:554`, `:707`) or would hit
+  a reflect panic on a path a map root cannot take, the port panics with
+  Go's text. The golden records Go panics and has none.
+
+- **D-64 Strings are UTF-8.** Keys and string values become Rust
+  `String`s with `from_utf8_lossy`. go-toml validates every key and string as
+  UTF-8 before it stores it, so nothing is ever replaced: the
+  golden writes non-UTF-8 Go strings as hex and has none (10,970 cases,
+  7,110 of them with random bytes).
+
+- **D-65 Recursion on a growing stack.** `parse_val`, the tracker's
+  `check_array`, `check_inline_table`, `set_explicit_flag` and `clear`, and
+  the decoder's `handle_value`, `handle_key_part` and
+  `handle_key_value_part` run inside `stacker::maybe_grow` (128 KiB red
+  zone, 4 MiB segments), as `gorse-expr` does; the parser keeps Go's
+  recursive structure. On an error, the partly decoded map is dropped
+  iteratively (`drop_deep`). The golden test runs on the default test
+  stack, 10,000-level documents included. `stacker` (already a workspace
+  dependency) is added to `gorse-config`; its `crate-selection.md` row says
+  so.
+
+- **D-66 The input is taken to have spare capacity** (Q-123),
+  as viper's always does; `unmarshal`'s doc says so.
+
+- **D-67 Keys keep document order.** `Map` is ordered by first
+  insertion; Go's map order is random, so nothing can depend on it.
+
+- **D-68 Golden encoding.** Each map is a flat pre-order list of nodes
+  (`k`, Go type name `t`, value `v`, child count `n`), so neither Go's
+  `encoding/json` nor `serde_json` meets its nesting limit on 10,000-level
+  documents; floats are their 16 hex digits of `math.Float64bits`; a
+  `time.Time` has its zone name, offset and location name; non-UTF-8 text is
+  hex.
+
+- **D-69 Go strings are bytes.** The parser works on `&[u8]` end to end.
+  `strict_parse` returns gotenv's `(Env, error)`: an `Env` of byte strings in
+  the order keys were first set (a `HashMap` index for lookups) and the
+  error's text as bytes; the variables set before an error come back with it,
+  which is what `gotenv.Parse` returns and what the ported `TestParse` checks.
+  `decode` is the codec: it drops them on error, as viper does, and turns the
+  bytes into Rust strings (X-40). Keys always match `[0-9A-Za-z_.]+`, so
+  they are ASCII and converting them never merges two keys.
+
+- **D-70 The read sizes are ported, not just the line rules.** Where a
+  line ends depends on what the scanner has buffered (Q-126), so the
+  scanner keeps Go's buffer (nil, then 4096 doubling to 65536, shifting when
+  `start > 0` and the buffer is full or more than half consumed) and every
+  reader in front of it returns what Go's returns: `bytes.Buffer.Read` copies
+  `min(len(p), remaining)`, the probe's ≤3 bytes come back alone on the first
+  read, `transform.Reader` has 4096-byte source and destination buffers.
+
+- **D-71 The patterns are Go's, spelled out for the regex crate.** Go's
+  `\s` is `[\t\n\f\r ]` and `\w` is `[0-9A-Za-z_]`; the regex crate's are
+  Unicode, and its ASCII `\s` includes `\v`, which Go's does not. So the Rust
+  patterns write the classes out, run on bytes with Unicode off (`(?-u)`), and
+  `\'`, `\"`, `\#` are plain characters. In Go, `.` and the negated classes
+  match any rune, with each invalid byte read as U+FFFD; every class in these
+  patterns either contains all non-ASCII runes or none, so matching bytes gives
+  the same spans. Both engines choose the leftmost-first match and its groups
+  the way a backtracking engine would. A unit test derives the Rust
+  `linePattern` from the Go text by those substitutions
+  (`go_patterns_spelled_out`), and the golden checks the behaviour.
+
+- **D-72 Only `StrictParse`'s path is ported.** `override` is always false
+  (`Load`, `OverLoad`, `Apply`, `OverApply` set process variables; viper never
+  calls them), so `varReplacement` reads the environment first. Its `hsq`
+  parameter is kept although the caller always passes false, as in Go.
+  `Marshal`, `Write` and viper's `Encode` are not part of decoding.
+
+- **D-73 Guards that cannot fire are left out.** The probe's
+  `err != io.EOF` check (a `bytes.Buffer` cannot fail) and the scanner's
+  `ErrBadReadCount`, `ErrNegativeAdvance`, `ErrAdvanceTooFar` and its panic on
+  100 empty tokens (the readers never return more than asked; `splitLines`
+  always advances when it returns a token). `ErrNoProgress` and every
+  `transform.Reader` error branch are ported, with Go's texts, although the
+  decoders here never reach them (the BOM is always there when a UTF-16
+  decoder runs, and no sequence needs more than 4 bytes of look-ahead).
+
+- **D-74 `env` is `os.LookupEnv`.** `decode` and `strict_parse` take
+  `&dyn Fn(&str) -> Option<String>`; tests pass the case's environment. Names
+  are `[A-Z0-9_]+`, so they are ASCII.
+
+- **D-75 Golden format and corpus.** One case per line; each names an
+  environment from the file's `environments` (variables set and unset; the
+  tool clears the environment, so nothing else is visible). A byte string is
+  a JSON string when it is valid UTF-8 and at most 512 bytes, `{"text", "hex"}`
+  when it is not UTF-8, and `{"len", "rle"}` (hex units repeated) when longer.
+  Every error is also checked against `viper.ReadConfig`, which must say
+  `While parsing config: ` and the same text. The corpus: gotenv's 42
+  `formats`, 2 `errorFormats`, `TestMarshal`'s text and its 10 files (57);
+  the 9 dotenv files of `config_golden.json`, with `HOME` set and unset (18);
+  201 branch inputs with and without an environment (402); 2728 generated
+  lines (every value with every separator, every prefix with every key, 1500
+  random lines and 600 random files); 69 byte order mark cases; 27 invalid
+  UTF-8 inputs; 1286 boundary cases (a break at line offset `2^k·4096 − 1 + δ`
+  for δ in −3..2 after five different prefixes, through the plain reader and
+  through x/text for UTF-8+BOM, UTF-16LE and UTF-16BE at multiples of 2048,
+  wide characters and invalid UTF-8 that overflow x/text's buffers, and 60
+  files of random line lengths); 206 lines of 4094 to 70000 bytes; 4000
+  seeded mutations (insert, delete, replace; 92% of the written bytes from the
+  characters gotenv cares about). 3684 cases parse, 5109 fail.
+
+- **D-76 gotenv's files.** `crates/gorse-config/tests/data/gotenv/` holds
+  copies of gotenv v1.6.0's `.env`, `.env.invalid` and `fixtures/*` for the
+  ported tests (`diff -r` against the module: identical). The golden tool
+  embeds them as Go literals and `-gotenv-dir` checks them byte for byte.
+
+- **D-77 Dependencies.** `regex` (already a workspace dependency, row
+  "regexp (RE2)" in `porting/crate-selection.md`) for gorse-config;
+  `serde_json` and `hex` (workspace dependencies) as dev-dependencies for the
+  golden test. No new crate.
+
+- **D-78 Integrator handover; WP-1-15 split (integrator, 2026-10-28).** The
+  integrator thread was replaced. Its WP-1-15 work sat on origin as
+  `claude/wp-1-15-config` (WIP viper and mapstructure drafts), `-toml` (done),
+  `-dotenv` (done) and `-yaml` (WIP, unfinished). The TOML part (`e8862f65`) and
+  the dotenv part (`d4cd2518`) merged into the integration branch. Their notes were
+  folded in as C-23 to C-25, D-62 to D-77, Q-111 to Q-137, X-38 to X-40 and
+  O-8 to O-12, and their deviation table closed X-39 and O-9 (D-52 already
+  reproduces Go's 800-digit decimal, so the four golden cases now match Go).
+  The YAML part continues in its own thread from `e5f9b7d`. The config core
+  (`dc3ffb4`: viper layering, mapstructure, validation, hashes) stays with the
+  integrator and merges after the YAML part. Evidence: `cargo test -p gorse-config`
+  passes with TOML and dotenv on the integration branch (29 unit, 3 dotenv
+  golden, 11 gotenv, 6 TOML deep (1 ignored), 1 TOML golden with 10,970 cases,
+  24 TOML unit), `cargo clippy -p gorse-config --all-targets -- -D warnings` and
+  `cargo fmt --all --check` pass.
+
+- **D-79 Operand order of `+` and `*` on NaN (WP-1-3 `floats.rs`).** Go
+  computes `dst[i] += c` as `ADDSS X0, X1`, with the destination element first
+  (`go tool objdump` of the golden tool, `Feature.addConst`, `floats.go:126`).
+  `Feature.mulConstAdd` (`floats.go:156`) computes `(a[i] * c) + dst[i]` as
+  `MULSS X0, X1` followed by `ADDSS 0(SI)(AX*4), X1`. When both operands are
+  NaN, x86 SSE returns the NaN of the first source operand (Intel SDM vol. 1,
+  table 4-7), and LLVM may swap the operands of `+` and `*`. The change adds
+  `add_first`, `mul_first` and `first_nan` (`floats.rs`). Each operation the
+  Go code performs with the destination first now goes through them: the native
+  kernels (`add`, `add_to`, `add_const`, `mul_to`, `mul_const_add`,
+  `mul_add_to`, `dot`, `euclidean`, the scalar `mm`) and the public `add` and
+  `mul_add_to`. The release golden is the test (see Evidence).
+
+- **D-80 `Exp` in `nn::deps`.** `deps::exp` calls WP-1-4's
+  `util::rand::math::exp_with`, with the FMA choice from `Feature::current()`,
+  which honours `GODEBUG` as Go's `internal/cpu` does. `util::rand::math` itself
+  was a copy here until this part; `util::rand` now exposes `math` to the crate
+  (`pub(crate) mod math`). See O-14.
+
+- **D-81 Go's top-level `rand` in `nn::deps::global`.** Used where Go calls
+  `rand.NormFloat64` and `rand.Perm` without a generator (`TestSaveAndLoad`'s
+  spiral, and `rand(None, ..)` and `normal_init(None, ..)`). Go seeds that source
+  randomly, so no test depends on its values, and nothing else uses it.
 
 ## Open questions for Ritchie
 
