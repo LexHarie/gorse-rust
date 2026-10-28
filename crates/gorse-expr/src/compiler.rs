@@ -448,17 +448,18 @@ impl Compiler<'_> {
             path = vec![name];
             while !optional {
                 if let NodeKind::Identifier { .. } = &base.kind
-                    && let Some((ident_index, ident_name)) = field_index(env, base) {
-                        let mut full = ident_index;
-                        full.extend(index.iter().copied());
-                        path.insert(0, ident_name);
-                        let constant = self.add_constant(Constant::Field(Field {
-                            index: full,
-                            path: path.clone(),
-                        }));
-                        self.emit_at(base.location, Op::LoadField(constant));
-                        return;
-                    }
+                    && let Some((ident_index, ident_name)) = field_index(env, base)
+                {
+                    let mut full = ident_index;
+                    full.extend(index.iter().copied());
+                    path.insert(0, ident_name);
+                    let constant = self.add_constant(Constant::Field(Field {
+                        index: full,
+                        path: path.clone(),
+                    }));
+                    self.emit_at(base.location, Op::LoadField(constant));
+                    return;
+                }
                 let NodeKind::Member {
                     node: member_base,
                     optional: member_optional,

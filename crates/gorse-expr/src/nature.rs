@@ -285,9 +285,10 @@ impl Nature {
     /// field `name` of a value.
     pub fn get(&self, name: &str) -> Option<Nature> {
         if self.kind() == Kind::Map
-            && let Some(map) = &self.map {
-                return map.fields.get(name).cloned();
-            }
+            && let Some(map) = &self.map
+        {
+            return map.fields.get(name).cloned();
+        }
         if let Some(nt) = self.method_by_name(name) {
             return Some(nt);
         }

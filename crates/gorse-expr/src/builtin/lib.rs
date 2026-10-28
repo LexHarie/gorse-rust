@@ -803,9 +803,10 @@ pub fn get(args: &[Value]) -> Result<Value, Panic> {
         Value::Nil => return Ok(Value::Nil),
         Value::Time(_) | Value::Duration(_) => {
             if let Value::Str(name) = i
-                && let Ok(method) = value::fetch_method(from, &String::from_utf8_lossy(name)) {
-                    return Ok(method);
-                }
+                && let Ok(method) = value::fetch_method(from, &String::from_utf8_lossy(name))
+            {
+                return Ok(method);
+            }
         }
         _ => {}
     }
@@ -836,9 +837,9 @@ pub fn get(args: &[Value]) -> Result<Value, Panic> {
             if let Value::Map(_, entries) = from
                 && let Some((_, found)) =
                     entries.iter().find(|(k, _)| value::key_identical(k, &key))
-                {
-                    return Ok(found.clone());
-                }
+            {
+                return Ok(found.clone());
+            }
         }
         Value::Struct(ty, _) => {
             let Value::Str(name) = i else {

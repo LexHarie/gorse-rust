@@ -166,12 +166,14 @@ impl Checker<'_> {
         if let Some(nt) = self.config.env.get(name) {
             return nt;
         }
-        if builtins && !self.config.disabled.contains(name)
-            && let Some(f) = builtin::lookup(name) {
-                let mut nt = from_type(&f.ty());
-                nt.func = Some(f);
-                return nt;
-            }
+        if builtins
+            && !self.config.disabled.contains(name)
+            && let Some(f) = builtin::lookup(name)
+        {
+            let mut nt = from_type(&f.ty());
+            nt.func = Some(f);
+            return nt;
+        }
         if self.config.strict && strict {
             return self.error(location, format!("unknown name {name}"));
         }
@@ -390,9 +392,10 @@ impl Checker<'_> {
             }
             "matches" => {
                 if let Some(pattern) = right_literal.as_deref()
-                    && let Err(message) = crate::regexp::compile(pattern) {
-                        return self.error(location, message);
-                    }
+                    && let Err(message) = crate::regexp::compile(pattern)
+                {
+                    return self.error(location, message);
+                }
                 if (l.is_string() || l.is_byte_slice()) && r.is_string() {
                     return bool_nature();
                 }
@@ -454,14 +457,15 @@ impl Checker<'_> {
         let optional = *optional;
         let method = *method;
         if let NodeKind::Identifier { value } = &base_node.kind
-            && value == "$env" {
-                if let NodeKind::String { value: name } = &property.kind {
-                    let name = String::from_utf8_lossy(name).into_owned();
-                    let strict = if optional { false } else { self.config.strict };
-                    return self.ident(location, &name, strict, false);
-                }
-                return Nature::default();
+            && value == "$env"
+        {
+            if let NodeKind::String { value: name } = &property.kind {
+                let name = String::from_utf8_lossy(name).into_owned();
+                let strict = if optional { false } else { self.config.strict };
+                return self.ident(location, &name, strict, false);
             }
+            return Nature::default();
+        }
         let base = self.visit(base_node);
         let prop = self.visit(property);
         if base.is_unknown() {
@@ -500,13 +504,14 @@ impl Checker<'_> {
                     );
                 }
                 if let Some(name) = &name_of_property
-                    && let Some(map) = &base.map {
-                        if let Some(field) = map.fields.get(name) {
-                            return field.clone();
-                        } else if base.strict {
-                            return self.error(property.location, format!("unknown field {name}"));
-                        }
+                    && let Some(map) = &base.map
+                {
+                    if let Some(field) = map.fields.get(name) {
+                        return field.clone();
+                    } else if base.strict {
+                        return self.error(property.location, format!("unknown field {name}"));
                     }
+                }
                 base.elem()
             }
             Kind::Array | Kind::Slice => {
@@ -616,16 +621,18 @@ impl Checker<'_> {
         // A call whose type is set already keeps its nature: the checker has
         // visited it, as Go's callNode does when it finds a type on the node.
         if let Some(ty) = &node.nature.ty
-            && ty.kind() != Kind::Interface {
-                return node.nature.clone();
-            }
+            && ty.kind() != Kind::Interface
+        {
+            return node.nature.clone();
+        }
         let NodeKind::Call { callee, arguments } = &mut node.kind else {
             unreachable!("call node")
         };
         if let NodeKind::Identifier { value } = &callee.kind
-            && value == "$env" {
-                return self.error(location, "$env is not callable");
-            }
+            && value == "$env"
+        {
+            return self.error(location, "$env is not callable");
+        }
         let nt = self.visit(callee);
         if nt.is_unknown() {
             return Nature::default();
@@ -1009,15 +1016,16 @@ impl Checker<'_> {
         let base = self.visit(&mut arguments[0]);
         let prop = self.visit(&mut arguments[1]).deref();
         if let NodeKind::Identifier { value } = &arguments[0].kind
-            && value == "$env" {
-                if let NodeKind::String { value } = &arguments[1].kind {
-                    let name = String::from_utf8_lossy(value).into_owned();
-                    if let Some(nt) = self.config.env.get(&name) {
-                        return nt;
-                    }
+            && value == "$env"
+        {
+            if let NodeKind::String { value } = &arguments[1].kind {
+                let name = String::from_utf8_lossy(value).into_owned();
+                if let Some(nt) = self.config.env.get(&name) {
+                    return nt;
                 }
-                return Nature::default();
             }
+            return Nature::default();
+        }
         if base.is_unknown() {
             return Nature::default();
         }
