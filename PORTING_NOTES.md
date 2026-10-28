@@ -2220,8 +2220,19 @@ said otherwise), so the Rust result is Go's.
   newest release on the index, and sqlx 0.9.0 requires that line, so the latest-stable rule
   cannot be met on this path. Enabling it also moved `ctutils` 0.4.3 to 0.4.6 (the latest
   0.4.x) in the lock: `crypto-bigint` 0.7 needs `ctutils` 0.4.5 or newer, and the locked
-  0.4.3 could not satisfy both. `libsqlite3-sys` is still one copy (0.37.0). `cargo audit`
-  was not run here.
+  0.4.3 could not satisfy both. `libsqlite3-sys` is still one copy (0.37.0).
+
+  `cargo audit` 0.22.2 against the RustSec database (1381 advisories) found three entries on
+  the lock before the 1b01c01 bump (merged as 597b8198): RUSTSEC-2026-0382 (`rustls-webpki`
+  0.103.15 accepts distrusted intermediates; it runs in every rustls client, including the
+  sqlx TLS path), RUSTSEC-2026-0414 (`pulldown-cmark` 0.13.4 grows exponentially with
+  `ENABLE_WIKILINKS`; build-time only, through prost-build codegen for `gorse-protocol`, and
+  that option is never enabled) and RUSTSEC-2023-0071 (Marvin, `rsa` 0.10.0-rc.19, no fixed
+  version). The bump moves `rustls-webpki` to 0.103.16 and `pulldown-cmark` to 0.13.5, the
+  latest stable on each 0.x line in the crates index. After it, `cargo audit` reports only
+  RUSTSEC-2023-0071. That entry is not on a decrypt or sign path: the only `rsa` user is
+  sqlx-mysql's OAEP encryption of the password with the server's public key, and the port
+  holds no private key (D-182).
 
 - **Q-229 Schema equality.** The tables this store creates are not compared
   with `contracts/schema/cache/{mysql,postgres,sqlite}.sql`. WP-2-13 owns that
@@ -2287,6 +2298,13 @@ said otherwise), so the Rust result is Go's.
 - **O-58 O-36.** The brief asks for the shared suite against each backend, which closes O-36 with the MongoDB data store. The SQL half passes. The integrator closes the item.
 
 - **O-59 (closed at merge) Q-233 and Q-234 need Go runs.** Done, see above. Nothing is open here.
+
+- **O-60 Two SQLite drivers in one build.** The SQL data store (WP-2-2) reads SQLite through
+  sqlx's `sqlite` driver. The SQL cache store (WP-2-6) and the meta store (WP-2-11) use
+  `rusqlite` 0.39.0 (D-160). Both link one `libsqlite3-sys` 0.37.0, so the build has one SQLite
+  library and two Rust drivers for it. The coordinator ruled on 2026-10-28 that this is not a
+  blocker, and that it is logged for after conformance (WP-2-13). Consolidating on one driver
+  is the follow-up. Open.
 
 Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
 version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does
