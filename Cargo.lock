@@ -1234,6 +1234,7 @@ dependencies = [
  "futures-util",
  "gorse-common",
  "gorse-config",
+ "gorse-dataset",
  "gorse-logics",
  "gorse-storage",
  "gorse-storage-core",
