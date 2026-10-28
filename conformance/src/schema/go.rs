@@ -1,10 +1,11 @@
-// Ports: contracts/tools/schemadump/main.go (the Go build initialises each backend and writes the dumps the contract holds) @ WP-2-13.
+// Ports: contracts/tools/schemadump/main.go (the full run and its -dump-only mode) @ WP-2-13.
 
-//! Runs the Go build's schema dump: `go run ./contracts/tools/schemadump`, the
-//! tool `contracts/schema/` was generated with.
+//! Runs the Go build's schema tool, `go run ./contracts/tools/schemadump`.
 //!
-//! The Go tool creates its own databases on each server (`gorse_schema_*`) and
-//! leaves them in place, so the dumper can check its output against them.
+//! [`run`] is the full run: it initialises each store with the Go build and
+//! writes the files the contract holds. The `dump_*` functions are its
+//! `-dump-only` mode: each dumps one existing store to stdout and changes
+//! nothing, so the Go tool can dump a database the Rust stores initialised.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -27,7 +28,7 @@ pub struct Targets<'a> {
     pub redis: Option<&'a str>,
 }
 
-/// The files one Go run wrote, in a directory that is removed with the value.
+/// The files one full run wrote, in a directory that is removed with the value.
 #[derive(Debug)]
 pub struct Output {
     dir: tempfile::TempDir,
@@ -68,11 +69,67 @@ pub fn run(targets: &Targets) -> Result<Output> {
         .output()
         .map_err(|e| fail(format!("starting go: {e}")))?;
     if !output.status.success() {
-        return Err(Error(format!(
-            "go run ./contracts/tools/schemadump failed ({}):\n{}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr)
-        )));
+        return Err(failed(&output));
     }
     Ok(Output { dir })
+}
+
+/// The Go tool's dump of a SQLite file (`-dump-only sqlite`).
+pub fn dump_sqlite(path: &std::path::Path) -> Result<String> {
+    let target = path.display().to_string();
+    dump_only(&["sqlite", "-target", &target])
+}
+
+/// The Go tool's dump of a MySQL or MariaDB database (`-dump-only mysql`). `dsn`
+/// names the database, as `root:password@tcp(127.0.0.1:3306)/gorse_rs_schema_data?parseTime=true`.
+pub fn dump_mysql(dsn: &str) -> Result<String> {
+    dump_only(&["mysql", "-target", dsn])
+}
+
+/// The Go tool's dump of a PostgreSQL database, with `pg_dump` run in
+/// `container` (`-dump-only postgres`).
+pub fn dump_postgres(container: &str, database: &str) -> Result<String> {
+    dump_only(&[
+        "postgres",
+        "-postgres-container",
+        container,
+        "-database",
+        database,
+    ])
+}
+
+/// The Go tool's dump of a MongoDB database. `uri` is the server without a
+/// database (`-dump-only mongodb`).
+pub fn dump_mongodb(uri: &str, database: &str) -> Result<String> {
+    dump_only(&["mongodb", "-target", uri, "-database", database])
+}
+
+/// The Go tool's `FT.INFO documents` text for a Redis server (`-dump-only redis`).
+/// Each call is a read that the index counts (`number_of_uses`).
+pub fn dump_redis(url: &str) -> Result<String> {
+    dump_only(&["redis", "-target", url])
+}
+
+/// Runs the `-dump-only` mode with the kind and flags in `args` and returns the
+/// dump it writes to stdout.
+fn dump_only(args: &[&str]) -> Result<String> {
+    let output = Command::new("go")
+        .current_dir(repo_root())
+        .args(["run", "./contracts/tools/schemadump", "-dump-only"])
+        .args(args)
+        .output()
+        .map_err(|e| fail(format!("starting go: {e}")))?;
+    if !output.status.success() {
+        return Err(failed(&output));
+    }
+    String::from_utf8(output.stdout).map_err(fail)
+}
+
+/// The error for a `go run` that exited with a failure.
+fn failed(output: &std::process::Output) -> Error {
+    Error(format!(
+        "go run ./contracts/tools/schemadump failed ({}):\n{}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    ))
 }

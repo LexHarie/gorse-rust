@@ -5,13 +5,13 @@
 //! Each backend is initialised twice. The Go build does it through
 //! `contracts/tools/schemadump` (see [`go`]). The Rust stores do it through
 //! [`init`], which runs what the Go tool runs: `Init`, `Reconcile` and the sample
-//! writes. Both results are dumped by [`dump`], which writes what the Go tool
-//! writes, and each dump must equal the other and the frozen file in
-//! `contracts/schema/`.
+//! writes. The Rust databases are then dumped twice: by the Go tool in its
+//! `-dump-only` mode, which is the primary check, and by [`dump`], which is a Rust
+//! mirror of the same dump and a second check. Each dump must equal the Go
+//! dump of the Go-initialised database and the frozen file in `contracts/schema/`.
 //!
-//! [`dump`] is checked against the Go tool on the databases the Go run leaves
-//! behind, so a difference in a Rust dump is a difference in the schema, not in
-//! the dumper.
+//! Neither dumper can hide a fault in the other: the Go tool reads the database
+//! with Go's drivers, and [`dump`] reads it with the Rust drivers.
 
 pub mod dump;
 pub mod go;
