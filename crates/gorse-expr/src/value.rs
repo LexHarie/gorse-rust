@@ -16,7 +16,7 @@
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt::Write as _;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use gorse_common::gotime::{self, Duration as GoDuration, Time};
 
@@ -166,21 +166,21 @@ pub enum Value {
     /// A `float64`.
     Float(f64),
     /// A `string`: bytes, which need not be UTF-8.
-    Str(Rc<[u8]>),
+    Str(Arc<[u8]>),
     /// A `[]uint8`.
-    Bytes(Rc<[u8]>),
+    Bytes(Arc<[u8]>),
     /// A `time.Time`.
     Time(Time),
     /// A `time.Duration`.
     Duration(GoDuration),
     /// A slice, with its Go type such as `[]interface {}`.
-    Array(Ty, Rc<Vec<Value>>),
+    Array(Ty, Arc<Vec<Value>>),
     /// A map, with its Go type such as `map[string]interface {}`.
-    Map(Ty, Rc<Vec<(Value, Value)>>),
+    Map(Ty, Arc<Vec<(Value, Value)>>),
     /// A struct, with its Go type and its field values in declaration order.
-    Struct(Ty, Rc<Vec<Value>>),
+    Struct(Ty, Arc<Vec<Value>>),
     /// A method of a receiver, as `OpMethod` leaves it on the stack.
-    Method(Rc<Value>, &'static str),
+    Method(Arc<Value>, &'static str),
     /// A `*time.Location`.
     Location(gotime::Location),
 }
@@ -188,7 +188,7 @@ pub enum Value {
 impl Value {
     /// A string from text.
     pub fn str(text: &str) -> Value {
-        Value::Str(Rc::from(text.as_bytes()))
+        Value::Str(Arc::from(text.as_bytes()))
     }
 
     /// An `int64`.
@@ -198,12 +198,12 @@ impl Value {
 
     /// A `[]interface {}` of `items`.
     pub fn any_array(items: Vec<Value>) -> Value {
-        Value::Array(Ty::slice(Ty::any()), Rc::new(items))
+        Value::Array(Ty::slice(Ty::any()), Arc::new(items))
     }
 
     /// A `map[string]interface {}` of `entries`.
     pub fn string_map(entries: Vec<(Value, Value)>) -> Value {
-        Value::Map(Ty::map(Ty::string(), Ty::any()), Rc::new(entries))
+        Value::Map(Ty::map(Ty::string(), Ty::any()), Arc::new(entries))
     }
 
     /// The Go type of the value, or `None` for `nil`.
@@ -601,7 +601,7 @@ pub fn add(a: &Value, b: &Value) -> Result<Value, Panic> {
             let mut joined = Vec::with_capacity(x.len() + y.len());
             joined.extend_from_slice(x);
             joined.extend_from_slice(y);
-            Ok(Value::Str(Rc::from(joined)))
+            Ok(Value::Str(Arc::from(joined)))
         }
         (Value::Time(x), Value::Duration(y)) => Ok(Value::Time(x.add(*y))),
         (Value::Duration(x), Value::Time(y)) => Ok(Value::Time(y.add(*x))),
@@ -722,10 +722,10 @@ pub fn to_bool(a: &Value) -> Result<bool, Panic> {
 pub fn make_range(min: i64, max: i64) -> Value {
     let size = max - min + 1;
     if size <= 0 {
-        return Value::Array(Ty::slice(Ty::int()), Rc::new(Vec::new()));
+        return Value::Array(Ty::slice(Ty::int()), Arc::new(Vec::new()));
     }
     let items = (0..size).map(|i| Value::Int(min + i)).collect();
-    Value::Array(Ty::slice(Ty::int()), Rc::new(items))
+    Value::Array(Ty::slice(Ty::int()), Arc::new(items))
 }
 
 /// Go's `IsNil`.
@@ -796,9 +796,9 @@ pub fn slice(array: &Value, from: &Value, to: &Value) -> Result<Value, Panic> {
     }
     let (a, b) = (a as usize, b as usize);
     Ok(match array {
-        Value::Array(ty, items) => Value::Array(ty.clone(), Rc::new(items[a..b].to_vec())),
-        Value::Str(s) => Value::Str(Rc::from(&s[a..b])),
-        Value::Bytes(s) => Value::Bytes(Rc::from(&s[a..b])),
+        Value::Array(ty, items) => Value::Array(ty.clone(), Arc::new(items[a..b].to_vec())),
+        Value::Str(s) => Value::Str(Arc::from(&s[a..b])),
+        Value::Bytes(s) => Value::Bytes(Arc::from(&s[a..b])),
         _ => unreachable!("checked above"),
     })
 }
@@ -822,7 +822,7 @@ pub fn fetch(from: &Value, i: &Value) -> Result<Value, Panic> {
     if let Value::Str(name) = i {
         let name = String::from_utf8_lossy(name).into_owned();
         if let Some(name) = method_name(from, &name) {
-            return Ok(Value::Method(Rc::new(from.clone()), name));
+            return Ok(Value::Method(Arc::new(from.clone()), name));
         }
     }
     match from {
@@ -898,7 +898,7 @@ pub fn fetch_method(from: &Value, name: &str) -> Result<Value, Panic> {
         return Err(format!("cannot fetch {name} from <nil>"));
     }
     match method_name(from, name) {
-        Some(name) => Ok(Value::Method(Rc::new(from.clone()), name)),
+        Some(name) => Ok(Value::Method(Arc::new(from.clone()), name)),
         None => Err(format!("cannot fetch {name} from {}", from.type_name())),
     }
 }
@@ -962,12 +962,12 @@ pub fn zero_value(ty: &Ty) -> Value {
         Kind::Int if ty.name() == "int" => Value::Int(0),
         Kind::Int | Kind::Int64 => Value::Integer(ty.clone(), 0),
         Kind::Float64 => Value::Float(0.0),
-        Kind::String => Value::Str(Rc::from(&b""[..])),
-        Kind::Slice => Value::Array(ty.clone(), Rc::new(Vec::new())),
-        Kind::Map => Value::Map(ty.clone(), Rc::new(Vec::new())),
+        Kind::String => Value::Str(Arc::from(&b""[..])),
+        Kind::Slice => Value::Array(ty.clone(), Arc::new(Vec::new())),
+        Kind::Map => Value::Map(ty.clone(), Arc::new(Vec::new())),
         Kind::Struct => Value::Struct(
             ty.clone(),
-            Rc::new(ty.fields().iter().map(|f| zero_value(&f.ty)).collect()),
+            Arc::new(ty.fields().iter().map(|f| zero_value(&f.ty)).collect()),
         ),
         _ => Value::Nil,
     }

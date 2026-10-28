@@ -3,7 +3,7 @@
 //! Constant folding: an operator, a builtin or an array on constants is
 //! replaced by the value it computes.
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::ast::{Node, NodeKind, Visitor};
 use crate::file::Error;
@@ -189,7 +189,7 @@ fn array(nodes: &[Node]) -> Option<Rewrite> {
         items.push(match &node.kind {
             NodeKind::Integer { value } => Value::Int(*value),
             NodeKind::Float { value } => Value::Float(*value),
-            NodeKind::String { value } => Value::Str(Rc::from(value.as_slice())),
+            NodeKind::String { value } => Value::Str(Arc::from(value.as_slice())),
             NodeKind::Bool { value } => Value::Bool(*value),
             _ => return None,
         });

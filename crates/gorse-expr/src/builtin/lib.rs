@@ -6,7 +6,7 @@
 
 use std::borrow::Cow;
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use base64::Engine as _;
 use gorse_common::{gojson, gosort, gostrconv, gotime, goutf8};
@@ -34,7 +34,7 @@ fn text(v: &Value) -> Result<&[u8], Panic> {
 
 /// The string value of some bytes.
 fn string(bytes: Vec<u8>) -> Value {
-    Value::Str(Rc::from(bytes))
+    Value::Str(Arc::from(bytes))
 }
 
 /// `reflect.Kind.String()` of a value's type, which some messages print.
@@ -876,8 +876,8 @@ pub fn take(args: &[Value]) -> Result<Value, Panic> {
     }
     let to = to as usize;
     Ok(match &args[0] {
-        Value::Array(ty, items) => Value::Array(ty.clone(), Rc::new(items[..to].to_vec())),
-        Value::Bytes(bytes) => Value::Bytes(Rc::from(&bytes[..to])),
+        Value::Array(ty, items) => Value::Array(ty.clone(), Arc::new(items[..to].to_vec())),
+        Value::Bytes(bytes) => Value::Bytes(Arc::from(&bytes[..to])),
         _ => unreachable!("checked above"),
     })
 }
@@ -918,12 +918,15 @@ pub fn to_pairs(args: &[Value]) -> Result<Value, Panic> {
             let pairs = entries
                 .iter()
                 .map(|(k, v)| {
-                    Value::Array(Ty::array(Ty::any(), 2), Rc::new(vec![k.clone(), v.clone()]))
+                    Value::Array(
+                        Ty::array(Ty::any(), 2),
+                        Arc::new(vec![k.clone(), v.clone()]),
+                    )
                 })
                 .collect();
             Ok(Value::Array(
                 Ty::slice(Ty::array(Ty::any(), 2)),
-                Rc::new(pairs),
+                Arc::new(pairs),
             ))
         }
         other => Err(format!("cannot transform {} to pairs", kind_name(other))),
@@ -962,7 +965,7 @@ pub fn from_pairs(args: &[Value]) -> Result<Value, Panic> {
             None => entries.push((key, value)),
         }
     }
-    Ok(Value::Map(Ty::map(Ty::any(), Ty::any()), Rc::new(entries)))
+    Ok(Value::Map(Ty::map(Ty::any(), Ty::any()), Arc::new(entries)))
 }
 
 /// How `%s` prints a value handed to it as a `reflect.Value`.
@@ -1250,7 +1253,7 @@ pub fn lower(args: &[Value]) -> Result<Value, Panic> {
 /// `[]string` of the pieces of a split.
 fn string_slice(pieces: Vec<Vec<u8>>) -> Value {
     let items = pieces.into_iter().map(string).collect();
-    Value::Array(Ty::slice(Ty::string()), Rc::new(items))
+    Value::Array(Ty::slice(Ty::string()), Arc::new(items))
 }
 
 /// Go's `split`, `splitAfter`: the pieces of a string around a separator.

@@ -8,7 +8,7 @@
 //! counts array and range sizes, as Go's `memGrow` does.
 
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use gorse_common::gosort;
 use regex::bytes::Regex;
@@ -238,7 +238,7 @@ struct Scope {
     len: i64,
     count: i64,
     acc: Value,
-    items: Rc<Vec<Value>>,
+    items: Arc<Vec<Value>>,
     sort: Option<SortState>,
 }
 
@@ -665,7 +665,7 @@ impl Vm {
                 1 => {
                     let groups = Value::Map(
                         Ty::map(Ty::any(), Ty::slice(Ty::any())),
-                        Rc::new(Vec::new()),
+                        Arc::new(Vec::new()),
                     );
                     self.push(groups);
                 }
@@ -694,16 +694,17 @@ impl Vm {
                 let Value::Map(_, entries) = &mut self.scope().acc else {
                     return Err("group accumulator is not a map".to_owned());
                 };
-                let entries = Rc::make_mut(entries);
+                let entries = Arc::make_mut(entries);
                 match entries
                     .iter_mut()
                     .find(|entry| value::key_identical(&entry.0, &key))
                 {
-                    Some((_, Value::Array(_, group))) => Rc::make_mut(group).push(item),
+                    Some((_, Value::Array(_, group))) => Arc::make_mut(group).push(item),
                     Some(entry) => entry.1 = Value::any_array(vec![item]),
-                    None => {
-                        entries.push((key, Value::Array(Ty::slice(Ty::any()), Rc::new(vec![item]))))
-                    }
+                    None => entries.push((
+                        key,
+                        Value::Array(Ty::slice(Ty::any()), Arc::new(vec![item])),
+                    )),
                 }
             }
             Op::SortBy => {
