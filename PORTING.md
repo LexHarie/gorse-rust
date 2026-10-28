@@ -1349,6 +1349,37 @@ or accepts a metric gap outside the Go tests' own tolerances.
   (1a14f9c, D-157). The SQL creators use the async `Creator` and register in
   `cache::register_builtin`, which the merge commit wires.
 
+- **D-176 Court acceptance on the merged head (integrator, 2026-10-28).** The
+  coordinator's rule: for a backend WP the integrator runs the backend's
+  acceptance command on the merged head, and does not rely on the citizen's run
+  alone. The integrator started MongoDB 6.0.28, MySQL 8.0.46, PostgreSQL 10.0 and
+  Redis 8.10.3 with Docker (`mongo:6`, `mysql:8.0`, `postgres:10.0`, `redis:8`).
+  On the head `a88ec014` (the merge of WP-2-6 `bd14c40` and its fold; the code is
+  the same as `1e5449f7`):
+  - WP-2-3, `MONGO_URI=mongodb://root:password@127.0.0.1:27017/ cargo test -p
+    gorse-storage --features mongodb data::mongodb`: 8 passed, 0 failed, 0 skipped,
+    including `mongo` (the shared suite).
+  - WP-2-7, `MONGO_URI=... cargo test -p gorse-storage --features mongodb
+    cache::mongodb`: 2 passed, 0 failed, 0 skipped, including `mongo`.
+  - WP-2-6, `MYSQL_URI=mysql://root:password@tcp(127.0.0.1:3306)/
+    POSTGRES_URI=postgres://gorse:gorse_pass@127.0.0.1:5432/ cargo test -p
+    gorse-storage --features mysql,postgres,sqlite cache::sql`: 9 passed, 0 failed,
+    0 skipped; `mysql_suite`, `postgres_suite` and `sqlite_suite` all run.
+  - WP-2-5, `REDIS_URI=redis://127.0.0.1:6379/ cargo test -p gorse-storage
+    --features redis cache::redis`: 12 passed, 0 failed, 0 skipped, including
+    `redis_suite`. Run on the same head as a retrospective check; the Redis merge
+    e1a14b8d was gated without it.
+  - Gate on `a88ec014` with the four URIs set: `cargo fmt --all --check`,
+    `cargo clippy --workspace --all-targets -- -D warnings`, `RUSTDOCFLAGS='-D
+    warnings' cargo doc --workspace --no-deps`, the config and yaml goldens, `cargo
+    test --workspace --no-fail-fast` (905 passed, 0 failed, 13 ignored, 0 skipped)
+    and `go vet` in `contracts/tools`: all exit 0.
+  Environment, not code: the MySQL root account (`root@%`) was switched to
+  `mysql_native_password`. On `caching_sha2_password` a cold server cache over plain
+  TCP fails with `RSA auth backend disabled` (X-144, Q-232), and the store code is
+  unchanged. The MongoDB container also stopped once when the host disk filled; it
+  was restarted and the runs repeated. The runs above are the ones that count.
+
 ## Open questions for Ritchie
 
 - **Datasets.** The network policy of this environment blocks
