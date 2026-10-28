@@ -2252,9 +2252,9 @@ said otherwise), so the Rust result is Go's.
 
 ## WP-2-2 SQL data store
 
-- **Q-233 PostgreSQL `Reconcile` rebuilds an unchanged search index.** Observed: a second `Reconcile` with the same columns changed the index OID (16583 to 16584). The port copies Go's index-match check, which compares the definition as the server rewrites it, so it never matches. Not yet confirmed by running Go. MySQL's `Reconcile` check is ported the same way, and not observed.
+- **Q-233 PostgreSQL `Reconcile` rebuilds an unchanged search index. Resolved, and Go does the same.** The server rewrites the index definition (`'simple'::regconfig`, `COALESCE((categories)::text, ''::text)`), so Go's containment check never matches. Go's `Reconcile`, run twice on the same database, drops and recreates `gorse_search_index` both times, as the port does. With `log_statement = 'all'` on PostgreSQL 10.0, the second `Reconcile` on each side runs the same statements: `SELECT indexdef FROM pg_indexes ...`, `DROP INDEX IF EXISTS gorse_search_index`, then `CREATE INDEX gorse_search_index ON xo_items USING GIN (...)`. MySQL's check is ported the same way and is not observed.
 
-- **Q-234 SQLite `Reconcile` rebuild is unverified.** The trigger row id probe was inconclusive: a dropped and recreated trigger can reuse its row id. The port's SQLite check passes on an unchanged index, so it does not drop and recreate the triggers. Go's check was not run.
+- **Q-234 SQLite `Reconcile` rebuild. Resolved, and matches Go.** A sentinel row inserted into `gorse_search_index` survives a `Reconcile` with unchanged columns, so the index and triggers are not rebuilt. After a `Reconcile` with changed columns the sentinel is gone, so they are rebuilt. Go and the port give the same result in both cases.
 
 - **Q-235 labels NULL versus "null".** Go writes a nil feedback label as SQL `NULL`. Items and users store the JSON text `null`. The port matches, and the missing-id rows the feedback write inserts use `'null'` for users and items.
 
@@ -2262,11 +2262,11 @@ said otherwise), so the Rust result is Go's.
 
 - **Q-237 SQLite time comparison is textual.** Go's `time_stamp <= DATETIME()` compares text, so rows in the same second with a fraction compare greater. The port keeps the same comparison.
 
-- **Q-238 counts are estimates on MySQL and PostgreSQL.** Go's `Count*` reads `SHOW TABLE STATUS` (MySQL) and `reltuples` (PostgreSQL). The port does the same. The suite runs `ANALYZE` before counting on PostgreSQL, as Go's `analyzeTables` does.
+- **Q-238 counts are estimates on MySQL and PostgreSQL.** Go's `Count*` reads `SHOW TABLE STATUS` (MySQL) and `reltuples` (PostgreSQL). The port does the same. The suite runs `ANALYZE` before counting on PostgreSQL, as Go's `analyzeTables` does. Before `ANALYZE`, a freshly written PostgreSQL table counts 0, in Go and in the port alike.
 
 - **Q-239 one statement per batch.** Each write batch is one `INSERT`, as the Go code in this file writes it. Batches larger than the server's placeholder limit are not tested.
 
-- **X-145 `Init` creates, it does not migrate.** Go's `Init` runs GORM `AutoMigrate`, which also alters tables that already exist. The port runs `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`. A fresh database dumps byte-identical to Go's (see Evidence). A database created by an older Go version is not altered.
+- **X-145 `Init` creates, it does not migrate.** Go's `Init` runs GORM `AutoMigrate`, which also alters tables that already exist. The port runs `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`. A fresh database dumps byte-identical to Go's (see Evidence). A database created by an older Go version is not altered. A second Go `Init` on the same database runs introspection and `ALTER TABLE ... SET DEFAULT` on the existing columns, with the defaults they already have, so the schema does not change. The port runs none of these statements.
 
 - **X-146 `ErrNotFound` is the bare sentinel.** Go wraps it with the id (`item X not found`). The port returns `Error::Storage(NotFound)`, so the kind matches and the message does not.
 
@@ -2282,15 +2282,19 @@ said otherwise), so the Rust result is Go's.
 
 - **X-152 the MySQL timezone case reports a pass.** Go's `testTimezone` calls `Skipf` for MySQL. The shared suite here returns without assertions for `TimeStamps::Unknown`, so `cargo test` shows the MySQL case as a pass where Go shows a skip. No assertion is lost; the reporting differs.
 
-- **O-57 the Go-to-Rust read path.** The contract's "a database initialised by Go is used by Rust without migration" has not run. Only Rust-initialised databases were used in the suite.
+- **O-57 (closed at merge) the Go-to-Rust read path. Run, and it matches.** Go populates a database and Rust reads it, and the reverse, on PostgreSQL 10.0, MySQL 8.0 and SQLite (see Evidence). Each run calls `Reconcile` with the five columns before it reads, as the application does at start-up. Search needs the vector that `Reconcile` sets, in both implementations.
 
-- **O-58 (closed at merge) O-36.** The brief asks for the shared suite against each backend, which closes O-36 with the MongoDB data store. The SQL half passes. The integrator closes the item.
+- **O-58 O-36.** The brief asks for the shared suite against each backend, which closes O-36 with the MongoDB data store. The SQL half passes. The integrator closes the item.
 
-- **O-59 Q-233 and Q-234 need Go runs.** Run Go's `TestPostgres` and `TestSQLite` with the same services and compare the index behaviour.
+- **O-59 (closed at merge) Q-233 and Q-234 need Go runs.** Done, see above. Nothing is open here.
 
-Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`), SQLite
-bundled through libsqlite3-sys 0.37.0. All three suites run `database_test::run`.
-No skips (`grep -c skipping` on the log is 0).
+Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
+version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does
+this port; newer versions are not tested), MariaDB 10.2.44 (`mariadb:10.2`, CI's
+MariaDB job), SQLite bundled through libsqlite3-sys 0.37.0. All three suites run
+`database_test::run`. No skips on the three-service run (`grep -c skipping` on
+the log is 0). On MariaDB, Go's `TestMySQL/TestTimezone` skips as it does on
+MySQL (X-152).
 
 ```
 MYSQL_URI=mysql://root:password@tcp(127.0.0.1:3306)/ \
@@ -2307,3 +2311,18 @@ with `contracts/schema/data/`): `mysql.sql`, `mysql.search.sql`, `sqlite.sql`,
 `sqlite.search.sql`, `postgres.sql` and `postgres.search.sql` are byte-identical
 to the committed Go-generated files. The PostgreSQL files needed one trailing
 newline from the dumper, which is in the dump script, not in the store.
+
+Cross-compatibility, one fixed fixture (4 users, 6 items, 6 feedback rows, one
+with a NULL label and one with a nil item categories list). Each side calls
+`Reconcile` with the five columns, then reads every user, item and feedback
+row, the search ids for three queries and the three counts, as canonical
+sorted JSON lines (25 lines). Every database is `ANALYZE`d before the reads.
+
+- PostgreSQL 10.0, MySQL 8.0 and SQLite: Go populates and Rust reads; Rust
+  populates and Go reads; and the two populated outputs match each other. All
+  nine comparisons are byte-identical.
+- MariaDB 10.2.44: Go `TestMySQL` and Rust `test_mysql` pass. Cross-compatibility
+  is not run on MariaDB.
+
+Go's `Reconcile` on PostgreSQL, run twice, with statement logging (see Q-233)
+and the SQLite sentinel probe (see Q-234) were run against the Go oracle.
