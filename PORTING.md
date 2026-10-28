@@ -1441,6 +1441,13 @@ or accepts a metric gap outside the Go tests' own tolerances.
     emulator, because fake-gcs-server 1.50.2, 1.52.3 and 1.56.1 all answer 404 for
     the XML list request (`GET /gorse-test?list-type=2`), so the read path is not
     run here (O-62). `test_gcs` is `#[ignore]` (O-31).
+  - Blob, GCS, re-run for O-62 on this head: `--features gcs blob` with
+    `GCS_EMULATOR_ENDPOINT=http://127.0.0.1:5051`, the fake-gcs-server started with
+    `-external-url`. `test_gcs_read_list_remove` passes against it. The in-process
+    `test_gcs_xml_round_trip` and `test_gcs_xml_missing_object_is_not_found` pass, as do the
+    put and multipart tests. `test_gcs` stays `#[ignore]` (O-31, O-62). The cloud suite
+    `--features s3,gcs,azure blob` gives 16 passed and 1 ignored, with the S3, Azure and GCS
+    emulators all live. The Go-against-Rust comparison is in PORTING_NOTES.md under O-62.
   - Redis, `cache::redis` (12 of 12 each): Kvrocks at `redis://127.0.0.1:6666/`;
     the six-node cluster as `redis+cluster://127.0.0.1:7000` and with the five
     `addr=` parameters. No skips.

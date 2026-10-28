@@ -2316,11 +2316,44 @@ said otherwise), so the Rust result is Go's.
   run as a known exception. The test is not to be skipped without that ruling (the no-cheating
   rule). Open. Evidence: D-184.
 
-- **O-62 The GCS read path is not run against an emulator.** `test_gcs_read_list_remove` and
-  `test_gcs` need `GCS_EMULATOR_ENDPOINT`. fake-gcs-server 1.50.2, 1.52.3 and 1.56.1 all answer
-  404 for the XML list request (`GET /gorse-test?list-type=2&prefix=blob/`), so the read path
-  cannot pass here. The XML put and multipart tests pass in process. Real GCS needs credentials
-  this environment does not have. Open. Evidence: D-184. Also see O-31.
+- **O-62 GCS read-side coverage.** The read side is covered in process and checked request by
+  request, with no emulator: `test_gcs_xml_round_trip` (write, list, read, remove, list; the five
+  requests in order), `test_gcs_xml_missing_object_is_not_found` (a 404 maps to NotFound), and
+  the put and multipart tests. The live `test_gcs_read_list_remove` passes against the running
+  fake-gcs-server, which was started with `-external-url http://127.0.0.1:5051`. The 404s
+  recorded under D-184 came before `-external-url` was set. The emulator round trip `test_gcs`
+  stays `#[ignore]` under O-62 and O-31, because fake-gcs-server refuses object_store's XML upload
+  (400, `invalid uploadType`). Opened under D-184. Open.
+
+  Go's requests against the Rust listener's responses, side by side. Go is the probe recorded
+  at 16:31 through a recording proxy against the running fake-gcs-server. Rust is the in-process
+  listener, which answers the requests object_store sends.
+
+  | Step | Go sends | Go gets | Rust sends | Rust gets |
+  |---|---|---|---|---|
+  | Write | `POST /upload/storage/v1/b/gorse-test/o?uploadType=multipart&name=blob%2Ftest.txt` (JSON) | 200 | `PUT /gorse-test/blob/test.txt`, body `hello` (XML) | 200 |
+  | List | `GET /storage/v1/b/gorse-test/o?prefix=blob` (JSON) | 200, `blob/test.txt`, reported as `test.txt` | `GET /gorse-test?list-type=2&prefix=blob/` (XML) | 200, `blob/test.txt`, reported as `test.txt` |
+  | Read | `GET /gorse-test/blob%2Ftest.txt` (XML) | 404 from fake-gcs-server | `GET /gorse-test/blob/test.txt` (XML) | 200, body `hello` |
+  | Remove | `DELETE /storage/v1/b/gorse-test/o/blob%2Ftest.txt` (JSON) | 200 | `DELETE /gorse-test/blob/test.txt` (XML) | 204 |
+  | List after remove | `GET /storage/v1/b/gorse-test/o?prefix=blob` (JSON) | 200, empty | `GET /gorse-test?list-type=2&prefix=blob/` (XML) | 200, empty |
+  | Missing object | not run; the probe's read 404 gave `storage: object doesn't exist` | | `GET` of an absent object | 404, NotFound |
+
+  Differences that remain:
+  1. Write, list and remove use the JSON API in Go and XML in object_store, so the requests
+     cannot match byte for byte. The results match.
+  2. Go lists with prefix `blob`, object_store with `blob/`. A `blob` prefix would also match
+     sibling names such as `blobs/x`. Not run; the Rust list does not return them. A decision
+     for the coordinator.
+  3. Go's read gets 404 from the running fake-gcs-server for an object its JSON list shows. curl
+     against the same server gets 200 for the same object written by JSON upload, with the slash
+     and the dot each raw or percent-encoded. So path encoding does not explain the 404. The
+     probe went through a recording proxy, which may have changed the request; not isolated.
+     Real GCS is not checked.
+  4. The in-process listener decodes paths, so it cannot see raw encoding differences. The live
+     read path passes with `%2D` for dashes and `%2E` for dots (the emulator's access log shows
+     both), where Go's read sends neither.
+
+  Also see O-31.
 
 Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
 version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does
