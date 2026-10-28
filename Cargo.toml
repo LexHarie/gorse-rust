@@ -33,9 +33,12 @@ gorse-cmd = { path = "crates/gorse-cmd" }
 
 # External crates, chosen in porting/crate-selection.md. A crate is listed here
 # only once a work package uses it.
+async-trait = "0.1.92"
 blake2 = "0.11.0"
 cc = "1.8.0"
 csv = "1.4.0"
+futures-core = "0.3.34"
+futures-util = "0.3.34"
 hex = "0.4.3"
 indexmap = "2.14.2"
 md-5 = "0.11.0"
@@ -52,6 +55,7 @@ sha1 = "0.11.0"
 sha2 = "0.11.1"
 stacker = "0.1.25"
 thiserror = "2.0.21"
+tokio = "1.54.1"
 tonic = "0.14.6"
 tonic-prost = "0.14.6"
 tempfile = "3.27.0"
