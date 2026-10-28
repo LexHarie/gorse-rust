@@ -614,6 +614,10 @@ dependencies = [
  "gorse-common",
  "gorse-model-core",
  "gorse-storage",
+ "indexmap",
+ "tempfile",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]
