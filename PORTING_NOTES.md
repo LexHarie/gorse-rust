@@ -1947,3 +1947,108 @@ said otherwise), so the Rust result is Go's.
   with Go's field names and RFC 3339 time text.
 
 - Evidence (the integrator's fold of the WP's tests): - Ported from Go, unchanged cases: `TestNodes`, `TestKeyValues` (`sqlite_test.rs`, each on a new SQLite file in a temp dir), `TestModel_Equal` (`database_test.rs`). - Golden, from Go 1.27.0: `golden_test.rs`, 7 tests (`round_trip_matches_go` added with D-166). - Mutation checks (sources restored after each): `float32` written as `float64` fails `to_json_matches_go`; the TTL sign dropped fails `test_nodes` and `go_written_rows_are_listed_and_pruned`; an unsorted object encoder fails `round_trip_matches_go`. - No test is ignored. SQLite is embedded, so no service is needed.
+
+## WP-1-18 dataset
+
+- **Q-210 `floats.FromAny` on an empty list.** An empty `[]any` label is
+  numeric (`FromAny` returns `([]uint16{}, true)`), so it becomes FP16 bits, not
+  an empty ID list. Reproduced by `floats_from_any`.
+
+- **Q-211 Negative `FreqDict` indices panic.** `String`, `Freq` and the lock
+  methods index with a negative `int32`, which panics in Go. Rust panics too.
+
+- **Q-212 `Index.Unmarshal` drops repeated names.** It rebuilds with `Add`, so
+  a name repeated in the file keeps its first position and the index can hold
+  fewer names than its count. This is in `contracts/model-blobs.md`.
+
+- **Q-213 `SampleUserNegatives` caches.** The first call's samples are kept
+  whatever `numCandidates` or the excluded split a later call passes.
+
+- **Q-214 `SplitCF` with `numTestUsers <= 0`** selects every user as a test
+  user, as `>= CountUsers()` does.
+
+- **Q-215 `GetItems` of a `UnifiedDirectIndex`** logs an empty warning. Ported
+  as `tracing::warn!("")`.
+
+- **Q-216 The error text `wrong foramt`** keeps Go's misspelling.
+
+- **Q-217 Ties in `SplitLatest`.** Go's `sort.Slice` is the pdqsort that
+  `sort.Sort` runs. Ported as `gosort::sort` over a `less`/`swap` adapter
+  (`LatestFirst`), so equal timestamps end where Go puts them.
+
+- **X-117 `FreqDict.ToIndex` copies.** Go's `Index` shares the dictionary's
+  map, so writes to the returned index reach the dictionary. Rust returns a copy.
+  Nothing in Go relies on that aliasing on the paths this crate serves.
+
+- **X-118 Splits and the built-in test set copy the dictionaries.** Go shares
+  `users`, `items`, `userDict` and `itemDict` between a dataset and its splits,
+  and `LoadDataFromBuiltIn` shares the training dictionaries with the test set.
+  Rust copies them: the same values, at the cost of memory. `loadTrain` adds
+  every integer ID from 0 up to the largest one it reads, so the shared dictionary
+  already holds those. The test set's `loadTest` adds to the dictionary only a
+  name beyond that range, or a name that is not an integer. Go would then add it to
+  the training dictionary too, and Rust would not. Whether the ml-1m files name
+  such an ID is unknown here (O-1).
+
+- **X-119 `FreqDict` locks are not `sync.Mutex`.** Each index has a flag under
+  a `Mutex` with a `Condvar`, so the lock can be taken and released in separate
+  calls from any thread, as Go's can. Unlocking an unlocked index panics, as Go's
+  fatal error does. A clone gets new, unlocked locks.
+
+- **X-120 Label ID order inside one map.** Go iterates a `map[string]any` in
+  random order, so the IDs of label strings under different keys of one map vary
+  between Go runs. Rust assigns them in insertion order. Go's order is not
+  defined, so Rust's is one valid order.
+
+- **X-121 `strutil.Pool` is dropped.** `processLabels` interns map keys
+  through a pool that returns an equal string. Rust keeps the key strings as they
+  are. No value differs.
+
+- **X-122 Malformed dataset lines are errors, not panics.** A line with too
+  few fields, an empty test line, or a user ID outside the `negatives` table made
+  Go index a slice out of range. Rust returns `TooFewFields`, `WrongFormat` or
+  `UserOutOfRange`. A test line whose user is not in the training set still
+  panics in `add_feedback`, as Go does, because the feedback table is too short.
+
+- **X-123 A negative length in a serialised index is an error.** Go's
+  `Unmarshal` calls `make([]string, 0, n)` and panics on a negative `n`.
+  `NegativeLength` is returned instead.
+
+- **X-124 `bufio.Scanner`'s 64 KB line limit is not reproduced.** Go's
+  loaders fail on a longer line (`ErrTooLong`). Rust's `BufRead::lines` reads it.
+
+- **X-125 Nil receivers are `Option`s.** Go's `*Index` may be nil and then
+  has length 0. Rust has no nil index, so `Option<&Index>` with `map_or(0, Index::len)`
+  stands in. `UnifiedIndex` nil is `Option::None` too.
+
+- **X-126 Traits and concrete types.** `CFSplit` and `CTRSplit` are Rust
+  traits (`CfSplit`, `CtrSplit`). `Dataset` implements `CfSplit`, and
+  `split_cf` and `split_latest` return `Dataset`s, which Go returns as the
+  interface. `UnifiedIndex` is an enum (`Map(Box<_>)` or `Direct`) rather than an
+  interface, so the type switch in `MarshalUnifiedIndex` is a match.
+
+- **X-127 Dataset labels.** Go's `data.User` and `data.Item` hold `any`
+  labels, which a dataset fills with label IDs, FP16 vectors and the rest. Rust
+  has `DatasetUser` and `DatasetItem` with a `Value` label. Go's `int` and
+  `int32` labels become `Float64` in Rust, since the storage `Labels` has no integer.
+
+- **X-128 Names.** Go's `ID` is `Id`, `NotId` is `NOT_ID`, `CFSplit` is
+  `CfSplit` and `CTRSplit` is `CtrSplit`, so clippy's acronym lint is quiet.
+  Go's `Get*` methods keep the `get_` prefix, as `gorse-model-core` does.
+
+- **X-129 Go `int` parameters.** `numTestUsers` and `shots` are `i64`, which
+  keeps the negative values that Go's `int` allows.
+
+- **O-51 `floats.FromAny` is not in `gorse-common`.** Go's `FromAny` takes any
+  slice by reflection. Only its `[]any` `float64` case is ported, as the private
+  `floats_from_any` in `gorse-dataset`, because `gorse_common::floats` belongs to
+  another WP. `worker/pipeline.go`, `logics/user_to_user.go` and
+  `logics/item_to_item.go` call `FromAny` too. Their WPs should move the full
+  function into `gorse_common::floats` and let this crate use it.
+
+- **O-52 `CtrSplit` has no implementation.** Its implementations are in
+  `model/ctr` (WP-3-2). The trait is ported so that WP can use it.
+
+- Tests (the integrator's fold of the WP's notes): - `dataset/dict_test.go`, `index_test.go`, `unified_index_test.go` and `dataset_test.go` are ported in `src/{dict,index,unified_index,dataset}/tests.rs`, case for case. `TestDataset_LoadMovieLens1M` is ignored (O-1: it downloads ml-1m from cdn.gorse.io, which this container cannot reach). - Extra tests, not in Go: `index_unmarshal_drops_repeated_names`, `index_unmarshal_rejects_negative_length`, `unified_index_nil_round_trip`, `unified_index_unknown_type_tag`, `load_train_and_test_read_ncf_files` and `load_test_rejects_a_line_without_parentheses`. They cover the error paths and the file parsers, which only the ignored test reaches in Go.
+
+- Gates on the merge: - `cargo fmt --all --check`: exit 0. - `cargo clippy --workspace --all-targets -- -D warnings`: exit 0. - `cargo test --workspace --no-fail-fast`: exit 0. `gorse_dataset` unit tests: 18 passed, 0 failed, 1 ignored (`dataset_load_movie_lens_1m`, O-1). - `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps`: exit 0. - `cd contracts/tools && go vet ./...`: exit 0.
