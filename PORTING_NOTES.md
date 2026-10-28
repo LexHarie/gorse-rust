@@ -1681,11 +1681,11 @@ said otherwise), so the Rust result is Go's.
   which real data is unlikely to do, but the dataset and logics WPs sort large
   slices, so the gap should close before WP-3-x.
 
-- **O-27 The cache core copies Go's pdqsort (WP-2-4).** `cache/gosort.rs` is a
+- **O-27 (closed by f7ff3189) The cache core copies Go's pdqsort (WP-2-4).** `cache/gosort.rs` is a
   private port of `sort.Slice`'s pdqsort. `gorse-common::gosort` (WP-1-17) already
   ports the same algorithm for `sort.Sort`, so there are two copies. Owner: the
   cache thread. Before WP-2-5 merges, it becomes a closure adapter over
-  `gorse_common::gosort`, so Go's pdqsort is in one place. Open.
+  `gorse_common::gosort`, so Go's pdqsort is in one place. Closed by f7ff3189: `cache::sort_documents` calls `gorse_common::gosort::sort` through an adapter, and the local copy is deleted.
 
 - **O-28 The shared suite has not run against a backend.** No backend
   exists in this WP, and the acceptance command is `cache::no_database`. WP-2-5,
@@ -1697,7 +1697,7 @@ said otherwise), so the Rust result is Go's.
   `BENCHMARK_DATA_SIZE` are not run by `go test`. Phase 5 performance work is
   the place for them.
 
-0 HNSW ranking parity.** Go's `xvec` answers with HNSW, which is
+- **O-30 HNSW ranking parity.** Go's `xvec` answers with HNSW, which is
   approximate. This port scans exactly (X-75), so its top `topK` can differ
   from Go's where HNSW misses a neighbour. Option: `gorse_common::ann::Hnsw`
   (WP-1-10) as the index. That would bring the rankings closer to Go's, but not
@@ -1775,55 +1775,55 @@ said otherwise), so the Rust result is Go's.
 
 ## WP-2-5 Redis cache store
 
-- **Q-195 `UpdateScores` checks, then writes, with no transaction.** Go's
+- **Q-202 `UpdateScores` checks, then writes, with no transaction.** Go's
   `Watch` runs its function on one connection with no `MULTI`/`EXEC`, so the
   watch guards nothing. `EXISTS` and then `HSET` are two commands another client
   can interleave. The port sends the same two commands.
 
-- **Q-196 `ScanScores` fails on a key deleted between `SCAN` and `HGETALL`.**
+- **Q-203 `ScanScores` fails on a key deleted between `SCAN` and `HGETALL`.**
   Go's `redis.Nil` check, meant to skip such a key, never fires: `HGETALL` on a
   missing key returns an empty map with no error. The empty `timestamp` then
   fails to parse and the scan returns the error. The port does the same.
 
-- **Q-197 A search with `begin == end == 0` has no `LIMIT`.** go-redis sends
+- **Q-204 A search with `begin == end == 0` has no `LIMIT`.** go-redis sends
   `LIMIT` only when the offset is positive or the limit is positive. A search
   for `[0, 0)` therefore gets RediSearch's default of 10 results. The port keeps
   that condition.
 
-- **Q-198 `Scan` and `Purge` also visit score documents and points.** Both match
+- **Q-205 `Scan` and `Purge` also visit score documents and points.** Both match
   `prefix*`, so they see the `documents:` and `time_series_points:` keys, with
   the prefix stripped. The port does the same.
 
-- **Q-199 A category token that decodes to nothing panics in Go.**
+- **Q-206 A category token that decodes to nothing panics in Go.**
   `decodeCategory` slices `b[1:]` without a length check. The port returns an
   error for that token.
 
-- **Q-200 A missing time series is matched by text.** Go checks for the
+- **Q-207 A missing time series is matched by text.** Go checks for the
   `TSDB: the key does not exist` and `key does not exist` prefixes. The port
   checks for either text anywhere in the error, since the driver's message can
   wrap the server's.
 
-- **X-95 `Close` drops the connection.** The `ConnectionManager` closes with the
+- **X-104 `Close` drops the connection.** The `ConnectionManager` closes with the
   store, which has the same effect as go-redis's `client.Close()`.
 
-- **X-96 Cancellation is checked at call boundaries.** go-redis aborts a command
+- **X-105 Cancellation is checked at call boundaries.** go-redis aborts a command
   in flight when its context is cancelled. The port checks the context when a
   method starts and after each reply of a score scan, as Go's `ScanScores` does.
   A command already sent runs to completion. Open for the WP-4 review.
 
-- **X-97 `CLIENT SETNAME` is sent once, on the first connection.** go-redis names
+- **X-106 `CLIENT SETNAME` is sent once, on the first connection.** go-redis names
   every connection it makes. A `ConnectionManager` reconnect does not resend the
   name.
 
-- **X-98 A cluster sends pipelines one command at a time.** redis-rs refuses a
+- **X-107 A cluster sends pipelines one command at a time.** redis-rs refuses a
   pipeline whose keys span slots (CROSSSLOT). Go's cluster client splits the
   pipeline per node. The replies are the same. The port makes more round trips.
   Not measured.
 
-- **X-99 Cluster primaries come from one `CLUSTER NODES` reply.** Go's
+- **X-108 Cluster primaries come from one `CLUSTER NODES` reply.** Go's
   `ForEachMaster` walks the client's slot map. The port scans each node whose
   flags include `master`. Run against a six-node Redis 8.10.3
-  cluster, see O-42.
+  cluster, see O-46.
 
 - **X-100 Cluster `addr` parameters take the base URL's credentials.** Go's
   `ParseClusterURL` does the same. The port does not decode percent escapes in
@@ -1848,9 +1848,9 @@ said otherwise), so the Rust result is Go's.
 - **X-103 `skip_verify=true` is honoured on `rediss://`, as go-redis does
   (resolved; decided by the coordinator).** The default still verifies. The
   port maps the parameter to redis-rs's `#insecure` URL fragment, which needs
-  the `tls-rustls-insecure` feature. Details and the reproduction are in Q-202.
+  the `tls-rustls-insecure` feature. Details and the reproduction are in Q-208.
 
-- **Q-202 go-redis's `skip_verify` turns verification off, and the port now does
+- **Q-208 go-redis's `skip_verify` turns verification off, and the port now does
   too (reproduced).** go-redis's `ParseURL` reads `skip_verify` only when the
   scheme is `rediss://`, and reads it with its own rules: `true` and `1` are on,
   `false`, `0` and an empty value are off, and anything else is the error
@@ -1867,11 +1867,7 @@ said otherwise), so the Rust result is Go's.
   (`REDIS_TLS_URI`) and `tls_verifies_the_server_by_default` (`REDIS_TLS_URI` and
   `REDIS_TLS_UNTRUSTED`, which asserts the CA is not trusted).
 
-- **O-27 closed.** `cache::sort_documents` uses `gorse_common::gosort::sort` with
-  a `DocumentSorter` adapter, and the local pdqsort copy is deleted. Go's
-  `sort.Slice` and `sort.Sort` share one algorithm.
-
-- **O-42 The Redis acceptance runs pass on Redis 8 and Kvrocks.** The
+- **O-46 The Redis acceptance runs pass on Redis 8 and Kvrocks.** The
   shared suite, the search, update and delete paths, and the time series paths
   all run. The environment's Redis 7.0.15 has no modules, so it was not the
   gate. `redis:8` (Redis 8.10.3, with the `search` and `timeseries` modules)
@@ -1887,7 +1883,7 @@ said otherwise), so the Rust result is Go's.
   A mutation check (the escape rule without `-`) made `escape_characters` fail,
   then the file was restored.
 
-- **O-43 The Go CI's Redis jobs are covered for WP-2-5.** The standalone,
+- **O-47 The Go CI's Redis jobs are covered for WP-2-5.** The standalone,
   one-address cluster, six-address cluster and Kvrocks jobs in
-  `.github/workflows/build_test.yml` all run here (see O-42). The MariaDB job and
+  `.github/workflows/build_test.yml` all run here (see O-46). The MariaDB job and
   the rest of the Phase 2 exit gate belong to other work packages.
