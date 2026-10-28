@@ -45,6 +45,13 @@ bytes = { version = "1.12.1", optional = true }
 # Cloud stores, one feature per provider (`storage/blob/{s3,gcs,azure}.go`).
 object_store = { version = "0.14.2", default-features = false, optional = true }
 
+# The vector stores (`vectors::qdrant`, `vectors::milvus`, `vectors::weaviate`).
+# Each is off by default, as Go links a client only when its store is configured.
+# `qdrant-client` is the Qdrant gRPC client; Milvus and Weaviate are hand-written
+# REST adapters over `reqwest` (`PORTING.md` D-17).
+qdrant-client = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true, features = ["json"] }
+uuid = { workspace = true, optional = true }
 # The MongoDB driver, for `cache::mongodb`. Optional, so a build that needs no
 # MongoDB store does not link it.
 mongodb = { workspace = true, optional = true }
@@ -62,6 +69,9 @@ mongodb = ["dep:mongodb", "dep:base64"]
 mysql = ["dep:sqlx", "sqlx/mysql", "sqlx/mysql-rsa", "dep:base64"]
 postgres = ["dep:sqlx", "sqlx/postgres", "dep:base64"]
 sqlite = ["dep:sqlx", "sqlx/sqlite", "dep:libsqlite3-sys", "dep:base64"]
+qdrant = ["dep:qdrant-client", "dep:uuid"]
+milvus = ["dep:reqwest", "dep:base64"]
+weaviate = ["dep:reqwest", "dep:uuid"]
 
 [dev-dependencies]
 hex.workspace = true
