@@ -30,6 +30,7 @@
 //! assert_eq!(child.err().map(|e| e.to_string()).as_deref(), Some("context canceled"));
 //! ```
 
+use std::any::{Any, TypeId};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -59,6 +60,15 @@ pub enum ContextError {
 pub struct Context {
     /// `None` for Go's `Background()`, whose `Done()` is nil.
     node: Option<Arc<Node>>,
+    /// The values added by [`Context::with_value`], newest first.
+    values: Option<Arc<Value>>,
+}
+
+/// Go's `valueCtx`: one value and the values it was added to.
+struct Value {
+    key: TypeId,
+    value: Arc<dyn Any + Send + Sync>,
+    parent: Option<Arc<Value>>,
 }
 
 /// Go's `context.CancelFunc`: cancels the context [`Context::with_cancel`]
@@ -123,7 +133,40 @@ impl Context {
         let cancel = CancelFunc {
             node: Arc::clone(&child),
         };
-        (Context { node: Some(child) }, cancel)
+        (
+            Context {
+                node: Some(child),
+                values: self.values.clone(),
+            },
+            cancel,
+        )
+    }
+
+    /// Go's `context.WithValue`: a context that answers [`Context::value`] for
+    /// type `V` with `value`, and is otherwise `self`. Keys are Rust types,
+    /// which play the part of Go's unexported key types.
+    pub fn with_value<V: Any + Send + Sync>(&self, value: V) -> Context {
+        Context {
+            node: self.node.clone(),
+            values: Some(Arc::new(Value {
+                key: TypeId::of::<V>(),
+                value: Arc::new(value),
+                parent: self.values.clone(),
+            })),
+        }
+    }
+
+    /// Go's `ctx.Value(key)` for the key type `V`: the nearest value added
+    /// with that type, or `None`.
+    pub fn value<V: Any + Send + Sync>(&self) -> Option<Arc<V>> {
+        let mut link = self.values.as_deref();
+        while let Some(current) = link {
+            if current.key == TypeId::of::<V>() {
+                return Arc::clone(&current.value).downcast::<V>().ok();
+            }
+            link = current.parent.as_deref();
+        }
+        None
     }
 
     /// Go's `ctx.Err()`: `None` until the context is done, then why.

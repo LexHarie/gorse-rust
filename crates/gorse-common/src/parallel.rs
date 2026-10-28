@@ -709,12 +709,12 @@ mod tests {
     #[test]
     fn single_worker_panics_reach_the_caller() {
         let ctx = gocontext::Context::background();
-        let caught = panic::catch_unwind(|| {
+        let caught = panic::catch_unwind(AssertUnwindSafe(|| {
             parallel(&ctx, 10, 1, |_, job_id| -> Result<(), TestError> {
                 assert_ne!(job_id, 5, "job 5");
                 Ok(())
             })
-        });
+        }));
         assert!(caught.is_err());
     }
 
@@ -852,6 +852,6 @@ mod tests {
         assert!(split(&empty, 0).is_empty());
         assert_eq!(split(&[1, 2], 5), [&[1][..], &[2]]);
         assert_eq!(split(&[1, 2, 3], 1), [&[1, 2, 3][..]]);
-        assert!(panic::catch_unwind(|| split(&[1], 0)).is_err());
+        assert!(panic::catch_unwind(AssertUnwindSafe(|| split(&[1], 0))).is_err());
     }
 }
