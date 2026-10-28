@@ -899,14 +899,14 @@ mod tests {
     use crate::vectors::{open, suite};
     use gorse_storage_core::options::Opt;
 
-    /// Go's `milvusUri`, from `MILVUS_URI`. Unset, the Milvus tests are skipped, as
-    /// Go's `t.Skip` skips them.
-    fn milvus_dsn() -> Option<String> {
-        let dsn = std::env::var("MILVUS_URI").ok().filter(|s| !s.is_empty());
-        if dsn.is_none() {
-            eprintln!("MILVUS_URI is not set, skipping Milvus test");
-        }
-        dsn
+    /// Go's `milvusUri`, from `MILVUS_URI`. Unset, the case fails rather than passes:
+    /// these tests are `#[ignore]`d, so they run only when asked for, and then a
+    /// missing server is an error.
+    fn milvus_dsn() -> String {
+        std::env::var("MILVUS_URI")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .expect("MILVUS_URI must name the Milvus server; run with `-- --include-ignored`")
     }
 
     /// The cases of this module share one server and the collections' names, so
@@ -915,9 +915,7 @@ mod tests {
 
     /// Runs one case on the server at `MILVUS_URI`, then closes the store.
     async fn run(case: impl for<'a> AsyncFnOnce(&'a Context, &'a dyn Database)) {
-        let Some(dsn) = milvus_dsn() else {
-            return;
-        };
+        let dsn = milvus_dsn();
         let _serial = SERIAL.lock().await;
         let db = open(&dsn, "gorse_", &[] as &[Opt]).await.expect("open");
         db.init().await.expect("init");
@@ -926,46 +924,55 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "needs a Milvus server at MILVUS_URI; run with -- --include-ignored"]
     async fn purge() {
         run(suite::test_purge).await;
     }
 
     #[tokio::test]
+    #[ignore = "needs a Milvus server at MILVUS_URI; run with -- --include-ignored"]
     async fn collections() {
         run(suite::test_collections).await;
     }
 
     #[tokio::test]
+    #[ignore = "needs a Milvus server at MILVUS_URI; run with -- --include-ignored"]
     async fn vectors() {
         run(suite::test_vectors).await;
     }
 
     #[tokio::test]
+    #[ignore = "needs a Milvus server at MILVUS_URI; run with -- --include-ignored"]
     async fn half_vectors() {
         run(suite::test_half_vectors).await;
     }
 
     #[tokio::test]
+    #[ignore = "needs a Milvus server at MILVUS_URI; run with -- --include-ignored"]
     async fn get_vectors() {
         run(suite::test_get_vectors).await;
     }
 
     #[tokio::test]
+    #[ignore = "needs a Milvus server at MILVUS_URI; run with -- --include-ignored"]
     async fn sparse() {
         run(suite::test_sparse).await;
     }
 
     #[tokio::test]
+    #[ignore = "needs a Milvus server at MILVUS_URI; run with -- --include-ignored"]
     async fn hidden() {
         run(suite::test_hidden).await;
     }
 
     #[tokio::test]
+    #[ignore = "needs a Milvus server at MILVUS_URI; run with -- --include-ignored"]
     async fn dot() {
         run(suite::test_dot).await;
     }
 
     #[tokio::test]
+    #[ignore = "needs a Milvus server at MILVUS_URI; run with -- --include-ignored"]
     async fn delete_vectors() {
         run(suite::test_delete_vectors).await;
     }
@@ -973,6 +980,7 @@ mod tests {
     /// Go's `TestInvalidSparseCollection`: a sparse collection takes only the dot
     /// distance and no quantization, and a rejected one is not created.
     #[tokio::test]
+    #[ignore = "needs a Milvus server at MILVUS_URI; run with -- --include-ignored"]
     async fn invalid_sparse_collection() {
         run(async |ctx, db| {
             let err = db
@@ -998,6 +1006,7 @@ mod tests {
     /// Go's `TestQuantization` for Milvus: every quantization the store accepts,
     /// with the bits it accepts.
     #[tokio::test]
+    #[ignore = "needs a Milvus server at MILVUS_URI; run with -- --include-ignored"]
     async fn quantization() {
         run(async |ctx, db| {
             suite::test_quantization(ctx, db, QuantizationType::None, 0).await;
