@@ -18,14 +18,16 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use gorse_common::dateparse;
+use gorse_common::gosort;
 use gorse_common::gocontext::{Context, ContextError};
 use gorse_common::gostrconv;
 use gorse_common::gotime::{self, Duration, Time};
 use gorse_storage_core::errors::Error as StorageError;
 use gorse_storage_core::options::Opt;
 
-mod gosort;
 pub mod no_database;
+#[cfg(feature = "redis")]
+pub mod redis;
 
 #[cfg(test)]
 mod database_test;
@@ -274,7 +276,26 @@ pub struct Score {
 /// `sort.Slice`. The sort is not stable, so documents with equal scores come
 /// out in the order Go's pattern-defeating quicksort gives, not in input order.
 pub fn sort_documents(documents: &mut [Score]) {
-    gosort::slice(documents, |a, b| a.score > b.score);
+    gosort::sort(&mut DocumentSorter(documents));
+}
+
+/// Go's `sort.Slice` over the documents, by score, highest first. It is
+/// `sort.Sort`'s algorithm, which `gosort::sort` ports, so equal scores come
+/// out in the order Go gives them.
+struct DocumentSorter<'a>(&'a mut [Score]);
+
+impl gosort::Interface for DocumentSorter<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn less(&self, i: usize, j: usize) -> bool {
+        self.0[i].score > self.0[j].score
+    }
+
+    fn swap(&mut self, i: usize, j: usize) {
+        self.0.swap(i, j);
+    }
 }
 
 /// Go's `cache.ConvertDocumentsToValues`: the ids of the documents, in order.

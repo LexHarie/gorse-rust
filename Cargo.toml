@@ -34,6 +34,7 @@ gorse-cmd = { path = "crates/gorse-cmd" }
 # External crates, chosen in porting/crate-selection.md. A crate is listed here
 # only once a work package uses it.
 async-trait = "0.1.92"
+base64 = "0.23.1"
 blake2 = "0.11.0"
 cc = "1.8.0"
 csv = "1.4.0"
@@ -43,6 +44,7 @@ md-5 = "0.11.0"
 prost = "0.14.4"
 prost-types = "0.14.4"
 protox = "0.10.0"
+redis = { version = "1.8.0", default-features = false, features = ["tokio-comp", "cluster-async", "connection-manager"] }
 regex = "1.13.1"
 reqwest = { version = "0.13.5", default-features = false, features = ["blocking", "rustls"] }
 rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "prefer-post-quantum", "std", "tls12"] }
