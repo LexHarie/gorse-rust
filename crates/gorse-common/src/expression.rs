@@ -386,7 +386,7 @@ fn format_float_v(v: f64) -> String {
 
 /// Go's `json.Marshal` of a string: escapes `"`, `\`, control characters,
 /// `<`, `>`, `&`, U+2028 and U+2029, with lower-case hex.
-fn go_json_quote(s: &str) -> String {
+pub fn go_json_quote(s: &str) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');

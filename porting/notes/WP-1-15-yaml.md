@@ -72,10 +72,11 @@ Entry point: `gorse_config::formats::yaml::decode(input: &[u8]) -> Result<Map, S
   (`buffer_start`). yaml.v3's `is_bom` reads `buffer[0..3]` and ignores its
   index argument, so the two agree only when the window starts at the stream
   start. No golden case differs.
-- O-WP115Y-4: the config golden (`config_golden.json`, `configgolden`) needs
-  `LoadConfig` and the config core. Neither is on this branch, so its YAML
-  cases stay ignored until that lands. In the merge that brings the config
-  core, `test_unmarshal_yaml` and the golden `load_yaml_cases` are un-ignored.
+- O-WP115Y-4 (resolved by merging integration 2de963c, which has the config
+  core): the config golden (`config_golden.json`, `configgolden`) needs
+  `LoadConfig`. `test_unmarshal_yaml` and the golden `load_yaml_cases` are
+  un-ignored and pass. `viper.rs` already calls `formats::yaml::decode` for
+  `yaml` and `yml`.
 - O-WP115Y-5 (not exercised): the derived `Clone`, `PartialEq` and `Debug` of
   `Value` still recurse once per level, and so do `viper.rs`'s
   `insensitivise_val` and `cast_to_string_map`, which clones values. A
@@ -91,7 +92,11 @@ Entry point: `gorse_config::formats::yaml::decode(input: &[u8]) -> Result<Map, S
   `value::tests::deep_value_drops_on_a_small_stack ... ok`. Dotenv goldens 3,
   dotenv gotenv 11, toml deep 6 with 1 ignored, toml golden 1, toml unit 24,
   yaml golden 1.
-- `cargo test --workspace`: 650 passed, 0 failed, 7 ignored, exit 0.
+- `cargo test --workspace` on the merged tree (integration 2de963c merged):
+  684 passed, 0 failed, 7 ignored, exit 0.
+- `cargo test -p gorse-config --test config_golden`: 7 passed, 0 ignored,
+  including `load_yaml_cases` (YAML config files through `LoadConfig`).
+  `test_unmarshal_yaml` passes in the lib tests.
 - `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D
   warnings`, `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps`:
   exit 0. `go vet` was not rerun: no Go file has changed since it last passed.
