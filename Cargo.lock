@@ -1288,6 +1288,7 @@ dependencies = [
  "gorse-expr",
  "gorse-storage",
  "gorse-storage-core",
+ "indexmap",
  "minijinja",
  "reqwest",
  "rquickjs",
