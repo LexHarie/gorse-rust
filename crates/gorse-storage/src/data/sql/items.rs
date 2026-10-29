@@ -152,9 +152,18 @@ fn push_categories_filter(
     Ok(())
 }
 
+/// GORM's `CreateBatchSize` in `storage.NewGORMConfig`: the rows of one
+/// `INSERT` statement in a batch insert (X-245).
+const CREATE_BATCH_SIZE: usize = 1_000;
+
 impl SqlDatabase {
     /// Go's `BatchInsertItems`: writes the items, the first of each id, and
     /// overwrites the ones already stored with that id.
+    ///
+    /// GORM writes the rows in statements of [`CREATE_BATCH_SIZE`], one after
+    /// another, with no transaction around them (`SkipDefaultTransaction`).
+    /// The port does the same, so a batch of any size stays under the bind
+    /// parameter limit of one statement (X-245).
     pub(super) async fn batch_insert_items(
         &self,
         ctx: &Context,
@@ -164,23 +173,32 @@ impl SqlDatabase {
         if items.is_empty() {
             return Ok(());
         }
-        let driver = self.driver();
         let now = gotime::now().utc();
         let mut seen = HashSet::new();
+        let rows: Vec<&Item> = items
+            .iter()
+            .filter(|item| seen.insert(item.item_id.as_str()))
+            .collect();
+        for batch in rows.chunks(CREATE_BATCH_SIZE) {
+            query::check(ctx)?;
+            let sql = self.item_insert(batch, &now)?;
+            self.exec(&sql).await?;
+        }
+        Ok(())
+    }
+
+    /// The `INSERT` of one batch of items, with the upsert clause.
+    fn item_insert(&self, items: &[&Item], now: &Time) -> Result<Sql, Error> {
+        let driver = self.driver();
         let mut sql = self.sql();
         sql.push(&format!(
             "INSERT INTO {} (item_id, is_hidden, categories, time_stamp, labels, comment, update_at) VALUES ",
             self.items_table()
         ));
-        let mut first = true;
-        for item in items {
-            if !seen.insert(item.item_id.as_str()) {
-                continue;
-            }
-            if !first {
+        for (i, item) in items.iter().enumerate() {
+            if i > 0 {
                 sql.push(", ");
             }
-            first = false;
             let categories = jsonutil::marshal(&item.categories)
                 .map_err(|err| Error::Backend(std::sync::Arc::new(err)))?;
             let labels = jsonutil::marshal(&item.labels)
@@ -199,12 +217,9 @@ impl SqlDatabase {
             sql.push(", ").bind(json_text(labels)).cast("json");
             sql.push(", ").bind(item.comment.as_str());
             sql.push(", ")
-                .bind(time::format(driver, &now))
+                .bind(time::format(driver, now))
                 .cast("timestamptz");
             sql.push(")");
-        }
-        if first {
-            return Ok(());
         }
         sql.push(&upsert_clause(
             driver,
@@ -218,8 +233,7 @@ impl SqlDatabase {
                 "update_at",
             ],
         ));
-        self.exec(&sql).await?;
-        Ok(())
+        Ok(sql)
     }
 
     /// Go's `BatchGetItems`: the items with the ids that match `opts`.
