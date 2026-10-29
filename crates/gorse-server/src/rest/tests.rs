@@ -7,6 +7,7 @@
 //! `apitest`'s `JSONEq` does, and every other body compares as text.
 
 mod emit;
+mod empty;
 mod feedback;
 mod health;
 mod items;

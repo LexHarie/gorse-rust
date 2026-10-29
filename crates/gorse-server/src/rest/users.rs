@@ -113,15 +113,17 @@ pub(crate) async fn get_user(
         .data()
         .get_user(&Context::background(), user_id)
         .await
-        .map_err(|err| not_found_or_internal(&err))?;
+        .map_err(|err| not_found_or_internal(&err, &format!("user {user_id}")))?;
     ok(&user)
 }
 
 /// Go's `errors.Is(err, storage.ErrNotFound)` check, which picks the 404 for a
-/// missing record and the 500 for anything else.
-pub(crate) fn not_found_or_internal(err: &DataError) -> ApiError {
+/// missing record and the 500 for anything else. The 404 reads `subject not
+/// found`, as Go's store wraps `ErrNotFound` with the record's name, for example
+/// `item 6 not found`.
+pub(crate) fn not_found_or_internal(err: &DataError, subject: &str) -> ApiError {
     if err.kind() == Some(gorse_storage_core::errors::Error::NotFound) {
-        ApiError::PageNotFound(err.to_string())
+        ApiError::PageNotFound(format!("{subject} not found"))
     } else {
         ApiError::internal(err)
     }

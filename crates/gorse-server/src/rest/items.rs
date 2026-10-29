@@ -318,7 +318,7 @@ pub(crate) async fn get_item(
         .data()
         .get_item(&Context::background(), item_id)
         .await
-        .map_err(|err| not_found_or_internal(&err))?;
+        .map_err(|err| not_found_or_internal(&err, &format!("item {item_id}")))?;
     ok(&item)
 }
 

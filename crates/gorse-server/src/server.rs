@@ -25,6 +25,11 @@ use tonic::transport::Channel;
 
 use crate::rest::{self, RestServer};
 
+/// Compile-time check (Q-254): the server is shared between the HTTP task and
+/// the sync task, so it must be `Send` and `Sync`.
+const fn assert_send_sync<T: Send + Sync>() {}
+const _: () = assert_send_sync::<Server>();
+
 /// The OpenAPI document the server serves at `/apidocs.json`. It is the frozen
 /// document the Go server serves, not one generated here (`PORTING.md`).
 const OPENAPI_DOCUMENT: &str = include_str!("../../../contracts/rest/server.openapi.json");

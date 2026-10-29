@@ -315,6 +315,11 @@ fn trim_trailing_slash(mut request: Request) -> Request {
     request
 }
 
+/// Compile-time check (Q-254): the REST state is shared by every request task
+/// and by the sync task, so it must be `Send` and `Sync`.
+const fn assert_send_sync<T: Send + Sync>() {}
+const _: () = assert_send_sync::<RestServer>();
+
 /// Go's `LogFilter`: gives the response a fresh `X-Request-ID`, writes the
 /// access log, and emits the request event, unless the log is disabled or the
 /// route is one the dashboard polls.
