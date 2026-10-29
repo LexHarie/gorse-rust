@@ -23,7 +23,8 @@ use serde::{Deserialize, Serialize};
 use super::RestServer;
 use super::quota;
 use super::response::{
-    ApiError, Query, ok, parse_int, path_param, read_entity, text, validate_request_labels,
+    ApiError, GoFields, Query, ok, parse_int, path_param, read_entity, text,
+    validate_request_labels,
 };
 use super::users::Success;
 
@@ -46,6 +47,18 @@ pub(crate) struct Feedback {
     pub labels: Labels,
     /// The feedback's comment (`Comment`).
     pub comment: String,
+}
+
+impl GoFields for Feedback {
+    const FIELDS: &'static [&'static str] = &[
+        "FeedbackType",
+        "UserId",
+        "ItemId",
+        "Value",
+        "Timestamp",
+        "Labels",
+        "Comment",
+    ];
 }
 
 impl Feedback {

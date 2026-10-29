@@ -21,7 +21,7 @@ use super::RestServer;
 use super::embedding::create_embedding;
 use super::quota;
 use super::response::{
-    ApiError, Query, ok, parse_int, path_param, read_entity, validate_request_labels,
+    ApiError, GoFields, Query, ok, parse_int, path_param, read_entity, validate_request_labels,
     with_wild_card,
 };
 use super::users::{Success, empty_ok, not_found_or_internal};
@@ -43,6 +43,17 @@ pub(crate) struct Item {
     pub labels: Labels,
     /// The item's comment (`Comment`).
     pub comment: String,
+}
+
+impl GoFields for Item {
+    const FIELDS: &'static [&'static str] = &[
+        "ItemId",
+        "IsHidden",
+        "Categories",
+        "Timestamp",
+        "Labels",
+        "Comment",
+    ];
 }
 
 /// Go's `ItemIterator`: one page of items and the cursor for the next page.

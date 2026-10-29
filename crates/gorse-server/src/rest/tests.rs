@@ -11,11 +11,11 @@ mod empty;
 mod feedback;
 mod health;
 mod items;
+mod names;
 mod quota;
 mod recommend;
 mod search;
 mod users;
-mod visibility;
 
 use std::sync::Arc;
 
