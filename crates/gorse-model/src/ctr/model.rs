@@ -40,18 +40,24 @@ pub enum Error {
     Dataset(#[from] gorse_dataset::Error),
 }
 
-/// The scores of a model on a test set (Go `Score`).
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+/// The scores of a model on a test set (Go `Score`). Go's struct has no JSON
+/// tags, so the stored JSON names the fields as Go does.
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Score {
     /// The root mean square error of a regression.
+    #[serde(rename = "RMSE")]
     pub rmse: f32,
     /// The precision of a classification.
+    #[serde(rename = "Precision")]
     pub precision: f32,
     /// The recall of a classification.
+    #[serde(rename = "Recall")]
     pub recall: f32,
     /// The accuracy of a classification.
+    #[serde(rename = "Accuracy")]
     pub accuracy: f32,
     /// The area under the ROC curve of a classification.
+    #[serde(rename = "AUC")]
     pub auc: f32,
 }
 

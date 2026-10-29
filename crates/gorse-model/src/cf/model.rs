@@ -32,14 +32,18 @@ use prost::Message;
 use super::evaluator::{Metric, evaluate, ndcg, precision, recall};
 use super::lock;
 
-/// Go's `Score`: the metrics of a fit's last evaluation.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+/// Go's `Score`: the metrics of a fit's last evaluation. Go's struct has no
+/// JSON tags, so the stored JSON names the fields as Go does.
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Score {
     /// NDCG at the configured top-k.
+    #[serde(rename = "NDCG")]
     pub ndcg: f32,
     /// Precision at the configured top-k.
+    #[serde(rename = "Precision")]
     pub precision: f32,
     /// Recall at the configured top-k.
+    #[serde(rename = "Recall")]
     pub recall: f32,
 }
 
