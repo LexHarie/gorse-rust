@@ -13,6 +13,7 @@ use axum::body::Bytes;
 use axum::http::{HeaderMap, header};
 use gorse_common::gotime::{self, Time};
 use gorse_storage::data::types::{ItemPatch, Labels, User, UserPatch};
+use indexmap::IndexMap;
 
 use super::gojson::{Kind, Member, Node, is_blank, scan};
 use super::response::ApiError;
@@ -241,7 +242,7 @@ fn assign(
         });
     }
     match (kind, &node.kind) {
-        (FieldKind::Labels, _) => labels(node, body).map(|value| Some(Assign::Labels(value))),
+        (FieldKind::Labels, _) => Ok(Some(Assign::Labels(labels(node, body)))),
         (FieldKind::String | FieldKind::OptString, Kind::String(text)) => {
             Ok(Some(Assign::String(text.clone())))
         }
@@ -287,12 +288,86 @@ fn strings(items: &[Node], place: &Place, path: &str) -> Result<Vec<String>, Str
         .collect()
 }
 
-/// The labels of a request: the value's bytes, decoded by the labels decoder.
-/// Go keeps the numbers of `any` as their text, and never refuses a value
-/// for its size or its numbers; the decoder here refuses a number past
-/// `float64` and nesting past its recursion limit (X-WP42-16).
-fn labels(node: &Node, body: &[u8]) -> Result<Labels, String> {
-    serde_json::from_slice(&body[node.span.clone()]).map_err(|err| err.to_string())
+/// The labels of a request, built from the scanned tree. Go decodes the value
+/// into an `any`, keeping each number as its `json.Number` text, and it does
+/// not refuse a value for its size or its nesting. The tree is walked with a
+/// stack, so a value nested to the scanner's limit is built in full.
+fn labels(root: &Node, body: &[u8]) -> Labels {
+    /// A container being built, and the child that comes next.
+    enum Open<'a> {
+        Array {
+            rest: std::slice::Iter<'a, Node>,
+            items: Vec<Labels>,
+        },
+        Object {
+            rest: std::slice::Iter<'a, Member>,
+            map: IndexMap<String, Labels>,
+            name: String,
+        },
+    }
+    let mut open: Vec<Open> = Vec::new();
+    let mut next = Some(root);
+    let mut done = None;
+    loop {
+        if let Some(node) = next.take() {
+            match &node.kind {
+                Kind::Array(items) => open.push(Open::Array {
+                    rest: items.iter(),
+                    items: Vec::new(),
+                }),
+                Kind::Object(members) => open.push(Open::Object {
+                    rest: members.iter(),
+                    map: IndexMap::new(),
+                    name: String::new(),
+                }),
+                _ => done = Some(scalar_label(node, body)),
+            }
+        }
+        if let Some(value) = done.take() {
+            match open.last_mut() {
+                None => return value,
+                Some(Open::Array { items, .. }) => items.push(value),
+                Some(Open::Object { map, name, .. }) => {
+                    map.insert(std::mem::take(name), value);
+                }
+            }
+        }
+        let finished = match open.last_mut() {
+            None => unreachable!("a value with no open container is returned above"),
+            Some(Open::Array { rest, items }) => match rest.next() {
+                Some(child) => {
+                    next = Some(child);
+                    None
+                }
+                None => Some(Labels::Array(std::mem::take(items))),
+            },
+            Some(Open::Object { rest, map, name }) => match rest.next() {
+                Some(member) => {
+                    name.clone_from(&member.name);
+                    next = Some(&member.value);
+                    None
+                }
+                None => Some(Labels::Object(std::mem::take(map))),
+            },
+        };
+        if let Some(value) = finished {
+            open.pop();
+            done = Some(value);
+        }
+    }
+}
+
+/// A label that is not a container: `null`, a `bool`, a string or a number.
+fn scalar_label(node: &Node, body: &[u8]) -> Labels {
+    match &node.kind {
+        Kind::Null => Labels::Nil,
+        Kind::Bool(flag) => Labels::Bool(*flag),
+        Kind::String(text) => Labels::String(text.clone()),
+        Kind::Number => {
+            Labels::Number(String::from_utf8_lossy(&body[node.span.clone()]).into_owned())
+        }
+        Kind::Array(_) | Kind::Object(_) => unreachable!("containers are opened, not read"),
+    }
 }
 
 /// A time string, read as `time.Time`'s `UnmarshalJSON` reads it: with

@@ -19,7 +19,7 @@ use crate::rest::entity::read_entity;
 use crate::rest::feedback::Feedback;
 use crate::rest::items::Item;
 use crate::rest::response::ApiError;
-use gorse_storage::data::types::{ItemPatch, User, UserPatch};
+use gorse_storage::data::types::{ItemPatch, Labels, User, UserPatch};
 
 /// The probe's rows, one JSON object per line.
 const FIXTURE: &str = include_str!("go_decode.jsonl");
@@ -158,14 +158,44 @@ fn nesting_past_the_limit_is_exceeded_max_depth() {
     );
 }
 
-/// A label nested past the serde limit (128 levels) is refused here. Go
-/// accepts labels nested to 10000 levels, so this is a known difference
-/// (X-WP42-16), pinned so that a change to it is noticed.
+/// Go keeps each number of a label as its text, so a number past the
+/// `float64` range, or with a fraction or an exponent, is read back as it was
+/// written.
 #[test]
-fn labels_nested_past_serde_limit_are_refused_known_deviation() {
+fn label_numbers_keep_their_text() {
+    let headers = headers_for("application/json");
+    let body = Bytes::from(r#"{"Labels":[1e400,2.50,1E+2]}"#);
+    let Ok(user) = read_entity::<User>(&headers, &body) else {
+        panic!("Go accepts these labels");
+    };
+    assert_eq!(
+        user.labels,
+        Labels::Array(vec![
+            Labels::Number("1e400".to_owned()),
+            Labels::Number("2.50".to_owned()),
+            Labels::Number("1E+2".to_owned()),
+        ])
+    );
+}
+
+/// Go decodes labels nested to the scanner's limit in full. The validation
+/// that follows refuses a nested list with its text, so the decoder must
+/// accept the depth.
+#[test]
+fn labels_nested_past_the_serde_limit_are_decoded() {
     let headers = headers_for("application/json");
     let nested = format!("{{\"Labels\":{}{}}}", "[".repeat(130), "]".repeat(130));
-    let err = decode("user", &headers, &Bytes::from(nested))
-        .expect_err("the labels decoder refuses this depth");
-    assert!(err.contains("recursion limit"), "text: {err}");
+    let Ok(user) = read_entity::<User>(&headers, &Bytes::from(nested)) else {
+        panic!("Go accepts labels nested this deep");
+    };
+    let mut depth = 0;
+    let mut value = &user.labels;
+    while let Labels::Array(items) = value {
+        depth += 1;
+        match items.first() {
+            Some(first) => value = first,
+            None => break,
+        }
+    }
+    assert_eq!(depth, 130);
 }
