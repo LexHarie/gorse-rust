@@ -2806,8 +2806,7 @@ said otherwise), so the Rust result is Go's.
 - **X-217 The REST histogram has a help text (WP-4-2, deviation 6).** Go registers an empty help text, which the
   `prometheus` crate rejects. The `# HELP` line of `/metrics` therefore differs.
 
-- **X-218 Exponent-form floats are written by `serde_json` (WP-4-2, deviation 7).** The values are equal. The text of
-  very large or very small numbers can differ from Go's `strconv`.
+- **X-218 Exponent-form floats are written by `serde_json` (WP-4-2, deviation 7).** The values are equal. The text of very large or very small numbers can differ from Go's `strconv`. Resolved (D-265): the writer formats floats as `encoding/json` does (`rest::tests::go_json_writes_floats_as_go_does`).
 
 - **X-219 JSON member names are matched without regard to case (WP-4-2, deviation 8; fixed, D-244).** Go's decoder
   matches member names without regard to case, so `"itemid"` for `ItemId` is accepted by Go. The port now does the
@@ -2834,10 +2833,42 @@ said otherwise), so the Rust result is Go's.
 - **X-224 `serde_json` parses floats exactly (WP-4-2, deviation 13, provisional).** Through `float_roundtrip` (Q-266). A
   shared-crate decision.
 
-- **X-225 The server name falls back to the `HOSTNAME` variable (WP-4-2, court finding, 2026-10-29).** `read_hostname`
-  reads `/proc/sys/kernel/hostname`, as Go's `os.Hostname` does on Linux. If that file cannot be read, it uses the
-  `HOSTNAME` environment variable. Go's `os.Hostname` falls back to `uname` in that case. The two agree wherever
-  `/proc` exists. The fallback is not tested. The thread removes it or tests it.
+- **X-225 The server name falls back to the `HOSTNAME` variable (WP-4-2, court finding, 2026-10-29; resolved, 5210131).**
+  The fallback is removed. `read_hostname` reads `/proc/sys/kernel/hostname` and drops one trailing newline, as Go's
+  `os.Hostname` does. Tested by `server::tests::hostname_drops_one_trailing_newline`. The order of `uname` is X-239.
+
+- **X-238 JSON error texts and the content-type gate (WP-4-2, X-WP42-14; resolved, D-265).** The request decoder is a
+  port of `encoding/json`'s scanner and typed walk (`rest/gojson.rs`, `rest/entity.rs`). Every non-EOF syntax, depth, type
+  and time text matches Go 1.27.0. A body whose content type is neither JSON nor XML answers
+  `[ServiceError:400] Unable to unmarshal content of type:<type>` before the body is read, as go-restful does. Checked by `rest::tests::decode` (256 rows of Go's `ReadEntity` output; the rows are made by hand, see O-85) and by `nesting_past_the_limit_is_exceeded_max_depth`. The per-route case table of `mixed_server.rs` (63 cases over the 42 routes of the contract, asserted by the test) was in the branch's notes at `6ca5a43`; integration does not keep that file (D-265).
+
+- **X-239 The host name is read from `/proc` only (WP-4-2, X-WP42-15, provisional, not blocking).** Go tries `uname(2)`
+  first and then `/proc/sys/kernel/hostname`. The port reads `/proc` only. On Linux both give the kernel's host name. A
+  `uname` call needs a new crate or unsafe code, which the workspace does not use.
+
+- **X-240 Labels are read with serde, so Go's accepted numbers and depths are refused (WP-4-2, X-WP42-16, open; blocks
+  acceptance).** Go's `ReadEntity` keeps a label's numbers as text. It does not refuse a number outside the `float64` range
+  or a nesting past serde's 128 levels. The probe accepts `"Labels":[1e400]` on `user` and `item`, and a label 130 arrays
+  deep. The port answers serde's `number out of range` and recursion texts. Go's `feedback` `Value` is a `float64`, so
+  `{"Value":1e400}` is a Go refusal (`cannot unmarshal number 1e400 into Go struct field .0.Value of type float64`). The
+  port must keep that text. Q-267 (float label text) rides on the same fix.
+
+- **X-241 XML request bodies are not decoded (WP-4-2, X-WP42-17, open; blocks acceptance).** go-restful registers an
+  `encoding/xml` reader for `application/xml` by default. The server's routes set only `Produces`
+  (`server/rest.go` 232 to 236), so Go decodes an XML body on every route that reads an entity. The probe decodes `<a/>` on
+  `user` to the empty user, with no error. The port answers `XML request bodies are not supported`. `text/xml` is not
+  registered in Go and answers the content-type text, which the fixture keeps. The fixture filter drops the XML row
+  (O-85).
+
+- **X-242 Compressed request bodies are not inflated (WP-4-2, X-WP42-18, open; blocks acceptance).** go-restful's
+  `ReadEntity` wraps the body in a gzip reader for `Content-Encoding: gzip` and in a zlib reader for `deflate`, before it
+  decodes, for every route (`request.go` 75 to 89 in v3.13.0). `EnableContentEncoding` controls only responses. The port
+  reads the raw bytes. Read from source, not run live.
+
+- **X-243 Unassigned code points are quoted as themselves (WP-4-2, X-WP42-19, open; blocks acceptance).** Error texts quote
+  a character as `strconv.QuoteRune` does. The probe gives `invalid character '\u0378' after object key:value pair` for an
+  unassigned U+0378, and `'\ue000'` for a private-use character. The port's printable test covers white space, format
+  characters, private use and the noncharacters, but not unassigned code points, so it quotes U+0378 as itself.
 
 - **WP-4-1 worker node (merged in part, D-262).** The thread's notes (`porting/notes/WP-4-1.md`) are folded here with
   the integrator's ids. The harness (`conformance/src/cluster.rs`) and `mixed_worker` are merged with the worker. The
@@ -2919,6 +2950,18 @@ said otherwise), so the Rust result is Go's.
   `[true, "a", null]`. The oracle records that panic as the case's error, and the Go-backed test does not include the case,
   so the port's output for it is not compared with Go. The mixed data uses numeric labels, so no run is affected.
 
+- **O-85 The decode oracle is run by hand, and its filter drops rows (WP-4-2, open; blocks acceptance).** `rest::tests::decode`
+  reads `crates/gorse-server/src/rest/tests/go_decode.jsonl`, which the thread built by hand: `go run .` on
+  `porting/evidence/wp-4-2/go-readentity-probe/corpus4.jsonl`, then `make_fixture.py`. The court re-ran both and got the same
+  bytes (D-265). The Go-interop evidence must run from the conformance crate, as the other oracles do (coordinator ruling,
+  2026-10-28). `make_fixture.py` drops 12 of the 268 corpus rows: 8 over 300 bytes, 2 whose output nests past 100 levels, 1
+  `MARSHAL` case, and 1 XML row, which is the one Go decodes (X-241). Required: the probe runs from the conformance crate, and
+  every dropped row is either tested or named in the test.
+
+- **O-86 The mixed test has no XML, compressed or large-number cases (WP-4-2, open; blocks acceptance).** The 63 requests of
+  `mixed_server.rs` include no `application/xml` body, no `Content-Encoding` body and no label past the float range, so the
+  test that compares the nodes cannot see X-240 to X-242. Required: one live case for each, checked against Go's reply.
+
 - **O-75 The master must pass processed items to the logics (WP-3-5, open).** The Rust master's item and
   user update tasks must build `DatasetItem` and `DatasetUser` from the processed dataset, not from storage
   items (D-WP35-2, D-233). That master code is not in WP-3-5. Open until the master WP merges.
@@ -2931,7 +2974,7 @@ said otherwise), so the Rust result is Go's.
   Extended by WP-4-2 (D-242): on empty stores the Go server answers `[]` for every list route, and the probe
   of each route is the table below. Three routes answer `null` past the end of the list:
   item-to-item neighbours, user-to-user neighbours, and session recommend. The port returns `None` there (Q-265
-  checks it live). The per-route check against Go waits for `mixed_server.rs`, so O-76 stays open for the server.
+  checks it live). `mixed_server.rs` checks the server's seeded routes against Go, and `empty_stores_answer_empty_lists` checks the empty stores (D-265). O-76 stays open for the master's REST routes (WP-4-4).
 
   | Route | Empty store (Go probe) | Other evidence |
   | --- | --- | --- |
