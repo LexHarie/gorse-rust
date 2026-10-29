@@ -3,7 +3,7 @@ use serde::Deserialize;
 #[cfg(feature = "bson-3")]
 use crate::bson_compat::RawDocumentBufExt as _;
 use crate::{
-    bson::{doc, rawdoc, Document, RawArrayBuf, RawBson, RawDocumentBuf},
+    bson::{doc, rawdoc, Document, RawBson, RawDocumentBuf},
     bson_compat::{cstr, CStr},
     bson_util,
     cmap::{Command, RawCommandResponse, StreamDescription},
@@ -33,6 +33,9 @@ impl UpdateOrReplace {
                 UpdateModifications::Pipeline(pipeline) => {
                     let raw = bson_util::to_raw_bson_array(pipeline)?;
                     doc.append(key, raw);
+                }
+                UpdateModifications::Raw(raw) => {
+                    doc.append_ref(key, raw);
                 }
             },
             Self::Replacement(replacement_doc) => {
@@ -153,12 +156,13 @@ impl BaseOperation for Update {
             update.append(cstr!("multi"), multi);
         }
 
-        let mut updates = RawArrayBuf::new();
-        updates.push(update);
-        body.append(cstr!("updates"), updates);
         body.append(cstr!("ordered"), true); // command monitoring tests expect this (SPEC-1130)
 
-        Ok(Command::from_operation(self, body))
+        // The statement goes in a document sequence, as Go's driver sends it, so the server
+        // names its elements from the statement. Gorse patch; see GORSE.md.
+        let mut command = Command::from_operation(self, body);
+        command.add_document_sequence("updates", vec![update]);
+        Ok(command)
     }
 
     fn handle_response<'a>(

@@ -174,6 +174,10 @@ pub enum UpdateModifications {
 
     /// An aggregation pipeline.
     Pipeline(Vec<Document>),
+
+    /// A document that contains only update operator expressions, as raw BSON.
+    /// Added by Gorse; see `GORSE.md`.
+    Raw(RawDocumentBuf),
 }
 
 impl From<Document> for UpdateModifications {
@@ -185,6 +189,12 @@ impl From<Document> for UpdateModifications {
 impl From<Vec<Document>> for UpdateModifications {
     fn from(item: Vec<Document>) -> Self {
         UpdateModifications::Pipeline(item)
+    }
+}
+
+impl From<RawDocumentBuf> for UpdateModifications {
+    fn from(item: RawDocumentBuf) -> Self {
+        UpdateModifications::Raw(item)
     }
 }
 
