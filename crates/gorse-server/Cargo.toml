@@ -28,9 +28,10 @@ tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "sig
 tonic = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
+http-body-util = { workspace = true }
 
 [dev-dependencies]
-http-body-util = { workspace = true }
+gorse-storage = { workspace = true, features = ["mysql", "postgres", "sqlite"] }
 tempfile = { workspace = true }
 tower = { workspace = true, features = ["util"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

@@ -18,12 +18,14 @@ mod users;
 #[cfg(test)]
 mod tests;
 
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, PoisonError, RwLock};
 use std::time::Instant;
 
 use axum::Router;
+use axum::body::Body;
 use axum::extract::{MatchedPath, Request, State};
-use axum::http::{HeaderValue, StatusCode, header};
+use axum::http::{HeaderValue, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::Response;
 use axum::routing::{get, patch, post, put};
@@ -34,6 +36,7 @@ use gorse_config::config::schema::Config;
 use gorse_storage::cache;
 use gorse_storage::data;
 use gorse_storage::vectors;
+use http_body_util::BodyExt;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -240,6 +243,9 @@ pub fn router(rest: Arc<RestServer>) -> Router {
             get(recommend::get_collaborative_filtering),
         )
         .route("/api/latest", get(recommend::get_latest))
+        // Go's router matches the empty category of `/api/latest/` to
+        // `/api/latest/{category}`, which axum does not, so both are routed.
+        .route("/api/latest/", get(recommend::get_latest))
         .route("/api/latest/{category}", get(recommend::get_latest))
         .route(
             "/api/non-personalized/{name}",
@@ -293,11 +299,22 @@ async fn log_filter(State(rest): State<Arc<RestServer>>, request: Request, next:
     let method = request.method().to_string();
     let path = request.uri().path().to_owned();
     let route = matched_route(&request);
-    let request_bytes = content_length(&request);
     let remote_addr = String::new();
     let start_time = gotime::now();
     let start = Instant::now();
-    let mut response = next.run(request).await;
+    // Go counts the bytes the handler reads from the body (`CountingReadCloser`),
+    // not the declared length, so the body is wrapped to count what is read.
+    let (parts, body) = request.into_parts();
+    let bytes_read = Arc::new(AtomicI64::new(0));
+    let counter = bytes_read.clone();
+    let body = Body::new(body.map_frame(move |frame| {
+        if let Some(data) = frame.data_ref() {
+            counter.fetch_add(i64::try_from(data.len()).unwrap_or(i64::MAX), Ordering::Relaxed);
+        }
+        frame
+    }));
+    let mut response = next.run(Request::from_parts(parts, body)).await;
+    let request_bytes = bytes_read.load(Ordering::Relaxed);
     let response_time = start.elapsed();
     if let Ok(value) = HeaderValue::from_str(&request_id) {
         response.headers_mut().insert("X-Request-ID", value);
@@ -386,14 +403,6 @@ fn matched_route(request: &Request) -> String {
         .map_or_else(String::new, |path| path.as_str().to_owned())
 }
 
-fn content_length(request: &Request) -> i64 {
-    request
-        .headers()
-        .get(header::CONTENT_LENGTH)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.parse::<i64>().ok())
-        .unwrap_or(0)
-}
 
 fn response_size(response: &Response) -> i64 {
     use axum::body::HttpBody;

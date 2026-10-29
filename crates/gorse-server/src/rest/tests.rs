@@ -6,10 +6,13 @@
 //! another's rows. The expectations are Go's. JSON bodies compare as values, as
 //! `apitest`'s `JSONEq` does, and every other body compares as text.
 
+mod emit;
 mod feedback;
 mod health;
 mod items;
+mod quota;
 mod recommend;
+mod search;
 mod users;
 mod visibility;
 
@@ -101,6 +104,14 @@ impl Suite {
 
     /// Replaces the configuration, as Go's tests assign `suite.Config`.
     pub(super) fn set_config(&self, config: Config) {
+        self.rest.set_config(config);
+    }
+
+    /// Changes one setting of the configuration and keeps the rest, as a Go
+    /// test does with `suite.Config.Quota.MaxUsersCount = 1`.
+    pub(super) fn update_config(&self, change: impl FnOnce(&mut Config)) {
+        let mut config = (*self.rest.config()).clone();
+        change(&mut config);
         self.rest.set_config(config);
     }
 
@@ -230,7 +241,7 @@ impl Reply {
     pub(super) fn json(&self, expected: serde_json::Value) -> &Self {
         let actual: serde_json::Value = serde_json::from_str(&self.body)
             .unwrap_or_else(|err| panic!("body is not JSON ({err}): {}", self.body));
-        assert_eq!(actual, expected, "body: {}", self.body);
+        assert_eq!(as_float64s(actual), as_float64s(expected), "body: {}", self.body);
         self
     }
 
@@ -246,6 +257,27 @@ impl Reply {
     pub(super) fn header_present(&self, name: &str) -> &Self {
         assert!(self.headers.contains_key(name), "missing header {name}");
         self
+    }
+}
+
+/// Reads every number as a `float64`, as `apitest`'s `JSONEq` does by
+/// unmarshalling both sides into `interface{}`. Go writes `946684800` for a
+/// whole `float64`, and this keeps that equal to `946684800.0`.
+fn as_float64s(value: serde_json::Value) -> serde_json::Value {
+    use serde_json::Value;
+    match value {
+        Value::Number(number) => {
+            let float = number.as_f64().expect("a JSON number is an f64");
+            serde_json::Number::from_f64(float).map_or(Value::Null, Value::Number)
+        }
+        Value::Array(items) => Value::Array(items.into_iter().map(as_float64s).collect()),
+        Value::Object(fields) => Value::Object(
+            fields
+                .into_iter()
+                .map(|(key, value)| (key, as_float64s(value)))
+                .collect(),
+        ),
+        other => other,
     }
 }
 
