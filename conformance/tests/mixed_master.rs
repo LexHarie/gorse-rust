@@ -18,9 +18,13 @@ use gorse_common::encoding;
 use gorse_common::gocontext::Context;
 use gorse_common::gotime;
 use gorse_conformance::cluster::{Cluster, Edit, GoBuild, worker_logs};
+use gorse_protocol::master_client::MasterClient;
+use gorse_protocol::{NodeInfo, NodeType};
 use gorse_storage::blob::{self, Store as _};
 use gorse_storage::cache;
 use gorse_storage::data::types::{Feedback, FeedbackKey, Item, User};
+use gorse_storage::meta;
+use serde_json::json;
 
 /// The users of a run. Each likes two items.
 const USERS: usize = 10;
@@ -382,5 +386,231 @@ async fn rust_master_trains_the_go_model_in_a_mixed_cluster() {
         failures.is_empty(),
         "the Rust master logged errors:\n{}",
         failures.join("\n")
+    );
+}
+
+/// What one run of the cluster shows: the nodes the meta store lists, the
+/// recommend settings the master gives its nodes, each user's collaborative
+/// filtering rows as the worker wrote them, and each user's recommendations as
+/// the Go server serves them.
+#[derive(Debug, Default)]
+struct Served {
+    /// The node types the meta store lists, sorted.
+    nodes: Vec<String>,
+    /// The `Recommend` section of the config the master gives its nodes.
+    recommend: serde_json::Value,
+    /// The item ids of each user's collaborative filtering rows.
+    collaborative: BTreeMap<String, Vec<String>>,
+    /// The item ids the Go server serves for each user.
+    served: BTreeMap<String, Vec<String>>,
+}
+
+/// The node types the meta store lists, sorted.
+async fn node_types(meta: &dyn meta::Database) -> Vec<String> {
+    let mut types: Vec<String> = meta
+        .list_nodes()
+        .await
+        .expect("list the nodes")
+        .into_iter()
+        .map(|node| node.r#type)
+        .collect();
+    types.sort();
+    types
+}
+
+/// Whether every user has collaborative filtering rows and a recommendation.
+async fn all_collaborative_and_recommended(cache: &dyn cache::Database, ids: &[String]) -> bool {
+    let ctx = Context::background();
+    for id in ids {
+        let digest = cache::key(&[cache::COLLABORATIVE_FILTERING_DIGEST, id.as_str()]);
+        if !cache.get(&ctx, &digest).await.exists() {
+            return false;
+        }
+    }
+    all_recommended(cache, ids).await
+}
+
+/// The collaborative filtering rows the worker wrote for each user.
+async fn read_collaborative(
+    cache: &dyn cache::Database,
+    ids: &[String],
+) -> BTreeMap<String, Vec<String>> {
+    let ctx = Context::background();
+    let mut rows = BTreeMap::new();
+    for id in ids {
+        let scores = cache
+            .search_scores(&ctx, cache::COLLABORATIVE_FILTERING, id, &[], 0, -1)
+            .await
+            .expect("search the collaborative filtering rows");
+        rows.insert(
+            id.clone(),
+            scores.into_iter().map(|score| score.id).collect(),
+        );
+    }
+    rows
+}
+
+/// The recommendations the Go server serves for each user, as its REST route
+/// answers them.
+async fn read_served(cluster: &Cluster, ids: &[String]) -> BTreeMap<String, Vec<String>> {
+    let client = reqwest::Client::new();
+    let mut served = BTreeMap::new();
+    for id in ids {
+        let url = format!(
+            "http://127.0.0.1:{}/api/recommend/{id}?n=10",
+            cluster.ports.server_http
+        );
+        let response = client
+            .get(&url)
+            .send()
+            .await
+            .expect("ask the Go server for a recommendation");
+        let status = response.status();
+        let text = response.text().await.expect("read the reply");
+        assert_eq!(status, reqwest::StatusCode::OK, "{url}: {text}");
+        let items: Vec<String> =
+            serde_json::from_str(&text).expect("the reply is a list of item ids");
+        served.insert(id.clone(), items);
+    }
+    served
+}
+
+/// The `Recommend` section of the config the master gives its nodes. A node asks
+/// the master for it with `GetMeta`, as the Go worker and server do at start.
+async fn read_recommend(cluster: &Cluster) -> serde_json::Value {
+    let mut client =
+        MasterClient::connect(format!("http://127.0.0.1:{}", cluster.ports.master_grpc))
+            .await
+            .expect("connect to the master");
+    let meta = client
+        .get_meta(NodeInfo {
+            node_type: NodeType::Client as i32,
+            uuid: "mixed-master-config-check".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .expect("the master gives its meta")
+        .into_inner();
+    let config: serde_json::Value =
+        serde_json::from_str(&meta.config).expect("the meta config is JSON");
+    config["Recommend"].clone()
+}
+
+/// Runs one cluster with the master of `kind` and a Go server and a Go worker,
+/// until the worker has written every user's rows and the server serves them.
+/// The configuration ranks with the collaborative filtering rows and fills the
+/// rest from the latest items, so the Go server serves what the worker wrote.
+async fn run_served(build: &'static GoBuild, kind: MasterKind) -> Served {
+    let edits: Vec<Edit> = vec![
+        ("recommend.ranker", "type", "\"none\""),
+        ("recommend.ranker", "recommenders", "[\"collaborative\"]"),
+        ("recommend.fallback", "recommenders", "[\"latest\"]"),
+    ];
+    let mut cluster = Cluster::new(build, &edits).expect("write the cluster config");
+    let (users, items, feedback) = seed();
+    seed_stores(&cluster, &users, &items, &feedback).await;
+    let rust = match kind {
+        MasterKind::Go => {
+            cluster.start_master().await.expect("start the Go master");
+            None
+        }
+        MasterKind::Rust => Some(
+            cluster
+                .start_rust_master()
+                .await
+                .expect("start the Rust master"),
+        ),
+    };
+    cluster
+        .start_go_server()
+        .await
+        .expect("start the Go server");
+    cluster
+        .start_go_worker(TICK, 1)
+        .await
+        .expect("start the Go worker");
+
+    let meta = cluster.meta_store().await.expect("open the meta store");
+    let meta_ref: &dyn meta::Database = &*meta;
+    cluster
+        .wait_for(
+            "the server and the worker to register",
+            move || async move { node_types(meta_ref).await == ["Server", "Worker"] },
+        )
+        .await
+        .expect("the Go server and the Go worker register with the master");
+    let nodes = node_types(meta_ref).await;
+
+    let cache = cluster.cache_store().await.expect("open the cache store");
+    let ids: Vec<String> = users.iter().map(|user| user.user_id.clone()).collect();
+    let (cache_ref, ids_ref) = (&*cache, ids.as_slice());
+    cluster
+        .wait_for(
+            "every user to have collaborative filtering rows and a recommendation",
+            move || async move { all_collaborative_and_recommended(cache_ref, ids_ref).await },
+        )
+        .await
+        .expect("the worker writes rows for every user");
+
+    let collaborative = read_collaborative(cache_ref, &ids).await;
+    let served = read_served(&cluster, &ids).await;
+    let recommend = read_recommend(&cluster).await;
+
+    cluster.stop();
+    if let Some(rust) = rust {
+        rust.stop().await;
+    }
+    Served {
+        nodes,
+        recommend,
+        collaborative,
+        served,
+    }
+}
+
+/// X-251: a Rust master with a Go server and a Go worker, against the same
+/// nodes under the Go master. Both nodes register in the master's meta store; the
+/// master gives them the same recommend settings; and the Go server serves the
+/// collaborative filtering rows the Go worker wrote, the same as it does under
+/// the Go master.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn rust_master_serves_go_nodes_recommendations() {
+    let build = GoBuild::shared().expect("the Go nodes build");
+    let go = run_served(build, MasterKind::Go).await;
+    let rust = run_served(build, MasterKind::Rust).await;
+
+    assert_eq!(
+        go.nodes,
+        ["Server", "Worker"],
+        "the Go run registers one server and one worker"
+    );
+    assert_eq!(
+        rust.nodes, go.nodes,
+        "the Rust master registers the same nodes"
+    );
+    assert_eq!(
+        go.recommend["Ranker"]["Recommenders"],
+        json!(["collaborative"]),
+        "the Go master gives the configured ranker recommenders"
+    );
+    assert_eq!(
+        rust.recommend, go.recommend,
+        "the Rust master gives its nodes the same recommend settings"
+    );
+    assert_eq!(go.served.len(), USERS, "the Go run serves every user");
+    for (user, items) in &go.served {
+        assert!(
+            !items.is_empty(),
+            "{user}: the Go run serves recommendations"
+        );
+        let collaborative = &go.collaborative[user];
+        assert!(
+            items.iter().any(|item| collaborative.contains(item)),
+            "{user}: the Go server serves none of the rows the worker wrote: {items:?} against {collaborative:?}"
+        );
+    }
+    assert_eq!(
+        rust.served, go.served,
+        "the Go server serves the same recommendations under either master"
     );
 }
