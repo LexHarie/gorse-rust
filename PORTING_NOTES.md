@@ -2779,7 +2779,7 @@ said otherwise), so the Rust result is Go's.
   (`server/rest.go` 860 to 872 and 906 to 915) says `null`, and no live Go answer is recorded yet. The port returns
   `None` there. `mixed_server.rs` checks it.
 
-- **Q-266 `float_roundtrip` on `serde_json` (WP-4-2, Q-WP42-2, provisional).** `gorse-server` enables it, so a float
+- **Q-266 `float_roundtrip` on `serde_json` (WP-4-2, Q-WP42-2, approved, D-243).** The workspace `serde_json` enables it in the root `Cargo.toml` (`3bcb7d2`), so every crate parses floats alike. A regression test is `rest::tests::json_floats_parse_exactly`. Without the feature it fails by one ulp. The server reads floats so
   parses to the nearest double, as Go's `strconv` does. Without it the item-to-item test sees a one-ulp difference.
   Cargo unifies features across a workspace build, so it reaches every crate built together. The merge carries it.
   The coordinator must approve it. A rejection is a one-line revert in `crates/gorse-server/Cargo.toml`.
@@ -2809,10 +2809,14 @@ said otherwise), so the Rust result is Go's.
 - **X-218 Exponent-form floats are written by `serde_json` (WP-4-2, deviation 7).** The values are equal. The text of
   very large or very small numbers can differ from Go's `strconv`.
 
-- **X-219 JSON keys are matched case-sensitively (WP-4-2, deviation 8, open).** Go's decoder matches keys
-  case-insensitively, so a request with `"itemid"` for `ItemId` is accepted by Go and refused here. Not tested. It is a
-  wire-compatibility break for clients that send other cases. The WP is not accepted until it is fixed or a
-  coordinator ruling and a test record the refusal.
+- **X-219 JSON member names are matched without regard to case (WP-4-2, deviation 8; fixed, D-244).** Go's decoder
+  matches member names without regard to case, so `"itemid"` for `ItemId` is accepted by Go. The port now does the
+  same. `rest/response.rs` `read_entity` matches each name to a field of the request type, exact first and then by
+  simple case folding. When two members name one field, the later one in document order wins. Labels keep their
+  member names. Tests: `rest/tests/names.rs`, five tests. Disabling the folding fails four of them. The expectations
+  were checked against a Go `json.Decoder` with `UseNumber`: `{"UserId":"a","userid":"b"}` gives `b`, and
+  `{"USERID":"u","UserId":"exact"}` gives `exact`. Folding covers the simple Unicode folds that Go's `bytes.EqualFold`
+  covers. A letter whose upper case is several letters (`ß`) is compared as itself. Landed in `3bcb7d2`.
 
 - **X-220 Trailing slashes are trimmed before routing (WP-4-2, deviation 9).** As go-restful does. `/api/latest/` routes
   as `/api/latest`.
@@ -2834,6 +2838,86 @@ said otherwise), so the Rust result is Go's.
   reads `/proc/sys/kernel/hostname`, as Go's `os.Hostname` does on Linux. If that file cannot be read, it uses the
   `HOSTNAME` environment variable. Go's `os.Hostname` falls back to `uname` in that case. The two agree wherever
   `/proc` exists. The fallback is not tested. The thread removes it or tests it.
+
+- **WP-4-1 worker node (merged in part, D-262).** The thread's notes (`porting/notes/WP-4-1.md`) are folded here with
+  the integrator's ids. The harness (`conformance/src/cluster.rs`) and `mixed_worker` are merged with the worker. The
+  worker is not accepted until the items in D-262 are done.
+
+- **Q-268 Should `mixed_worker` also run with `collaborative.type = "mf"` (WP-4-1, Q-WP41-1, open).** Once Go and Rust
+  training are both deterministic. The O-30 stable-case rule would apply to the dense results.
+
+- **X-226 `worker_name` is the hex MD5 of the hostname, `http_host` and the decimal `http_port`, concatenated (WP-4-1,
+  X-WP41-1).**
+
+- **X-227 `pull_users` assigns users by the consistent ring of the live peers (WP-4-1, X-WP41-2).** If this node is not
+  in the ring, it fails with `current node isn't in worker nodes`.
+
+- **X-228 The health error body is `{}` (WP-4-1, X-WP41-3).** The Rust `HealthError` is an empty struct that serialises
+  to that.
+
+- **X-229 JSON responses are sniffed as `text/plain; charset=utf-8` (WP-4-1, X-WP41-4).** Errors use Go's `http.Error`
+  form: the message, a trailing newline, and `X-Content-Type-Options: nosniff`.
+
+- **X-230 The step-seconds gauges are never added to (WP-4-1, X-WP41-5).** They stay at zero, as in Go. The
+  total-seconds gauge is set at the end of a run.
+
+- **X-231 A late tick is skipped (WP-4-1, X-WP41-6).** A tick that fired long before it was handled is skipped
+  (`time.Since(tick) <= interval`).
+
+- **X-232 A recommend run reports progress every 10 seconds (WP-4-1, X-WP41-7).**
+
+- **X-233 A nil and an empty recommendation list write the same cache rows (WP-4-1, X-WP41-8, O-76).** The SQL store's
+  `add_scores` returns `Ok(())` for an empty slice (`crates/gorse-storage/src/cache/sql.rs` 872). Go's Redis
+  `AddScores` loops over the documents and sends nothing for an empty list. Both sides then run the stale-row delete.
+  The Redis and Mongo paths were not read for this answer, so O-76 stayed open for them (D-262). Round 2 (D-264): Go's Redis `AddScores` with no documents returns nil, even with a cancelled context, and the Rust port now matches (`cache::redis::tests::add_scores_checks_the_context_only_for_documents`). Mongo returns before any call and already matched. O-76 stays open for the REST routes (WP-4-4).
+
+- **X-234 `serve` was not `Send` (WP-4-1, X-WP41-9, fixed in `fe0a19e`).** The unit tests never spawned `serve`, so
+  the harness found it. The `select!` in the serve loop kept a `watch` read guard across an await. The shutdown wait now
+  drops the guard in its own block.
+
+- **X-235 `Pool` string alignment is dropped (WP-4-1, X-WP41-10).** Go's `Pool` string reaches no output, so nothing
+  observable changes.
+
+- **X-236 The worker connects to the master over mutual TLS (WP-4-1, X-WP41-11, closed by round 2, D-264).** Before
+  round 2 `serve` returned `Error::TlsNotSupported`. Now `master_channel` builds the client config with
+  `gorse_common::util::tls`, as Go's `util.NewClientCreds` does. The worker's HTTP server stays plain, as Go's does
+  (`worker/worker.go` 333, 399). The mutual-TLS mixed test passes.
+
+- **X-237 The step gauges are carried over (WP-4-1, X-WP41-12).** See X-230.
+
+- **O-77 Reranker template output checked against Go (WP-4-1, O-WP41-1, closed by round 2, D-264).**
+  `contracts/tools/rendergolden` renders nine cases with gonja, as `logics/reranker.go` does, and
+  `document_template_prints_labels_as_gonja_does` checks the Rust templates against them. The RED failure was gonja's
+  float rule (11 decimals, trailing zeros trimmed). The reranker environment now has a formatter that follows it, and bool
+  and nil follow gonja. The list that gonja panics on is not compared (O-84).
+
+- **O-78 The worker's TLS to the master (WP-4-1, O-WP41-2, closed by round 2, D-264).** Wired through
+  `gorse_common::util::tls` (see X-236). The three `--ssl-*` flags are read for the master connection, as Go reads them
+  (`worker/worker.go` 399).
+
+- **O-79 The backend suites need their emulator variables (WP-4-1, O-WP41-3, closed by the gate setup).** Without the
+  variables the suites stop with `<NAME> is not set`. The S3 and Azure suites need `S3_ENDPOINT` as `host:port` with no
+  scheme, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `AZURE_STORAGE_CONNECTION_STRING`, and the `gorse-test` bucket and
+  container created before the run (O-33). The Redis TLS cases are `#[ignore]`d and run only under `--include-ignored`
+  with `REDIS_TLS_URI` (O-66).
+
+- **O-80 The mixed test covers only the latest recommender (WP-4-1, O-WP41-4, open; does not block acceptance, D-264).** Collaborative
+  filtering, FM ranking and the rerankers are compared in process, not across Go and Rust nodes. D-258 is the narrowing that causes it, and D-262 requires evidence for it. Round 2 shows the BPR nondeterminism at four jobs (D-264). The thread reports ALS as stable; the court has not run ALS.
+
+- **O-81 The mixed test has no empty-list case (WP-4-1, O-WP41-5, open).** Every user gets 28 rows, so the nil-versus-empty
+  answer (X-233) rests on reading the code, not on a run.
+
+- **O-82 The mixed comparison is not mutation-checked by the thread (WP-4-1, O-WP41-6).** The court runs the mutation
+  check (D-262).
+
+- **O-83 The cross-read tests leave Qdrant collections behind (court finding, D-262, open).** `vector_cross_read` writes
+  `xg_*` and `xr_*` collections on Qdrant and does not delete them. `proxy_wire` expects only `docs` on the next run, so it
+  fails when they are present. The gate restarts `gorse-qdrant` before the TEST section, so the gate is green. The
+  cross-read tests should delete the collections they create. The conformance owner fixes this.
+
+- **O-84 Go panics on a template list that mixes bool, string and nil (WP-4-1, round 2, open).** `gonja` panics on
+  `[true, "a", null]`. The oracle records that panic as the case's error, and the Go-backed test does not include the case,
+  so the port's output for it is not compared with Go. The mixed data uses numeric labels, so no run is affected.
 
 - **O-75 The master must pass processed items to the logics (WP-3-5, open).** The Rust master's item and
   user update tasks must build `DatasetItem` and `DatasetUser` from the processed dataset, not from storage
