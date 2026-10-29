@@ -9,12 +9,32 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+axum = { workspace = true }
 gorse-common = { workspace = true }
 gorse-protocol = { workspace = true }
 gorse-config = { workspace = true }
 gorse-logics = { workspace = true }
 gorse-storage-core = { workspace = true }
 gorse-storage = { workspace = true }
+hex = { workspace = true }
+indexmap = { workspace = true }
+md-5 = { workspace = true }
+prometheus = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+serde = { workspace = true }
+serde_json = { workspace = true, features = ["float_roundtrip"] }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "time"] }
+tonic = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
+http-body-util = { workspace = true }
+tower = { workspace = true, features = ["util"] }
+
+[dev-dependencies]
+gorse-storage = { workspace = true, features = ["mysql", "postgres", "sqlite"] }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true
