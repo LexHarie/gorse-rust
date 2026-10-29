@@ -32,7 +32,7 @@ Every Rust module names the Go files it ports with a
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-18, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); the frozen config.schema.json and config.keys.md match a fresh run of the Go generator byte for byte (X-49, closed 2026-10-28). WP-1-18 (dataset) is merged: Q-210 to Q-217, X-117 to X-129, O-51 and O-52 open, and the ml-1m test is ignored (O-1). Every Phase 1 WP is merged. All in `porting/work-packages.md` |
 | 2. Storage | exited (D-207) | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-3 (MongoDB data store, feature `mongodb`, MongoDB 6.0.28; O-53 open for 8.0; the `get_item_stream` doc is corrected, O-54). WP-2-11 (meta store, SQLite through rusqlite 0.39.0, D-160 to D-166; O-48 closed, O-49 and O-50 open for Phases 3 and 4). WP-2-2 (SQL data store, MySQL, Postgres and SQLite as one build; D-177 to D-181; O-36 closed by the SQL and MongoDB runs; O-57 and O-59 closed by the Go and Rust cross-reads on PostgreSQL, MySQL and SQLite, D-177 to D-181). WP-2-6 (SQL cache store: MySQL and Postgres on sqlx 0.9.0, SQLite on rusqlite 0.39.0; D-167 to D-175; Q-232 MySQL auth open). WP-2-9 (D-197 to D-200), WP-2-12 (D-202 to D-206) and WP-2-13 (D-186 to D-193) merged. The court audit of the env-gated backend tests is O-66 (D-201). Phase 2 exited (D-207): `test_gcs` stays ignored with its reason, and O-62 stays open for a real-GCS run before Phase 5. |
 | 3. Models and logics | in progress | Accepted: WP-3-1 (D-216), WP-3-4 (D-217), WP-3-2 (D-224), WP-3-3 (D-230, contract touches D-231), WP-3-5 (D-234, design D-233), WP-3-6 (D-229; Q-254 closed by D-232, Q-255 open) and WP-3-7 (D-236, design D-235). WP-3-8 needs the datasets (O-1, O-70 to O-72). The master must pass processed items (O-75). REST must confirm nil against empty results (O-76). O-30 is extended by WP-3-7 and stays open |
-| 4. Nodes | in progress | WP-4-1 to WP-4-8; WP-4-1 and WP-4-2 started in parallel. WP-4-8 is `cmd/gorse-bench` (D-239). `cmd/goat` is not ported (D-238). WP-4-7 stays blocked on the SDK dataset under O-1 (D-237) |
+| 4. Nodes | in progress | WP-4-1 to WP-4-8; WP-4-2 merged in part (D-242, mixed_server pending); WP-4-1 started in parallel. WP-4-8 is `cmd/gorse-bench` (D-239). `cmd/goat` is not ported (D-238). WP-4-7 stays blocked on the SDK dataset under O-1 (D-237) |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
 
 Each work package's section 8 report goes in the message of the commit that
@@ -2118,6 +2118,26 @@ or accepts a metric gap outside the Go tests' own tolerances.
   `cfg.OpenAI.BaseURL` (`cmd/gorse-bench/main.go:374`, config key `openai.base_url`, env `OPENAI_BASE_URL`). The
   stub reproduces the responses of `common/mock/openai.go`. No open item is recorded for this call. If the Rust
   side cannot use the stub, the thread reports why and does not skip the case.
+- **D-242 WP-4-2 server node merged in part (court verdict, 2026-10-29).** `claude/wp-4-2-server` at d85bb217
+  is merged `--no-ff` into integration (merge commit 821eca10) with no conflicts. The merged tree passes the
+  gate with every backend URI set: fmt, clippy `-D warnings`, rustdoc `-D warnings`, the config and YAML goldens,
+  `go vet`, the cloud and Mongo clippy runs, the vector acceptance and cross-read, the proxy conformance and proxy
+  store tests. The test section has 1136 passed, 0 failed, 54 ignored (1110 before the merge plus 26 server
+  tests). `REDIS_TLS_UNSET` exits 101, as the gate expects. The court read the diff for cheating patterns. The 23
+  suite methods of `server/rest_test.go` each map to one test with the Go name in snake case, and `TestServer_Sync`
+  is `server::tests::server_sync`. The `return;` statements in `server.rs` are the Go error paths of the life
+  cycle, not test skips. No test is ignored, skipped or weakened. `Send` and `Sync` are checked at compile time for
+  `RestServer` and `Server` (Q-254). The notes are folded as Q-265 to Q-267, X-212 to X-225, and O-76 (extended).
+
+  The WP is **not accepted**. Before acceptance the thread must do four things. (1) Write
+  `conformance/tests/mixed_server.rs` against Go master and Go worker, which needs `conformance/src/cluster.rs` from
+  WP-4-1 (not yet on `origin/claude/wp-4-1-worker` at 991735c). It fails, rather than skips, when Go or a backend
+  is missing. (2) Fix X-219 (case-insensitive JSON keys, which Go accepts and the port refuses) or get a coordinator
+  ruling plus a test that records the refusal. (3) Delete `crates/gorse-server/src/rest/tests/visibility.rs`, a
+  three-line placeholder with no test. The `visibility` test lives in `recommend.rs`. (4) Q-266 (`float_roundtrip`)
+  is merged because the gate passes with it. It is a workspace feature unification, so it stays provisional until the
+  coordinator approves it. A rejection is a one-line revert in `crates/gorse-server/Cargo.toml`.
+
 - **Datasets.** The network policy of this environment blocks
   `https://cdn.gorse.io`, where the Go model tests and the SDK test setup download
   their datasets (`PORTING_NOTES.md` O-1). Phase 3 metric parity needs either
