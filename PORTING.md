@@ -2110,6 +2110,14 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
 ## Open questions for Ritchie
 
+
+- **D-241 WP-4-8 test design (coordinator ruling, 2026-10-29).** The coordinator approved three choices in the
+  WP-4-8 brief. The acceptance test is `bench_golden`, not `mixed_bench`. The bench's comparison runs on a
+  synthetic dataset from a fixed seed, seeded into the MySQL database named by `MYSQL_URI`, so it does not depend
+  on O-1. The embedding subcommand's OpenAI call is tested against a local stub server, because the bench reads
+  `cfg.OpenAI.BaseURL` (`cmd/gorse-bench/main.go:374`, config key `openai.base_url`, env `OPENAI_BASE_URL`). The
+  stub reproduces the responses of `common/mock/openai.go`. No open item is recorded for this call. If the Rust
+  side cannot use the stub, the thread reports why and does not skip the case.
 - **Datasets.** The network policy of this environment blocks
   `https://cdn.gorse.io`, where the Go model tests and the SDK test setup download
   their datasets (`PORTING_NOTES.md` O-1). Phase 3 metric parity needs either
