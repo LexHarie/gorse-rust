@@ -7,6 +7,7 @@
 //! header is checked where Go checks it.
 
 use axum::http::StatusCode;
+use gorse_common::expression::FeedbackTypeExpression;
 use gorse_common::gocontext::Context;
 use gorse_common::gotime;
 use gorse_storage::cache::{self, Score};
@@ -14,7 +15,7 @@ use gorse_storage::data::types::{Feedback, FeedbackKey, Item, Labels};
 use gorse_storage::vectors::{self, Distance, Vector, VectorConfig};
 use serde_json::{Value, json};
 
-use super::{Suite, get, patch};
+use super::{Suite, get, patch, post};
 
 /// Go's `cache.Score` with only the id and the score, as its JSON encoding
 /// writes it.
@@ -343,4 +344,602 @@ async fn user_to_user() {
         .await
         .status(StatusCode::OK)
         .json(expected);
+}
+
+/// Go's `data.ItemPatch{IsHidden: new(true)}`, as its JSON encoding writes it.
+fn hide_item_patch() -> Value {
+    json!({"IsHidden": true, "Categories": null, "Timestamp": null, "Labels": null, "Comment": null})
+}
+
+/// The feedback Go's recommend tests post: two reads in the past and one in
+/// the future, which is not yet a read.
+fn recommend_feedback() -> Value {
+    json!([
+        {"FeedbackType": "a", "UserId": "0", "ItemId": "2", "Value": 0, "Timestamp": ZERO_TIME, "Updated": ZERO_TIME, "Labels": null, "Comment": ""},
+        {"FeedbackType": "a", "UserId": "0", "ItemId": "4", "Value": 0, "Timestamp": ZERO_TIME, "Updated": ZERO_TIME, "Labels": null, "Comment": ""},
+        {"FeedbackType": "a", "UserId": "0", "ItemId": "1", "Value": 0, "Timestamp": gotime::now().add(gotime::HOUR).format(gotime::RFC3339_NANO), "Updated": ZERO_TIME, "Labels": null, "Comment": ""},
+    ])
+}
+
+/// The zero time, as Go writes an unset `time.Time`.
+const ZERO_TIME: &str = "0001-01-01T00:00:00Z";
+
+/// Go's `data.Item` with only the id set, inserted by the tests directly.
+fn plain_item(item_id: &str) -> Item {
+    Item {
+        item_id: item_id.to_owned(),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn get_recommends() {
+    let suite = Suite::default_suite().await;
+    let ctx = Context::background();
+    // insert hidden items
+    suite
+        .cache
+        .add_scores(&ctx, cache::RECOMMEND, "0", &[document("0", 100.0, &[""])])
+        .await
+        .expect("add the scores");
+    // hide item
+    suite
+        .send(patch("/api/item/0").key().json(&hide_item_patch()))
+        .await
+        .status(StatusCode::OK);
+    // insert items
+    let items: Vec<Item> = ["1", "2", "3", "4", "5", "6", "7", "8"]
+        .into_iter()
+        .map(plain_item)
+        .collect();
+    suite
+        .data
+        .batch_insert_items(&ctx, &items)
+        .await
+        .expect("insert the items");
+    // insert recommendation
+    let recommendation: Vec<Score> = [("1", 99.0), ("2", 98.0), ("3", 97.0), ("4", 96.0), ("5", 95.0), ("6", 94.0), ("7", 93.0), ("8", 92.0)]
+        .into_iter()
+        .map(|(item_id, score)| document(item_id, score, &[""]))
+        .collect();
+    suite
+        .cache
+        .add_scores(&ctx, cache::RECOMMEND, "0", &recommendation)
+        .await
+        .expect("add the recommendation");
+    // insert feedback
+    suite
+        .send(post("/api/feedback").key().json(&recommend_feedback()))
+        .await
+        .status(StatusCode::OK)
+        .json(json!({"RowAffected": 3}));
+
+    suite
+        .send(get("/api/recommend/0?n=3").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["1", "3", "5"]));
+    suite
+        .send(get("/api/recommend/0?n=3").key().header("X-API-Version", "2"))
+        .await
+        .status(StatusCode::OK)
+        .json(json!([score_json("1", 99.0), score_json("3", 97.0), score_json("5", 95.0)]));
+    suite
+        .send(get("/api/recommend/0?n=3&offset=3").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["6", "7", "8"]));
+    suite
+        .send(get("/api/recommend/0?n=3&offset=10000").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!([]));
+    suite
+        .send(get("/api/recommend/0?n=3&write-back-type=read").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["1", "3", "5"]));
+    suite
+        .send(get("/api/recommend/0?n=3&write-back-type=read&write-back-delay=10m").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["6", "7", "8"]));
+    suite
+        .send(get("/api/recommend/0?n=3").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["6", "7", "8"]));
+}
+
+#[tokio::test]
+async fn get_recommends_multi_categories() {
+    let suite = Suite::default_suite().await;
+    let ctx = Context::background();
+    // insert recommendation
+    suite
+        .cache
+        .add_scores(
+            &ctx,
+            cache::RECOMMEND,
+            "0",
+            &[
+                document("1", 1.0, &[""]),
+                document("2", 2.0, &["", "2"]),
+                document("3", 3.0, &["", "3"]),
+                document("4", 4.0, &["", "2"]),
+                document("5", 5.0, &["", "5"]),
+                document("6", 6.0, &["", "2", "3"]),
+                document("7", 7.0, &["", "7"]),
+                document("8", 8.0, &["", "2"]),
+                document("9", 9.0, &["", "3"]),
+            ],
+        )
+        .await
+        .expect("add the recommendation");
+    suite
+        .send(get("/api/recommend/0?n=3&category=2&category=3").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["6"]));
+}
+
+#[tokio::test]
+async fn get_recommends_replacement() {
+    let suite = Suite::default_suite().await;
+    let ctx = Context::background();
+    suite.update_config(|c| c.recommend.replacement.enable_replacement = true);
+    // insert recommendation
+    let recommendation: Vec<Score> = [("0", 100.0), ("1", 99.0), ("2", 98.0), ("3", 97.0), ("4", 96.0), ("5", 95.0), ("6", 94.0), ("7", 93.0), ("8", 92.0)]
+        .into_iter()
+        .map(|(item_id, score)| document(item_id, score, &[""]))
+        .collect();
+    suite
+        .cache
+        .add_scores(&ctx, cache::RECOMMEND, "0", &recommendation)
+        .await
+        .expect("add the recommendation");
+    // hide item
+    suite
+        .send(patch("/api/item/0").key().json(&hide_item_patch()))
+        .await
+        .status(StatusCode::OK);
+    // insert feedback
+    suite
+        .send(post("/api/feedback").key().json(&recommend_feedback()))
+        .await
+        .status(StatusCode::OK)
+        .json(json!({"RowAffected": 3}));
+    suite
+        .send(get("/api/recommend/0?n=3").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["1", "2", "3"]));
+}
+
+/// Go's `data.Feedback` of type `a` with the given time, as a request body.
+fn feedback_at(item_id: &str, timestamp: &str) -> Value {
+    json!({"FeedbackType": "a", "UserId": "0", "ItemId": item_id, "Value": 0, "Timestamp": timestamp, "Updated": ZERO_TIME, "Labels": null, "Comment": ""})
+}
+
+/// Go's `data.Feedback` of type `a` from `user_id` to `item_id`, written to the
+/// store directly as the Go tests do.
+async fn store_feedback(suite: &Suite, user_id: &str, item_id: &str) {
+    suite
+        .data
+        .batch_insert_feedback(
+            &Context::background(),
+            &[Feedback {
+                feedback_key: FeedbackKey {
+                    feedback_type: "a".to_owned(),
+                    user_id: user_id.to_owned(),
+                    item_id: item_id.to_owned(),
+                },
+                ..Default::default()
+            }],
+            true,
+            true,
+            true,
+        )
+        .await
+        .expect("insert the feedback");
+}
+
+/// A sparse vector with the given indices and values, as the Go tests write
+/// them.
+fn sparse_vector(id: &str, indices: &[u32], values: &[f32], categories: &[&str]) -> Vector {
+    Vector {
+        id: id.to_owned(),
+        indices: indices.to_vec(),
+        values: values.to_vec(),
+        categories: categories.iter().map(|c| (*c).to_owned()).collect(),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn get_recommends_fallback_item_to_item() {
+    let suite = Suite::default_suite().await;
+    let ctx = Context::background();
+    let mut positive = FeedbackTypeExpression::default();
+    positive.from_string("a").expect("a feedback type");
+    suite.update_config(|c| {
+        c.recommend.context_size = 4;
+        c.recommend.data_source.positive_feedback_types = Some(vec![positive]);
+        c.recommend.item_to_item = Some(vec![gorse_config::config::schema::ItemToItemConfig {
+            name: "default".to_owned(),
+            ..Default::default()
+        }]);
+    });
+    // insert recommendation
+    suite
+        .cache
+        .add_scores(
+            &ctx,
+            cache::RECOMMEND,
+            "0",
+            &[
+                document("1", 99.0, &[]),
+                document("2", 98.0, &[]),
+                document("3", 97.0, &[]),
+                document("4", 96.0, &[]),
+            ],
+        )
+        .await
+        .expect("add the recommendation");
+    // insert feedback
+    suite
+        .send(
+            post("/api/feedback").key().json(&json!([
+                feedback_at("1", "2010-01-01T01:01:01.000000001Z"),
+                feedback_at("2", "2009-01-01T01:01:01.000000001Z"),
+                feedback_at("3", "2008-01-01T01:01:01.000000001Z"),
+                feedback_at("4", "2007-01-01T01:01:01.000000001Z"),
+                feedback_at("5", "2006-01-01T01:01:01.000000001Z"),
+            ])),
+        )
+        .await
+        .status(StatusCode::OK)
+        .json(json!({"RowAffected": 5}));
+
+    // insert item-to-item vectors
+    suite.update_config(|c| {
+        c.recommend.item_to_item = Some(vec![gorse_config::config::schema::ItemToItemConfig {
+            name: "default".to_owned(),
+            kind: "tags".to_owned(),
+            column: "item.Labels".to_owned(),
+            ..Default::default()
+        }]);
+    });
+    let collection = vectors::item_to_item_collection("default");
+    suite
+        .vectors
+        .add_collection(&ctx, &collection, 0, Distance::Dot, VectorConfig::default())
+        .await
+        .expect("add the collection");
+    suite
+        .vectors
+        .add_vectors(
+            &ctx,
+            &collection,
+            &[
+                sparse_vector("1", &[0], &[1.0], &[]),
+                sparse_vector("2", &[1], &[1.0], &[]),
+                sparse_vector("3", &[2], &[1.0], &[]),
+                sparse_vector("4", &[3], &[1.0], &[]),
+                sparse_vector("5", &[4], &[1.0], &[]),
+                sparse_vector("6", &[3], &[1.0], &[]),
+                sparse_vector("7", &[2, 3], &[1.0, 1.0], &["*"]),
+                sparse_vector("8", &[1, 2, 3], &[1.0, 1.0, 1.0], &[]),
+                sparse_vector("9", &[0, 1, 2, 3], &[1.0, 1.0, 1.0, 1.0], &["*"]),
+            ],
+        )
+        .await
+        .expect("add the vectors");
+
+    // test fallback
+    suite.update_config(|c| {
+        c.recommend.fallback.recommenders = Some(vec!["item-to-item/default".to_owned()]);
+    });
+    suite
+        .send(get("/api/recommend/0?n=3").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["9", "8", "7"]));
+    suite
+        .send(get("/api/recommend/0/*?n=3").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["9", "7"]));
+}
+
+#[tokio::test]
+async fn get_recommends_fallback_user_to_user() {
+    let suite = Suite::default_suite().await;
+    let ctx = Context::background();
+    suite.update_config(|c| {
+        c.recommend.user_to_user = Some(vec![gorse_config::config::schema::UserToUserConfig {
+            name: "default".to_owned(),
+            kind: "items".to_owned(),
+            ..Default::default()
+        }]);
+    });
+    // insert recommendation
+    suite
+        .cache
+        .add_scores(
+            &ctx,
+            cache::RECOMMEND,
+            "0",
+            &[
+                document("1", 99.0, &[]),
+                document("2", 98.0, &[]),
+                document("3", 97.0, &[]),
+                document("4", 96.0, &[]),
+            ],
+        )
+        .await
+        .expect("add the recommendation");
+    // insert feedback
+    suite
+        .send(
+            post("/api/feedback").key().json(&json!([
+                feedback_at_zero("1"),
+                feedback_at_zero("2"),
+                feedback_at_zero("3"),
+                feedback_at_zero("4"),
+            ])),
+        )
+        .await
+        .status(StatusCode::OK)
+        .json(json!({"RowAffected": 4}));
+    // insert similar users
+    let collection = vectors::user_to_user_collection("default");
+    suite
+        .vectors
+        .add_collection(&ctx, &collection, 0, Distance::Dot, VectorConfig::default())
+        .await
+        .expect("add the collection");
+    suite
+        .vectors
+        .add_vectors(
+            &ctx,
+            &collection,
+            &[
+                sparse_vector("0", &[0], &[1.0], &[]),
+                sparse_vector("1", &[0], &[2.0], &[]),
+                sparse_vector("2", &[0], &[1.5], &[]),
+                sparse_vector("3", &[0], &[1.0], &[]),
+            ],
+        )
+        .await
+        .expect("add the vectors");
+    store_feedback(&suite, "1", "11").await;
+    store_feedback(&suite, "2", "12").await;
+    store_feedback(&suite, "2", "48").await;
+    store_feedback(&suite, "3", "13").await;
+    store_feedback(&suite, "3", "48").await;
+    // insert categorized items
+    suite
+        .data
+        .batch_insert_items(
+            &ctx,
+            &[
+                Item {
+                    item_id: "12".to_owned(),
+                    categories: Some(vec!["*".to_owned()]),
+                    ..Default::default()
+                },
+                Item {
+                    item_id: "48".to_owned(),
+                    categories: Some(vec!["*".to_owned()]),
+                    ..Default::default()
+                },
+            ],
+        )
+        .await
+        .expect("insert the items");
+    // test fallback
+    suite.update_config(|c| {
+        c.recommend.fallback.recommenders = Some(vec!["user-to-user/default".to_owned()]);
+    });
+    suite
+        .send(get("/api/recommend/0?n=3").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["48", "11", "12"]));
+    suite
+        .send(get("/api/recommend/0/*?n=3").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["48", "12"]));
+}
+
+/// Go's feedback of type `a` from user `0` to `item_id` with no timestamp.
+fn feedback_at_zero(item_id: &str) -> Value {
+    feedback_at(item_id, ZERO_TIME)
+}
+
+#[tokio::test]
+async fn get_recommends_fallback_latest() {
+    let suite = Suite::default_suite().await;
+    let ctx = Context::background();
+    // insert offline recommendation
+    suite
+        .cache
+        .add_scores(
+            &ctx,
+            cache::RECOMMEND,
+            "0",
+            &[
+                document("1", 99.0, &["*"]),
+                document("2", 98.0, &["*"]),
+                document("3", 97.0, &["*"]),
+                document("4", 96.0, &["*"]),
+            ],
+        )
+        .await
+        .expect("add the recommendation");
+    // insert latest items
+    suite
+        .data
+        .batch_insert_items(&ctx, &latest_items())
+        .await
+        .expect("insert the items");
+    // test latest fallback
+    suite.update_config(|c| c.recommend.fallback.recommenders = Some(vec!["latest".to_owned()]));
+    suite
+        .send(get("/api/recommend/0?n=8").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["1", "2", "3", "4", "5", "6", "7", "8"]));
+    suite
+        .send(get("/api/recommend/0/*?n=8").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["1", "2", "3", "4", "105", "106", "107", "108"]));
+}
+
+/// The items Go's latest tests insert: four plain items and four in `*`.
+fn latest_items() -> Vec<Item> {
+    let item = |item_id: &str, categories: Option<&[&str]>, unix: i64| Item {
+        item_id: item_id.to_owned(),
+        categories: categories.map(|c| c.iter().map(|c| (*c).to_owned()).collect()),
+        timestamp: gotime::unix(unix, 0),
+        ..Default::default()
+    };
+    vec![
+        item("5", None, 95),
+        item("6", None, 94),
+        item("7", None, 93),
+        item("8", None, 92),
+        item("105", Some(&["*"]), 85),
+        item("106", Some(&["*"]), 84),
+        item("107", Some(&["*"]), 83),
+        item("108", Some(&["*"]), 82),
+    ]
+}
+
+#[tokio::test]
+async fn get_recommends_fallback_collaborative_filtering() {
+    let suite = Suite::default_suite().await;
+    let ctx = Context::background();
+    // insert offline recommendation
+    suite
+        .cache
+        .add_scores(
+            &ctx,
+            cache::RECOMMEND,
+            "0",
+            &[
+                document("1", 99.0, &["*"]),
+                document("2", 98.0, &["*"]),
+                document("3", 97.0, &["*"]),
+                document("4", 96.0, &["*"]),
+            ],
+        )
+        .await
+        .expect("add the recommendation");
+    // insert collaborative filtering recommendation
+    suite
+        .cache
+        .add_scores(
+            &ctx,
+            cache::COLLABORATIVE_FILTERING,
+            "0",
+            &[
+                document("13", 79.0, &["*"]),
+                document("14", 78.0, &["*"]),
+                document("15", 77.0, &["*"]),
+                document("16", 76.0, &["*"]),
+            ],
+        )
+        .await
+        .expect("add the collaborative filtering recommendation");
+    // test collaborative filtering
+    suite.update_config(|c| c.recommend.fallback.recommenders = Some(vec!["collaborative".to_owned()]));
+    suite
+        .send(get("/api/recommend/0?n=8").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["1", "2", "3", "4", "13", "14", "15", "16"]));
+    suite
+        .send(get("/api/recommend/0/*?n=8").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["1", "2", "3", "4", "13", "14", "15", "16"]));
+}
+
+#[tokio::test]
+async fn get_recommends_fallback_non_personalized() {
+    let suite = Suite::default_suite().await;
+    let ctx = Context::background();
+    // insert offline recommendation
+    suite
+        .cache
+        .add_scores(
+            &ctx,
+            cache::RECOMMEND,
+            "0",
+            &[
+                document("1", 99.0, &["*"]),
+                document("2", 98.0, &["*"]),
+                document("3", 97.0, &["*"]),
+                document("4", 96.0, &["*"]),
+            ],
+        )
+        .await
+        .expect("add the recommendation");
+    // insert non-personalized recommendation
+    suite
+        .cache
+        .add_scores(
+            &ctx,
+            cache::NON_PERSONALIZED,
+            "popular",
+            &[
+                document("5", 95.0, &[""]),
+                document("6", 94.0, &[""]),
+                document("7", 93.0, &[""]),
+                document("8", 92.0, &[""]),
+                document("105", 91.0, &["*"]),
+                document("106", 90.0, &["*"]),
+                document("107", 89.0, &["*"]),
+                document("108", 88.0, &["*"]),
+            ],
+        )
+        .await
+        .expect("add the non-personalized recommendation");
+    // test non-personalized fallback
+    suite.update_config(|c| c.recommend.fallback.recommenders = Some(vec!["non-personalized/popular".to_owned()]));
+    suite
+        .send(get("/api/recommend/0?n=8").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["1", "2", "3", "4", "5", "6", "7", "8"]));
+    suite
+        .send(get("/api/recommend/0/*?n=8").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["1", "2", "3", "4", "105", "106", "107", "108"]));
+}
+
+#[tokio::test]
+async fn get_recommends_latest() {
+    let suite = Suite::default_suite().await;
+    let ctx = Context::background();
+    suite
+        .data
+        .batch_insert_items(&ctx, &latest_items()[..4])
+        .await
+        .expect("insert the items");
+    suite.update_config(|c| {
+        c.recommend.ranker.kind = "none".to_owned();
+        c.recommend.ranker.recommenders = Some(vec!["latest".to_owned()]);
+        c.recommend.fallback.recommenders = Some(vec![]);
+    });
+    suite
+        .send(get("/api/recommend/0?n=4").key())
+        .await
+        .status(StatusCode::OK)
+        .json(json!(["5", "6", "7", "8"]));
 }
