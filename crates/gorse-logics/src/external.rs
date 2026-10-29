@@ -60,8 +60,9 @@ impl External {
 
     /// Go's `Pull`: sets `user_id` to `user_id`, runs the script and returns
     /// the items it gives, which must be a JSON list of strings, as text or as
-    /// an object.
-    pub fn pull(&self, user_id: &str) -> Result<Vec<String>, PullError> {
+    /// an object. The items are `None` when the script's list is `null`: Go
+    /// unmarshals `null` into a nil slice, and the master answers that as `null`.
+    pub fn pull(&self, user_id: &str) -> Result<Option<Vec<String>>, PullError> {
         self.context.with(|ctx| {
             ctx.globals()
                 .set("user_id", user_id)
@@ -82,8 +83,7 @@ impl External {
                 return Err(PullError::NotStringOrObject);
             };
             // Go unmarshals `null` into a nil slice without an error.
-            let items: Option<Vec<String>> = serde_json::from_str(&text)?;
-            Ok(items.unwrap_or_default())
+            Ok(serde_json::from_str(&text)?)
         })
     }
 }

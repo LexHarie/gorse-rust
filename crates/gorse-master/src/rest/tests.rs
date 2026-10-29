@@ -556,7 +556,9 @@ async fn get_cluster_is_null_without_nodes() {
     suite.close().await;
 }
 
-/// Go's task list is nil when no task has run, and a nil list is `null`.
+/// Go's task list is nil when no task has run, and a nil list is `null`. The Go
+/// unit test `TestEmptyListMarshalsAsNull` (`common/monitor/progress_test.go`)
+/// pins the same answer, and `conformance/tests/monitor_empty_list.rs` runs it.
 #[tokio::test]
 async fn get_tasks_is_null_without_tasks() {
     let suite = Suite::new().await;

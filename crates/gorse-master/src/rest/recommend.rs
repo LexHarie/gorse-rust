@@ -334,7 +334,10 @@ async fn load_user_score(
 
 /// `GET /api/dashboard/external?script=<base64>&user-id=`: the items an
 /// external script recommends to a user, previewed from the script in the query.
-pub(crate) async fn external(uri: Uri) -> Result<Response, ApiError> {
+pub(crate) async fn external(
+    State(master): State<Arc<Master>>,
+    uri: Uri,
+) -> Result<Response, ApiError> {
     let query = query_of(&uri);
     let script_base64 = query.get("script").to_owned();
     if script_base64.is_empty() {
@@ -349,13 +352,19 @@ pub(crate) async fn external(uri: Uri) -> Result<Response, ApiError> {
     };
     // The script engine and its blocking HTTP client are built and run on a
     // blocking thread: a blocking client panics on an async worker thread.
-    let items = tokio::task::spawn_blocking(move || -> Result<Vec<String>, ApiError> {
+    // A script whose list is `null` has no items, and the answer is `null`, as Go's
+    // nil slice gives.
+    let items = tokio::task::spawn_blocking(move || -> Result<Option<Vec<String>>, ApiError> {
         let external = External::new(&config).map_err(ApiError::internal)?;
         external.pull(&user_id).map_err(ApiError::internal)
     })
     .await
     .map_err(ApiError::internal)??;
-    ok(&items)
+    // Go's `SetLastModified` reads the cache under a key made from the current
+    // time, which no write sets, so the header is the zero time, as for `latest`.
+    let key = format!("external/{}", gotime::now().unix());
+    let header = last_modified(&master.rest, &key).await;
+    ok(&items).map(|response| with_last_modified(response, header))
 }
 
 /// Go's `base64.StdEncoding.DecodeString`, with its error text.

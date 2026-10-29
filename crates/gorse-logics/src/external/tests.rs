@@ -93,7 +93,14 @@ fn external() {
     .expect("the VM starts");
 
     let items = external.pull("1").expect("the pull succeeds");
-    assert_eq!(items, vec!["item_1", "item_2", "item_3"]);
+    assert_eq!(
+        items,
+        Some(vec![
+            "item_1".to_owned(),
+            "item_2".to_owned(),
+            "item_3".to_owned()
+        ])
+    );
 }
 
 #[test]
@@ -116,4 +123,32 @@ fn panic() {
     .expect("the VM starts");
 
     assert!(external.pull("1").is_err());
+}
+
+/// Go unmarshals a script's `null` into a nil slice without an error, so the
+/// pull has no items, and the master answers `null`.
+#[test]
+fn null_result_has_no_items() {
+    let external = External::new(&ExternalConfig {
+        script: "'null'".to_owned(),
+        name: "test".to_owned(),
+    })
+    .expect("the VM starts");
+
+    assert_eq!(external.pull("1").expect("the pull succeeds"), None);
+}
+
+/// An empty list is a list with no items, which Go answers as `[]`.
+#[test]
+fn empty_list_result_has_no_items() {
+    let external = External::new(&ExternalConfig {
+        script: "'[]'".to_owned(),
+        name: "test".to_owned(),
+    })
+    .expect("the VM starts");
+
+    assert_eq!(
+        external.pull("1").expect("the pull succeeds"),
+        Some(Vec::new())
+    );
 }

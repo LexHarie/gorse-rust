@@ -613,7 +613,8 @@ impl Recommender {
         let script_config = external_config.clone();
         let items = tokio::task::spawn_blocking(move || -> Result<Vec<String>, Error> {
             let external = External::new(&script_config)?;
-            Ok(external.pull(&user_id)?)
+            // A nil list recommends nothing, as an empty one does.
+            Ok(external.pull(&user_id)?.unwrap_or_default())
         })
         .await??;
         let scores = items
