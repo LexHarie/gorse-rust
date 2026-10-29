@@ -679,15 +679,16 @@ fn write_user(writer: &mut Writer, user: &User, update_at: &Time) -> Result<(), 
     writer.datetime("updateat", to_datetime(update_at))
 }
 
-/// Writes the fields of a feedback record, in the order Go writes them.
-fn write_feedback(writer: &mut Writer, feedback: &Feedback) -> Result<(), Error> {
+/// Writes the fields of a feedback record, in the order Go writes them, with
+/// `updated` as the time of the write.
+fn write_feedback(writer: &mut Writer, feedback: &Feedback, updated: &Time) -> Result<(), Error> {
     writer.document(
         "feedbackkey",
         &feedback_key_document(&feedback.feedback_key),
     )?;
     writer.double("value", feedback.value)?;
     writer.datetime("timestamp", to_datetime(&feedback.timestamp))?;
-    writer.datetime("updated", to_datetime(&feedback.updated))?;
+    writer.datetime("updated", to_datetime(updated))?;
     writer.labels("labels", &feedback.labels)?;
     writer.string("comment", &feedback.comment)
 }
@@ -709,12 +710,17 @@ fn operator_update(
     update.finish()
 }
 
-/// The update Go applies for a feedback record. With `overwrite` the record is
-/// set as it is. Otherwise the key is set on insert, the value and the times
-/// are merged in, and the labels and comment are set.
-fn feedback_update(feedback: &Feedback, overwrite: bool) -> Result<RawDocumentBuf, Error> {
+/// The update Go applies for a feedback record, with `updated` as the time of
+/// the write. With `overwrite` the record is set as it is. Otherwise the key is
+/// set on insert, the value and the times are merged in, and the labels and
+/// comment are set. The record is not cloned, since its labels can be deep.
+fn feedback_update(
+    feedback: &Feedback,
+    updated: &Time,
+    overwrite: bool,
+) -> Result<RawDocumentBuf, Error> {
     if overwrite {
-        return set_update(|set| write_feedback(set, feedback));
+        return set_update(|set| write_feedback(set, feedback, updated));
     }
     let mut update = Writer::new();
     update.document(
@@ -726,7 +732,7 @@ fn feedback_update(feedback: &Feedback, overwrite: bool) -> Result<RawDocumentBu
         "$min",
         &doc! {"timestamp": to_datetime(&feedback.timestamp)},
     )?;
-    update.document("$max", &doc! {"updated": to_datetime(&feedback.updated)})?;
+    update.document("$max", &doc! {"updated": to_datetime(updated)})?;
     update.open(0x03, "$set")?;
     update.labels("labels", &feedback.labels)?;
     update.string("comment", &feedback.comment)?;
@@ -1538,10 +1544,9 @@ impl Database for MongoDB {
             {
                 continue;
             }
-            let mut f = f.clone();
-            f.updated = f.timestamp.clone();
+            // Go sets `updated` to the timestamp before it writes the record.
             let filter = doc! {"feedbackkey": feedback_key_document(&f.feedback_key)};
-            let update = feedback_update(&f, overwrite)?;
+            let update = feedback_update(f, &f.timestamp, overwrite)?;
             self.update_raw(&self.feedback_table, &filter, &update, true)
                 .await?;
         }
@@ -1933,7 +1938,7 @@ mod tests {
             ..Feedback::default()
         };
         let mut written = Writer::new();
-        write_feedback(&mut written, &feedback).expect("write");
+        write_feedback(&mut written, &feedback, &feedback.updated).expect("write");
         let written = written.finish().expect("document");
         let expected = doc! {
             "feedbackkey": {"feedbacktype": "like", "userid": "u", "itemid": "i"},
