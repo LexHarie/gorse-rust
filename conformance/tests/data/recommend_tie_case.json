@@ -1,0 +1,1680 @@
+{
+ "seed": 20261028,
+ "cases": [
+  {
+   "name": "case-05",
+   "user_id": "user-0",
+   "online": true,
+   "categories": null,
+   "config": {
+    "cache_size": 8,
+    "context_size": 2,
+    "item_ttl": 0,
+    "positive": [
+     "click",
+     "read"
+    ],
+    "negative": null,
+    "enable_replacement": true,
+    "ranker_type": "none",
+    "ranker_recommenders": [
+     "item-to-item/users",
+     "non-personalized/pop",
+     "item-to-item/auto",
+     "user-to-user/uemb",
+     "collaborative"
+    ],
+    "fallback_recommenders": [
+     "item-to-item/users",
+     "item-to-item/auto"
+    ],
+    "item_to_item": [
+     {
+      "name": "emb",
+      "type": "embedding"
+     },
+     {
+      "name": "tags",
+      "type": "tags"
+     },
+     {
+      "name": "users",
+      "type": "users"
+     },
+     {
+      "name": "auto",
+      "type": "auto"
+     }
+    ],
+    "user_to_user": [
+     {
+      "name": "uemb",
+      "type": "embedding"
+     },
+     {
+      "name": "uitems",
+      "type": "items"
+     }
+    ],
+    "available_names": [
+     "latest",
+     "collaborative",
+     "non-personalized/pop",
+     "item-to-item/emb",
+     "item-to-item/tags",
+     "item-to-item/users",
+     "item-to-item/auto",
+     "user-to-user/uemb",
+     "user-to-user/uitems"
+    ]
+   },
+   "items": [
+    {
+     "id": "item-0",
+     "categories": [
+      "cat-a"
+     ],
+     "timestamp": 1791797168,
+     "hidden": false
+    },
+    {
+     "id": "item-1",
+     "categories": null,
+     "timestamp": 1792124485,
+     "hidden": false
+    },
+    {
+     "id": "item-2",
+     "categories": null,
+     "timestamp": 1792849228,
+     "hidden": false
+    },
+    {
+     "id": "item-3",
+     "categories": [
+      "cat-b"
+     ],
+     "timestamp": 1792291888,
+     "hidden": false
+    },
+    {
+     "id": "item-4",
+     "categories": [
+      "cat-a",
+      "cat-b"
+     ],
+     "timestamp": 1790273807,
+     "hidden": false
+    },
+    {
+     "id": "item-5",
+     "categories": [
+      "cat-a",
+      "cat-b"
+     ],
+     "timestamp": 1789012181,
+     "hidden": false
+    },
+    {
+     "id": "item-6",
+     "categories": [
+      "cat-a"
+     ],
+     "timestamp": 1789612880,
+     "hidden": false
+    },
+    {
+     "id": "item-7",
+     "categories": null,
+     "timestamp": 1792552472,
+     "hidden": false
+    },
+    {
+     "id": "item-8",
+     "categories": null,
+     "timestamp": 1790027057,
+     "hidden": false
+    },
+    {
+     "id": "item-9",
+     "categories": [
+      "cat-a"
+     ],
+     "timestamp": 1789472820,
+     "hidden": false
+    },
+    {
+     "id": "item-10",
+     "categories": [
+      "cat-a",
+      "cat-b"
+     ],
+     "timestamp": 1789042432,
+     "hidden": false
+    },
+    {
+     "id": "item-11",
+     "categories": [
+      "cat-b"
+     ],
+     "timestamp": 1792465405,
+     "hidden": false
+    },
+    {
+     "id": "item-12",
+     "categories": [
+      "cat-a",
+      "cat-b"
+     ],
+     "timestamp": 1789340529,
+     "hidden": false
+    },
+    {
+     "id": "item-13",
+     "categories": null,
+     "timestamp": 1792722154,
+     "hidden": false
+    }
+   ],
+   "feedback": [
+    {
+     "type": "click",
+     "user": "user-0",
+     "item": "item-1",
+     "value": 0,
+     "timestamp": 1791214422
+    },
+    {
+     "type": "dislike",
+     "user": "user-0",
+     "item": "item-3",
+     "value": 0,
+     "timestamp": 1792489865
+    },
+    {
+     "type": "read",
+     "user": "user-0",
+     "item": "item-6",
+     "value": 0,
+     "timestamp": 1791233767
+    },
+    {
+     "type": "dislike",
+     "user": "user-0",
+     "item": "item-10",
+     "value": 0,
+     "timestamp": 1791964435
+    },
+    {
+     "type": "dislike",
+     "user": "user-0",
+     "item": "item-11",
+     "value": 0,
+     "timestamp": 1791979952
+    },
+    {
+     "type": "dislike",
+     "user": "user-0",
+     "item": "item-12",
+     "value": 0,
+     "timestamp": 1792379673
+    },
+    {
+     "type": "click",
+     "user": "user-1",
+     "item": "item-3",
+     "value": 0,
+     "timestamp": 1790911374
+    },
+    {
+     "type": "click",
+     "user": "user-1",
+     "item": "item-5",
+     "value": 0,
+     "timestamp": 1791588203
+    },
+    {
+     "type": "dislike",
+     "user": "user-1",
+     "item": "item-6",
+     "value": 0,
+     "timestamp": 1792347132
+    },
+    {
+     "type": "read",
+     "user": "user-1",
+     "item": "item-8",
+     "value": 0,
+     "timestamp": 1792645991
+    },
+    {
+     "type": "click",
+     "user": "user-1",
+     "item": "item-10",
+     "value": 0,
+     "timestamp": 1791099277
+    },
+    {
+     "type": "read",
+     "user": "user-1",
+     "item": "item-11",
+     "value": 0,
+     "timestamp": 1790880933
+    },
+    {
+     "type": "dislike",
+     "user": "user-1",
+     "item": "item-12",
+     "value": 0,
+     "timestamp": 1791240036
+    },
+    {
+     "type": "click",
+     "user": "user-1",
+     "item": "item-13",
+     "value": 0,
+     "timestamp": 1792585501
+    },
+    {
+     "type": "dislike",
+     "user": "user-2",
+     "item": "item-0",
+     "value": 0,
+     "timestamp": 1792665725
+    },
+    {
+     "type": "dislike",
+     "user": "user-2",
+     "item": "item-3",
+     "value": 0,
+     "timestamp": 1792830560
+    },
+    {
+     "type": "click",
+     "user": "user-2",
+     "item": "item-4",
+     "value": 0,
+     "timestamp": 1791388163
+    },
+    {
+     "type": "click",
+     "user": "user-2",
+     "item": "item-7",
+     "value": 0,
+     "timestamp": 1790837304
+    },
+    {
+     "type": "click",
+     "user": "user-2",
+     "item": "item-10",
+     "value": 0,
+     "timestamp": 1791181459
+    },
+    {
+     "type": "click",
+     "user": "user-2",
+     "item": "item-11",
+     "value": 0,
+     "timestamp": 1790711752
+    },
+    {
+     "type": "read",
+     "user": "user-2",
+     "item": "item-13",
+     "value": 0,
+     "timestamp": 1793139981
+    },
+    {
+     "type": "click",
+     "user": "user-3",
+     "item": "item-0",
+     "value": 0,
+     "timestamp": 1791499101
+    },
+    {
+     "type": "read",
+     "user": "user-3",
+     "item": "item-1",
+     "value": 0,
+     "timestamp": 1792136797
+    },
+    {
+     "type": "click",
+     "user": "user-3",
+     "item": "item-2",
+     "value": 0,
+     "timestamp": 1793145871
+    },
+    {
+     "type": "dislike",
+     "user": "user-3",
+     "item": "item-3",
+     "value": 0,
+     "timestamp": 1790972772
+    },
+    {
+     "type": "click",
+     "user": "user-3",
+     "item": "item-8",
+     "value": 0,
+     "timestamp": 1791480646
+    },
+    {
+     "type": "click",
+     "user": "user-3",
+     "item": "item-9",
+     "value": 0,
+     "timestamp": 1792047030
+    },
+    {
+     "type": "dislike",
+     "user": "user-3",
+     "item": "item-10",
+     "value": 0,
+     "timestamp": 1793088208
+    }
+   ],
+   "vectors": [
+    {
+     "name": "item_to_item_emb",
+     "dense": true,
+     "distance": "euclidean",
+     "dim": 3,
+     "vectors": [
+      {
+       "id": "item-1",
+       "values": [
+        -0.77780765,
+        -0.99281853,
+        0.945486
+       ],
+       "indices": null,
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-2",
+       "values": [
+        0.39483914,
+        -0.6532572,
+        0.06900906
+       ],
+       "indices": null,
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-3",
+       "values": [
+        0.23431084,
+        0.16833138,
+        -0.6863649
+       ],
+       "indices": null,
+       "categories": [
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-4",
+       "values": [
+        -0.124017105,
+        -0.22580121,
+        0.38424873
+       ],
+       "indices": null,
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-5",
+       "values": [
+        0.93820524,
+        0.30517456,
+        0.41704875
+       ],
+       "indices": null,
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-6",
+       "values": [
+        0.8496282,
+        0.69236434,
+        0.39135367
+       ],
+       "indices": null,
+       "categories": [
+        "cat-a"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-7",
+       "values": [
+        0.22767808,
+        -0.25344157,
+        0.46881458
+       ],
+       "indices": null,
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-8",
+       "values": [
+        -0.48734096,
+        0.42139947,
+        -0.29071692
+       ],
+       "indices": null,
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-9",
+       "values": [
+        -0.19654226,
+        0.63608235,
+        -0.9264093
+       ],
+       "indices": null,
+       "categories": [
+        "cat-a"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-10",
+       "values": [
+        -0.6990478,
+        -0.59789574,
+        -0.2598908
+       ],
+       "indices": null,
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-11",
+       "values": [
+        -0.27803233,
+        -0.052256193,
+        -0.4193768
+       ],
+       "indices": null,
+       "categories": [
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-12",
+       "values": [
+        -0.6442169,
+        0.64740926,
+        0.36979252
+       ],
+       "indices": null,
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-13",
+       "values": [
+        0.05456758,
+        0.36334676,
+        0.8458383
+       ],
+       "indices": null,
+       "categories": null,
+       "hidden": false
+      }
+     ]
+    },
+    {
+     "name": "item_to_item_tags",
+     "dense": false,
+     "distance": "dot",
+     "dim": 0,
+     "vectors": [
+      {
+       "id": "item-1",
+       "values": [
+        1.9744234
+       ],
+       "indices": [
+        0
+       ],
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-2",
+       "values": [
+        0.3001834,
+        0.9424963,
+        0.44613382
+       ],
+       "indices": [
+        2,
+        3,
+        4
+       ],
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-3",
+       "values": [
+        0.5372529
+       ],
+       "indices": [
+        0
+       ],
+       "categories": [
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-4",
+       "values": [
+        1.5082052,
+        0.5585161,
+        0.63883686
+       ],
+       "indices": [
+        2,
+        4,
+        5
+       ],
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-5",
+       "values": [
+        0.3187392
+       ],
+       "indices": [
+        4
+       ],
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-6",
+       "values": [
+        1.4624745,
+        1.4404304,
+        0.4965084
+       ],
+       "indices": [
+        2,
+        4,
+        5
+       ],
+       "categories": [
+        "cat-a"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-7",
+       "values": [
+        0.48009467
+       ],
+       "indices": [
+        2
+       ],
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-8",
+       "values": [
+        1.5134481,
+        0.7097915
+       ],
+       "indices": [
+        1,
+        2
+       ],
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-9",
+       "values": [
+        1.0277598
+       ],
+       "indices": [
+        5
+       ],
+       "categories": [
+        "cat-a"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-10",
+       "values": [
+        0.92035514
+       ],
+       "indices": [
+        1
+       ],
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-11",
+       "values": [
+        0.31095123,
+        1.2584187
+       ],
+       "indices": [
+        1,
+        2
+       ],
+       "categories": [
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-12",
+       "values": [
+        1.5456368,
+        1.4239651,
+        1.9024668
+       ],
+       "indices": [
+        0,
+        4,
+        5
+       ],
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-13",
+       "values": [
+        0.4455156,
+        1.648037,
+        1.7919683
+       ],
+       "indices": [
+        1,
+        2,
+        4
+       ],
+       "categories": null,
+       "hidden": false
+      }
+     ]
+    },
+    {
+     "name": "item_to_item_users",
+     "dense": false,
+     "distance": "dot",
+     "dim": 0,
+     "vectors": [
+      {
+       "id": "item-0",
+       "values": [
+        0.6750311,
+        0.34095693,
+        1.1035775
+       ],
+       "indices": [
+        2,
+        4,
+        5
+       ],
+       "categories": [
+        "cat-a"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-1",
+       "values": [
+        0.7073538,
+        1.6435002,
+        0.5995057
+       ],
+       "indices": [
+        0,
+        1,
+        5
+       ],
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-2",
+       "values": [
+        0.33923584
+       ],
+       "indices": [
+        5
+       ],
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-3",
+       "values": [
+        1.0187509
+       ],
+       "indices": [
+        4
+       ],
+       "categories": [
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-4",
+       "values": [
+        0.732638
+       ],
+       "indices": [
+        2
+       ],
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-6",
+       "values": [
+        0.9233268,
+        0.21419899
+       ],
+       "indices": [
+        1,
+        4
+       ],
+       "categories": [
+        "cat-a"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-7",
+       "values": [
+        0.7535009
+       ],
+       "indices": [
+        3
+       ],
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-8",
+       "values": [
+        0.30869702,
+        0.5079193,
+        1.5403986
+       ],
+       "indices": [
+        0,
+        3,
+        5
+       ],
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-9",
+       "values": [
+        0.4952947
+       ],
+       "indices": [
+        3
+       ],
+       "categories": [
+        "cat-a"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-11",
+       "values": [
+        1.3207526,
+        1.7008244,
+        0.54156536
+       ],
+       "indices": [
+        0,
+        1,
+        5
+       ],
+       "categories": [
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-12",
+       "values": [
+        0.6828937,
+        1.4396657,
+        1.7254109
+       ],
+       "indices": [
+        0,
+        4,
+        5
+       ],
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-13",
+       "values": [
+        1.9115531
+       ],
+       "indices": [
+        3
+       ],
+       "categories": null,
+       "hidden": false
+      }
+     ]
+    },
+    {
+     "name": "item_to_item_auto",
+     "dense": false,
+     "distance": "dot",
+     "dim": 0,
+     "vectors": [
+      {
+       "id": "item-0",
+       "values": [
+        0.8877606
+       ],
+       "indices": [
+        3
+       ],
+       "categories": [
+        "cat-a"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-1",
+       "values": [
+        1.8107197
+       ],
+       "indices": [
+        3
+       ],
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-2",
+       "values": [
+        1.1001701,
+        0.16829315,
+        0.16276608
+       ],
+       "indices": [
+        1,
+        4,
+        5
+       ],
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-3",
+       "values": [
+        1.4375012,
+        1.1199633
+       ],
+       "indices": [
+        1,
+        3
+       ],
+       "categories": [
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-4",
+       "values": [
+        1.8474416
+       ],
+       "indices": [
+        0
+       ],
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-5",
+       "values": [
+        0.67923206
+       ],
+       "indices": [
+        3
+       ],
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-6",
+       "values": [
+        0.5431376
+       ],
+       "indices": [
+        5
+       ],
+       "categories": [
+        "cat-a"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-7",
+       "values": [
+        0.50787514,
+        1.7431743,
+        1.7876674
+       ],
+       "indices": [
+        0,
+        3,
+        5
+       ],
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-8",
+       "values": [
+        1.7694734,
+        1.4649559,
+        0.14193584
+       ],
+       "indices": [
+        0,
+        2,
+        5
+       ],
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "item-9",
+       "values": [
+        1.3616558,
+        1.6087612,
+        0.20928398
+       ],
+       "indices": [
+        1,
+        4,
+        5
+       ],
+       "categories": [
+        "cat-a"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-10",
+       "values": [
+        0.666064
+       ],
+       "indices": [
+        0
+       ],
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-11",
+       "values": [
+        1.3174169,
+        1.9469414
+       ],
+       "indices": [
+        4,
+        5
+       ],
+       "categories": [
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-12",
+       "values": [
+        1.2381349,
+        0.14010395,
+        1.1551061
+       ],
+       "indices": [
+        1,
+        3,
+        4
+       ],
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ],
+       "hidden": false
+      },
+      {
+       "id": "item-13",
+       "values": [
+        1.5700127,
+        0.12892655,
+        1.8243433
+       ],
+       "indices": [
+        2,
+        3,
+        5
+       ],
+       "categories": null,
+       "hidden": false
+      }
+     ]
+    },
+    {
+     "name": "user_to_user_uemb",
+     "dense": true,
+     "distance": "euclidean",
+     "dim": 3,
+     "vectors": [
+      {
+       "id": "user-0",
+       "values": [
+        -0.531945,
+        -0.9210744,
+        -0.31879917
+       ],
+       "indices": null,
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "user-1",
+       "values": [
+        0.5973803,
+        0.46737987,
+        0.5623379
+       ],
+       "indices": null,
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "user-3",
+       "values": [
+        0.47964984,
+        -0.7064843,
+        -0.42607334
+       ],
+       "indices": null,
+       "categories": null,
+       "hidden": false
+      }
+     ]
+    },
+    {
+     "name": "user_to_user_uitems",
+     "dense": false,
+     "distance": "dot",
+     "dim": 0,
+     "vectors": [
+      {
+       "id": "user-0",
+       "values": [
+        1.6203772,
+        1.4928787
+       ],
+       "indices": [
+        2,
+        3
+       ],
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "user-1",
+       "values": [
+        0.28288293
+       ],
+       "indices": [
+        4
+       ],
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "user-2",
+       "values": [
+        1.5779752
+       ],
+       "indices": [
+        0
+       ],
+       "categories": null,
+       "hidden": false
+      },
+      {
+       "id": "user-3",
+       "values": [
+        0.40510878,
+        0.6464854
+       ],
+       "indices": [
+        0,
+        4
+       ],
+       "categories": null,
+       "hidden": false
+      }
+     ]
+    }
+   ],
+   "scores": [
+    {
+     "collection": "recommend",
+     "subset": "user-0",
+     "items": [
+      {
+       "id": "item-0",
+       "score": 9.064469165048516,
+       "categories": [
+        ""
+       ]
+      },
+      {
+       "id": "item-1",
+       "score": 7.017062430375852,
+       "categories": [
+        "",
+        "cat-b"
+       ]
+      },
+      {
+       "id": "item-2",
+       "score": 1.5901425164840581,
+       "categories": null
+      },
+      {
+       "id": "item-3",
+       "score": 11.740982826005652,
+       "categories": [
+        "",
+        "cat-b"
+       ]
+      },
+      {
+       "id": "item-4",
+       "score": 1.08642036414345,
+       "categories": null
+      },
+      {
+       "id": "item-5",
+       "score": 2.90216811542245,
+       "categories": [
+        ""
+       ]
+      },
+      {
+       "id": "item-7",
+       "score": 9.904968077421255,
+       "categories": null
+      },
+      {
+       "id": "item-8",
+       "score": 13.836453252359377,
+       "categories": [
+        "",
+        "cat-b"
+       ]
+      },
+      {
+       "id": "item-9",
+       "score": 17.895228928283913,
+       "categories": null
+      },
+      {
+       "id": "item-10",
+       "score": 19.535346234396744,
+       "categories": [
+        ""
+       ]
+      },
+      {
+       "id": "item-11",
+       "score": 1.34583711469769,
+       "categories": [
+        ""
+       ]
+      },
+      {
+       "id": "item-12",
+       "score": 13.736604109627319,
+       "categories": null
+      },
+      {
+       "id": "item-13",
+       "score": 8.720128888596792,
+       "categories": [
+        "cat-a"
+       ]
+      }
+     ]
+    },
+    {
+     "collection": "non-personalized",
+     "subset": "pop",
+     "items": [
+      {
+       "id": "item-0",
+       "score": 5.50584972353458,
+       "categories": [
+        ""
+       ]
+      },
+      {
+       "id": "item-1",
+       "score": 3.0853967686810995,
+       "categories": [
+        ""
+       ]
+      },
+      {
+       "id": "item-2",
+       "score": 11.772139002094367,
+       "categories": [
+        ""
+       ]
+      },
+      {
+       "id": "item-3",
+       "score": 9.484876502400333,
+       "categories": [
+        "",
+        "cat-b"
+       ]
+      },
+      {
+       "id": "item-5",
+       "score": 12.255465180861066,
+       "categories": null
+      },
+      {
+       "id": "item-6",
+       "score": 2.5905332252817965,
+       "categories": [
+        ""
+       ]
+      },
+      {
+       "id": "item-7",
+       "score": 10.80015250627397,
+       "categories": [
+        ""
+       ]
+      },
+      {
+       "id": "item-8",
+       "score": 10.91279510046764,
+       "categories": [
+        "cat-b"
+       ]
+      },
+      {
+       "id": "item-10",
+       "score": 15.040375796860946,
+       "categories": [
+        ""
+       ]
+      },
+      {
+       "id": "item-11",
+       "score": 6.2585678005778025,
+       "categories": null
+      },
+      {
+       "id": "item-12",
+       "score": 5.2175111523099025,
+       "categories": [
+        "cat-a"
+       ]
+      },
+      {
+       "id": "item-13",
+       "score": 17.356666935118504,
+       "categories": [
+        "",
+        "cat-a"
+       ]
+      }
+     ]
+    },
+    {
+     "collection": "collaborative-filtering",
+     "subset": "user-0",
+     "items": [
+      {
+       "id": "item-0",
+       "score": 1.7582898056265646,
+       "categories": [
+        "",
+        "cat-a"
+       ]
+      },
+      {
+       "id": "item-1",
+       "score": 10.565941204993116,
+       "categories": [
+        "cat-a"
+       ]
+      },
+      {
+       "id": "item-2",
+       "score": 10.081552858029635,
+       "categories": [
+        "",
+        "cat-b"
+       ]
+      },
+      {
+       "id": "item-3",
+       "score": 0.8605138399147818,
+       "categories": [
+        "cat-a"
+       ]
+      },
+      {
+       "id": "item-4",
+       "score": 8.475164361909567,
+       "categories": null
+      },
+      {
+       "id": "item-5",
+       "score": 4.803801885259244,
+       "categories": null
+      },
+      {
+       "id": "item-7",
+       "score": 15.167657440217255,
+       "categories": [
+        ""
+       ]
+      },
+      {
+       "id": "item-8",
+       "score": 4.943947511420219,
+       "categories": null
+      },
+      {
+       "id": "item-9",
+       "score": 12.442390933477395,
+       "categories": [
+        ""
+       ]
+      },
+      {
+       "id": "item-12",
+       "score": 13.606782878555228,
+       "categories": [
+        "cat-a"
+       ]
+      },
+      {
+       "id": "item-13",
+       "score": 13.579620472257224,
+       "categories": [
+        "",
+        "cat-b"
+       ]
+      }
+     ]
+    }
+   ],
+   "digests": [
+    {
+     "parts": [
+      "non-personalized_digest",
+      "pop"
+     ],
+     "value": "pop-5"
+    },
+    {
+     "parts": [
+      "collaborative-filtering_digest",
+      "user-0"
+     ],
+     "value": "cf-5"
+    }
+   ],
+   "runs": [
+    {
+     "op": "recommend",
+     "limit": 3,
+     "names": null
+    },
+    {
+     "op": "sequential",
+     "limit": 5,
+     "names": [
+      "non-personalized/pop"
+     ]
+    },
+    {
+     "op": "recommend",
+     "limit": 5,
+     "names": null
+    }
+   ],
+   "expected": [
+    {
+     "error": "",
+     "nil": false,
+     "results": [
+      {
+       "id": "item-11",
+       "score": 5.6246325969696045,
+       "categories": [
+        "cat-b"
+       ]
+      },
+      {
+       "id": "item-12",
+       "score": 1.8258160948753357,
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ]
+      },
+      {
+       "id": "item-1",
+       "score": 1.5174877643585205,
+       "categories": []
+      }
+     ],
+     "digest": "",
+     "exclude": [
+      "item-0",
+      "item-1",
+      "item-11",
+      "item-12",
+      "item-2",
+      "item-3",
+      "item-6",
+      "item-8"
+     ],
+     "cold_start": false,
+     "feedback_order": [
+      "item-3",
+      "item-12",
+      "item-11",
+      "item-10",
+      "item-6",
+      "item-1"
+     ]
+    },
+    {
+     "error": "",
+     "nil": false,
+     "results": [
+      {
+       "id": "item-13",
+       "score": 17.356666935118504,
+       "categories": [
+        "",
+        "cat-a"
+       ]
+      },
+      {
+       "id": "item-10",
+       "score": 15.040375796860946,
+       "categories": [
+        ""
+       ]
+      },
+      {
+       "id": "item-7",
+       "score": 10.80015250627397,
+       "categories": [
+        ""
+       ]
+      }
+     ],
+     "digest": "57c5156765dde3a2ff1af6071aa7cd43",
+     "exclude": [
+      "item-0",
+      "item-1",
+      "item-10",
+      "item-11",
+      "item-12",
+      "item-13",
+      "item-2",
+      "item-3",
+      "item-6",
+      "item-7",
+      "item-8"
+     ],
+     "cold_start": false,
+     "feedback_order": [
+      "item-3",
+      "item-12",
+      "item-11",
+      "item-10",
+      "item-6",
+      "item-1"
+     ]
+    },
+    {
+     "error": "",
+     "nil": false,
+     "results": [
+      {
+       "id": "item-5",
+       "score": 0.6149494647979736,
+       "categories": [
+        "cat-a",
+        "cat-b"
+       ]
+      },
+      {
+       "id": "item-9",
+       "score": 0.05683499947190285,
+       "categories": [
+        "cat-a"
+       ]
+      },
+      {
+       "id": "item-4",
+       "score": 8.475164361909567,
+       "categories": []
+      }
+     ],
+     "digest": "",
+     "exclude": [
+      "item-0",
+      "item-1",
+      "item-10",
+      "item-11",
+      "item-12",
+      "item-13",
+      "item-2",
+      "item-3",
+      "item-4",
+      "item-5",
+      "item-6",
+      "item-7",
+      "item-8",
+      "item-9"
+     ],
+     "cold_start": false,
+     "feedback_order": [
+      "item-3",
+      "item-12",
+      "item-11",
+      "item-10",
+      "item-6",
+      "item-1"
+     ]
+    }
+   ]
+  }
+ ]
+}

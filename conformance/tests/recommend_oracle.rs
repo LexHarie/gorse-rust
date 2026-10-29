@@ -322,6 +322,19 @@ async fn write_rows(ctx: &Context, case: &Json, stores: &Stores) {
     }
 }
 
+/// What the comparison found over all the runs.
+#[derive(Default)]
+struct Tally {
+    /// Each difference from Go, with its case and run.
+    differences: Vec<String>,
+    /// The largest score difference between a Rust score and the Go score of its group.
+    largest_gap: f64,
+    /// The tie groups compared as sets.
+    tie_groups: usize,
+    /// The groups cut at the limit whose Go wide list is missing (X-247).
+    unverified_ties: usize,
+}
+
 /// What one run gave, in the shape the Go generator writes.
 #[derive(Debug)]
 struct Outcome {
@@ -408,16 +421,18 @@ fn same_score(a: f64, b: f64) -> bool {
 }
 
 /// Records each way the Rust run differs from the Go run.
-fn compare(
-    case: &str,
-    run: usize,
-    go: &Json,
-    rust: &Outcome,
-    differences: &mut Vec<String>,
-    largest_gap: &mut f64,
-) {
+///
+/// Go orders exactly equal scores at random (X-247), so a group of results
+/// with bit-identical scores is compared as a set: its items must be the same
+/// ones, in any order. Each score is still compared, and the order between
+/// the groups is still compared exactly. A group that ends the Go result may
+/// be cut off by the limit, so its items are checked against the Go wide list
+/// (`Wide`), which holds the whole group when it ends within the cache size.
+fn compare(case: &str, run: usize, go: &Json, rust: &Outcome, tally: &mut Tally) {
     let mut diff = |what: &str, detail: String| {
-        differences.push(format!("{case} run {run}: {what}: {detail}"));
+        tally
+            .differences
+            .push(format!("{case} run {run}: {what}: {detail}"));
     };
     let go_error = text(&go["error"]);
     if go_error != rust.error {
@@ -430,33 +445,90 @@ fn compare(
             format!("go {}, rust {}", go_results.len(), rust.results.len()),
         );
     } else {
-        for (i, (g, r)) in go_results.iter().zip(&rust.results).enumerate() {
-            let go_score = g["score"].as_f64().expect("a score");
-            if go_score.is_finite() && r.1.is_finite() {
-                *largest_gap = largest_gap.max((go_score - r.1).abs());
+        let n = go_results.len();
+        let wide = go["wide"].as_array();
+        let mut start = 0;
+        while start < n {
+            let bits = go_results[start]["score"]
+                .as_f64()
+                .expect("a score")
+                .to_bits();
+            let mut end = start + 1;
+            while end < n
+                && go_results[end]["score"]
+                    .as_f64()
+                    .expect("a score")
+                    .to_bits()
+                    == bits
+            {
+                end += 1;
             }
-            if text(&g["id"]) != r.0 {
-                diff(
-                    "item",
-                    format!("at {i}: go {:?}, rust {:?}", text(&g["id"]), r.0),
-                );
-            } else if !same_score(go_score, r.1) {
-                diff(
-                    "score",
-                    format!("{} at {i}: go {go_score}, rust {}", r.0, r.1),
-                );
+            let group_score = f64::from_bits(bits);
+            // The items Go may have placed in this group, with their categories.
+            // Without a wide list, a group that may be cut off cannot be checked
+            // by its items; its scores and count are still checked.
+            let mut unverified = false;
+            let known: Vec<(String, Vec<String>)> = if end < n {
+                go_results[start..end]
+                    .iter()
+                    .map(|g| (text(&g["id"]), texts(&g["categories"])))
+                    .collect()
+            } else {
+                match wide {
+                    Some(wide) => wide
+                        .iter()
+                        .filter(|w| w["score"].as_f64().map(f64::to_bits) == Some(bits))
+                        .map(|w| (text(&w["id"]), texts(&w["categories"])))
+                        .collect(),
+                    None => {
+                        unverified = true;
+                        Vec::new()
+                    }
+                }
+            };
+            if end - start > 1 {
+                tally.tie_groups += 1;
             }
-            if texts(&g["categories"]) != r.2 {
-                diff(
-                    "categories",
-                    format!(
-                        "{} at {i}: go {:?}, rust {:?}",
-                        r.0,
-                        texts(&g["categories"]),
-                        r.2
+            if unverified {
+                tally.unverified_ties += 1;
+            }
+            let mut used: Vec<&str> = Vec::new();
+            for i in start..end {
+                let (id, rust_categories) = (&rust.results[i].0, &rust.results[i].2);
+                let r_score = rust.results[i].1;
+                if r_score.is_finite() && group_score.is_finite() {
+                    tally.largest_gap = tally.largest_gap.max((group_score - r_score).abs());
+                }
+                if !same_score(group_score, r_score) {
+                    diff(
+                        "score",
+                        format!("{id} at {i}: go {group_score}, rust {r_score}"),
+                    );
+                }
+                if unverified {
+                    continue;
+                }
+                match known.iter().find(|(known_id, _)| known_id == id) {
+                    Some((_, categories)) if !used.contains(&id.as_str()) => {
+                        used.push(id.as_str());
+                        if categories != rust_categories {
+                            diff(
+                                "categories",
+                                format!("{id} at {i}: go {categories:?}, rust {rust_categories:?}"),
+                            );
+                        }
+                    }
+                    Some(_) => diff("item", format!("at {i}: {id:?} is repeated")),
+                    None => diff(
+                        "item",
+                        format!(
+                            "at {i}: rust {id:?}, not in the Go group {:?}",
+                            known.iter().map(|(k, _)| k).collect::<Vec<_>>()
+                        ),
                     ),
-                );
+                }
             }
+            start = end;
         }
     }
     if text(&go["digest"]) != rust.digest {
@@ -497,10 +569,9 @@ async fn recommend_matches_go() {
         EXPECTED_CASES,
         "the Go generator writes {EXPECTED_CASES} cases"
     );
-    let mut differences = Vec::new();
+    let mut tally = Tally::default();
     let mut compared = 0;
     let mut nil_runs = 0;
-    let mut largest_gap = 0.0_f64;
     for case in &cases {
         let name = text(&case["name"]);
         let expected = case["expected"].as_array().expect("the expected outcomes");
@@ -515,18 +586,19 @@ async fn recommend_matches_go() {
             if go["nil"].as_bool() == Some(true) {
                 nil_runs += 1;
             }
-            compare(&name, i, go, rust, &mut differences, &mut largest_gap);
+            compare(&name, i, go, rust, &mut tally);
         }
     }
     assert_eq!(compared, EXPECTED_CASES * RUNS_PER_CASE);
     eprintln!(
-        "recommend oracle: {compared} runs compared, largest score difference {largest_gap:e}, \
-         {nil_runs} of them give a nil result in Go (O-76)"
+        "recommend oracle: {compared} runs compared, largest score difference {:e}, \
+         {nil_runs} of them give a nil result in Go (O-76), {} tie groups compared as sets, {} cut at the limit without a wide list (X-247)",
+        tally.largest_gap, tally.tie_groups, tally.unverified_ties
     );
     assert!(
-        differences.is_empty(),
+        tally.differences.is_empty(),
         "{} differences from Go:\n{}",
-        differences.len(),
-        differences.join("\n")
+        tally.differences.len(),
+        tally.differences.join("\n")
     );
 }
