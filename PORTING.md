@@ -2536,6 +2536,8 @@ or accepts a metric gap outside the Go tests' own tolerances.
   - `629646e`. The `scan_scores` timer race is replaced by a cancel after the first score. The assertion (fewer than nine scans) is unchanged. The race is removed, not hidden.
   - The regression test removed with the single-query change (`update_scores_with_tied_scores_on_fresh_indexes`) belonged to the reverted code. Go's paged loop is now the oracle, and it passed 0 of 1,000 lost updates on the court's probe.
 
+  Coordinator ruling (13:33): X-252 is an upstream quirk, since Go and the port lose hashes at the same rate under load and neither does idle. It does not block the Phase 4 exit, and it is a Phase 5 conformance watch item.
+
   X-252 is logged: Go lost 66 hashes of 1,000 trials once, under a busy server, and the port's paged loop lost 68 once, earlier. Neither reproduces on an idle server (0 of 1,000 each). The cause is not found. On the evidence it is not a port defect, and the port keeps Go's loop.
 
   Evidence: `/mnt/project-files/o87-evidence/court-batch-probe/`.
