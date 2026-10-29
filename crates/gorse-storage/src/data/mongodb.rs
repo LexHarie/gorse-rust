@@ -769,14 +769,25 @@ fn update_command(
 fn refused(err: mongodb::error::Error) -> Error {
     match err.kind.as_ref() {
         ErrorKind::Command(command) if command.code_name.is_empty() => {
-            backend(Refused(command.message.clone()))
+            backend(Refused(statement_path(&command.message)))
         }
         ErrorKind::Command(command) => backend(Refused(format!(
             "({}) {}",
-            command.code_name, command.message
+            command.code_name,
+            statement_path(&command.message)
         ))),
         _ => backend(err),
     }
+}
+
+/// The path a server error gives to an element of an update, in Go's wording.
+/// The server names the element from the start of the command it received.
+/// Go's driver sends an update's statements as a document sequence, so the
+/// path starts at the statement, as `u.$set…`. This driver sends the
+/// statements in the command body, so the path starts at `updates.0.`, which
+/// is taken off.
+fn statement_path(message: &str) -> String {
+    message.replace("'updates.0.", "'")
 }
 
 /// The error for the write errors in the reply to an update, worded as Go's
@@ -788,10 +799,10 @@ fn write_refused(reply: &Document) -> Result<(), Error> {
     if errors.is_empty() {
         return Ok(());
     }
-    let messages: Vec<&str> = errors
+    let messages: Vec<String> = errors
         .iter()
         .filter_map(Bson::as_document)
-        .map(|error| error.get_str("errmsg").unwrap_or_default())
+        .map(|error| statement_path(error.get_str("errmsg").unwrap_or_default()))
         .collect();
     Err(backend(Refused(format!(
         "write exception: write errors: [{}]",
@@ -2054,6 +2065,20 @@ mod tests {
         let err = write_refused(&reply).expect_err("a write error");
         assert_eq!(err.to_string(), "write exception: write errors: [too deep]");
         assert!(write_refused(&doc! {"ok": 1, "n": 1}).is_ok());
+    }
+
+    /// The path of an element in an update is named from the statement, as Go's
+    /// driver names it, and only the statement's own prefix is taken off.
+    #[test]
+    fn statement_paths_start_at_the_statement() {
+        assert_eq!(
+            statement_path(
+                "BSONObj exceeds maximum nested object depth in element with field name 'updates.0.u.$set.labels.a'"
+            ),
+            "BSONObj exceeds maximum nested object depth in element with field name 'u.$set.labels.a'"
+        );
+        assert_eq!(statement_path("'updates.1.u'"), "'updates.1.u'");
+        assert_eq!(statement_path("no path here"), "no path here");
     }
 
     /// Go decodes "QR==" to "A", with non-zero trailing bits, and so does the port.
