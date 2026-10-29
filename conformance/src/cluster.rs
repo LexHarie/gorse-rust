@@ -20,6 +20,8 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 use gorse_common::util::tls::TlsConfig;
+use gorse_config::config::load::load_config;
+use gorse_master::Master;
 use gorse_storage::cache;
 use gorse_storage::data;
 use gorse_worker::{Worker, WorkerOptions};
@@ -441,6 +443,47 @@ impl Cluster {
         }
     }
 
+    /// The directory the run's blob store keeps its models in.
+    pub fn blob_dir(&self) -> PathBuf {
+        self.dir.path().join("blob")
+    }
+
+    /// Runs the Rust master in this process against the run's config, with the
+    /// same settings as [`Cluster::start_master`], and waits until its gRPC port
+    /// listens. The Rust master serves the gRPC services only; its REST routes
+    /// are WP-4-4's.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the config cannot be read or the master cannot start, or when
+    /// the port is not listening within the timeout.
+    pub async fn start_rust_master(&mut self) -> Result<RustMaster> {
+        // The master logs through `tracing`, as the Rust workers do.
+        captured();
+        let cache_path = self.dir.path().join("master-cache");
+        fs::create_dir_all(&cache_path).map_err(fail)?;
+        let cfg = load_config(&path(&self.config)).map_err(fail)?;
+        let master = Master::new(cfg, &path(&cache_path), false, &path(&self.config));
+        if let Err(err) = master.serve().await {
+            master.shutdown().await;
+            return Err(fail(err));
+        }
+        let rust = RustMaster {
+            master: Arc::clone(&master),
+        };
+        let port = self.ports.master_grpc;
+        match self
+            .wait_for("the Rust master gRPC port", move || port_open(port))
+            .await
+        {
+            Ok(()) => Ok(rust),
+            Err(err) => {
+                rust.stop().await;
+                Err(err)
+            }
+        }
+    }
+
     /// Waits until `ready` holds. It fails with `what` when a Go node exits first,
     /// or when two minutes pass. Its error carries the tail of every node's log.
     ///
@@ -617,6 +660,19 @@ impl RustWorker {
 impl Drop for RustWorker {
     fn drop(&mut self) {
         self.worker.shutdown();
+    }
+}
+
+/// A Rust master running in this process. [`RustMaster::stop`] shuts its gRPC
+/// server, its background tasks and its stores down.
+pub struct RustMaster {
+    master: Arc<Master>,
+}
+
+impl RustMaster {
+    /// Shuts the master down and waits for its background tasks to end.
+    pub async fn stop(self) {
+        self.master.shutdown().await;
     }
 }
 

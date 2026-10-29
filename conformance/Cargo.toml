@@ -12,7 +12,8 @@ publish = false
 gorse-common = { workspace = true }
 gorse-config = { workspace = true }
 gorse-logics = { workspace = true }
-# The mixed-cluster harness (cluster.rs) runs the Rust worker in process.
+# The mixed-cluster harness (cluster.rs) runs the Rust master and worker in process.
+gorse-master = { workspace = true }
 gorse-worker = { workspace = true }
 gorse-storage = { workspace = true, features = ["mysql", "postgres", "sqlite", "mongodb", "redis"] }
 futures-core.workspace = true

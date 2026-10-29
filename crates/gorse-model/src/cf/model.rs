@@ -32,14 +32,18 @@ use prost::Message;
 use super::evaluator::{Metric, evaluate, ndcg, precision, recall};
 use super::lock;
 
-/// Go's `Score`: the metrics of a fit's last evaluation.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+/// Go's `Score`: the metrics of a fit's last evaluation. Go's struct has no
+/// JSON tags, so the stored JSON names the fields as Go does.
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Score {
     /// NDCG at the configured top-k.
+    #[serde(rename = "NDCG")]
     pub ndcg: f32,
     /// Precision at the configured top-k.
+    #[serde(rename = "Precision")]
     pub precision: f32,
     /// Recall at the configured top-k.
+    #[serde(rename = "Recall")]
     pub recall: f32,
 }
 
@@ -97,7 +101,7 @@ impl FitConfig {
 
 /// Go's `Model` interface: a collaborative-filtering model that is fitted on a
 /// train split and evaluated on a validation split.
-pub trait Model: CoreModel + Sync {
+pub trait Model: CoreModel + Send + Sync {
     /// Go's `Fit`: trains on `train_set`, evaluates on `val_set` and returns the
     /// score of the last evaluation. Returns the zero score when `ctx` is done.
     fn fit(

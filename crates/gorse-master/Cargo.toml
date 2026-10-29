@@ -9,6 +9,9 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+async-trait.workspace = true
+futures-core.workspace = true
+futures-util.workspace = true
 gorse-common = { workspace = true }
 gorse-protocol = { workspace = true }
 gorse-config = { workspace = true }
@@ -17,9 +20,26 @@ gorse-logics = { workspace = true }
 gorse-model-core = { workspace = true }
 gorse-model = { workspace = true }
 gorse-storage-core = { workspace = true }
-gorse-storage = { workspace = true }
+# Every backend the Go master can open: `data.Open`, `cache.Open`, `vectors.Open`
+# and `blob.NewStore` take all of them.
+gorse-storage = { workspace = true, features = ["mysql", "postgres", "sqlite", "mongodb", "redis", "qdrant", "milvus", "weaviate", "s3", "gcs", "azure"] }
 gorse-server = { workspace = true }
 gorse-worker = { workspace = true }
+notify.workspace = true
+prometheus = { workspace = true, features = ["process"] }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "net", "rt", "rt-multi-thread", "sync", "time"] }
+tokio-rustls.workspace = true
+tokio-stream = { workspace = true, features = ["net"] }
+tonic.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+hyper-rustls.workspace = true
+rcgen.workspace = true
+tempfile.workspace = true
 
 [lints]
 workspace = true
