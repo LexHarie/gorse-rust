@@ -31,7 +31,7 @@ use gorse_config::config::SearchConfig;
 use gorse_storage_core::errors::Error as StorageError;
 use gorse_storage_core::options::Opt;
 use gorse_storage_core::scheme::{MONGO_PREFIX, MONGO_SRV_PREFIX, TablePrefix};
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 use mongodb::bson::{self, Bson, DateTime, Document, doc};
 use mongodb::options::IndexOptions;
 use mongodb::{Client, Collection, Cursor, IndexModel};
@@ -187,21 +187,75 @@ fn strings_bson(values: &[String]) -> Bson {
     Bson::Array(values.iter().map(|v| Bson::String(v.clone())).collect())
 }
 
-/// Go's `any` labels as BSON.
+/// Go's `any` labels as BSON. The lists and maps that the walk is inside are
+/// kept on a stack, not by recursion, so labels nested at any depth are
+/// converted in full.
 fn labels_to_bson(labels: &Labels) -> Bson {
-    match labels {
-        Labels::Nil => Bson::Null,
-        Labels::Bool(value) => Bson::Boolean(*value),
-        Labels::Float64(value) => Bson::Double(*value),
-        Labels::Number(text) => number_to_bson(text),
-        Labels::String(text) => Bson::String(text.clone()),
-        Labels::Array(values) => Bson::Array(values.iter().map(labels_to_bson).collect()),
-        Labels::Object(entries) => Bson::Document(
-            entries
-                .iter()
-                .map(|(name, value)| (name.clone(), labels_to_bson(value)))
-                .collect(),
+    /// A list or a map whose children are being converted: the children it has
+    /// yet to take, what it has so far, and for a map the name of the child in
+    /// progress.
+    enum Open<'a> {
+        List(std::slice::Iter<'a, Labels>, Vec<Bson>),
+        Map(
+            indexmap::map::Iter<'a, String, Labels>,
+            Document,
+            Option<&'a String>,
         ),
+    }
+    let mut open: Vec<Open<'_>> = Vec::new();
+    let mut child = labels;
+    loop {
+        // A scalar is converted at once. A list or a map opens a frame, and its
+        // first child is converted next.
+        let mut finished = match child {
+            Labels::Nil => Some(Bson::Null),
+            Labels::Bool(value) => Some(Bson::Boolean(*value)),
+            Labels::Float64(value) => Some(Bson::Double(*value)),
+            Labels::Number(text) => Some(number_to_bson(text)),
+            Labels::String(text) => Some(Bson::String(text.clone())),
+            Labels::Array(values) => {
+                open.push(Open::List(values.iter(), Vec::with_capacity(values.len())));
+                None
+            }
+            Labels::Object(entries) => {
+                open.push(Open::Map(entries.iter(), Document::new(), None));
+                None
+            }
+        };
+        // A finished value goes to the frame around it. A frame with no children
+        // left is finished in turn, until a frame has a child to convert.
+        child = loop {
+            if let Some(value) = finished.take() {
+                match open.last_mut() {
+                    None => return value,
+                    Some(Open::List(_, values)) => values.push(value),
+                    Some(Open::Map(_, entries, name)) => {
+                        let name = name.take().expect("a map's child has its name");
+                        entries.insert(name.clone(), value);
+                    }
+                }
+            }
+            let frame = open
+                .last_mut()
+                .expect("a frame is open while its child converts");
+            match frame {
+                Open::List(children, _) => {
+                    if let Some(next) = children.next() {
+                        break next;
+                    }
+                }
+                Open::Map(children, _, name) => {
+                    if let Some((key, next)) = children.next() {
+                        *name = Some(key);
+                        break next;
+                    }
+                }
+            }
+            finished = Some(match open.pop().expect("the frame is open") {
+                Open::List(_, values) => Bson::Array(values),
+                Open::Map(_, entries, _) => Bson::Document(entries),
+            });
+        };
     }
 }
 
@@ -222,31 +276,75 @@ fn number_to_bson(text: &str) -> Bson {
 /// Go's `unpack`: a BSON value as the `any` Go reads it. A document becomes a
 /// map and an array becomes a slice. Go does not unpack an array's elements,
 /// but Gorse's labels validation keeps arrays to strings and numbers, where
-/// that makes no difference, so the elements are unpacked here too.
+/// that makes no difference, so the elements are unpacked here too. The lists
+/// and documents being unpacked are kept on a stack, so a value nested at any
+/// depth is unpacked in full.
 fn labels_from_bson(value: &Bson) -> Result<Labels, Error> {
-    Ok(match value {
-        Bson::Null => Labels::Nil,
-        Bson::Boolean(value) => Labels::Bool(*value),
-        Bson::Double(value) => Labels::Float64(*value),
-        // Go keeps an int32 or int64 as it is. Its JSON text is the same as a
-        // `json.Number`'s, which is how Gorse's labels hold a number.
-        Bson::Int32(value) => Labels::Number(value.to_string()),
-        Bson::Int64(value) => Labels::Number(value.to_string()),
-        Bson::String(text) => Labels::String(text.clone()),
-        Bson::Array(values) => Labels::Array(
-            values
-                .iter()
-                .map(labels_from_bson)
-                .collect::<Result<_, Error>>()?,
+    /// A list or a document being unpacked, as in [`labels_to_bson`].
+    enum Open<'a> {
+        List(std::slice::Iter<'a, Bson>, Vec<Labels>),
+        Document(
+            std::vec::IntoIter<(&'a String, &'a Bson)>,
+            IndexMap<String, Labels>,
+            Option<&'a String>,
         ),
-        Bson::Document(entries) => Labels::Object(
-            entries
-                .iter()
-                .map(|(name, value)| Ok((name.clone(), labels_from_bson(value)?)))
-                .collect::<Result<_, Error>>()?,
-        ),
-        other => return Err(backend(UnsupportedLabel(other.element_type()))),
-    })
+    }
+    let mut open: Vec<Open<'_>> = Vec::new();
+    let mut child = value;
+    loop {
+        let mut finished = match child {
+            Bson::Null => Some(Labels::Nil),
+            Bson::Boolean(value) => Some(Labels::Bool(*value)),
+            Bson::Double(value) => Some(Labels::Float64(*value)),
+            // Go keeps an int32 or int64 as it is. Its JSON text is the same as a
+            // `json.Number`'s, which is how Gorse's labels hold a number.
+            Bson::Int32(value) => Some(Labels::Number(value.to_string())),
+            Bson::Int64(value) => Some(Labels::Number(value.to_string())),
+            Bson::String(text) => Some(Labels::String(text.clone())),
+            Bson::Array(values) => {
+                open.push(Open::List(values.iter(), Vec::with_capacity(values.len())));
+                None
+            }
+            Bson::Document(entries) => {
+                let children: Vec<_> = entries.iter().collect();
+                open.push(Open::Document(children.into_iter(), IndexMap::new(), None));
+                None
+            }
+            other => return Err(backend(UnsupportedLabel(other.element_type()))),
+        };
+        child = loop {
+            if let Some(value) = finished.take() {
+                match open.last_mut() {
+                    None => return Ok(value),
+                    Some(Open::List(_, values)) => values.push(value),
+                    Some(Open::Document(_, entries, name)) => {
+                        let name = name.take().expect("a document's child has its name");
+                        entries.insert(name.clone(), value);
+                    }
+                }
+            }
+            let frame = open
+                .last_mut()
+                .expect("a frame is open while its child unpacks");
+            match frame {
+                Open::List(children, _) => {
+                    if let Some(next) = children.next() {
+                        break next;
+                    }
+                }
+                Open::Document(children, _, name) => {
+                    if let Some((key, next)) = children.next() {
+                        *name = Some(key);
+                        break next;
+                    }
+                }
+            }
+            finished = Some(match open.pop().expect("the frame is open") {
+                Open::List(_, values) => Labels::Array(values),
+                Open::Document(_, entries, _) => Labels::Object(entries),
+            });
+        };
+    }
 }
 
 /// Reads a string field. A missing or null field is the zero value, as Go's
@@ -1341,6 +1439,7 @@ pub fn register(registry: &mut Registry) {
 #[cfg(test)]
 mod tests {
     use super::super::database_test::{self, Backend, TimeStamps};
+    use super::super::types::nested_labels;
     use super::*;
 
     impl Backend for MongoDB {
@@ -1431,6 +1530,43 @@ mod tests {
         );
         assert_eq!(mongo_search_column_to_field("item.Labels."), None);
         assert_eq!(mongo_search_column_to_field("user.UserId"), None);
+    }
+
+    #[test]
+    fn labels_nested_ten_thousand_levels_convert_both_ways() {
+        convert_labels_both_ways(10_000);
+    }
+
+    #[test]
+    fn labels_nested_one_hundred_thousand_levels_convert_both_ways() {
+        convert_labels_both_ways(100_000);
+    }
+
+    /// Converts labels nested `depth` levels to BSON and back, and compares the
+    /// text. The BSON is dropped by [`drop_bson_iteratively`].
+    fn convert_labels_both_ways(depth: usize) {
+        let (labels, text) = nested_labels(depth);
+        let bson = labels_to_bson(&labels);
+        let read = labels_from_bson(&bson).expect("unpack");
+        let written = String::from_utf8(gorse_common::jsonutil::marshal(&read).expect("marshal"))
+            .expect("utf-8");
+        assert!(written == text, "labels changed through BSON");
+        drop_bson_iteratively(bson);
+    }
+
+    /// Drops a BSON value without recursing. The `bson` crate drops nested
+    /// values recursively, which overflows the stack at these depths.
+    fn drop_bson_iteratively(value: Bson) {
+        let mut pending = vec![value];
+        while let Some(mut value) = pending.pop() {
+            match &mut value {
+                Bson::Array(values) => pending.append(values),
+                Bson::Document(entries) => {
+                    pending.extend(std::mem::take(entries).into_iter().map(|(_, value)| value));
+                }
+                _ => {}
+            }
+        }
     }
 
     #[test]

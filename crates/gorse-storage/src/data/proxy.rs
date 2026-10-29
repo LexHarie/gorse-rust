@@ -1543,7 +1543,30 @@ fn backend_encoding(err: serde_json::Error) -> Error {
 
 #[cfg(test)]
 mod tests {
+    use super::super::types::nested_labels;
     use super::*;
+
+    #[test]
+    fn labels_nested_ten_thousand_levels_round_trip_through_pb() {
+        labels_round_trip_through_pb(10_000);
+    }
+
+    #[test]
+    fn labels_nested_one_hundred_thousand_levels_round_trip_through_pb() {
+        labels_round_trip_through_pb(100_000);
+    }
+
+    /// Writes labels nested `depth` levels to the protobuf bytes and reads them
+    /// back. The bytes are the text Go writes, and the value reads back as it.
+    fn labels_round_trip_through_pb(depth: usize) {
+        let (labels, text) = nested_labels(depth);
+        let bytes = labels_to_pb(&labels).expect("marshal");
+        assert!(bytes == text.as_bytes(), "labels were written differently");
+        let read = labels_from_pb(&bytes).expect("unmarshal");
+        let again = String::from_utf8(gorse_common::jsonutil::marshal(&read).expect("marshal"))
+            .expect("utf-8");
+        assert!(again == text, "labels changed on the way back");
+    }
 
     #[test]
     fn zero_time_is_go_zero_time_on_the_wire() {
