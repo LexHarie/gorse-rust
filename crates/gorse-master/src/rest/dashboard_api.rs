@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::extract::{Path, State};
-use axum::http::{HeaderMap, Uri};
+use axum::http::{HeaderMap, StatusCode, Uri};
 use axum::middleware;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -20,7 +20,7 @@ use gorse_common::gotime::{self, Time};
 use gorse_common::monitor::Progress;
 use gorse_model::cf::model as cf;
 use gorse_model::ctr::model as ctr;
-use gorse_server::rest::response::{ApiError, PathParams, Query, ok, parse_int, path_param};
+use gorse_server::rest::response::{ApiError, PathParams, Query, ok, parse_int, path_param, plain};
 use gorse_storage::cache;
 use gorse_storage::data;
 use gorse_storage::data::types;
@@ -92,7 +92,13 @@ pub(crate) fn routes(master: Arc<Master>) -> Router {
         .route("/api/dashboard/external", get(recommend::external))
         .route("/api/dashboard/ranker/prompt", get(ranker::prompt))
         .route_layer(middleware::from_fn_with_state(master.clone(), login_filter))
+        .fallback(not_found)
         .with_state(master)
+}
+
+/// The answer go-restful gives a path that no route matches.
+async fn not_found() -> Response {
+    plain(StatusCode::NOT_FOUND, "404: Page Not Found".to_owned())
 }
 
 /// The query string of a request, parsed as Go's `url.ParseQuery` parses it.
@@ -458,6 +464,10 @@ pub(crate) async fn user(
     let user_id = path_param(&params, "user-id").to_owned();
     let user = match master.data().get_user(&ctx, &user_id).await {
         Ok(user) => user,
+        // Go's storage names the user in its not-found error.
+        Err(err) if err.kind() == Some(StorageError::NotFound) => {
+            return Err(ApiError::PageNotFound(format!("user {user_id} not found")));
+        }
         Err(err) => return Err(not_found_or_internal(&err)),
     };
     let detail = user_detail(&master, &ctx, user).await?;

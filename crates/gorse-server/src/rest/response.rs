@@ -14,7 +14,7 @@ use gorse_common::gotime;
 use gorse_common::gourl;
 use gorse_storage::data::types::{Labels, validate_labels};
 use serde::Serialize;
-use serde_json::ser::{Formatter, PrettyFormatter};
+use serde_json::ser::{CompactFormatter, Formatter, PrettyFormatter};
 
 /// The parsed query string of a request. Go's `QueryParameter` and
 /// `QueryParameters` read it through `url.Values`, which keeps every value of
@@ -196,6 +196,38 @@ pub fn go_json<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, serde_json::
     let mut serializer = serde_json::Serializer::with_formatter(&mut out, formatter);
     value.serialize(&mut serializer)?;
     Ok(escape_html(&out))
+}
+
+/// Encodes `value` as Go's `json.Encoder.Encode` writes a line of JSON: compact,
+/// with the floats written as `encoding/json` writes them and the `<`, `>` and
+/// `&` escapes. The newline after the value is the caller's.
+pub fn go_json_compact<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, serde_json::Error> {
+    let mut out = Vec::new();
+    let mut serializer = serde_json::Serializer::with_formatter(&mut out, GoCompactFormatter);
+    value.serialize(&mut serializer)?;
+    Ok(escape_html(&out))
+}
+
+/// serde_json's compact formatter, with the floats written as `encoding/json`
+/// writes them. A raw fragment is already compact, so it is written as it is.
+struct GoCompactFormatter;
+
+impl Formatter for GoCompactFormatter {
+    fn write_f32<W: ?Sized + io::Write>(&mut self, writer: &mut W, value: f32) -> io::Result<()> {
+        write_go_f32(writer, value)
+    }
+
+    fn write_f64<W: ?Sized + io::Write>(&mut self, writer: &mut W, value: f64) -> io::Result<()> {
+        write_go_f64(writer, value)
+    }
+
+    fn write_raw_fragment<W: ?Sized + io::Write>(
+        &mut self,
+        writer: &mut W,
+        fragment: &str,
+    ) -> io::Result<()> {
+        CompactFormatter.write_raw_fragment(writer, fragment)
+    }
 }
 
 /// serde_json's pretty printer, with the floats written as `encoding/json`
@@ -456,11 +488,7 @@ pub fn parse_duration(query: &Query, name: &str) -> Result<gotime::Duration, Api
 
 /// Go's `ReadCategories`: the `category` path parameter, else every non-empty
 /// `category` query value, else `defaults`.
-pub fn read_categories(
-    params: &PathParams,
-    query: &Query,
-    defaults: &[&str],
-) -> Vec<String> {
+pub fn read_categories(params: &PathParams, query: &Query, defaults: &[&str]) -> Vec<String> {
     let path_value = path_param(params, "category");
     if !path_value.is_empty() {
         return vec![path_value.to_owned()];

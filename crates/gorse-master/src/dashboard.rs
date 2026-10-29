@@ -11,7 +11,9 @@
 use axum::body::Body;
 use axum::http::{HeaderValue, Method, StatusCode, header};
 use axum::response::Response;
+use gorse_common::gotime::{self, RFC1123, Time};
 use rust_embed::RustEmbed;
+use std::sync::LazyLock;
 
 /// The vendored dashboard tree. The README and the manifest are not served.
 #[derive(RustEmbed)]
@@ -51,6 +53,11 @@ fn content_type(name: &str) -> &'static str {
     }
 }
 
+/// When the bundle was extracted for serving. Go serves each file from a copy
+/// that the master writes at start, so the file's modification time, which
+/// `Last-Modified` carries, is that moment.
+static EXTRACTED: LazyLock<Time> = LazyLock::new(gotime::now);
+
 /// Go's `SinglePageAppFileSystem.Open` followed by `http.FileServer`: the file
 /// at `path`, or `index.html` when no file has that name. A request for
 /// `.../index.html` is redirected to its directory, as `http.FileServer` does.
@@ -81,6 +88,9 @@ pub fn serve_file(method: &Method, path: &str) -> Response {
     );
     headers.insert(header::CONTENT_LENGTH, HeaderValue::from(len));
     headers.insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
+    if let Ok(value) = HeaderValue::from_str(&EXTRACTED.format(RFC1123)) {
+        headers.insert(header::LAST_MODIFIED, value);
+    }
     response
 }
 

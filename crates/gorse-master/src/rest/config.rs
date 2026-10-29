@@ -14,10 +14,11 @@ use axum::body::Bytes;
 use axum::extract::State;
 use axum::response::Response;
 use gorse_common::expression::FeedbackTypeExpression;
+use gorse_common::gojson::{self, Value as GoValue};
 use gorse_common::gotime::Duration;
 use gorse_config::config::schema::Config;
 use gorse_config::mapstructure::error_text;
-use gorse_config::value::Value as ConfigValue;
+use gorse_config::value::{Map as ConfigMap, Value as ConfigValue};
 use gorse_server::rest::response::{ApiError, ok};
 use gorse_storage::meta;
 use serde_json::{Map, Value};
@@ -103,18 +104,11 @@ fn format_duration(text: &str) -> String {
     text.to_owned()
 }
 
-/// The feedback type expression of the Go struct, which mapstructure writes as
-/// a map of its three exported fields.
+/// A feedback type expression is written as its text, as Go's `String` gives it
+/// (`read>=3`), which is how the config's JSON form carries it.
 impl ToConfigValue for FeedbackTypeExpression {
     fn to_config_value(&self) -> Value {
-        let mut map = Map::new();
-        map.insert(
-            "FeedbackType".to_owned(),
-            Value::String(self.feedback_type.clone()),
-        );
-        map.insert("ExprType".to_owned(), Value::from(self.expr_type as i64));
-        map.insert("Value".to_owned(), self.value.to_config_value());
-        Value::Object(map)
+        Value::String(self.to_string())
     }
 }
 
@@ -136,9 +130,7 @@ pub(crate) async fn post_config(
     State(master): State<Arc<Master>>,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    let posted: Value =
-        serde_json::from_slice(&body).map_err(|err| ApiError::BadRequest(err.to_string()))?;
-    let input = to_config_value(&posted);
+    let input = ConfigValue::Map(posted_map(&body)?);
     let mut new_config = Config::default();
     let mut errs = Vec::new();
     gorse_config::mapstructure::Decode::decode_value(&mut new_config, "", &input, &mut errs);
@@ -175,17 +167,39 @@ fn replace_recommend(master: &Master, recommend: gorse_config::config::schema::R
     master.replace_config(cfg);
 }
 
-/// Converts a JSON value into the form the mapstructure decoder reads, which
-/// is what `encoding/json` gives Go's `map[string]any`: numbers are `float64`.
-fn to_config_value(value: &Value) -> ConfigValue {
+/// Reads the posted body as go-restful's `ReadEntity` reads a `map[string]any`:
+/// a body with no value is `EOF`, and any other body is decoded by
+/// `encoding/json`, with its error texts. A `null` body is the nil map, which
+/// decodes to no change.
+fn posted_map(body: &[u8]) -> Result<ConfigMap, ApiError> {
+    if body
+        .iter()
+        .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
+    {
+        return Err(ApiError::BadRequest("EOF".to_owned()));
+    }
+    let members = gojson::unmarshal_map_any(body)
+        .map_err(|err| ApiError::BadRequest(err.to_string()))?
+        .unwrap_or_default();
+    Ok(members
+        .iter()
+        .fold(ConfigMap::new(), |mut map, (key, value)| {
+            map.insert(key.clone(), to_config_value(value));
+            map
+        }))
+}
+
+/// Converts a value `encoding/json` decodes into the form the mapstructure
+/// decoder reads: numbers are `float64`, and objects keep their names.
+fn to_config_value(value: &GoValue) -> ConfigValue {
     match value {
-        Value::Null => ConfigValue::Nil,
-        Value::Bool(b) => ConfigValue::Bool(*b),
-        Value::Number(n) => ConfigValue::Float64(n.as_f64().unwrap_or(0.0)),
-        Value::String(s) => ConfigValue::String(s.clone()),
-        Value::Array(items) => ConfigValue::Slice(items.iter().map(to_config_value).collect()),
-        Value::Object(fields) => ConfigValue::Map(fields.iter().fold(
-            gorse_config::value::Map::new(),
+        GoValue::Null => ConfigValue::Nil,
+        GoValue::Bool(b) => ConfigValue::Bool(*b),
+        GoValue::Number(n) => ConfigValue::Float64(*n),
+        GoValue::String(s) => ConfigValue::String(s.clone()),
+        GoValue::Array(items) => ConfigValue::Slice(items.iter().map(to_config_value).collect()),
+        GoValue::Object(fields) => ConfigValue::Map(fields.iter().fold(
+            ConfigMap::new(),
             |mut map, (key, value)| {
                 map.insert(key.clone(), to_config_value(value));
                 map
@@ -202,7 +216,7 @@ pub(crate) async fn delete_config(State(master): State<Arc<Master>>) -> Result<R
         .delete(meta::RECOMMEND_CONFIG)
         .await
         .map_err(ApiError::internal)?;
-    let file = gorse_config::config::load::load_config(&master.config_path())
+    let file = gorse_config::config::load::load_config(master.config_path())
         .map_err(ApiError::internal)?;
     replace_recommend(&master, file.recommend);
     master.cancel_task();

@@ -187,7 +187,6 @@ async fn write_dump(master: &Master) -> Result<(Vec<u8>, DumpStats), ApiError> {
                     timestamp: Some(time_to_pb(&record.timestamp)),
                     labels,
                     comment: record.comment,
-                    updated: Some(time_to_pb(&record.updated)),
                     ..Default::default()
                 },
             );

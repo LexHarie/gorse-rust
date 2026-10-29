@@ -30,9 +30,9 @@ use axum::Router;
 use axum::extract::{Request, State};
 use axum::http::{HeaderValue, StatusCode, Uri, header};
 use axum::middleware::Next;
-use axum::response::{IntoResponse, Response};
+use axum::response::Response;
 use axum::routing::{any, get};
-use gorse_server::rest::response::{ApiError, plain};
+use gorse_server::rest::response::plain;
 use tower::util::ServiceExt;
 
 use crate::Master;
@@ -156,7 +156,7 @@ pub(crate) async fn login_filter(
     } else if !request.uri().path().starts_with("/api/dashboard") {
         next.run(request).await
     } else {
-        ApiError::Status(StatusCode::UNAUTHORIZED, "unauthorized".to_owned()).into_response()
+        plain(StatusCode::UNAUTHORIZED, "unauthorized".to_owned())
     }
 }
 

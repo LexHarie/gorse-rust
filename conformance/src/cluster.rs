@@ -670,6 +670,11 @@ pub struct RustMaster {
 }
 
 impl RustMaster {
+    /// The master's REST router, which the REST test serves over HTTP.
+    pub fn router(&self) -> axum::Router {
+        gorse_master::rest::router(Arc::clone(&self.master))
+    }
+
     /// Shuts the master down and waits for its background tasks to end.
     pub async fn stop(self) {
         self.master.shutdown().await;

@@ -22,7 +22,7 @@ use gorse_common::gotime::Time;
 use gorse_common::util::validate_id;
 use gorse_server::rest::feedback::Feedback as ImportFeedback;
 use gorse_server::rest::items::Item as ImportItem;
-use gorse_server::rest::response::{ApiError, Query, escape_html, ok, plain};
+use gorse_server::rest::response::{ApiError, Query, go_json_compact, ok, plain};
 use gorse_server::rest::users::Success;
 use gorse_storage::data::types::{Feedback, FeedbackKey, Item, User};
 use gorse_storage::data::with_end_time;
@@ -54,8 +54,8 @@ fn jsonl_attachment(body: Vec<u8>, filename: &str) -> Response {
 fn json_lines<T: Serialize>(records: &[T]) -> Result<Vec<u8>, ApiError> {
     let mut out = Vec::new();
     for record in records {
-        let line = serde_json::to_vec(record).map_err(ApiError::internal)?;
-        out.extend(escape_html(&line));
+        let line = go_json_compact(record).map_err(ApiError::internal)?;
+        out.extend(line);
         out.push(b'\n');
     }
     Ok(out)

@@ -26,10 +26,10 @@ use crate::rest::dashboard_api::{not_found_or_internal, query_of};
 #[derive(Debug, Serialize)]
 pub(crate) struct RerankerPrompt {
     /// The rendered query (`Query`).
-    #[serde(rename = "Query")]
+    #[serde(rename = "query")]
     query: String,
     /// The rendered documents, one per latest item (`Documents`).
-    #[serde(rename = "Documents")]
+    #[serde(rename = "documents")]
     documents: Vec<String>,
 }
 

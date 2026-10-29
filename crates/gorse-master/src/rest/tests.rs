@@ -1625,8 +1625,8 @@ async fn get_ranker_prompt() {
     assert_eq!(
         reply.json(),
         json!({
-            "Query": format!("user=u1\nfeedback={}", feedback_ids.join(", ")),
-            "Documents": ["item=lt-3", "item=lt-2", "item=lt-1"],
+            "query": format!("user=u1\nfeedback={}", feedback_ids.join(", ")),
+            "documents": ["item=lt-3", "item=lt-2", "item=lt-1"],
         })
     );
     suite.close().await;

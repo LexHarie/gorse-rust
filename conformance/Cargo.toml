@@ -9,6 +9,8 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+# The mixed-master REST test serves the Rust master's router over HTTP (cluster.rs).
+axum.workspace = true
 gorse-common = { workspace = true }
 gorse-config = { workspace = true }
 gorse-logics = { workspace = true }
@@ -36,6 +38,8 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 [dev-dependencies]
+# The mixed-master REST test sends the ranker prompt's templates in base64 (tests/mixed_master_rest.rs).
+base64.workspace = true
 serde = { workspace = true }
 # The vector cross-read (tests/vector_cross_read.rs) drives the Rust vector stores
 # for all three backends.

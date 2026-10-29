@@ -69,7 +69,12 @@ pub(crate) async fn latest(
             ScoredItemView::new(item, score)
         })
         .collect();
-    ok(&scores)
+    // Go's `SetLastModified` reads the cache under a key made from the current
+    // time. No such key exists, so Go's header is the zero time, and the port
+    // makes the same read.
+    let key = format!("latest/{}", gotime::now().unix());
+    let header = last_modified(&master.rest, &key).await;
+    ok(&scores).map(|response| with_last_modified(response, header))
 }
 
 /// `GET /api/dashboard/non-personalized/{name}`: one non-personalized
@@ -341,7 +346,6 @@ pub(crate) async fn external(uri: Uri) -> Result<Response, ApiError> {
     let config = ExternalConfig {
         name: "preview".to_owned(),
         script: String::from_utf8_lossy(&script).into_owned(),
-        ..ExternalConfig::default()
     };
     // The script engine and its blocking HTTP client are built and run on a
     // blocking thread: a blocking client panics on an async worker thread.

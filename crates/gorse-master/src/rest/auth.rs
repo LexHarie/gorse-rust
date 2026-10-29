@@ -136,10 +136,10 @@ fn html_escape(text: &str) -> String {
 /// Go's redirect to the login page, or to the OIDC provider when OIDC is on
 /// (the `dashboard` handler's branch for a request that is not logged in).
 pub(crate) fn redirect_to_login(master: &Master, method: &Method) -> Response {
-    if master.config().oidc.enable {
-        if let Some(url) = master.oidc_auth_code_url() {
-            return redirect(method, &url, StatusCode::FOUND);
-        }
+    if master.config().oidc.enable
+        && let Some(url) = master.oidc_auth_code_url()
+    {
+        return redirect(method, &url, StatusCode::FOUND);
     }
     redirect(method, "/login", StatusCode::FOUND)
 }
