@@ -2991,8 +2991,23 @@ said otherwise), so the Rust result is Go's.
   other Redis tests, which run in parallel, and the Go generator seeds the cases from `time.Now()`, so the Rust side depends on
   the wall clock. Neither test was weakened. Both must be made independent of the run's timing and of each other before the
   Phase 4 exit gate (D-274).
+  On `21ca977` (WP-4-3 gate) `escape_characters` failed once in the TEST section (no documents, `redis.rs:1027`) and passed alone
+  10 of 10. Its Redis index is fresh in that run. The tied-scores flake in `cache::redis` shows the same engine behaviour
+  (RediSearch paged reads on fresh indexes), so the two are probably one cause. The owner has the probe scripts in
+  `/mnt/project-files/o87-evidence/` (D-275).
 
-- **O-75 The master must pass processed items to the logics (WP-3-5, open).** The Rust master's item and
+- **X-245 The SQLite data backend's bulk insert fails above 32,766 bind variables (WP-4-3 deviation 9, open).** A
+  12,000-row `batch_insert_items` fails in one call with "too many SQL variables". Go's `BatchInsertItems` accepted the same
+  12,000 items in one call (the court's probe, 0.5 s), so the Rust rejection is a parity defect in the storage crate. The
+  master's production code does not batch-insert, so WP-4-3 is not blocked. The server's import path may reach it. Fix before
+  the Phase 4 exit (D-275).
+
+- **O-88 The master does not set the dataset gauges (WP-4-3 deviation 1, open, low).** Go sets `UsersTotal`, `ItemsTotal`,
+  `ImplicitFeedbacksTotal`, the label, positive and negative totals, and the active and inactive counts in `master/tasks.go`
+  159 to 214. The Rust master keeps the metric names and label sets, which the brief requires, but does not set these
+  values. Owner: WP-4-4 or Phase 5 hardening (D-275).
+
+- **O-75 The master must pass processed items to the logics (WP-3-5; resolved, D-275).** The Rust master's item and
   user update tasks must build `DatasetItem` and `DatasetUser` from the processed dataset, not from storage
   items (D-WP35-2, D-233). That master code is not in WP-3-5. Open until the master WP merges.
 
