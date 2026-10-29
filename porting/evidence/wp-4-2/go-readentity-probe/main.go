@@ -6,9 +6,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	restful "github.com/emicklei/go-restful/v3"
 	"net/http/httptest"
 	"os"
-	restful "github.com/emicklei/go-restful/v3"
 	"probe/data"
 	"probe/server"
 )
@@ -18,13 +18,15 @@ type caseIn struct {
 	CT     string `json:"ct"`
 	Body   string `json:"body"`
 	Hex    string `json:"hex"`
+	CE     string `json:"ce"`
 }
 
 type caseOut struct {
-	Target string `json:"target"`
-	CT     string `json:"ct"`
-	Body   string `json:"body"`
-	Hex    string `json:"hex"`
+	Target string  `json:"target"`
+	CT     string  `json:"ct"`
+	Body   string  `json:"body"`
+	Hex    string  `json:"hex"`
+	CE     string  `json:"ce,omitempty"`
 	Err    *string `json:"err"`
 	Value  *string `json:"value"`
 }
@@ -85,8 +87,11 @@ func main() {
 		if in.CT != "<none>" {
 			httpReq.Header.Set("Content-Type", in.CT)
 		}
+		if in.CE != "" {
+			httpReq.Header.Set("Content-Encoding", in.CE)
+		}
 		v, err := decode(in.Target, restful.NewRequest(httpReq))
-		out := caseOut{Target: in.Target, CT: in.CT, Body: in.Body, Hex: in.Hex}
+		out := caseOut{Target: in.Target, CT: in.CT, Body: in.Body, Hex: in.Hex, CE: in.CE}
 		if err != nil {
 			s := err.Error()
 			out.Err = &s

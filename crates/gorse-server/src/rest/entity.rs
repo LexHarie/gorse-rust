@@ -13,9 +13,12 @@ use axum::body::Bytes;
 use axum::http::{HeaderMap, header};
 use gorse_common::gotime::{self, Time};
 use gorse_storage::data::types::{ItemPatch, Labels, User, UserPatch};
+use indexmap::IndexMap;
 
 use super::gojson::{Kind, Member, Node, is_blank, scan};
+use super::inflate::{Inflated, gzip, zlib};
 use super::response::ApiError;
+use super::xml::XmlEntity;
 
 /// The media type of a JSON body, which go-restful matches by containment.
 const JSON: &str = "application/json";
@@ -33,6 +36,10 @@ pub(crate) trait GoStruct: Default {
     /// The struct's fields in declaration order: the JSON name, which is the
     /// field's name, and the kind of value the field takes.
     const FIELDS: &'static [(&'static str, FieldKind)];
+    /// The fields an XML element may name, which `encoding/xml` matches with the
+    /// Go field names exactly. These are [`Self::FIELDS`] unless the Go struct
+    /// has a field that JSON skips.
+    const XML_FIELDS: &'static [(&'static str, FieldKind)] = Self::FIELDS;
 
     /// Sets the field called `name` to `value`. The pair always comes from
     /// `FIELDS`, so a pair the struct does not take is ignored.
@@ -121,20 +128,36 @@ impl<T: GoStruct> GoEntity for Vec<T> {
 ///
 /// # Errors
 ///
-/// Fails with the text go-restful and `encoding/json` give. A content type
-/// that is neither JSON nor XML is refused before the body is read. A body with
-/// no value is `EOF`. An XML body is not decoded: one with an element is refused
-/// here (X-WP42-17).
-pub(crate) fn read_entity<T: GoEntity>(headers: &HeaderMap, body: &Bytes) -> Result<T, ApiError> {
+/// Fails with the text go-restful and `encoding/json` give. A `gzip` or
+/// `deflate` body is inflated first, and a `deflate` body with a bad header
+/// fails before the content type is checked, as go-restful's `NewReader` fails.
+/// A content type that is neither JSON nor XML is refused before the body is
+/// read. A body with no value is `EOF`. An XML body is decoded as
+/// `encoding/xml` decodes it.
+pub(crate) fn read_entity<T: GoEntity + XmlEntity>(
+    headers: &HeaderMap,
+    body: &Bytes,
+) -> Result<T, ApiError> {
+    let body = match headers
+        .get(header::CONTENT_ENCODING)
+        .map(|value| value.as_bytes())
+    {
+        Some(b"gzip") => Decoded::from(gzip(body)),
+        Some(b"deflate") => Decoded::from(zlib(body).map_err(ApiError::BadRequest)?),
+        _ => Decoded {
+            bytes: body.to_vec(),
+            failure: None,
+        },
+    };
     let content_type = headers
         .get(header::CONTENT_TYPE)
         .map_or_else(String::new, |value| {
             String::from_utf8_lossy(value.as_bytes()).into_owned()
         });
     if content_type.contains(JSON) {
-        json_entity(body)
+        json_entity(&body)
     } else if content_type.contains(XML) {
-        xml_entity(body)
+        xml_entity(&body)
     } else {
         Err(ApiError::BadRequest(format!(
             "[ServiceError:400] Unable to unmarshal content of type:{content_type}"
@@ -142,25 +165,60 @@ pub(crate) fn read_entity<T: GoEntity>(headers: &HeaderMap, body: &Bytes) -> Res
     }
 }
 
-/// Decodes a JSON body: its first value, scanned and then decoded.
-fn json_entity<T: GoEntity>(body: &[u8]) -> Result<T, ApiError> {
-    if is_blank(body) {
-        return Err(ApiError::BadRequest("EOF".to_owned()));
-    }
-    let root = scan(body).map_err(ApiError::BadRequest)?;
-    T::decode(&root, body).map_err(ApiError::BadRequest)
+/// The bytes an entity reader sees: the body, or what a decompressor gave
+/// before it failed. Go's reader returns that failure once the decoder needs
+/// bytes past them.
+struct Decoded {
+    /// The bytes that came out.
+    bytes: Vec<u8>,
+    /// The reader's error after `bytes`, when a decompressor failed.
+    failure: Option<String>,
 }
 
-/// Refuses an XML body. Go's XML decoder reports a body with no element as
-/// `EOF`, which is what this gives for it.
-fn xml_entity<T>(body: &[u8]) -> Result<T, ApiError> {
-    if body.contains(&b'<') {
-        Err(ApiError::BadRequest(
-            "XML request bodies are not supported".to_owned(),
-        ))
-    } else {
-        Err(ApiError::BadRequest("EOF".to_owned()))
+impl From<Inflated> for Decoded {
+    fn from(inflated: Inflated) -> Self {
+        Decoded {
+            bytes: inflated.output,
+            failure: inflated.failure,
+        }
     }
+}
+
+impl Decoded {
+    /// The error for a read that needed more bytes than there are. The reader's
+    /// own error replaces the end-of-input text, as Go returns it.
+    fn ran_out(&self, text: String) -> String {
+        match &self.failure {
+            Some(failure) if text == "unexpected EOF" => failure.clone(),
+            _ => text,
+        }
+    }
+}
+
+/// Decodes a JSON body: its first value, scanned and then decoded.
+fn json_entity<T: GoEntity>(body: &Decoded) -> Result<T, ApiError> {
+    let bytes = &body.bytes;
+    if is_blank(bytes) {
+        return Err(ApiError::BadRequest(
+            body.failure.clone().unwrap_or_else(|| "EOF".to_owned()),
+        ));
+    }
+    let root = scan(bytes).map_err(|text| ApiError::BadRequest(body.ran_out(text)))?;
+    // A number or a literal ends only where the next byte is seen, so one that
+    // ends the bytes needs the reader's next read, which is its error.
+    if let Some(failure) = &body.failure {
+        let scalar = !matches!(root.kind, Kind::Array(_) | Kind::Object(_));
+        if scalar && root.span.end == bytes.len() {
+            return Err(ApiError::BadRequest(failure.clone()));
+        }
+    }
+    T::decode(&root, bytes).map_err(ApiError::BadRequest)
+}
+
+/// Decodes an XML body with `encoding/xml`'s decoder. A body with no element
+/// is `EOF`, or the reader's error when a decompressor failed.
+fn xml_entity<T: XmlEntity>(body: &Decoded) -> Result<T, ApiError> {
+    T::decode_body(&body.bytes, body.failure.as_deref()).map_err(ApiError::BadRequest)
 }
 
 /// Where a struct sits in the document. The names in its errors come from it.
@@ -241,7 +299,7 @@ fn assign(
         });
     }
     match (kind, &node.kind) {
-        (FieldKind::Labels, _) => labels(node, body).map(|value| Some(Assign::Labels(value))),
+        (FieldKind::Labels, _) => Ok(Some(Assign::Labels(labels(node, body)))),
         (FieldKind::String | FieldKind::OptString, Kind::String(text)) => {
             Ok(Some(Assign::String(text.clone())))
         }
@@ -287,17 +345,91 @@ fn strings(items: &[Node], place: &Place, path: &str) -> Result<Vec<String>, Str
         .collect()
 }
 
-/// The labels of a request: the value's bytes, decoded by the labels decoder.
-/// Go keeps the numbers of `any` as their text, and never refuses a value
-/// for its size or its numbers; the decoder here refuses a number past
-/// `float64` and nesting past its recursion limit (X-WP42-16).
-fn labels(node: &Node, body: &[u8]) -> Result<Labels, String> {
-    serde_json::from_slice(&body[node.span.clone()]).map_err(|err| err.to_string())
+/// The labels of a request, built from the scanned tree. Go decodes the value
+/// into an `any`, keeping each number as its `json.Number` text, and it does
+/// not refuse a value for its size or its nesting. The tree is walked with a
+/// stack, so a value nested to the scanner's limit is built in full.
+fn labels(root: &Node, body: &[u8]) -> Labels {
+    /// A container being built, and the child that comes next.
+    enum Open<'a> {
+        Array {
+            rest: std::slice::Iter<'a, Node>,
+            items: Vec<Labels>,
+        },
+        Object {
+            rest: std::slice::Iter<'a, Member>,
+            map: IndexMap<String, Labels>,
+            name: String,
+        },
+    }
+    let mut open: Vec<Open> = Vec::new();
+    let mut next = Some(root);
+    let mut done = None;
+    loop {
+        if let Some(node) = next.take() {
+            match &node.kind {
+                Kind::Array(items) => open.push(Open::Array {
+                    rest: items.iter(),
+                    items: Vec::new(),
+                }),
+                Kind::Object(members) => open.push(Open::Object {
+                    rest: members.iter(),
+                    map: IndexMap::new(),
+                    name: String::new(),
+                }),
+                _ => done = Some(scalar_label(node, body)),
+            }
+        }
+        if let Some(value) = done.take() {
+            match open.last_mut() {
+                None => return value,
+                Some(Open::Array { items, .. }) => items.push(value),
+                Some(Open::Object { map, name, .. }) => {
+                    map.insert(std::mem::take(name), value);
+                }
+            }
+        }
+        let finished = match open.last_mut() {
+            None => unreachable!("a value with no open container is returned above"),
+            Some(Open::Array { rest, items }) => match rest.next() {
+                Some(child) => {
+                    next = Some(child);
+                    None
+                }
+                None => Some(Labels::Array(std::mem::take(items))),
+            },
+            Some(Open::Object { rest, map, name }) => match rest.next() {
+                Some(member) => {
+                    name.clone_from(&member.name);
+                    next = Some(&member.value);
+                    None
+                }
+                None => Some(Labels::Object(std::mem::take(map))),
+            },
+        };
+        if let Some(value) = finished {
+            open.pop();
+            done = Some(value);
+        }
+    }
+}
+
+/// A label that is not a container: `null`, a `bool`, a string or a number.
+fn scalar_label(node: &Node, body: &[u8]) -> Labels {
+    match &node.kind {
+        Kind::Null => Labels::Nil,
+        Kind::Bool(flag) => Labels::Bool(*flag),
+        Kind::String(text) => Labels::String(text.clone()),
+        Kind::Number => {
+            Labels::Number(String::from_utf8_lossy(&body[node.span.clone()]).into_owned())
+        }
+        Kind::Array(_) | Kind::Object(_) => unreachable!("containers are opened, not read"),
+    }
 }
 
 /// A time string, read as `time.Time`'s `UnmarshalJSON` reads it: with
 /// `time.Parse` and the RFC 3339 layout. Its error text is Go's.
-fn rfc3339(text: &str) -> Result<Time, String> {
+pub(super) fn rfc3339(text: &str) -> Result<Time, String> {
     gotime::parse(gotime::RFC3339, text).map_err(|err| err.to_string())
 }
 
@@ -373,12 +505,20 @@ impl GoStruct for User {
         ("Labels", FieldKind::Labels),
         ("Comment", FieldKind::String),
     ];
+    /// `UpdateAt` is a `time.Time` that JSON skips, and XML does not.
+    const XML_FIELDS: &'static [(&'static str, FieldKind)] = &[
+        ("UserId", FieldKind::String),
+        ("Labels", FieldKind::Labels),
+        ("Comment", FieldKind::String),
+        ("UpdateAt", FieldKind::OptTime),
+    ];
 
     fn set(&mut self, name: &str, value: Assign) {
         match (name, value) {
             ("UserId", Assign::String(text)) => self.user_id = text,
             ("Labels", Assign::Labels(labels)) => self.labels = labels,
             ("Comment", Assign::String(text)) => self.comment = text,
+            ("UpdateAt", Assign::Time(time)) => self.update_at = time,
             _ => {}
         }
     }

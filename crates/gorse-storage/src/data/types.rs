@@ -162,37 +162,102 @@ pub enum LabelsError {
 /// - or nothing (`nil`).
 ///
 /// An empty list is valid. Booleans and `float64`s are not.
+///
+/// The check walks a stack instead of recursing, so a value nested to the
+/// decoder's limit is checked in full, as Go's check does.
 pub fn validate_labels(labels: &Labels) -> Result<(), LabelsError> {
-    match labels {
-        Labels::Nil => Ok(()),
-        Labels::Array(items) => {
-            let Some(first) = items.first() else {
-                return Ok(());
-            };
-            let all = match first {
-                Labels::String(_) => items.iter().all(|v| matches!(v, Labels::String(_))),
-                Labels::Number(_) => items.iter().all(|v| matches!(v, Labels::Number(_))),
-                _ => false,
-            };
-            if all {
-                Ok(())
-            } else {
-                Err(unsupported_labels(items))
+    let mut pending = vec![labels];
+    while let Some(labels) = pending.pop() {
+        match labels {
+            Labels::Nil | Labels::String(_) | Labels::Number(_) => {}
+            Labels::Array(items) => {
+                let Some(first) = items.first() else {
+                    continue;
+                };
+                let all = match first {
+                    Labels::String(_) => items.iter().all(|v| matches!(v, Labels::String(_))),
+                    Labels::Number(_) => items.iter().all(|v| matches!(v, Labels::Number(_))),
+                    _ => false,
+                };
+                if !all {
+                    return Err(unsupported_labels(items));
+                }
             }
+            // The values are pushed in reverse, so the first name is checked first.
+            Labels::Object(map) => pending.extend(map.values().rev()),
+            Labels::Bool(_) => return Err(LabelsError::UnsupportedType("bool")),
+            Labels::Float64(_) => return Err(LabelsError::UnsupportedType("float64")),
         }
-        Labels::Object(map) => map.values().try_for_each(validate_labels),
-        Labels::String(_) | Labels::Number(_) => Ok(()),
-        Labels::Bool(_) => Err(LabelsError::UnsupportedType("bool")),
-        Labels::Float64(_) => Err(LabelsError::UnsupportedType("float64")),
     }
+    Ok(())
 }
 
 /// The error for a list of labels that do not validate, with the list as JSON.
 fn unsupported_labels(items: &[Labels]) -> LabelsError {
-    // Go's jsonutil.MustMarshal panics here too. Labels hold no value JSON
-    // cannot write, so this does not happen for decoded labels.
-    let json = jsonutil::marshal(items).expect("labels marshal as JSON");
-    LabelsError::Unsupported(String::from_utf8_lossy(&json).into_owned())
+    LabelsError::Unsupported(labels_json(items))
+}
+
+/// The list of labels as `jsonutil.MustMarshal` writes it. The writer walks a
+/// stack instead of recursing, so a list nested to the decoder's limit is
+/// written in full.
+fn labels_json(items: &[Labels]) -> String {
+    /// One piece of the output, pushed in reverse so that it pops in order.
+    enum Step<'a> {
+        Value(&'a Labels),
+        Key(&'a str),
+        Text(&'static str),
+    }
+    let mut out = String::from("[");
+    let mut steps = vec![Step::Text("]")];
+    for (index, item) in items.iter().enumerate().rev() {
+        steps.push(Step::Value(item));
+        if index > 0 {
+            steps.push(Step::Text(","));
+        }
+    }
+    while let Some(step) = steps.pop() {
+        match step {
+            Step::Text(text) => out.push_str(text),
+            Step::Key(name) => {
+                out.push_str(&marshal_text(&jsonutil::marshal(name)));
+                out.push(':');
+            }
+            Step::Value(Labels::Array(items)) => {
+                out.push('[');
+                steps.push(Step::Text("]"));
+                for (index, item) in items.iter().enumerate().rev() {
+                    steps.push(Step::Value(item));
+                    if index > 0 {
+                        steps.push(Step::Text(","));
+                    }
+                }
+            }
+            Step::Value(Labels::Object(map)) => {
+                out.push('{');
+                steps.push(Step::Text("}"));
+                // encoding/json writes a map's names in sorted order.
+                let mut entries: Vec<(&String, &Labels)> = map.iter().collect();
+                entries.sort_by(|a, b| a.0.cmp(b.0));
+                for (index, &(name, item)) in entries.iter().enumerate().rev() {
+                    steps.push(Step::Value(item));
+                    steps.push(Step::Key(name));
+                    if index > 0 {
+                        steps.push(Step::Text(","));
+                    }
+                }
+            }
+            Step::Value(scalar) => out.push_str(&marshal_text(&jsonutil::marshal(scalar))),
+        }
+    }
+    out
+}
+
+/// The JSON bytes of a value that cannot nest, as text. A value that
+/// `jsonutil` cannot write is an error Go's `MustMarshal` panics on too, and
+/// the labels here are always writable.
+fn marshal_text(json: &Result<Vec<u8>, serde_json::Error>) -> String {
+    let json = json.as_ref().expect("labels marshal as JSON");
+    String::from_utf8_lossy(json).into_owned()
 }
 
 /// An item: `storage/data`'s `Item`.
@@ -334,6 +399,42 @@ mod tests {
     use gorse_common::gotime::{self, Month};
 
     use super::*;
+
+    #[test]
+    fn validate_labels_writes_a_deep_list_in_full() {
+        // A list nested past the serde limit is refused with its whole text,
+        // as Go refuses it, and the walk does not recurse on the way down.
+        let mut deep = Labels::Nil;
+        for _ in 0..300 {
+            deep = array(vec![deep]);
+        }
+        let text = format!("{}null{}", "[".repeat(300), "]".repeat(300));
+        assert_eq!(validate_labels(&deep), Err(LabelsError::Unsupported(text)));
+    }
+
+    #[test]
+    fn validate_labels_accepts_a_deep_map() {
+        let mut deep = string("leaf");
+        for _ in 0..300 {
+            deep = object(vec![("next", deep)]);
+        }
+        assert_eq!(validate_labels(&deep), Ok(()));
+    }
+
+    #[test]
+    fn labels_json_writes_names_sorted_and_escaped() {
+        let value = array(vec![object(vec![
+            ("b", number("2.50")),
+            ("a", string("<&>")),
+        ])]);
+        assert_eq!(
+            validate_labels(&value),
+            // Go's json.Marshal escapes <, > and & (checked with Go 1.27.0).
+            Err(LabelsError::Unsupported(
+                r#"[{"a":"\u003c\u0026\u003e","b":2.50}]"#.to_owned()
+            ))
+        );
+    }
 
     fn number(text: &str) -> Labels {
         Labels::Number(text.to_owned())

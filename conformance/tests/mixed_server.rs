@@ -14,9 +14,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
+use std::io::Write as _;
 use std::sync::Arc;
 use std::time::Duration;
 
+use flate2::Compression;
+use flate2::write::{GzEncoder, ZlibEncoder};
 use gorse_common::gocontext::Context;
 use gorse_common::gotime;
 use gorse_conformance::cluster::{Cluster, Edit, GoBuild};
@@ -101,10 +104,13 @@ struct Case {
     method: Method,
     /// The path and the query, with the values filled in.
     path: &'static str,
-    body: Option<&'static str>,
+    /// The body as sent, which is the text or the compressed bytes.
+    body: Option<Vec<u8>>,
     /// The `Content-Type` header, when the request has one. A request with a body
     /// has the JSON type unless a case says otherwise.
     content_type: Option<&'static str>,
+    /// The `Content-Encoding` header, when the body is compressed.
+    content_encoding: Option<&'static str>,
 }
 
 /// The parts of a reply the comparison reads.
@@ -501,6 +507,170 @@ fn cases() -> Vec<Case> {
             "/api/items",
             Some(r#"[{"ItemId":"item-x","Categories":[1]}]"#),
         ),
+        // Bodies in XML, gzip and deflate, and labels with numbers that a float64
+        // cannot hold. Both clusters decode each body with the same reader, so the
+        // replies match, error texts included. The reads after the writes show what
+        // was stored.
+        Case {
+            content_type: Some("application/xml"),
+            ..request(
+                "POST /api/user",
+                Method::POST,
+                "/api/user",
+                Some(
+                    "<User><UserId>xml-user</UserId><Labels><a>x</a></Labels><Comment>from xml &amp; more</Comment></User>",
+                ),
+            )
+        },
+        Case {
+            content_type: Some("application/xml"),
+            ..request(
+                "POST /api/user",
+                Method::POST,
+                "/api/user",
+                Some("<User><UserId>xml-user-2</UserId>"),
+            )
+        },
+        Case {
+            content_type: Some("application/xml"),
+            ..request(
+                "POST /api/user",
+                Method::POST,
+                "/api/user",
+                Some("<User><UserId>a&bogus;</UserId></User>"),
+            )
+        },
+        Case {
+            content_type: Some("application/xml"),
+            ..request(
+                "POST /api/users",
+                Method::POST,
+                "/api/users",
+                Some("<Users><UserId>xml-user-3</UserId><Comment>three</Comment></Users>"),
+            )
+        },
+        Case {
+            content_type: Some("application/xml"),
+            ..request(
+                "POST /api/items",
+                Method::POST,
+                "/api/items",
+                Some(
+                    "<Items><ItemId>item-xml</ItemId><IsHidden>true</IsHidden><Categories>1</Categories><Timestamp>2023-11-14T22:13:20Z</Timestamp><Comment>xml item</Comment></Items>",
+                ),
+            )
+        },
+        Case {
+            content_type: Some("application/xml"),
+            ..request(
+                "PATCH /api/user/{user-id}",
+                Method::PATCH,
+                "/api/user/xml-user",
+                Some(
+                    "<?xml version=\"1.0\"?><!-- c --><P><Comment><![CDATA[raw <x>]]></Comment></P>",
+                ),
+            )
+        },
+        Case {
+            content_type: Some("application/xml"),
+            ..request(
+                "PATCH /api/item/{item-id}",
+                Method::PATCH,
+                "/api/item/item-xml",
+                Some("<P><IsHidden>maybe</IsHidden></P>"),
+            )
+        },
+        Case {
+            content_type: Some("application/xml"),
+            ..request(
+                "POST /api/feedback",
+                Method::POST,
+                "/api/feedback",
+                Some(
+                    "<F><FeedbackType>like</FeedbackType><UserId>user-2</UserId><ItemId>item-3</ItemId><Value>2.5</Value><Timestamp>2023-11-14T22:13:20Z</Timestamp></F>",
+                ),
+            )
+        },
+        encoded(
+            "POST /api/user",
+            Method::POST,
+            "/api/user",
+            gzip_body(r#"{"UserId":"gz-user","Labels":[1e400,2.50,1E+2],"Comment":"gz"}"#),
+            "application/json",
+            "gzip",
+        ),
+        encoded(
+            "POST /api/user",
+            Method::POST,
+            "/api/user",
+            zlib_body(r#"{"UserId":"zlib-user","Labels":["z"],"Comment":"zlib"}"#),
+            "application/json",
+            "deflate",
+        ),
+        encoded(
+            "POST /api/user",
+            Method::POST,
+            "/api/user",
+            b"not gzip at all".to_vec(),
+            "application/json",
+            "gzip",
+        ),
+        encoded(
+            "POST /api/feedback",
+            Method::POST,
+            "/api/feedback",
+            zlib_body(r#"[{"FeedbackType":"like","UserId":"user-3","ItemId":"item-4","Value":1}]"#),
+            "application/json",
+            "deflate",
+        ),
+        request(
+            "POST /api/items",
+            Method::POST,
+            "/api/items",
+            Some(r#"[{"ItemId":"item-num","Labels":[1e400,2.50,1E+2]}]"#),
+        ),
+        request(
+            "GET /api/user/{user-id}",
+            Method::GET,
+            "/api/user/xml-user",
+            None,
+        ),
+        request(
+            "GET /api/user/{user-id}",
+            Method::GET,
+            "/api/user/gz-user",
+            None,
+        ),
+        request(
+            "GET /api/user/{user-id}",
+            Method::GET,
+            "/api/user/zlib-user",
+            None,
+        ),
+        request(
+            "GET /api/item/{item-id}",
+            Method::GET,
+            "/api/item/item-xml",
+            None,
+        ),
+        request(
+            "GET /api/item/{item-id}",
+            Method::GET,
+            "/api/item/item-num",
+            None,
+        ),
+        request(
+            "POST /api/items",
+            Method::POST,
+            "/api/items",
+            Some(r#"[{"ItemId":"item-num2","Labels":[2.50,1E+2]}]"#),
+        ),
+        request(
+            "GET /api/item/{item-id}",
+            Method::GET,
+            "/api/item/item-num2",
+            None,
+        ),
     ]
 }
 
@@ -515,9 +685,48 @@ fn request(
         route,
         method,
         path,
-        body,
         content_type: body.map(|_| "application/json"),
+        body: body.map(|text| text.as_bytes().to_vec()),
+        content_encoding: None,
     }
+}
+
+/// A case for `route` whose body is `body` as it is sent, with the content type
+/// and the encoding the request carries.
+fn encoded(
+    route: &'static str,
+    method: Method,
+    path: &'static str,
+    body: Vec<u8>,
+    content_type: &'static str,
+    content_encoding: &'static str,
+) -> Case {
+    Case {
+        route,
+        method,
+        path,
+        body: Some(body),
+        content_type: Some(content_type),
+        content_encoding: Some(content_encoding),
+    }
+}
+
+/// The gzip stream of `text`, as a client sends a `Content-Encoding: gzip` body.
+fn gzip_body(text: &str) -> Vec<u8> {
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+    encoder
+        .write_all(text.as_bytes())
+        .expect("compress the body");
+    encoder.finish().expect("finish the stream")
+}
+
+/// The zlib stream of `text`, as a client sends a `Content-Encoding: deflate` body.
+fn zlib_body(text: &str) -> Vec<u8> {
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    encoder
+        .write_all(text.as_bytes())
+        .expect("compress the body");
+    encoder.finish().expect("finish the stream")
 }
 
 /// The rows both clusters start from. The timestamps are fixed, so the latest
@@ -696,11 +905,14 @@ impl Side {
 async fn send(client: &Client, port: u16, case: &Case) -> Reply {
     let url = format!("http://127.0.0.1:{port}{}", case.path);
     let mut request = client.request(case.method.clone(), url);
-    if let Some(body) = case.body {
-        request = request.body(body);
+    if let Some(body) = &case.body {
+        request = request.body(body.clone());
     }
     if let Some(content_type) = case.content_type {
         request = request.header("Content-Type", content_type);
+    }
+    if let Some(content_encoding) = case.content_encoding {
+        request = request.header("Content-Encoding", content_encoding);
     }
     let response = request.send().await.expect("send the request");
     let status = response.status().as_u16();

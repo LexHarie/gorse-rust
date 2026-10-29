@@ -13,6 +13,8 @@
 
 use std::ops::Range;
 
+use super::printable::is_print;
+
 /// Go's `maxNestingDepth`: how many arrays and objects a value may nest.
 const MAX_DEPTH: usize = 10_000;
 
@@ -538,29 +540,6 @@ fn quote_rune(c: char) -> String {
         c => format!("\\U{:08x}", u32::from(c)),
     };
     format!("'{body}'")
-}
-
-/// Whether Go's `unicode.IsPrint` takes `c`, for a character past ASCII. This
-/// covers the classes that show up in request bodies: white space, format
-/// characters, private use and the noncharacters at the top of the planes.
-/// Unassigned code points are not checked, so a few of them quote differently
-/// from Go.
-fn is_print(c: char) -> bool {
-    !(c.is_whitespace()
-        || c.is_control()
-        || matches!(
-            c,
-            '\u{ad}'
-                | '\u{61c}'
-                | '\u{180e}'
-                | '\u{200b}'..='\u{200f}'
-                | '\u{202a}'..='\u{202e}'
-                | '\u{2060}'..='\u{206f}'
-                | '\u{feff}'
-                | '\u{fff9}'..='\u{fffb}'
-                | '\u{e000}'..='\u{f8ff}'
-                | '\u{f0000}'..
-        ))
 }
 
 /// The character that begins `bytes`, or `None` when the bytes do not begin

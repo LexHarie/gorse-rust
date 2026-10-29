@@ -11,11 +11,15 @@ mod embedding;
 mod entity;
 mod feedback;
 mod gojson;
+mod inflate;
 mod items;
+mod printable;
 mod quota;
 mod recommend;
 mod response;
 mod users;
+mod xml;
+mod xmlname;
 
 #[cfg(test)]
 mod tests;
@@ -28,7 +32,7 @@ use axum::Router;
 use axum::body::Body;
 use axum::extract::{MatchedPath, Request, State};
 use axum::http::uri::PathAndQuery;
-use axum::http::{HeaderValue, StatusCode, Uri};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, Uri, header};
 use axum::middleware::{self, Next};
 use axum::response::Response;
 use axum::routing::{get, patch, post, put};
@@ -38,6 +42,7 @@ use gorse_common::gotime;
 use gorse_config::config::schema::Config;
 use gorse_storage::cache;
 use gorse_storage::data;
+use gorse_storage::data::types::{ItemPatch, User, UserPatch};
 use gorse_storage::vectors;
 use http_body_util::BodyExt;
 use serde::Serialize;
@@ -482,4 +487,59 @@ async fn health_ready(State(rest): State<Arc<RestServer>>) -> Result<Response, A
     let reason = go_json(&status).map_err(ApiError::internal)?;
     let reason = String::from_utf8_lossy(&reason).into_owned();
     Err(ApiError::Status(StatusCode::SERVICE_UNAVAILABLE, reason))
+}
+
+/// The request body of the route `target`, decoded as the route reads it, and
+/// printed as Go's `json.Marshal` prints the decoded value. The error is the
+/// text Go gives. For the conformance tests, which check it against Go's
+/// `ReadEntity` (`porting/evidence/wp-4-2/go-readentity-probe`).
+///
+/// `content_type` and `content_encoding` are empty when the request has no such
+/// header.
+#[doc(hidden)]
+pub fn decode_body_json(
+    target: &str,
+    content_type: &str,
+    content_encoding: &str,
+    body: &[u8],
+) -> Result<String, String> {
+    let mut headers = HeaderMap::new();
+    if !content_type.is_empty() {
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_str(content_type).map_err(|err| err.to_string())?,
+        );
+    }
+    if !content_encoding.is_empty() {
+        headers.insert(
+            header::CONTENT_ENCODING,
+            HeaderValue::from_str(content_encoding).map_err(|err| err.to_string())?,
+        );
+    }
+    let body = axum::body::Bytes::copy_from_slice(body);
+    match target {
+        "user" => printed(entity::read_entity::<User>(&headers, &body)),
+        "users" => printed(entity::read_entity::<Vec<User>>(&headers, &body)),
+        "user-patch" => printed(entity::read_entity::<UserPatch>(&headers, &body)),
+        "item" => printed(entity::read_entity::<items::Item>(&headers, &body)),
+        "items" => printed(entity::read_entity::<Vec<items::Item>>(&headers, &body)),
+        "item-patch" => printed(entity::read_entity::<ItemPatch>(&headers, &body)),
+        "feedback" => printed(entity::read_entity::<Vec<feedback::Feedback>>(
+            &headers, &body,
+        )),
+        other => Err(format!("no route reads {other}")),
+    }
+}
+
+/// The decoded value as `json.Marshal` writes it, or the decoder's error. A value
+/// that decodes but cannot be written is `MARSHAL ERROR`, as the probe prints it.
+fn printed<T: serde::Serialize>(result: Result<T, ApiError>) -> Result<String, String> {
+    match result {
+        Ok(value) => Ok(match gorse_common::jsonutil::marshal(&value) {
+            Ok(json) => String::from_utf8_lossy(&json).into_owned(),
+            Err(_) => "MARSHAL ERROR".to_owned(),
+        }),
+        Err(ApiError::BadRequest(text)) => Err(text),
+        Err(_) => Err("a decode error is a bad request".to_owned()),
+    }
 }
