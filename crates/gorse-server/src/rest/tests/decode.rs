@@ -1,7 +1,7 @@
 // Ports: encoding/json as go-restful v3.13.0's ReadEntity runs it (no Go test;
 // the expectations are Go 1.27.0's) @ add21b5
 
-//! Request bodies decode the way Go decodes them. `go_decode.jsonl` holds 258
+//! Request bodies decode the way Go decodes them. `go_decode.jsonl` holds 256
 //! bodies, each with the text Go's `ReadEntity` gave for it, or the value it
 //! decoded to, from a probe that called `ReadEntity` on the Go type of each
 //! route. Every row is checked here against [`read_entity`]. The rows are the
