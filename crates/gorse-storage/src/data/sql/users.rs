@@ -5,7 +5,7 @@
 //! [`super::items`] and [`super::time`].
 
 use gorse_common::gocontext::Context;
-use gorse_common::gotime;
+use gorse_common::gotime::{self, Time};
 use gorse_common::jsonutil;
 use sqlx::{ColumnIndex, Decode, Row, Type};
 
@@ -14,7 +14,7 @@ use super::super::types::{Labels, User, UserPatch};
 use super::items::{
     decode_cursor, encode_cursor, json_column, json_text, unmarshal_labels, upsert_clause,
 };
-use super::query::{self, Driver};
+use super::query::{self, Driver, Sql};
 use super::{Pools, SqlDatabase, time};
 
 /// The SQL that selects the columns of a user, in the order [`user_from_row`]
@@ -54,23 +54,32 @@ impl SqlDatabase {
         if users.is_empty() {
             return Ok(());
         }
-        let driver = self.driver();
         let now = gotime::now().utc();
         let mut seen = std::collections::HashSet::new();
+        let rows: Vec<&User> = users
+            .iter()
+            .filter(|user| seen.insert(user.user_id.as_str()))
+            .collect();
+        for batch in rows.chunks(query::CREATE_BATCH_SIZE) {
+            query::check(ctx)?;
+            let sql = self.user_insert(batch, &now)?;
+            self.exec(&sql).await?;
+        }
+        Ok(())
+    }
+
+    /// The `INSERT` of one batch of users, with the upsert clause.
+    fn user_insert(&self, users: &[&User], now: &Time) -> Result<Sql, Error> {
+        let driver = self.driver();
         let mut sql = self.sql();
         sql.push(&format!(
             "INSERT INTO {} (user_id, labels, comment, update_at) VALUES ",
             self.users_table()
         ));
-        let mut first = true;
-        for user in users {
-            if !seen.insert(user.user_id.as_str()) {
-                continue;
-            }
-            if !first {
+        for (i, user) in users.iter().enumerate() {
+            if i > 0 {
                 sql.push(", ");
             }
-            first = false;
             let labels = jsonutil::marshal(&user.labels)
                 .map_err(|err| Error::Backend(std::sync::Arc::new(err)))?;
             sql.push("(")
@@ -80,20 +89,16 @@ impl SqlDatabase {
                 .cast("json");
             sql.push(", ").bind(user.comment.as_str());
             sql.push(", ")
-                .bind(time::format(driver, &now))
+                .bind(time::format(driver, now))
                 .cast("timestamptz");
             sql.push(")");
-        }
-        if first {
-            return Ok(());
         }
         sql.push(&upsert_clause(
             driver,
             "user_id",
             &["labels", "comment", "update_at"],
         ));
-        self.exec(&sql).await?;
-        Ok(())
+        Ok(sql)
     }
 
     /// Go's `DeleteUser`: deletes the user, then the feedback from that user.

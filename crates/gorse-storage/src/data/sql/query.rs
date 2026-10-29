@@ -88,6 +88,11 @@ impl From<Option<String>> for Bind {
     }
 }
 
+/// GORM's `CreateBatchSize` in `storage.NewGORMConfig`: the rows of one
+/// `INSERT` in a batch write. GORM writes a batch in statements of this many
+/// rows, each on its own, with no transaction around them (X-245).
+pub(super) const CREATE_BATCH_SIZE: usize = 1_000;
+
 /// A statement under construction: its text and the values it binds, in the
 /// order their placeholders appear.
 #[derive(Debug, Clone)]
