@@ -911,8 +911,8 @@ async fn empty_cluster_matches_go() {
     );
 }
 
-/// Logs in to the master at `base` and asks for its cluster.
-async fn empty_cluster(base: &str) -> Vec<(&'static str, Reply)> {
+/// Logs in to the master at `base`, and asks it for `path` with the cookie.
+async fn ask_logged_in(base: &str, path: &str) -> Reply {
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .build()
@@ -927,16 +927,54 @@ async fn empty_cluster(base: &str) -> Vec<(&'static str, Reply)> {
     )
     .await;
     let cookie = login.cookie.clone();
-    let cluster = send(
-        &client,
-        base,
-        Some(&cookie),
-        Method::GET,
-        "/api/dashboard/cluster",
-        None,
-    )
-    .await;
+    send(&client, base, Some(&cookie), Method::GET, path, None).await
+}
+
+/// Asks a master with no node registered for its cluster.
+async fn empty_cluster(base: &str) -> Vec<(&'static str, Reply)> {
+    let cluster = ask_logged_in(base, "/api/dashboard/cluster").await;
     assert_eq!(cluster.status, 200, "{base} answers the cluster route");
     assert_eq!(cluster.text(), "null", "{base} lists no node");
     vec![("empty cluster", cluster)]
+}
+
+/// A script that returns the string `null` gives an external recommender with no
+/// items. The preview route answers Go's nil list as `null`.
+#[tokio::test]
+async fn null_external_matches_go() {
+    let build = GoBuild::shared().expect("the Go nodes build");
+    let script = base64::engine::general_purpose::STANDARD.encode("'null'");
+    let path = format!(
+        "/api/dashboard/external?script={}&user-id=user-0",
+        query_escape(&script)
+    );
+
+    let mut go = Cluster::new(build, &EDITS).expect("a Go run");
+    go.start_master().await.expect("the Go master starts");
+    let go_reply =
+        ask_logged_in(&format!("http://127.0.0.1:{}", go.ports.master_http), &path).await;
+    go.stop();
+
+    let mut rust = Cluster::new(build, &EDITS).expect("a Rust run");
+    let master = rust
+        .start_rust_master()
+        .await
+        .expect("the Rust master starts");
+    let (port, server) = serve(master.router()).await;
+    let rust_reply = ask_logged_in(&format!("http://127.0.0.1:{port}"), &path).await;
+    server.abort();
+    master.stop().await;
+
+    // The answer must be Go's `null`, not an error that both masters share.
+    assert_eq!(
+        (go_reply.status, go_reply.text()),
+        (200, "null".to_owned()),
+        "Go answers the null list"
+    );
+    let found = differences("external", &go_reply, &rust_reply);
+    assert!(
+        found.is_empty(),
+        "the Go and Rust masters answer differently:\n{}",
+        found.join("\n")
+    );
 }

@@ -15,6 +15,7 @@
 package monitor
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -143,4 +144,14 @@ func TestProgress(t *testing.T) {
 		assert.Equal(t, 7, progress.Count)
 		assert.Equal(t, 10, progress.Total)
 	})
+}
+
+// A fresh tracer has no span, so its list is nil, and Go's master answers its
+// task list with `null`. The Rust tasks route is checked against this answer.
+func TestEmptyListMarshalsAsNull(t *testing.T) {
+	progress := NewTracer("master").List()
+	assert.Nil(t, progress)
+	body, err := json.MarshalIndent(progress, "", " ")
+	assert.NoError(t, err)
+	assert.Equal(t, "null", string(body))
 }
