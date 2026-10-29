@@ -29,6 +29,7 @@ use serde_json::{Value, json};
 use tower::ServiceExt as _;
 
 use crate::Master;
+use crate::rest::bulk::BATCH_SIZE;
 use crate::rest::config_map::config_map;
 use crate::rest::router;
 use crate::test_support::{close_stores, new_master, open_stores};
@@ -1540,5 +1541,249 @@ async fn config() {
         .await
         .expect("read the config");
     assert!(value.is_none());
+    suite.close().await;
+}
+
+#[tokio::test]
+async fn get_ranker_prompt() {
+    use base64::Engine as _;
+    let suite = Suite::new().await;
+    let ctx = Context::background();
+    suite
+        .master
+        .data()
+        .batch_insert_users(
+            &ctx,
+            &[User {
+                user_id: "u1".to_owned(),
+                ..Default::default()
+            }],
+        )
+        .await
+        .expect("insert the user");
+    // The feedback items are hidden, as the Go test makes them.
+    let feedback_items: Vec<Item> = (0..12)
+        .map(|i| Item {
+            item_id: format!("fb-{i:02}"),
+            is_hidden: true,
+            timestamp: utc(year_start(2020) + i, 0),
+            ..Default::default()
+        })
+        .collect();
+    let feedback: Vec<Feedback> = (0..12)
+        .map(|i| Feedback {
+            feedback_key: FeedbackKey {
+                feedback_type: "click".to_owned(),
+                user_id: "u1".to_owned(),
+                item_id: format!("fb-{i:02}"),
+            },
+            timestamp: utc(year_start(2021) + i, 0),
+            ..Default::default()
+        })
+        .collect();
+    suite
+        .master
+        .data()
+        .batch_insert_items(&ctx, &feedback_items)
+        .await
+        .expect("insert the feedback items");
+    suite
+        .master
+        .data()
+        .batch_insert_feedback(&ctx, &feedback, true, true, true)
+        .await
+        .expect("insert the feedback");
+    let latest: Vec<Item> = (1..=3)
+        .map(|i| Item {
+            item_id: format!("lt-{i}"),
+            is_hidden: false,
+            timestamp: utc(year_start(2024) + i, 0),
+            ..Default::default()
+        })
+        .collect();
+    suite
+        .master
+        .data()
+        .batch_insert_items(&ctx, &latest)
+        .await
+        .expect("insert the latest items");
+
+    // The templates arrive as base64 text, as the dashboard sends them.
+    let query_template = "user={{ user.UserId }}\nfeedback={% for f in feedback %}{{ f.Item.ItemId }}{% if not loop.last %}, {% endif %}{% endfor %}";
+    let document_template = "item={{ item.ItemId }}";
+    let encode = |text: &str| query_escape(base64::engine::general_purpose::STANDARD.encode(text));
+    let reply = suite
+        .get(&format!(
+            "/api/dashboard/ranker/prompt?query-template={}&document-template={}&user-id=u1",
+            encode(query_template),
+            encode(document_template)
+        ))
+        .await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.text());
+    // The ten latest feedback items, newest first: fb-11 to fb-02.
+    let feedback_ids: Vec<String> = (2..=11).rev().map(|i| format!("fb-{i:02}")).collect();
+    assert_eq!(
+        reply.json(),
+        json!({
+            "Query": format!("user=u1\nfeedback={}", feedback_ids.join(", ")),
+            "Documents": ["item=lt-3", "item=lt-2", "item=lt-1"],
+        })
+    );
+    suite.close().await;
+}
+
+/// Inserts one more record than a batch holds, so the batch boundary is crossed,
+/// and returns them. Each record's id is its index, five digits wide, and its
+/// labels are the odd and even numbers of that index.
+async fn seeded_records(
+    suite: &Suite,
+    feedback_value: f64,
+) -> (Vec<User>, Vec<Item>, Vec<Feedback>) {
+    let ctx = Context::background();
+    let users: Vec<User> = (0..BATCH_SIZE + 1)
+        .map(|i| User {
+            user_id: format!("{i:05}"),
+            labels: labels(
+                &json!({"a": (2 * i + 1).to_string(), "b": (2 * i + 2).to_string()}).to_string(),
+            ),
+            ..Default::default()
+        })
+        .collect();
+    let items: Vec<Item> = (0..BATCH_SIZE + 1)
+        .map(|i| Item {
+            item_id: format!("{i:05}"),
+            labels: labels(
+                &json!({"a": (2 * i + 1).to_string(), "b": (2 * i + 2).to_string()}).to_string(),
+            ),
+            ..Default::default()
+        })
+        .collect();
+    let feedback: Vec<Feedback> = (0..BATCH_SIZE + 1)
+        .map(|i| Feedback {
+            feedback_key: FeedbackKey {
+                feedback_type: "click".to_owned(),
+                user_id: format!("{i:05}"),
+                item_id: format!("{i:05}"),
+            },
+            value: feedback_value,
+            ..Default::default()
+        })
+        .collect();
+    let data = suite.master.data();
+    data.batch_insert_users(&ctx, &users)
+        .await
+        .expect("insert users");
+    data.batch_insert_items(&ctx, &items)
+        .await
+        .expect("insert items");
+    data.batch_insert_feedback(&ctx, &feedback, true, true, true)
+        .await
+        .expect("insert feedback");
+    (users, items, feedback)
+}
+
+/// Checks the records the store holds against the ones the test wrote. The store
+/// sets the update time of each user and item: it is checked to be set, then
+/// cleared before the comparison, as the Go test does.
+async fn check_records(suite: &Suite, users: Vec<User>, items: Vec<Item>, feedback: Vec<Feedback>) {
+    let ctx = Context::background();
+    let data = suite.master.data();
+    let (_, mut returned_users) = data
+        .get_users(&ctx, "", users.len() as i64)
+        .await
+        .expect("the users");
+    assert_eq!(returned_users.len(), users.len());
+    for user in &mut returned_users {
+        assert_ne!(user.update_at, gorse_common::gotime::Time::default());
+        user.update_at = gorse_common::gotime::Time::default();
+    }
+    assert_eq!(returned_users, users);
+
+    let (_, mut returned_items) = data
+        .get_items(&ctx, "", items.len() as i64, None)
+        .await
+        .expect("the items");
+    assert_eq!(returned_items.len(), items.len());
+    for item in &mut returned_items {
+        assert_ne!(item.update_at, gorse_common::gotime::Time::default());
+        item.update_at = gorse_common::gotime::Time::default();
+    }
+    assert_eq!(returned_items, items);
+
+    let (_, returned_feedback) = data
+        .get_feedback(
+            &ctx,
+            "",
+            feedback.len() as i64,
+            None,
+            Some(gorse_common::gotime::now()),
+            &[],
+        )
+        .await
+        .expect("the feedback");
+    assert_eq!(returned_feedback, feedback);
+}
+
+#[tokio::test]
+async fn dump_and_restore() {
+    let suite = Suite::new().await;
+    let (users, items, feedback) = seeded_records(&suite, 0.0).await;
+
+    let dump = suite.get("/api/dump").await;
+    assert_eq!(dump.status, StatusCode::OK, "{}", dump.text());
+
+    suite.master.data().purge().await.expect("purge the data");
+    let restore = suite
+        .send(
+            Request::builder()
+                .method("POST")
+                .uri("/api/restore")
+                .header(header::COOKIE, &suite.cookie)
+                .header(header::CONTENT_TYPE, "application/octet-stream")
+                .body(Body::from(dump.body))
+                .expect("a restore request"),
+        )
+        .await;
+    assert_eq!(restore.status, StatusCode::OK, "{}", restore.text());
+
+    check_records(&suite, users, items, feedback).await;
+    assert!(suite.scheduled());
+    suite.close().await;
+}
+
+#[tokio::test]
+async fn export_and_import() {
+    let suite = Suite::new().await;
+    let (users, items, feedback) = seeded_records(&suite, 1.0).await;
+
+    let exported: Vec<(&str, Reply)> = vec![
+        ("/api/bulk/users", suite.get("/api/bulk/users").await),
+        ("/api/bulk/items", suite.get("/api/bulk/items").await),
+        ("/api/bulk/feedback", suite.get("/api/bulk/feedback").await),
+    ];
+    for (route, reply) in &exported {
+        assert_eq!(reply.status, StatusCode::OK, "{route}: {}", reply.text());
+    }
+
+    suite.master.data().purge().await.expect("purge the data");
+    for (route, reply) in exported {
+        let (content_type, body) = multipart_file(&reply.text());
+        let request = Request::builder()
+            .method("POST")
+            .uri(route)
+            .header(header::COOKIE, &suite.cookie)
+            .header(header::CONTENT_TYPE, content_type)
+            .body(body)
+            .expect("an import request");
+        let imported = suite.send(request).await;
+        assert_eq!(
+            imported.status,
+            StatusCode::OK,
+            "{route}: {}",
+            imported.text()
+        );
+    }
+
+    check_records(&suite, users, items, feedback).await;
     suite.close().await;
 }
