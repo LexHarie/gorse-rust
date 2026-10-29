@@ -1129,12 +1129,19 @@ fn dense_score(distance: Distance, query: &[f32], values: &[f32]) -> f32 {
 }
 
 /// The inner product of a sparse vector with the query.
+///
+/// Go's `SparseInnerProduct` sums the products in float64, in index order, and
+/// rounds the sum to float32 once. Summing in float32 rounds every product and
+/// every partial sum, which can move a score by one ulp.
 fn sparse_dot(query: &HashMap<u32, f32>, indices: &[u32], values: &[f32]) -> f32 {
-    indices
+    let sum = indices
         .iter()
         .zip(values)
-        .map(|(index, value)| query.get(index).map_or(0.0, |q| q * value))
-        .sum()
+        .fold(0.0_f64, |sum, (index, value)| match query.get(index) {
+            Some(q) => sum + f64::from(*q) * f64::from(*value),
+            None => sum,
+        });
+    sum as f32
 }
 
 /// The vector a document returns as. The timestamp is the caller's choice,
@@ -1715,5 +1722,69 @@ mod tests {
     #[tokio::test]
     async fn empty_root_is_rejected() {
         assert!(open(XVEC_PREFIX, "", &[] as &[Opt]).await.is_err());
+    }
+
+    /// Go's sparse query scores, read from `xvec_sparse_golden.json`, which
+    /// `contracts/tools/xvecsparsegolden` writes: 60 documents and 20 queries,
+    /// each query with the scores Go's flat store returned (`bits` is the
+    /// float32 score). Go sums the products in float64
+    /// and rounds once, so the same bits must come out of [`sparse_dot`].
+    #[test]
+    fn sparse_dot_matches_go_bits() {
+        #[derive(serde::Deserialize)]
+        struct Golden {
+            docs: Vec<GoldenDoc>,
+            queries: Vec<GoldenQuery>,
+        }
+        #[derive(serde::Deserialize)]
+        struct GoldenDoc {
+            id: String,
+            indices: Vec<u32>,
+            values: Vec<f32>,
+        }
+        #[derive(serde::Deserialize)]
+        struct GoldenQuery {
+            indices: Vec<u32>,
+            values: Vec<f32>,
+            scores: Vec<GoldenScore>,
+        }
+        #[derive(serde::Deserialize)]
+        struct GoldenScore {
+            doc: String,
+            bits: u32,
+        }
+        let golden: Golden =
+            serde_json::from_str(include_str!("../../tests/data/xvec_sparse_golden.json"))
+                .expect("the golden file");
+        let mut checked = 0;
+        for query in &golden.queries {
+            let q: HashMap<u32, f32> = query
+                .indices
+                .iter()
+                .copied()
+                .zip(query.values.iter().copied())
+                .collect();
+            let mut listed: HashMap<&str, u32> = HashMap::new();
+            for score in &query.scores {
+                listed.insert(score.doc.as_str(), score.bits);
+            }
+            for doc in &golden.docs {
+                let got = sparse_dot(&q, &doc.indices, &doc.values);
+                match listed.get(doc.id.as_str()) {
+                    Some(bits) => {
+                        assert_eq!(
+                            got.to_bits(),
+                            *bits,
+                            "score of {} against a query: got {got:?}, Go gave {:?}",
+                            doc.id,
+                            f32::from_bits(*bits)
+                        );
+                        checked += 1;
+                    }
+                    None => assert_eq!(got, 0.0, "{} is not in Go's result", doc.id),
+                }
+            }
+        }
+        assert_eq!(checked, 1013, "the number of scores in the golden file");
     }
 }
