@@ -1,6 +1,18 @@
-// Ports: cmd/*/main.go, cmd/version/version.go, client/*.go @ add21b5
+// Ports: cmd/gorse-master/main.go, cmd/gorse-server/main.go, cmd/gorse-worker/main.go, cmd/gorse-in-one/main.go, cmd/version/version.go, common/log/log.go (AddFlags, SetLogger) @ add21b5
 
-//! Command-line entry points. The `gorse-master`, `gorse-worker`, `gorse-server` and
-//! `gorse-in-one` binaries are added in Phase 4; this crate has no binaries yet.
+//! Command-line entry points of the Rust port: the `gorse-master`,
+//! `gorse-server`, `gorse-worker` and `gorse-in-one` binaries, and the version
+//! banner they print.
 //!
-//! Skeleton only (Phase 0): no Go code has been ported into this crate yet.
+//! Each binary is a thin `main` in `src/bin/` that calls the `main` of its
+//! module here. The modules hold the flags (checked against
+//! `contracts/cli/*.help.txt` by `tests/cli_contract.rs`), the node start-up
+//! (what Go's `main` does, in the same order) and the shared flag handling in
+//! [`cli`].
+
+pub mod cli;
+pub mod in_one;
+pub mod master;
+pub mod server;
+pub mod version;
+pub mod worker;

@@ -105,6 +105,72 @@ impl GoBuild {
     }
 }
 
+/// The Rust node binaries of this build, in the profile directory of the test
+/// binary. The test builds them itself, as [`GoBuild`] builds the Go nodes:
+/// cargo sets `CARGO_BIN_EXE_<name>` only for the tests of the package that owns
+/// the binary, and this package's tests cannot name them.
+#[derive(Debug)]
+pub struct RustBuild {
+    dir: PathBuf,
+}
+
+impl RustBuild {
+    /// Builds the `gorse-cmd` binaries into the profile directory of the test
+    /// binary, with the same profile.
+    ///
+    /// # Errors
+    ///
+    /// Fails when cargo cannot be run, or the build fails.
+    pub fn build() -> Result<RustBuild> {
+        let dir = profile_dir()?;
+        let mut command = Command::new(env!("CARGO"));
+        command
+            .current_dir(repo_root())
+            .args(["build", "-p", "gorse-cmd", "--bins"]);
+        if dir.file_name().is_some_and(|name| name == "release") {
+            command.arg("--release");
+        }
+        let output = command
+            .output()
+            .map_err(|e| fail(format!("cargo is needed by the mixed-cluster tests: {e}")))?;
+        if !output.status.success() {
+            return Err(fail(format!(
+                "cargo build of the Rust nodes failed ({}):\n{}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr)
+            )));
+        }
+        Ok(RustBuild { dir })
+    }
+
+    /// The build of this test process. It runs once, and every cluster shares it.
+    ///
+    /// # Errors
+    ///
+    /// Fails with the error of [`RustBuild::build`].
+    pub fn shared() -> Result<&'static RustBuild> {
+        static BUILD: OnceLock<Result<RustBuild>> = OnceLock::new();
+        BUILD
+            .get_or_init(RustBuild::build)
+            .as_ref()
+            .map_err(Clone::clone)
+    }
+
+    /// The path of one built node, such as `gorse-master`.
+    pub fn binary(&self, name: &str) -> PathBuf {
+        self.dir.join(name)
+    }
+}
+
+/// The profile directory of the test binary (`target/<profile>`).
+fn profile_dir() -> Result<PathBuf> {
+    let exe = std::env::current_exe().map_err(fail)?;
+    exe.parent()
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+        .ok_or_else(|| fail("the test binary is not under a target directory".to_owned()))
+}
+
 /// The directory the Go nodes are built into: `gorse-go-nodes` in the profile
 /// directory of the test binary (`target/<profile>`). The build of the last
 /// process is replaced, so the nodes do not pile up in the temporary directory.
@@ -463,6 +529,90 @@ impl Cluster {
         }
     }
 
+    /// Starts the Rust `gorse-master` binary against the run's config, with the
+    /// same settings as [`Cluster::start_master`], and waits until its gRPC port
+    /// listens and its HTTP port answers `/apidocs.json` with 200.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the binary cannot be built or started, or a port is not ready
+    /// within the timeout.
+    pub async fn start_rust_master_binary(&mut self) -> Result<()> {
+        let args = flags(&[
+            ("config", path(&self.config)),
+            ("cache-path", path(&self.dir.path().join("master-cache"))),
+        ]);
+        self.spawn_binary("gorse-master", args)?;
+        let grpc = self.ports.master_grpc;
+        self.wait_for("the Rust master gRPC port", move || port_open(grpc))
+            .await?;
+        let http = self.ports.master_http;
+        self.wait_for("the Rust master HTTP port", move || async move {
+            http_status(http, "/apidocs.json").await == Some(200)
+        })
+        .await
+    }
+
+    /// Starts the Rust `gorse-server` binary against the master, with the same
+    /// settings as [`Cluster::start_go_server`], and waits until its
+    /// `/api/health/ready` answers 200.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the binary cannot be built or started, or it is not ready
+    /// within the timeout.
+    pub async fn start_rust_server_binary(&mut self) -> Result<()> {
+        let args = flags(&[
+            ("master-host", "127.0.0.1".to_owned()),
+            ("master-port", self.ports.master_grpc.to_string()),
+            ("http-host", "127.0.0.1".to_owned()),
+            ("http-port", self.ports.server_http.to_string()),
+            (
+                "cache-path",
+                path(&self.dir.path().join("server_cache.data")),
+            ),
+        ]);
+        self.spawn_binary("gorse-server", [args, self.tls_flags()].concat())?;
+        let port = self.ports.server_http;
+        self.wait_for("the Rust server binary to be ready", move || {
+            http_ready(port)
+        })
+        .await
+    }
+
+    /// Starts the Rust `gorse-worker` binary against the master, with the same
+    /// settings as [`Cluster::start_go_worker`], and waits until its
+    /// `/api/health/ready` answers 200.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the binary cannot be built or started, or it is not ready
+    /// within the timeout.
+    pub async fn start_rust_worker_binary(
+        &mut self,
+        interval: Duration,
+        jobs: usize,
+    ) -> Result<()> {
+        let args = flags(&[
+            ("master-host", "127.0.0.1".to_owned()),
+            ("master-port", self.ports.master_grpc.to_string()),
+            ("http-host", "127.0.0.1".to_owned()),
+            ("http-port", self.ports.worker_http.to_string()),
+            ("interval", go_duration(interval)),
+            ("jobs", jobs.to_string()),
+            (
+                "cache-path",
+                path(&self.dir.path().join("worker_cache.data")),
+            ),
+        ]);
+        self.spawn_binary("gorse-worker", [args, self.tls_flags()].concat())?;
+        let port = self.ports.worker_http;
+        self.wait_for("the Rust worker binary to be ready", move || {
+            http_ready(port)
+        })
+        .await
+    }
+
     /// The directory the run's blob store keeps its models in.
     pub fn blob_dir(&self) -> PathBuf {
         self.dir.path().join("blob")
@@ -553,9 +703,22 @@ impl Cluster {
     /// Starts one Go node with `args`, with its output in `<name>.log` in the
     /// run's directory.
     fn spawn(&mut self, name: &'static str, args: Vec<String>) -> Result<()> {
+        let binary = self.build.binary(name);
+        self.spawn_at(name, &binary, args)
+    }
+
+    /// Starts one Rust node binary with `args`, with its output in `<name>.log`
+    /// in the run's directory, as [`Cluster::spawn`] does for a Go node.
+    fn spawn_binary(&mut self, name: &'static str, args: Vec<String>) -> Result<()> {
+        let binary = RustBuild::shared()?.binary(name);
+        self.spawn_at(name, &binary, args)
+    }
+
+    /// Starts the program at `binary` with `args`, under the name `name`.
+    fn spawn_at(&mut self, name: &'static str, binary: &Path, args: Vec<String>) -> Result<()> {
         let log = File::create(self.dir.path().join(format!("{name}.log"))).map_err(fail)?;
         let stderr = log.try_clone().map_err(fail)?;
-        let child = Command::new(self.build.binary(name))
+        let child = Command::new(binary)
             .args(&args)
             .current_dir(self.dir.path())
             .stdin(Stdio::null())

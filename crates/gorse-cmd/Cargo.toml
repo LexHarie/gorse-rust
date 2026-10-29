@@ -1,6 +1,6 @@
 [package]
 name = "gorse-cmd"
-description = "Rust port of the Gorse Go package `cmd`."
+description = "Rust port of the Gorse Go packages `cmd/gorse-master`, `cmd/gorse-server`, `cmd/gorse-worker`, `cmd/gorse-in-one` and `cmd/version`."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,11 +8,38 @@ license.workspace = true
 repository.workspace = true
 publish = false
 
+[[bin]]
+name = "gorse-master"
+path = "src/bin/gorse-master.rs"
+
+[[bin]]
+name = "gorse-server"
+path = "src/bin/gorse-server.rs"
+
+[[bin]]
+name = "gorse-worker"
+path = "src/bin/gorse-worker.rs"
+
+[[bin]]
+name = "gorse-in-one"
+path = "src/bin/gorse-in-one.rs"
+
 [dependencies]
+axum.workspace = true
+clap.workspace = true
+flate2.workspace = true
+gorse-common = { workspace = true }
 gorse-config = { workspace = true }
 gorse-master = { workspace = true }
 gorse-server = { workspace = true }
 gorse-worker = { workspace = true }
+prometheus = { workspace = true }
+reqwest = { workspace = true }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync"] }
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true
