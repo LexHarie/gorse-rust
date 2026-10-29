@@ -32,7 +32,7 @@ Every Rust module names the Go files it ports with a
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-18, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); the frozen config.schema.json and config.keys.md match a fresh run of the Go generator byte for byte (X-49, closed 2026-10-28). WP-1-18 (dataset) is merged: Q-210 to Q-217, X-117 to X-129, O-51 and O-52 open, and the ml-1m test is ignored (O-1). Every Phase 1 WP is merged. All in `porting/work-packages.md` |
 | 2. Storage | exited (D-207) | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-3 (MongoDB data store, feature `mongodb`, MongoDB 6.0.28; O-53 open for 8.0; the `get_item_stream` doc is corrected, O-54). WP-2-11 (meta store, SQLite through rusqlite 0.39.0, D-160 to D-166; O-48 closed, O-49 and O-50 open for Phases 3 and 4). WP-2-2 (SQL data store, MySQL, Postgres and SQLite as one build; D-177 to D-181; O-36 closed by the SQL and MongoDB runs; O-57 and O-59 closed by the Go and Rust cross-reads on PostgreSQL, MySQL and SQLite, D-177 to D-181). WP-2-6 (SQL cache store: MySQL and Postgres on sqlx 0.9.0, SQLite on rusqlite 0.39.0; D-167 to D-175; Q-232 MySQL auth open). WP-2-9 (D-197 to D-200), WP-2-12 (D-202 to D-206) and WP-2-13 (D-186 to D-193) merged. The court audit of the env-gated backend tests is O-66 (D-201). Phase 2 exited (D-207): `test_gcs` stays ignored with its reason, and O-62 stays open for a real-GCS run before Phase 5. |
 | 3. Models and logics | in progress | Accepted: WP-3-1 (D-216), WP-3-4 (D-217), WP-3-2 (D-224), WP-3-3 (D-230, contract touches D-231), WP-3-5 (D-234, design D-233), WP-3-6 (D-229; Q-254 closed by D-232, Q-255 open) and WP-3-7 (D-236, design D-235). WP-3-8 needs the datasets (O-1, O-70 to O-72). The master must pass processed items (O-75). REST must confirm nil against empty results (O-76). O-30 is extended by WP-3-7 and stays open |
-| 4. Nodes | in progress | WP-4-1 to WP-4-8; WP-4-1 accepted (D-264); WP-4-2 merged in part (D-266, D-270, D-271), not accepted: X-244 (the Mongo deep-label reply still differs from Go at `POST /api/user`, D-271) blocks it; the fix is iterative label walks (D-267), and X-239 stays provisional; WP-4-8 is `cmd/gorse-bench` (D-239). `cmd/goat` is not ported (D-238). WP-4-7 stays blocked on the SDK dataset under O-1 (D-237) |
+| 4. Nodes | in progress | WP-4-1 to WP-4-8; WP-4-1 accepted (D-264); WP-4-2 accepted (D-274). X-244 is closed by the vendored `mongodb` 3.9.1 with its document-sequence patch (C-34, D-272): the live Go-versus-Rust MongoDB deep-label test matches on the full gate. Open: X-239 (provisional), Q-265, and O-87 (two TEST failures under the parallel run, passing alone). WP-4-8 is `cmd/gorse-bench` (D-239). `cmd/goat` is not ported (D-238). WP-4-7 stays blocked on the SDK dataset under O-1 (D-237) |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
 
 Each work package's section 8 report goes in the message of the commit that
@@ -300,6 +300,15 @@ correction below states the evidence.
 - **C-32 The Redis crate moves to 1.8.0, with `connection-manager`.** The crate choice in `porting/crate-selection.md` (`redis`, with `tokio-comp` and `cluster-async`) is unchanged. Its version was 1.7.1, and Ritchie's rule of 2026-10-17 requires the latest stable version (1.8.0; checked against the crates.io index). `connection-manager` is added so a store reconnects by itself, as go-redis does. `tokio-rustls-comp` enables `tls-rustls`, which gives `rediss://` its rustls TLS (X-102). `tls-rustls-insecure` gives `skip_verify=true` its insecure mode, which go-redis also honours (Q-202). `base64` (0.23.1) is an optional dependency of the `redis` feature, for category encoding. `tokio` is a normal dependency of the crate, since the blob stores need it, and the Redis store's lazy connection uses its `sync` feature.
 
 - **C-33 The brief counts two frappe tests in `data_test.go` (WP-3-2, correction C-WP32-1).** The Go file has one, `TestLoadDataFromBuiltIn`, which is ported as `load_data_from_built_in_frappe`. The brief said two.
+
+- **C-34 The `mongodb` driver is vendored with a 69-line patch (WP-4-2, X-244, D-272).** The published `mongodb` 3.9.1
+  sends an update's statements inline, in the command body, so the server names an element of a refused update from
+  `updates.0.` and counts its depth two levels deeper than Go's driver does (D-273). Go sends the statements as an OP_MSG
+  document sequence. `third_party/mongodb-3.9.1` is 3.9.1 unchanged, with its licence, except for two files: `src/coll/options.rs`
+  adds `UpdateModifications::Raw`, and `src/operation/update.rs` sends `updates` as the sequence. It is wired in with
+  `[patch.crates-io]` in the root `Cargo.toml`, and `third_party/mongodb-3.9.1/GORSE.md` says why. It is a fork of a
+  third-party crate, with the same reason as C-16 (`rustls`). Drop it when the upstream driver can send update statements as
+  a document sequence.
 
 ## Decision log
 
@@ -2404,6 +2413,51 @@ or accepts a metric gap outside the Go tests' own tolerances.
   Next step: restore Docker, capture both full reply bodies from the live run (a local, uncommitted print in the test
   helper is fine), and send them to the server thread. The notes for `dd0a3cc` are at
   `/mnt/project-files/handoff/wp42-notes-dd0a3cc.md`; they are not yet folded into PORTING_NOTES.md.
+
+- **D-272 Coordinator ruling on X-244: a vendored `mongodb` 3.9.1 with a document-sequence patch (2026-10-29).** The
+  prefix strip is replaced. `mongodb` 3.9.1 has no public way to send an update statement as an OP_MSG document sequence
+  (`/mnt/project-files/reports/wp-4-2/update-document-sequence.md`). The server thread vendors 3.9.1 unchanged in
+  `third_party/mongodb-3.9.1`, applies the patch that sends `updates` as payload type 1, as Go's driver does, and adds
+  `UpdateModifications::Raw` so labels reach the driver as raw bytes. It is wired in with `[patch.crates-io]`, and the strip
+  and the `update` command builder are removed (`bd00d75`). The deviation is C-34. Acceptance needs the live
+  `mixed_mongo_deep_labels_match_go_server` to match Go byte for byte on the full gate. Checked by the court: the patch is 69
+  lines in two files, and the vendored tree matches the registry copy apart from those two files, `GORSE.md` and `LICENSE`.
+
+- **D-273 WP-4-2 MongoDB head `321946c5` not accepted (court verdict, 2026-10-29).** `claude/wp-4-2-server` at `dd0a3cc` is
+  merged as `04a31b9f` (D-271) and was recorded at `321946c5`. The court ran the gate with every backend URI set. The live
+  `mixed_mongo_deep_labels_match_go_server` fails on one route, `POST /api/user`. The full bodies are in
+  `/mnt/project-files/handoff/mixed-mongo-post-api-user-bodies-321946c5.txt`. Go's name has 201 path elements (`u`, `$set`,
+  `labels`, 198 `a`). Rust's name has 199 after the strip (`labels`, 196 `a`), and 201 before it, because `updates` and `0`
+  are two more. Both end `' in object with unknown _id`, and neither is cut short, so the length-cap reading does not fit. The
+  two levels are the depth of the statement under `updates` and `0`: Mongo refuses both at the same absolute depth, counted
+  from its own top-level document, and the inline command makes that document two levels higher. A prefix strip cannot close
+  it, so D-272 replaces the strip. Gate on this head: FMT, CLIPPY, DOC, goldens, `go vet`, cloud and Mongo clippy, vector
+  acceptance, the cross-read, and proxy conformance and store all exit 0; `REDIS_TLS_UNSET` exits 101, the negative check. The
+  TEST section has 92 suites, 1217 passed, 2 failed and 55 ignored. The two failures are `cache::redis::tests::escape_characters`
+  and `recommend_matches_go`. They are recorded as O-87 (D-274). The mixed-cluster tests and the `go_decode` and `go_printable`
+  oracles pass in that run.
+
+- **D-274 WP-4-2 server node accepted, X-244 closed (court verdict, 2026-10-29).** `claude/wp-4-2-server` at `7a0b394` (code
+  `bd00d75`) is merged as `84e7b98`. The gate on the merged tree, with every backend URI set and `MONGO_URI` carrying
+  `?authSource=admin` for the live test:
+  - FMT, CLIPPY (`--workspace --all-targets -D warnings`), rustdoc with `-D warnings`, the config and YAML goldens, `go vet`,
+    cloud clippy and Mongo clippy: exit 0.
+  - TEST section: 92 suites, 1217 passed, 0 failed, 55 ignored. The count is from the test section only.
+  - `mixed_mongo_deep_labels_match_go_server`: 1 passed in 4.71 s. No route differs, so the Go and Rust nodes answer the same
+    bytes for the labels at 9,999 and 10,001 levels, on a live MongoDB 6.
+  - Vector acceptance (`--include-ignored`, Qdrant, Milvus and Weaviate), the cross-read, proxy conformance and proxy store:
+    exit 0.
+  - `REDIS_TLS_UNSET`: exit 101, the negative check.
+  - Deep labels on each backend path, in debug: the JSON round trip at 10,000 levels and the refusal at 100,000 (`data::types`);
+    the MongoDB conversion both ways at 10,000 and 100,000 (`data::mongodb`); the protobuf round trip at 10,000 and 100,000
+    (`data::proxy`). The SQL store writes labels as JSON, which the `data::types` tests cover.
+  - The patch (C-34) was checked against the registry copy: two files differ, both with the reason in `GORSE.md`.
+  X-244 is closed by the live test and the patch. The strip and its tests are gone. The open items are X-239 (provisional, the
+  host name read order, not blocking), Q-265 (the neighbour `offset` past the end, not covered by the mixed test) and O-87.
+  The court accepts with O-87 open: the two TEST failures on `321946c5` pass when run alone (`escape_characters` 3 of 3,
+  `recommend_matches_go` 2 of 2) and both pass in the full run on this head. Neither is WP-4-2 code, and the court did not
+  weaken either test. The earlier gate run on the same head passed the TEST section (`gate60`). Both tests must be made
+  independent of each other and of the wall clock before the Phase 4 exit gate.
 
 - **Datasets.** The network policy of this environment blocks
   `https://cdn.gorse.io`, where the Go model tests and the SDK test setup download

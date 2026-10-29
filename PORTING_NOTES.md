@@ -2875,7 +2875,7 @@ said otherwise), so the Rust result is Go's.
   characters, private use and the noncharacters, but not unassigned code points, so it quotes U+0378 as itself.
   Resolved in `5ff737a`: `rest/printable.rs` holds Go 1.27.0's `unicode.IsPrint` as ranges (Unicode 17.0.0), and `go_printable` compares the committed table with Go's output.
 
-- **X-244 A Go-valid label can overflow the stack in the storage backends (WP-4-2, X-WP42-20, open; blocks acceptance).** The
+- **X-244 A Go-valid label can overflow the stack in the storage backends (WP-4-2, X-WP42-20; resolved, D-274).** The
   decoder accepts labels nested to Go's 10000 levels without recursion, as Go does. The storage paths still walk a label
   recursively: the SQL and proxy paths serialize it with serde, and the Mongo path converts it with `labels_to_bson`. The court
   reproduced it on the serde path: a `Labels` nested 10000 deep, serialized with `serde_json::to_string` on a 2 MB thread,
@@ -2885,6 +2885,9 @@ said otherwise), so the Rust result is Go's.
   Mongo on the Rust server in a release build (D-266). Ruling D-267: iterative walks on every backend, owned by the WP-4-2 server thread for the label-walk functions only; debug tests at 10,000 and 100,000 levels; acceptance waits.
   Status (D-268): the SQL and proxy paths pass at 10,000 levels in debug. The Mongo live test (`mixed_mongo_deep_labels_match_go_server`) still aborts with a stack overflow in the `bson` crate's raw serializer, because the write path hands a nested `Bson` tree to the driver. The read path and `Bson`'s drop recurse too. Open and blocks acceptance; the server thread is to build and read raw BSON with an explicit stack.
   Status (D-270): the Mongo write path is raw BSON with explicit stacks, and the live test runs to completion at 9,999 levels with no stack overflow. One reply still differs: `POST /api/user` names `'u.$set.labels…'` in Go's MongoDB overflow error and `'updates.0.u.$set.labels…'` in Rust's. Go writes users with `BulkWrite` and `UpdateOneModel` (`storage/data/mongodb.go` 617 to 622). Open, and it blocks acceptance.
+  Status (D-272, D-274): closed. The live test matches Go byte for byte on the full gate. The Mongo refusal names `u.$set…` as
+  Go does because the update statement goes to the server as a document sequence, through a vendored `mongodb` 3.9.1 with a
+  69-line patch (C-34). The earlier prefix strip is removed. The depth finding in D-273 is the reason the strip could not work.
 
 - **WP-4-1 worker node (merged in part, D-262).** The thread's notes (`porting/notes/WP-4-1.md`) are folded here with
   the integrator's ids. The harness (`conformance/src/cluster.rs`) and `mixed_worker` are merged with the worker. The
@@ -2979,6 +2982,15 @@ said otherwise), so the Rust result is Go's.
   `mixed_server.rs` include no `application/xml` body, no `Content-Encoding` body and no label past the float range, so the
   test that compares the nodes cannot see X-240 to X-242. Required: one live case for each, checked against Go's reply.
   Resolved in `5440113` (D-266): 83 cases, including 20 for XML, gzip, deflate and large labels.
+
+- **O-87 Two TEST failures under the parallel run pass alone (WP-4-2 gate, open).** On `321946c5` the workspace run failed
+  `cache::redis::tests::escape_characters` (the store returned no documents) and `conformance`'s `recommend_matches_go` (five
+  differences in `case-07`, with a largest score difference of 1.8e9). The same head passed the TEST section in an earlier
+  gate run (`gate60`). Alone, `escape_characters` passed 3 of 3 and `recommend_matches_go` passed 2 of 2. On `84e7b98` both
+  passed in the full run. Two causes are likely and not yet checked: `escape_characters` shares its Redis database with the
+  other Redis tests, which run in parallel, and the Go generator seeds the cases from `time.Now()`, so the Rust side depends on
+  the wall clock. Neither test was weakened. Both must be made independent of the run's timing and of each other before the
+  Phase 4 exit gate (D-274).
 
 - **O-75 The master must pass processed items to the logics (WP-3-5, open).** The Rust master's item and
   user update tasks must build `DatasetItem` and `DatasetUser` from the processed dataset, not from storage
