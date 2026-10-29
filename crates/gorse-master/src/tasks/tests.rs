@@ -1755,3 +1755,162 @@ async fn test_load_dataset_sets_gauges() {
         "active and inactive items"
     );
 }
+
+/// The four memory gauges, in the order of master/tasks.go 234 to 245.
+fn memory_gauges() -> [f64; 4] {
+    [
+        "collaborative_filtering_train_set",
+        "collaborative_filtering_test_set",
+        "ranking_train_set",
+        "ranking_test_set",
+    ]
+    .map(|label| {
+        metrics::MEMORY_IN_USE_BYTES_VEC
+            .with_label_values(&[label])
+            .get()
+    })
+}
+
+/// Go's `loadDataset` sets the four memory gauges of the splits (master/tasks.go
+/// 234 to 245). Each gauge must be above zero, and each must grow when the
+/// dataset grows. The gauges are process-wide, so they start at a sentinel.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn test_load_dataset_sets_memory_gauges() {
+    let _serial = SERIAL.lock().await;
+    let (_dir, master) = setup(Config::default()).await;
+    let ctx = Context::background();
+    set_config(&master, |cfg| {
+        cfg.recommend.cache_size = 3;
+        cfg.recommend.data_source.positive_feedback_types = Some(vec![expression("positive")]);
+        cfg.recommend.data_source.negative_feedback_types = Some(vec![expression("dislike")]);
+        cfg.recommend.data_source.read_feedback_types = Some(vec![expression("read")]);
+        cfg.master.n_jobs = num_cpus();
+    });
+    let data = master.data();
+
+    let items: Vec<Item> = (0..5)
+        .map(|i| Item {
+            item_id: i.to_string(),
+            timestamp: gotime::date(2000 + i, Month::JANUARY, 1, 1, 1, 0, 0, &gotime::utc()),
+            ..Default::default()
+        })
+        .collect();
+    data.batch_insert_items(&ctx, &items)
+        .await
+        .expect("insert the items");
+    let users: Vec<User> = (0..3)
+        .map(|i| User {
+            user_id: i.to_string(),
+            ..Default::default()
+        })
+        .collect();
+    data.batch_insert_users(&ctx, &users)
+        .await
+        .expect("insert the users");
+    let now = gotime::now();
+    let feedbacks = vec![
+        feedback("positive", "0", "0", now.clone()),
+        feedback("positive", "0", "1", now.clone()),
+        feedback("dislike", "0", "2", now.clone()),
+        feedback("read", "0", "3", now.clone()),
+        feedback("read", "0", "4", now.clone()),
+        feedback("positive", "1", "0", now.clone()),
+        feedback("dislike", "1", "0", now.clone()),
+        feedback("positive", "1", "1", now.clone()),
+        feedback("positive", "2", "2", now.clone().add(Duration(-HOUR.0))),
+        feedback("dislike", "2", "2", now.clone()),
+        feedback("positive", "2", "3", now.clone()),
+    ];
+    data.batch_insert_feedback(&ctx, &feedbacks, false, false, true)
+        .await
+        .expect("insert the feedback");
+
+    for label in [
+        "collaborative_filtering_train_set",
+        "collaborative_filtering_test_set",
+        "ranking_train_set",
+        "ranking_test_set",
+    ] {
+        metrics::MEMORY_IN_USE_BYTES_VEC
+            .with_label_values(&[label])
+            .set(-1.0);
+    }
+    let datasets = master.load_dataset(&ctx).await.expect("load the dataset");
+    let small = memory_gauges();
+
+    // Go's labels pair the ranking splits with the collaborative filtering
+    // labels, and the click splits with the ranking labels.
+    assert_eq!(
+        [
+            super::ranking_dataset_size(&datasets.ranking_train_set) as f64,
+            super::ranking_dataset_size(&datasets.ranking_test_set) as f64,
+            super::click_dataset_size(&datasets.click_train_set) as f64,
+            super::click_dataset_size(&datasets.click_test_set) as f64,
+        ],
+        small,
+        "the gauges measure the splits they are named for"
+    );
+    for (label, value) in [
+        "collaborative_filtering_train_set",
+        "collaborative_filtering_test_set",
+        "ranking_train_set",
+        "ranking_test_set",
+    ]
+    .iter()
+    .zip(small)
+    {
+        assert!(value > 0.0, "{label} is {value}");
+    }
+
+    // Twenty more users and items, each with two feedbacks.
+    let more_items: Vec<Item> = (5..25)
+        .map(|i| Item {
+            item_id: i.to_string(),
+            timestamp: gotime::date(2010, Month::JANUARY, 1, 1, 1, 0, 0, &gotime::utc()),
+            ..Default::default()
+        })
+        .collect();
+    data.batch_insert_items(&ctx, &more_items)
+        .await
+        .expect("insert the items");
+    let more_users: Vec<User> = (3..23)
+        .map(|i| User {
+            user_id: i.to_string(),
+            ..Default::default()
+        })
+        .collect();
+    data.batch_insert_users(&ctx, &more_users)
+        .await
+        .expect("insert the users");
+    let more_feedbacks: Vec<Feedback> = (3..23)
+        .flat_map(|i| {
+            [
+                feedback(
+                    "positive",
+                    &i.to_string(),
+                    &(i + 2).to_string(),
+                    now.clone(),
+                ),
+                feedback("dislike", &i.to_string(), &(i - 1).to_string(), now.clone()),
+            ]
+        })
+        .collect();
+    data.batch_insert_feedback(&ctx, &more_feedbacks, false, false, true)
+        .await
+        .expect("insert the feedback");
+
+    master.load_dataset(&ctx).await.expect("load the dataset");
+    let large = memory_gauges();
+    for ((label, before), after) in [
+        "collaborative_filtering_train_set",
+        "collaborative_filtering_test_set",
+        "ranking_train_set",
+        "ranking_test_set",
+    ]
+    .iter()
+    .zip(small)
+    .zip(large)
+    {
+        assert!(after > before, "{label} did not grow: {before} to {after}");
+    }
+}
