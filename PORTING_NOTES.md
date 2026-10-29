@@ -3000,12 +3000,13 @@ said otherwise), so the Rust result is Go's.
   12,000-row `batch_insert_items` fails in one call with "too many SQL variables". Go's `BatchInsertItems` accepted the same
   12,000 items in one call (the court's probe, 0.5 s), so the Rust rejection is a parity defect in the storage crate. The
   master's production code does not batch-insert, so WP-4-3 is not blocked. The server's import path may reach it. Fix before
-  the Phase 4 exit (D-275).
+  the Phase 4 exit (D-275). Assigned by the coordinator to the O-87 thread (cmsg_01GcMgHu57dPnfvQ5uEF8VZMQH1SmcMouxLPeDdCkeAWJ6).
 
 - **O-88 The master does not set the dataset gauges (WP-4-3 deviation 1, open, low).** Go sets `UsersTotal`, `ItemsTotal`,
   `ImplicitFeedbacksTotal`, the label, positive and negative totals, and the active and inactive counts in `master/tasks.go`
   159 to 214. The Rust master keeps the metric names and label sets, which the brief requires, but does not set these
-  values. Owner: WP-4-4 or Phase 5 hardening (D-275).
+  values. Owner not yet fixed: the court recommends WP-4-4, as a separate commit in `tasks/load.rs`. The coordinator decides, and
+  the fix must land before the Phase 4 exit (D-275).
 
 - **O-75 The master must pass processed items to the logics (WP-3-5; resolved, D-275).** The Rust master's item and
   user update tasks must build `DatasetItem` and `DatasetUser` from the processed dataset, not from storage
