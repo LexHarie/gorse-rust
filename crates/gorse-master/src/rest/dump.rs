@@ -390,7 +390,11 @@ impl Master {
     /// # Errors
     ///
     /// Fails with the message of the first record that cannot be read or written.
-    pub async fn restore(&self, body: &[u8], delta: Option<gotime::Duration>) -> Result<(), String> {
+    pub async fn restore(
+        &self,
+        body: &[u8],
+        delta: Option<gotime::Duration>,
+    ) -> Result<(), String> {
         restore_dump(self, body, delta)
             .await
             .map(|_| ())
