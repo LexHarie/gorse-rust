@@ -547,6 +547,24 @@ async fn get_stats() {
     suite.close().await;
 }
 
+/// Go's node list is nil when no node is listed, and a nil list is `null`.
+#[tokio::test]
+async fn get_cluster_is_null_without_nodes() {
+    let suite = Suite::new().await;
+    let reply = suite.get("/api/dashboard/cluster").await;
+    assert_eq!(reply.text(), "null");
+    suite.close().await;
+}
+
+/// Go's task list is nil when no task has run, and a nil list is `null`.
+#[tokio::test]
+async fn get_tasks_is_null_without_tasks() {
+    let suite = Suite::new().await;
+    let reply = suite.get("/api/dashboard/tasks").await;
+    assert_eq!(reply.text(), "null");
+    suite.close().await;
+}
+
 #[tokio::test]
 async fn get_categories() {
     let suite = Suite::new().await;

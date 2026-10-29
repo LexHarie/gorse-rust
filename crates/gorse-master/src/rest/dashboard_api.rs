@@ -178,6 +178,10 @@ pub(crate) async fn cluster(State(master): State<Arc<Master>>) -> Result<Respons
         .await
         .map_err(ApiError::internal)?;
     nodes.sort_by(|a, b| a.r#type.cmp(&b.r#type));
+    // Go's list is nil when no node is listed, and a nil slice encodes as null.
+    if nodes.is_empty() {
+        return ok(&None::<Vec<NodeView>>);
+    }
     let views: Vec<NodeView> = nodes.iter().map(NodeView::from).collect();
     ok(&views)
 }
@@ -253,8 +257,8 @@ pub(crate) async fn stats(State(master): State<Arc<Master>>) -> Result<Response,
         .map_err(ApiError::internal)?;
     for node in &nodes {
         match node.r#type.as_str() {
-            "server" => status.num_servers += 1,
-            "worker" => status.num_workers += 1,
+            "Server" => status.num_servers += 1,
+            "Worker" => status.num_workers += 1,
             _ => {}
         }
     }
@@ -335,7 +339,7 @@ pub(crate) async fn tasks(State(master): State<Arc<Master>>) -> Result<Response,
         .map_err(ApiError::internal)?;
     let workers: std::collections::HashSet<String> = nodes
         .iter()
-        .filter(|node| node.r#type == "worker")
+        .filter(|node| node.r#type == "Worker")
         .map(|node| node.uuid.clone())
         .collect();
     let mut progress: Vec<Progress> = master.tracer_list();
@@ -343,6 +347,10 @@ pub(crate) async fn tasks(State(master): State<Arc<Master>>) -> Result<Response,
         if workers.contains(&name) {
             progress.extend(remote);
         }
+    }
+    // Go's list is nil when no task runs, and a nil slice encodes as null.
+    if progress.is_empty() {
+        return ok(&None::<Vec<ProgressView>>);
     }
     let views: Vec<ProgressView> = progress.iter().map(ProgressView::from).collect();
     ok(&views)

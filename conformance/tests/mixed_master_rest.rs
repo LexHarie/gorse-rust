@@ -22,6 +22,7 @@ use gorse_common::gotime;
 use gorse_common::gourl::query_escape;
 use gorse_conformance::cluster::{Cluster, Edit, GoBuild};
 use gorse_storage::data::types::{Feedback, FeedbackKey, Item, User};
+use gorse_storage::meta::Node;
 use reqwest::Method;
 use serde_json::{Value, json};
 
@@ -165,12 +166,30 @@ const RUN_KEYS: [&str; 12] = [
     "HttpPort",
 ];
 
+/// The times a run stamps with its own clock: a node's update time, a task's start
+/// and finish, a model's fit, and the cache's update times. Each is replaced when
+/// it is set, since the runs stamp it at different moments. A zero time is kept,
+/// so a time that one run never set still differs from the other.
+const CLOCK_KEYS: [&str; 7] = [
+    "UpdateTime",
+    "StartTime",
+    "FinishTime",
+    "MatchingModelFitTime",
+    "RankingModelFitTime",
+    "PopularItemsUpdateTime",
+    "LatestItemsUpdateTime",
+];
+
+/// Go's zero time, as its JSON form writes it.
+const ZERO_TIME: &str = "0001-01-01T00:00:00Z";
+
 /// Replaces the value of every per-run key with `<run>`.
 fn mask_run_values(value: &mut Value) {
     match value {
         Value::Object(fields) => {
             for (key, field) in fields.iter_mut() {
-                if RUN_KEYS.contains(&key.as_str()) {
+                let clock = CLOCK_KEYS.contains(&key.as_str()) && field.as_str() != Some(ZERO_TIME);
+                if RUN_KEYS.contains(&key.as_str()) || clock {
                     *field = json!("<run>");
                 } else {
                     mask_run_values(field);
@@ -368,6 +387,24 @@ async fn seed(cluster: &Cluster) {
         .await
         .expect("insert the feedback");
     store.close().await.expect("close the data store");
+
+    // One server and one worker, so the cluster, the stats and the tasks routes
+    // count and list nodes. Both are stamped now, since the store lists the nodes
+    // that updated lately.
+    let meta = cluster.meta_store().await.expect("open the meta store");
+    let now = gotime::now().utc();
+    for (uuid, node_type) in [("alan turnin", "Server"), ("dennis ritchie", "Worker")] {
+        meta.update_node(&Node {
+            uuid: uuid.to_owned(),
+            hostname: "192.168.1.100".to_owned(),
+            r#type: node_type.to_owned(),
+            version: "interop".to_owned(),
+            update_time: now.clone(),
+        })
+        .await
+        .expect("register the node");
+    }
+    meta.close().await.expect("close the meta store");
 }
 
 /// Sends one request to `base`, with `cookie` when the request is logged in.
@@ -410,6 +447,45 @@ fn form(text: &str) -> Option<(String, Vec<u8>)> {
         "application/x-www-form-urlencoded".to_owned(),
         text.as_bytes().to_vec(),
     ))
+}
+
+/// Waits until the master's background tasks have all completed. The click-through
+/// optimisation is the last task of a run, so the wait ends once it is listed and
+/// every listed task is complete. The stats and the tasks are read after that, so
+/// both runs show the same finished work.
+async fn wait_for_tasks(client: &reqwest::Client, base: &str, cookie: &str) {
+    let deadline = Instant::now() + Duration::from_secs(120);
+    loop {
+        let reply = send(
+            client,
+            base,
+            Some(cookie),
+            Method::GET,
+            "/api/dashboard/tasks",
+            None,
+        )
+        .await;
+        let settled = reply
+            .json()
+            .and_then(|tasks| {
+                tasks.as_array().map(|items| {
+                    items
+                        .iter()
+                        .any(|task| task["Name"] == "Optimize Click-Through Rate Prediction Model")
+                        && items.iter().all(|task| task["Status"] == "Complete")
+                })
+            })
+            .unwrap_or(false);
+        if settled {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "{base} never completed its tasks: {}",
+            reply.text()
+        );
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
 }
 
 /// Waits until the master has written the item categories to its cache. Both
@@ -465,6 +541,7 @@ async fn exercise(base: &str) -> Vec<(&'static str, Reply)> {
     .await;
     let cookie = login.cookie.clone();
     wait_for_categories(&client, base, &cookie).await;
+    wait_for_tasks(&client, base, &cookie).await;
     replies.push(("login", login));
     replies.push((
         "login with a wrong password",
@@ -576,6 +653,9 @@ async fn exercise(base: &str) -> Vec<(&'static str, Reply)> {
             "/api/dashboard/timeseries/no-such-series",
         ),
         ("config schema", "/api/dashboard/config/schema"),
+        ("cluster", "/api/dashboard/cluster"),
+        ("stats", "/api/dashboard/stats"),
+        ("tasks", "/api/dashboard/tasks"),
     ] {
         replies.push((
             name,
@@ -767,4 +847,67 @@ async fn master_rest_matches_go() {
         "the Go and Rust masters answer differently:\n{}",
         found.join("\n")
     );
+}
+
+/// A master with no node registered lists no node. Go's list is nil there, and a
+/// nil list is `null`, so the cluster route must answer `null` in both masters.
+#[tokio::test]
+async fn empty_cluster_matches_go() {
+    let build = GoBuild::shared().expect("the Go nodes build");
+
+    let mut go = Cluster::new(build, &EDITS).expect("a Go run");
+    go.start_master().await.expect("the Go master starts");
+    let go_replies = empty_cluster(&format!("http://127.0.0.1:{}", go.ports.master_http)).await;
+    go.stop();
+
+    let mut rust = Cluster::new(build, &EDITS).expect("a Rust run");
+    let master = rust
+        .start_rust_master()
+        .await
+        .expect("the Rust master starts");
+    let (port, server) = serve(master.router()).await;
+    let rust_replies = empty_cluster(&format!("http://127.0.0.1:{port}")).await;
+    server.abort();
+    master.stop().await;
+
+    let found: Vec<String> = go_replies
+        .iter()
+        .zip(&rust_replies)
+        .flat_map(|((name, go), (_, rust))| differences(name, go, rust))
+        .collect();
+    assert!(
+        found.is_empty(),
+        "the Go and Rust masters answer differently:\n{}",
+        found.join("\n")
+    );
+}
+
+/// Logs in to the master at `base` and asks for its cluster.
+async fn empty_cluster(base: &str) -> Vec<(&'static str, Reply)> {
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("the HTTP client");
+    let login = send(
+        &client,
+        base,
+        None,
+        Method::POST,
+        "/login",
+        form(&format!("user_name={USER_NAME}&password={PASSWORD}")),
+    )
+    .await;
+    let cookie = login.cookie.clone();
+    let cluster = send(
+        &client,
+        base,
+        Some(&cookie),
+        Method::GET,
+        "/api/dashboard/cluster",
+        None,
+    )
+    .await;
+    assert_eq!(cluster.status, 200, "{base} answers the cluster route");
+    assert_eq!(cluster.text(), "null", "{base} lists no node");
+    vec![("empty cluster", cluster)]
 }
