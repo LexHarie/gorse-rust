@@ -323,6 +323,22 @@ impl SqlDatabase {
         }
 
         let table = self.feedback_table();
+        for batch in rows.chunks(query::CREATE_BATCH_SIZE) {
+            query::check(ctx)?;
+            let sql = self.feedback_insert(&table, batch, overwrite)?;
+            self.exec(&sql).await?;
+        }
+        Ok(())
+    }
+
+    /// The `INSERT` of one batch of feedback rows, with the conflict clause.
+    fn feedback_insert(
+        &self,
+        table: &str,
+        rows: &[Feedback],
+        overwrite: bool,
+    ) -> Result<Sql, Error> {
+        let driver = self.driver();
         let mut sql = self.sql();
         sql.push(&format!(
             "INSERT INTO {table} (feedback_type, user_id, item_id, value, time_stamp, updated, labels, comment) VALUES "
@@ -355,9 +371,8 @@ impl SqlDatabase {
             sql.push(", ").bind(labels).cast("json");
             sql.push(", ").bind(row.comment.as_str()).push(")");
         }
-        sql.push(&conflict_clause(driver, &table, overwrite));
-        self.exec(&sql).await?;
-        Ok(())
+        sql.push(&conflict_clause(driver, table, overwrite));
+        Ok(sql)
     }
 
     /// The ids of `ids` that are kept for a feedback write: all of them when
@@ -400,8 +415,19 @@ impl SqlDatabase {
         kind: InsertKind,
     ) -> Result<(), Error> {
         query::check(ctx)?;
-        let driver = self.driver();
         let now = gotime::now().utc();
+        let ids: Vec<&str> = ids.iter().copied().collect();
+        for batch in ids.chunks(query::CREATE_BATCH_SIZE) {
+            query::check(ctx)?;
+            let sql = self.missing_id_insert(kind, batch, &now);
+            self.exec(&sql).await?;
+        }
+        Ok(())
+    }
+
+    /// The `INSERT` of one batch of missing ids, with Go's `DoNothing` clause.
+    fn missing_id_insert(&self, kind: InsertKind, ids: &[&str], now: &Time) -> Sql {
+        let driver = self.driver();
         let mut sql = self.sql();
         sql.push(&format!("INSERT INTO {} ", kind.table(self)));
         match kind {
@@ -424,7 +450,7 @@ impl SqlDatabase {
                         .push(", ")
                         .bind("")
                         .push(", ")
-                        .bind(time::format(driver, &now))
+                        .bind(time::format(driver, now))
                         .cast("timestamptz")
                         .push(")");
                 }
@@ -445,15 +471,14 @@ impl SqlDatabase {
                         .push(", ")
                         .bind("")
                         .push(", ")
-                        .bind(time::format(driver, &now))
+                        .bind(time::format(driver, now))
                         .cast("timestamptz")
                         .push(")");
                 }
             }
         }
         sql.push(&do_nothing_clause(driver, kind.key()));
-        self.exec(&sql).await?;
-        Ok(())
+        sql
     }
 
     /// Go's `GetFeedback`: up to `n` feedback records after the cursor, between

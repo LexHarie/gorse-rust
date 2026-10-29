@@ -43,6 +43,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gorse-io/gorse/common/expression"
@@ -168,9 +169,17 @@ type caseRun struct {
 // succeeded. A nil slice of results is recorded as Nil, and the results are
 // then empty.
 type outcome struct {
-	Error         string   `json:"error"`
-	Nil           bool     `json:"nil"`
-	Results       []result `json:"results"`
+	Error   string   `json:"error"`
+	Nil     bool     `json:"nil"`
+	Results []result `json:"results"`
+	// Wide is the run's result with the limit at the cache size, on a fresh
+	// recommender that has run the earlier runs too. A tie group that the
+	// limit cuts off is complete in Wide when it ends within the cache size,
+	// so the oracle checks a cut tie against it (X-247).
+	Wide []result `json:"wide"`
+	// WideError is why Wide is missing: a sequential run that stops at an
+	// unknown name reaches the names past the limit only in the wide run.
+	WideError     string   `json:"wide_error,omitempty"`
 	Digest        string   `json:"digest"`
 	Exclude       []string `json:"exclude"`
 	ColdStart     bool     `json:"cold_start"`
@@ -193,7 +202,16 @@ func main() {
 	out := flag.String("out", "", "the file to write the cases to")
 	seed := flag.Int64("seed", 20261028, "the seed of the generated cases")
 	count := flag.Int("cases", 40, "the number of cases")
+	replay := flag.String("replay", "", "replay one case of this generated file, instead of generating")
+	caseName := flag.String("case", "", "the case to replay, with -replay")
+	replays := flag.Int("replays", 40, "the number of replays, with -replay")
 	flag.Parse()
+	if *replay != "" {
+		if err := replayCase(*replay, *caseName, *replays, *out); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if *out == "" {
 		log.Fatal("-out is required")
 	}
@@ -240,7 +258,7 @@ func stableCase(rng *rand.Rand, index int, now time.Time) testCase {
 			if err != nil {
 				log.Fatalf("case %s: %v", c.Name, err)
 			}
-			stable = reflect.DeepEqual(first, again)
+			stable = reflect.DeepEqual(canonical(first), canonical(again))
 		}
 		if stable {
 			c.Expected = first
@@ -250,6 +268,34 @@ func stableCase(rng *rand.Rand, index int, now time.Time) testCase {
 	}
 	log.Fatalf("case %02d: no stable case in %d attempts", index, maxAttempts)
 	return testCase{}
+}
+
+// canonical puts the results with equal scores in ID order. Go orders exactly
+// equal scores at random (X-247), so two builds may differ only in that order,
+// and the stability check does not count it as a change.
+func canonical(outcomes []outcome) []outcome {
+	out := make([]outcome, len(outcomes))
+	for i, o := range outcomes {
+		o.Results = canonicalResults(o.Results)
+		o.Wide = canonicalResults(o.Wide)
+		out[i] = o
+	}
+	return out
+}
+
+// canonicalResults sorts results by score, highest first, then by ID.
+func canonicalResults(results []result) []result {
+	if results == nil {
+		return nil
+	}
+	sorted := append([]result{}, results...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		if sorted[i].Score != sorted[j].Score {
+			return sorted[i].Score > sorted[j].Score
+		}
+		return sorted[i].ID < sorted[j].ID
+	})
+	return sorted
 }
 
 // generate builds one seeded case. The timestamps are relative to now, so a
@@ -564,23 +610,130 @@ func run(c *testCase) ([]outcome, error) {
 		cfg.UserToUser = append(cfg.UserToUser, config.UserToUserConfig{Name: rec.Name, Type: rec.Type})
 	}
 
-	recommender, err := logics.NewRecommender(cfg, cacheClient, dataClient, vectorClient, c.Online, c.UserID, c.Categories)
+	newRecommender := func() (*logics.Recommender, error) {
+		return logics.NewRecommender(cfg, cacheClient, dataClient, vectorClient, c.Online, c.UserID, c.Categories)
+	}
+	recommender, err := newRecommender()
 	if err != nil {
 		return nil, err
 	}
 	var outcomes []outcome
-	for _, r := range c.Runs {
-		var scores []cache.Score
-		var digest string
-		var runErr error
-		if r.Op == "recommend" {
-			scores, runErr = recommender.Recommend(ctx, r.Limit)
-		} else {
-			scores, digest, runErr = recommender.RecommendSequential(ctx, nil, r.Limit, r.Names...)
+	for i, r := range c.Runs {
+		scores, digest, runErr := runOne(ctx, recommender, r, r.Limit)
+		o := outcomeOf(recommender, scores, digest, runErr)
+		// The wide list: the same run at the cache size, on a recommender
+		// that has run the earlier runs first, so its state matches.
+		wide, err := newRecommender()
+		if err != nil {
+			return nil, err
 		}
-		outcomes = append(outcomes, outcomeOf(recommender, scores, digest, runErr))
+		for _, earlier := range c.Runs[:i] {
+			_, _, _ = runOne(ctx, wide, earlier, earlier.Limit)
+		}
+		switch {
+		case runErr != nil:
+			// An error has no results, so no tie can be cut off.
+		case r.Limit <= 0:
+			// No limit returns everything, so nothing is cut off.
+			o.Wide = o.Results
+		default:
+			wideLimit := 2 * max(cfg.CacheSize, r.Limit)
+			wideScores, _, wideErr := runOne(ctx, wide, r, wideLimit)
+			if wideErr != nil {
+				o.WideError = wideErr.Error()
+			} else {
+				o.Wide = resultsOf(wideScores)
+			}
+		}
+		outcomes = append(outcomes, o)
 	}
 	return outcomes, nil
+}
+
+// runOne runs one case run on the recommender with the limit given.
+func runOne(ctx context.Context, recommender *logics.Recommender, r caseRun, limit int) ([]cache.Score, string, error) {
+	if r.Op == "recommend" {
+		scores, err := recommender.Recommend(ctx, limit)
+		return scores, "", err
+	}
+	return recommender.RecommendSequential(ctx, nil, limit, r.Names...)
+}
+
+// resultsOf converts scores to the results a run writes.
+func resultsOf(scores []cache.Score) []result {
+	results := []result{}
+	for _, s := range scores {
+		categories := s.Categories
+		if categories == nil {
+			categories = []string{}
+		}
+		results = append(results, result{ID: s.Id, Score: s.Score, Categories: categories})
+	}
+	return results
+}
+
+// replayReport is what -replay writes: for each run of the case, how many
+// replays gave each order of the result items (X-247).
+type replayReport struct {
+	Case    string      `json:"case"`
+	Replays int         `json:"replays"`
+	Runs    []replayRun `json:"runs"`
+}
+
+// replayRun counts the orders one run gave: the item IDs joined by commas.
+type replayRun struct {
+	Run    int            `json:"run"`
+	Orders map[string]int `json:"orders"`
+}
+
+// replayCase runs one case of a generated file again and again. Each replay
+// builds fresh stores from the same rows, so a difference between replays is
+// the Go recommender's own, not the input's.
+func replayCase(path, name string, replays int, out string) error {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var file caseFile
+	if err := json.Unmarshal(raw, &file); err != nil {
+		return err
+	}
+	var c *testCase
+	for i := range file.Cases {
+		if file.Cases[i].Name == name {
+			c = &file.Cases[i]
+			break
+		}
+	}
+	if c == nil {
+		return fmt.Errorf("no case %q in %s", name, path)
+	}
+	report := replayReport{Case: name, Replays: replays}
+	for i := range c.Runs {
+		report.Runs = append(report.Runs, replayRun{Run: i, Orders: map[string]int{}})
+	}
+	for n := 0; n < replays; n++ {
+		outcomes, err := run(c)
+		if err != nil {
+			return err
+		}
+		for i, o := range outcomes {
+			ids := make([]string, 0, len(o.Results))
+			for _, r := range o.Results {
+				ids = append(ids, r.ID)
+			}
+			report.Runs[i].Orders[strings.Join(ids, ",")]++
+		}
+	}
+	encoded, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return err
+	}
+	if out == "" {
+		_, err = os.Stdout.Write(append(encoded, '\n'))
+		return err
+	}
+	return os.WriteFile(out, append(encoded, '\n'), 0o644)
 }
 
 // outcomeOf records what a run gave, with the state of the recommender after it.

@@ -152,15 +152,11 @@ fn push_categories_filter(
     Ok(())
 }
 
-/// GORM's `CreateBatchSize` in `storage.NewGORMConfig`: the rows of one
-/// `INSERT` statement in a batch insert (X-245).
-const CREATE_BATCH_SIZE: usize = 1_000;
-
 impl SqlDatabase {
     /// Go's `BatchInsertItems`: writes the items, the first of each id, and
     /// overwrites the ones already stored with that id.
     ///
-    /// GORM writes the rows in statements of [`CREATE_BATCH_SIZE`], one after
+    /// GORM writes the rows in statements of [`query::CREATE_BATCH_SIZE`], one after
     /// another, with no transaction around them (`SkipDefaultTransaction`).
     /// The port does the same, so a batch of any size stays under the bind
     /// parameter limit of one statement (X-245).
@@ -179,7 +175,7 @@ impl SqlDatabase {
             .iter()
             .filter(|item| seen.insert(item.item_id.as_str()))
             .collect();
-        for batch in rows.chunks(CREATE_BATCH_SIZE) {
+        for batch in rows.chunks(query::CREATE_BATCH_SIZE) {
             query::check(ctx)?;
             let sql = self.item_insert(batch, &now)?;
             self.exec(&sql).await?;

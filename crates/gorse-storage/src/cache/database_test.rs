@@ -15,8 +15,6 @@
 
 #![allow(dead_code, reason = "called by the backend tests of WP-2-5..2-7")]
 
-use std::time::Duration as StdDuration;
-
 use gorse_common::gocontext::{Context, ContextError};
 use gorse_common::gotime::{self, Duration, Month, Time};
 use gorse_storage_core::errors::Error as StorageError;
@@ -643,22 +641,19 @@ async fn test_scan_scores(db: &dyn Database) {
     .unwrap();
     assert_eq!(total_scores, 9);
 
-    // Scan scores until the context is cancelled. A timer thread cancels it
-    // after a millisecond, as Go's test deadline does.
+    // Scan scores until the context is cancelled. The scan cancels it after
+    // the first score, so the scan has to stop before the ninth. Go's test
+    // races a one-millisecond deadline against nine one-millisecond scans, and
+    // a loaded machine can run the timer late, so the scan finished all nine.
     let mut scan_scores = 0;
     let (ctx, cancel) = Context::background().with_cancel();
-    let timer = std::thread::spawn(move || {
-        std::thread::sleep(StdDuration::from_millis(1));
-        cancel.cancel();
-    });
     let result = db
         .scan_scores(&ctx, &mut |_: &str, _: &str, _: &str, _: Time| {
-            std::thread::sleep(StdDuration::from_millis(1));
             scan_scores += 1;
+            cancel.cancel();
             Ok(())
         })
         .await;
-    timer.join().unwrap();
     if let Err(err) = result {
         assert!(
             matches!(err, Error::Context(ContextError::Canceled)),

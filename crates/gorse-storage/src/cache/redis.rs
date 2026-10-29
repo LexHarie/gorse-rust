@@ -16,7 +16,7 @@
 //! A cluster cannot pipeline commands whose keys span slots, so cluster
 //! pipelines are sent one command at a time.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -60,10 +60,7 @@ pub struct Redis {
     /// Go's `TablePrefix`, in front of every key and table name.
     prefix: String,
     /// Go's `maxSearchResults`: the page size of the searches
-    /// [`Database::update_scores`] made in Go. This port reads the keys in one
-    /// query instead of pages (X-246), so the value is kept for the option and
-    /// the tests that set it, but nothing reads it. Zero or less means 10000.
-    #[allow(dead_code)]
+    /// [`Database::update_scores`] makes. Zero or less means 10000.
     max_search_results: i64,
 }
 
@@ -355,41 +352,6 @@ impl Redis {
         }
         let reply: RedisValue = self.send(&cmd).await?;
         parse_search(reply)
-    }
-
-    /// The keys of up to `limit` documents a query matches. The query has no
-    /// `SORTBY` and returns no content (`NOCONTENT`): in the O-87 probes that
-    /// form kept every tied document on fresh indexes, where the sorted and
-    /// content forms dropped some.
-    async fn ft_keys(&self, query: &str, limit: i64) -> Result<Vec<String>, Error> {
-        let mut cmd = redis::cmd("FT.SEARCH");
-        cmd.arg(self.document_table())
-            .arg(query)
-            .arg("NOCONTENT")
-            .arg("LIMIT")
-            .arg(0)
-            .arg(limit);
-        let reply: RedisValue = self.send(&cmd).await?;
-        let RedisValue::Array(items) = reply else {
-            return Err(reply_error("FT.SEARCH reply is not an array"));
-        };
-        let Some((_, keys)) = items.split_first() else {
-            return Err(reply_error("FT.SEARCH reply is empty"));
-        };
-        keys.iter().map(|key| parse(key.clone())).collect()
-    }
-
-    /// The number of documents a score search matches, read with a
-    /// `LIMIT 0 0` query that returns none of them.
-    async fn ft_count(&self, query: &str) -> Result<i64, Error> {
-        let mut cmd = redis::cmd("FT.SEARCH");
-        cmd.arg(self.document_table())
-            .arg(query)
-            .arg("LIMIT")
-            .arg(0)
-            .arg(0);
-        let reply: RedisValue = self.send(&cmd).await?;
-        Ok(parse_search(reply)?.total)
     }
 }
 
@@ -801,17 +763,35 @@ impl Database for Redis {
         if let Some(subset) = subset {
             builder.push_str(&format!(" @subset:{{ {} }}", escape(subset)));
         }
-        // Go pages through the matches with `LIMIT offset limit`, sorted by
-        // score. On a fresh index RediSearch drops tied documents from that
-        // (O-87), so the keys are read in two queries instead: the count, then
-        // every match at once without a sort or the content. The caller needs
-        // only the keys, not their order.
-        let total = self.ft_count(&builder).await?;
-        let keys = if total > 0 {
-            self.ft_keys(&builder, total).await?
+        let limit = if self.max_search_results <= 0 {
+            MAX_SEARCH_LIMIT
         } else {
-            Vec::new()
+            self.max_search_results
         };
+
+        let mut keys: Vec<String> = Vec::new();
+        let mut seen = HashSet::new();
+        let mut offset = 0;
+        loop {
+            let reply = self.ft_search(&builder, offset, limit).await?;
+            if reply.docs.is_empty() {
+                break;
+            }
+            let mut new_keys = 0;
+            for (key, _) in &reply.docs {
+                if seen.insert(key.clone()) {
+                    keys.push(key.clone());
+                    new_keys += 1;
+                }
+            }
+            let page = reply.docs.len() as i64;
+            offset += page;
+            // Stop at a short page, or when a page adds no new key: the
+            // defensive check Go makes for engines that count differently.
+            if page < limit || new_keys == 0 {
+                break;
+            }
+        }
 
         let mut values: Vec<(&str, String)> = Vec::new();
         if let Some(score) = patch.score {
@@ -1018,7 +998,51 @@ mod tests {
         let db = open(dsn, &format!("gorse_{name}_"), &[]).unwrap();
         db.purge().await.unwrap();
         db.init().await.unwrap();
+        wait_indexed(&db).await;
         db
+    }
+
+    /// The value of a field of an `FT.INFO` reply, a flat list of names and values.
+    fn info_field(items: &[RedisValue], name: &str) -> Option<RedisValue> {
+        items.chunks(2).find_map(|pair| {
+            let [key, value] = pair else { return None };
+            let key: String = parse(key.clone()).ok()?;
+            (key == name).then(|| value.clone())
+        })
+    }
+
+    /// Waits until RediSearch has indexed every document written to the index:
+    /// `FT.INFO` reports `percent_indexed` 1 and `indexing` 0. Documents are
+    /// indexed in the background, and a sorted search that runs before they are
+    /// indexed can miss them, so the search returns fewer documents than were
+    /// written. Go's sorted search misses the same way: 1 search in 1,000 at
+    /// once after AddScores, under an indexing backlog on the server, and none
+    /// after the wait (X-249). A stuck index fails the test after ten seconds,
+    /// so it cannot hang it.
+    async fn wait_indexed(db: &Redis) {
+        const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+        let deadline = std::time::Instant::now() + TIMEOUT;
+        loop {
+            let mut cmd = redis::cmd("FT.INFO");
+            cmd.arg(db.document_table());
+            let info: RedisValue = db.send(&cmd).await.expect("FT.INFO");
+            let RedisValue::Array(items) = info else {
+                panic!("FT.INFO reply is not an array");
+            };
+            let percent = info_field(&items, "percent_indexed").expect("FT.INFO percent_indexed");
+            let indexing = info_field(&items, "indexing").expect("FT.INFO indexing");
+            let percent: f64 = parse(percent).expect("percent_indexed is a number");
+            let indexing: i64 = parse(indexing).expect("indexing is a number");
+            if percent == 1.0 && indexing == 0 {
+                return;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "index {} still indexing after {TIMEOUT:?}: percent_indexed {percent}, indexing {indexing}",
+                db.document_table()
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
     }
 
     /// A UTC date at midnight.
@@ -1075,6 +1099,7 @@ mod tests {
             db.add_scores(&ctx, &collection, &subset, std::slice::from_ref(&doc))
                 .await
                 .unwrap();
+            wait_indexed(&db).await;
             let documents = db
                 .search_scores(&ctx, &collection, &subset, &["b".into()], 0, -1)
                 .await
@@ -1093,6 +1118,7 @@ mod tests {
             )
             .await
             .unwrap();
+            wait_indexed(&db).await;
             let documents = db
                 .search_scores(&ctx, &collection, &subset, &["b".into()], 0, -1)
                 .await
@@ -1110,6 +1136,7 @@ mod tests {
             )
             .await
             .unwrap();
+            wait_indexed(&db).await;
             let documents = db
                 .search_scores(&ctx, &collection, &subset, &["b".into()], 0, -1)
                 .await
@@ -1297,73 +1324,6 @@ mod tests {
             assert_eq!(docs.len(), 1);
             assert_eq!(docs[0].id, "shared-item");
         }
-    }
-
-    /// Go's `TestUpdateScoresWithPaginationAndTiedScores`, run on a fresh index
-    /// in each trial: every trial gets its own index, dropped at the end. Go's
-    /// test shares one index, so it never sees the loss. Paging over tied
-    /// scores lost a key in about 7% of fresh indexes (O-87: 68 of 1000 Rust
-    /// trials and 83 of 1000 Go trials with this pattern).
-    #[tokio::test]
-    async fn update_scores_with_tied_scores_on_fresh_indexes() {
-        let dsn = redis_dsn();
-        let ctx = Context::background();
-        let run = gotime::now().unix_nano();
-        let trials = 300;
-        let mut lost = Vec::new();
-        for trial in 0..trials {
-            let prefix = format!("gorse_fresh_{run}_{trial}_");
-            let mut db = open(&dsn, &prefix, &[]).unwrap();
-            db.init().await.unwrap();
-            db.max_search_results = 2;
-            for i in 0..5 {
-                let subset = format!("tie-subset-{i}");
-                let doc = Score {
-                    id: "shared-item".into(),
-                    score: 1.0,
-                    is_hidden: false,
-                    categories: vec!["tie-old".into()],
-                    timestamp: gotime::now(),
-                };
-                db.add_scores(&ctx, "collection-c", &subset, &[doc])
-                    .await
-                    .unwrap();
-            }
-            db.update_scores(
-                &ctx,
-                &["collection-c".into()],
-                None,
-                "shared-item",
-                &ScorePatch {
-                    categories: Some(vec!["tie-new".into()]),
-                    ..Default::default()
-                },
-            )
-            .await
-            .unwrap();
-            // Each subset must hold the updated document. The check counts the
-            // matches with `LIMIT 0 0`: a search that returns the content can
-            // miss a document just written on a fresh index (O-87), and the
-            // update itself is what this test covers.
-            for i in 0..5 {
-                let query = format!(
-                    "@collection:{{ collection\\-c }} @subset:{{ tie\\-subset\\-{i} }} @categories:{{ {} }}",
-                    escape(&encode_category("tie-new"))
-                );
-                if db.ft_count(&query).await.unwrap() != 1 {
-                    lost.push(trial);
-                    break;
-                }
-            }
-            let mut drop = redis::cmd("FT.DROPINDEX");
-            drop.arg(format!("{prefix}documents")).arg("DD");
-            db.send::<RedisValue>(&drop).await.unwrap();
-        }
-        assert!(
-            lost.is_empty(),
-            "{} of {trials} fresh indexes lost a key on the tied scores: trials {lost:?}",
-            lost.len()
-        );
     }
 
     /// Go's `TestEncodeDecodeCategories`. It needs no server.

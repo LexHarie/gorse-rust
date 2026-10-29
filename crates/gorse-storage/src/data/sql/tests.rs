@@ -15,7 +15,7 @@ use sqlx::{AssertSqlSafe, Connection as _};
 use super::super::Database;
 use super::super::Error;
 use super::super::database_test::{Backend, TimeStamps, run};
-use super::super::types::Item;
+use super::super::types::{Feedback, FeedbackKey, Item, User};
 use super::SqlDatabase;
 use super::open::{
     mysql_connect_options, open_mysql, open_postgres, open_sqlite, probe_isolation_variable_name,
@@ -175,5 +175,65 @@ async fn test_sqlite_batch_insert_12000_items() {
         .await
         .expect("insert 12,000 items in one call");
     assert_eq!(db.count_items(&ctx).await.expect("count the items"), 12_000);
+    db.close().await.expect("close");
+}
+
+/// X-245: GORM writes a batch of users in statements of 1,000 rows. SQLite
+/// refuses a statement with more than 32,766 bind parameters, and 12,000 users
+/// of 4 columns would bind 48,000.
+#[tokio::test]
+async fn test_sqlite_batch_insert_12000_users() {
+    let dir = tempfile::tempdir().expect("create a temporary directory");
+    let path = format!("sqlite://{}/sqlite.db", dir.path().display());
+    let db = open_sqlite(&path, "gorse_", &[])
+        .await
+        .expect("open SQLite");
+    db.init().await.expect("create the schema");
+    let ctx = Context::background();
+    let users: Vec<User> = (0..12_000)
+        .map(|i| User {
+            user_id: format!("user-{i}"),
+            ..Default::default()
+        })
+        .collect();
+    db.batch_insert_users(&ctx, &users)
+        .await
+        .expect("insert 12,000 users in one call");
+    assert_eq!(db.count_users(&ctx).await.expect("count the users"), 12_000);
+    db.close().await.expect("close");
+}
+
+/// X-245: Go's `BatchInsertFeedback` creates the missing users and items, and
+/// then the feedback, each in statements of 1,000 rows. 12,000 new users, items
+/// and feedback rows would bind 48,000, 84,000 and 96,000 values in one
+/// statement each, all over SQLite's limit.
+#[tokio::test]
+async fn test_sqlite_batch_insert_12000_feedback() {
+    let dir = tempfile::tempdir().expect("create a temporary directory");
+    let path = format!("sqlite://{}/sqlite.db", dir.path().display());
+    let db = open_sqlite(&path, "gorse_", &[])
+        .await
+        .expect("open SQLite");
+    db.init().await.expect("create the schema");
+    let ctx = Context::background();
+    let feedback: Vec<Feedback> = (0..12_000)
+        .map(|i| Feedback {
+            feedback_key: FeedbackKey {
+                feedback_type: "click".to_owned(),
+                user_id: format!("user-{i}"),
+                item_id: format!("item-{i}"),
+            },
+            ..Default::default()
+        })
+        .collect();
+    db.batch_insert_feedback(&ctx, &feedback, true, true, true)
+        .await
+        .expect("insert 12,000 feedback rows in one call");
+    assert_eq!(db.count_users(&ctx).await.expect("count the users"), 12_000);
+    assert_eq!(db.count_items(&ctx).await.expect("count the items"), 12_000);
+    assert_eq!(
+        db.count_feedback(&ctx).await.expect("count the feedback"),
+        12_000
+    );
     db.close().await.expect("close");
 }
