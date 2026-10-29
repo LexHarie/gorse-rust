@@ -2328,7 +2328,12 @@ or accepts a metric gap outside the Go tests' own tolerances.
   proxy, and Mongo's `labels_to_bson`. The WP-4-2 server thread owns the change and may edit only the label-walk functions in
   the storage crates. Done when: debug-build tests at 10,000 and 100,000 levels pass on every backend path; existing test
   outputs are unchanged; and the integrator runs the full gate with every backend URI on the merged head. WP-4-2 acceptance
-  waits for it (D-266).
+  waits for it (D-266). **Amendment (coordinator, 2026-10-29).** Go's `jsontext` caps nesting at 10,000 levels (`errMaxDepth`), so the port
+  reproduces that cap with Go's error text: 10,000 levels succeed, and 100,000 are rejected exactly as Go rejects them.
+  The indentation fix in `gorse-server`'s `rest/response.rs` is approved as part of X-244: go-restful pretty-prints every
+  JSON response by default (`PrettyPrintResponses = true`, `MarshalIndent` with one space, go-restful v3.13.0), and
+  the server does not turn that off, so a label written compactly inside a response is a mismatch. Mongo's depth is
+  checked by the live Go-versus-Rust conformance test, which the integrator runs.
 
 - **Datasets.** The network policy of this environment blocks
   `https://cdn.gorse.io`, where the Go model tests and the SDK test setup download
