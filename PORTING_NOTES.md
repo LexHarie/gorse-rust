@@ -2869,7 +2869,7 @@ said otherwise), so the Rust result is Go's.
 - **X-233 A nil and an empty recommendation list write the same cache rows (WP-4-1, X-WP41-8, O-76).** The SQL store's
   `add_scores` returns `Ok(())` for an empty slice (`crates/gorse-storage/src/cache/sql.rs` 872). Go's Redis
   `AddScores` loops over the documents and sends nothing for an empty list. Both sides then run the stale-row delete.
-  The Redis and Mongo paths were not read for this answer, so O-76 stays open for them (D-262).
+  The Redis and Mongo paths were not read for this answer, so O-76 stayed open for them (D-262). Round 2 (D-264): Go's Redis `AddScores` with no documents returns nil, even with a cancelled context, and the Rust port now matches (`cache::redis::tests::add_scores_checks_the_context_only_for_documents`). Mongo returns before any call and already matched. O-76 stays open for the REST routes (WP-4-4).
 
 - **X-234 `serve` was not `Send` (WP-4-1, X-WP41-9, fixed in `fe0a19e`).** The unit tests never spawned `serve`, so
   the harness found it. The `select!` in the serve loop kept a `watch` read guard across an await. The shutdown wait now
@@ -2878,18 +2878,22 @@ said otherwise), so the Rust result is Go's.
 - **X-235 `Pool` string alignment is dropped (WP-4-1, X-WP41-10).** Go's `Pool` string reaches no output, so nothing
   observable changes.
 
-- **X-236 TLS is not supported in the worker (WP-4-1, X-WP41-11, O-78).** `serve` returns `Error::TlsNotSupported` when
-  TLS is configured. Go accepts `--ssl-*`.
+- **X-236 The worker connects to the master over mutual TLS (WP-4-1, X-WP41-11, closed by round 2, D-264).** Before
+  round 2 `serve` returned `Error::TlsNotSupported`. Now `master_channel` builds the client config with
+  `gorse_common::util::tls`, as Go's `util.NewClientCreds` does. The worker's HTTP server stays plain, as Go's does
+  (`worker/worker.go` 333, 399). The mutual-TLS mixed test passes.
 
 - **X-237 The step gauges are carried over (WP-4-1, X-WP41-12).** See X-230.
 
-- **O-77 FP16 values in templates are not checked against Go (WP-4-1, O-WP41-1, open; blocks acceptance).** The rerankers
-  and the decision API receive embeddings as FP16 bit values. Go renders its templates with gonja, and the port uses
-  minijinja. Rendering numeric arrays may differ, and nothing checks it against Go's output.
+- **O-77 Reranker template output checked against Go (WP-4-1, O-WP41-1, closed by round 2, D-264).**
+  `contracts/tools/rendergolden` renders nine cases with gonja, as `logics/reranker.go` does, and
+  `document_template_prints_labels_as_gonja_does` checks the Rust templates against them. The RED failure was gonja's
+  float rule (11 decimals, trailing zeros trimmed). The reranker environment now has a formatter that follows it, and bool
+  and nil follow gonja. The list that gonja panics on is not compared (O-84).
 
-- **O-78 The worker refuses TLS (WP-4-1, O-WP41-2, open; blocks acceptance).** The fix is to wire
-  `gorse_common::util::tls` into the connection and the HTTP server. The contract requires it when all three `--ssl-*`
-  flags are set (`contracts/cli/README.md`).
+- **O-78 The worker's TLS to the master (WP-4-1, O-WP41-2, closed by round 2, D-264).** Wired through
+  `gorse_common::util::tls` (see X-236). The three `--ssl-*` flags are read for the master connection, as Go reads them
+  (`worker/worker.go` 399).
 
 - **O-79 The backend suites need their emulator variables (WP-4-1, O-WP41-3, closed by the gate setup).** Without the
   variables the suites stop with `<NAME> is not set`. The S3 and Azure suites need `S3_ENDPOINT` as `host:port` with no
@@ -2897,9 +2901,8 @@ said otherwise), so the Rust result is Go's.
   container created before the run (O-33). The Redis TLS cases are `#[ignore]`d and run only under `--include-ignored`
   with `REDIS_TLS_URI` (O-66).
 
-- **O-80 The mixed test covers only the latest recommender (WP-4-1, O-WP41-4, open; blocks acceptance).** Collaborative
-  filtering, FM ranking and the rerankers are compared in process, not across Go and Rust nodes. D-258 is the narrowing
-  that causes it, and D-262 requires evidence for it.
+- **O-80 The mixed test covers only the latest recommender (WP-4-1, O-WP41-4, open; does not block acceptance, D-264).** Collaborative
+  filtering, FM ranking and the rerankers are compared in process, not across Go and Rust nodes. D-258 is the narrowing that causes it, and D-262 requires evidence for it. Round 2 shows the BPR nondeterminism at four jobs (D-264). The thread reports ALS as stable; the court has not run ALS.
 
 - **O-81 The mixed test has no empty-list case (WP-4-1, O-WP41-5, open).** Every user gets 28 rows, so the nil-versus-empty
   answer (X-233) rests on reading the code, not on a run.
@@ -2911,6 +2914,10 @@ said otherwise), so the Rust result is Go's.
   `xg_*` and `xr_*` collections on Qdrant and does not delete them. `proxy_wire` expects only `docs` on the next run, so it
   fails when they are present. The gate restarts `gorse-qdrant` before the TEST section, so the gate is green. The
   cross-read tests should delete the collections they create. The conformance owner fixes this.
+
+- **O-84 Go panics on a template list that mixes bool, string and nil (WP-4-1, round 2, open).** `gonja` panics on
+  `[true, "a", null]`. The oracle records that panic as the case's error, and the Go-backed test does not include the case,
+  so the port's output for it is not compared with Go. The mixed data uses numeric labels, so no run is affected.
 
 - **O-75 The master must pass processed items to the logics (WP-3-5, open).** The Rust master's item and
   user update tasks must build `DatasetItem` and `DatasetUser` from the processed dataset, not from storage
