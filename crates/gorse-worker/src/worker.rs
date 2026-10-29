@@ -27,11 +27,13 @@ use gorse_storage::cache;
 use gorse_storage::data::types::User;
 use gorse_storage::data::{self};
 use gorse_storage::vectors;
+use hyper_rustls::HttpsConnectorBuilder;
 use md5::{Digest, Md5};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 use tokio::sync::{mpsc, watch};
-use tonic::transport::{Channel, Endpoint};
+use tonic::codegen::Service;
+use tonic::transport::{Channel, Endpoint, Uri};
 use tracing::{error, info};
 
 use crate::Error;
@@ -423,12 +425,9 @@ impl Worker {
     ///
     /// # Errors
     ///
-    /// Fails when TLS is configured, which this port does not yet support, or
-    /// when the master address is invalid or the HTTP server cannot run.
+    /// Fails when the TLS files cannot be loaded, when the master address is
+    /// invalid, or when the HTTP server cannot run.
     pub async fn serve(self: Arc<Self>) -> Result<(), Error> {
-        if self.options.tls.is_some() {
-            return Err(Error::TlsNotSupported);
-        }
         let (Some(synced_rx), Some(pulled_rx)) = (
             self.synced_rx
                 .lock()
@@ -444,9 +443,7 @@ impl Worker {
 
         // Connect to the master. The channel connects on first use, as Go's Dial.
         let address = join_host_port(&self.options.master_host, self.options.master_port);
-        let channel = Endpoint::from_shared(format!("http://{address}"))
-            .map_err(|err| Error::MasterAddress(err.to_string()))?
-            .connect_lazy();
+        let channel = master_channel(&address, self.options.tls.as_ref())?;
         {
             let mut state = self.state();
             state.master = Some(
@@ -753,6 +750,60 @@ fn router(pipeline: Arc<Pipeline>) -> Router {
 /// The Go `time.Duration` as a standard one. A negative duration is zero.
 fn std_duration(duration: GoDuration) -> Duration {
     Duration::from_nanos(u64::try_from(duration.0).unwrap_or_default())
+}
+
+/// The channel to the master. Without TLS it is plain HTTP/2. With TLS it presents
+/// this worker's certificate and checks the master's against the CA, without
+/// comparing host names, as Go's `advancedtls` does. Either channel connects on
+/// first use.
+fn master_channel(address: &str, tls: Option<&TlsConfig>) -> Result<Channel, Error> {
+    let Some(tls) = tls else {
+        return Ok(Endpoint::from_shared(format!("http://{address}"))
+            .map_err(|err| Error::MasterAddress(err.to_string()))?
+            .connect_lazy());
+    };
+    let mut config = gorse_common::util::tls::new_client_config(tls)?;
+    // The connector sets its own ALPN list, and refuses one that is already set.
+    config.alpn_protocols.clear();
+    let connector = HttpsConnectorBuilder::new()
+        .with_tls_config(config)
+        .https_only()
+        .enable_http2()
+        .build();
+    // tonic wraps a custom connector: for an `https` endpoint it runs its own TLS
+    // over the connector's I/O, and refuses when the endpoint has no TLS config.
+    // The handshake already runs in `connector`, so the endpoint keeps the `http`
+    // scheme and the connector dials the master's `https` URI.
+    let target = Uri::try_from(format!("https://{address}"))
+        .map_err(|err| Error::MasterAddress(err.to_string()))?;
+    let endpoint = Endpoint::from_shared(format!("http://{address}"))
+        .map_err(|err| Error::MasterAddress(err.to_string()))?;
+    Ok(endpoint.connect_with_connector_lazy(MasterConnector { connector, target }))
+}
+
+/// The connector of a TLS channel to the master. It ignores the URI tonic passes
+/// and dials `target`, so the inner connector runs the TLS handshake.
+#[derive(Clone)]
+struct MasterConnector<C> {
+    connector: C,
+    target: Uri,
+}
+
+impl<C: Service<Uri>> Service<Uri> for MasterConnector<C> {
+    type Response = C::Response;
+    type Error = C::Error;
+    type Future = C::Future;
+
+    fn poll_ready(
+        &mut self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        self.connector.poll_ready(cx)
+    }
+
+    fn call(&mut self, _uri: Uri) -> Self::Future {
+        self.connector.call(self.target.clone())
+    }
 }
 
 /// Go's `net.JoinHostPort`: brackets an IPv6 host.

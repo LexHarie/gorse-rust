@@ -673,6 +673,10 @@ impl Database for Redis {
         subset: &str,
         documents: &[Score],
     ) -> Result<(), Error> {
+        // Go's pipeline sends nothing for no documents, so it never sees the context.
+        if documents.is_empty() {
+            return Ok(());
+        }
         check_context(ctx)?;
         let cmds: Vec<Cmd> = documents
             .iter()
@@ -1324,6 +1328,25 @@ mod tests {
         ] {
             assert!(registry.open(path, "t_", &[]).await.is_ok(), "{path}");
         }
+    }
+
+    /// Go's `AddScores` with no documents sends nothing, so a cancelled context
+    /// does not fail it; with a document, the cancelled context fails the call
+    /// before any command. Neither call connects, so this needs no server.
+    #[tokio::test]
+    async fn add_scores_checks_the_context_only_for_documents() {
+        let db = open("redis://127.0.0.1:1/", "gorse_empty_", &[]).unwrap();
+        let (ctx, cancel) = Context::background().with_cancel();
+        cancel.cancel();
+        assert!(db.add_scores(&ctx, "c", "", &[]).await.is_ok());
+        let document = Score {
+            id: "a".to_owned(),
+            score: 0.0,
+            is_hidden: false,
+            categories: Vec::new(),
+            timestamp: ts(),
+        };
+        assert!(db.add_scores(&ctx, "c", "", &[document]).await.is_err());
     }
 
     /// A `rediss://` URL of a server with a self-signed certificate, with no

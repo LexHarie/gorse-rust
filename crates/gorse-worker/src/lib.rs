@@ -31,9 +31,9 @@ pub enum Error {
     /// The worker is already serving, so it cannot serve again.
     #[error("the worker is already serving")]
     AlreadyServing,
-    /// TLS is configured for the master connection, which this port does not yet support.
-    #[error("TLS for the master connection is not supported yet")]
-    TlsNotSupported,
+    /// The TLS files of the master connection cannot be loaded.
+    #[error(transparent)]
+    Tls(#[from] gorse_common::util::tls::TlsError),
     /// The master address is not a valid URI.
     #[error("invalid master address: {0}")]
     MasterAddress(String),
