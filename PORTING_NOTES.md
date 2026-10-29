@@ -2997,16 +2997,25 @@ said otherwise), so the Rust result is Go's.
   other Redis tests, which run in parallel, and the Go generator seeds the cases from `time.Now()`, so the Rust side depends on
   the wall clock. Neither test was weakened. Both must be made independent of the run's timing and of each other before the
   Phase 4 exit gate (D-274).
+  On `67378b7` (the merge of `3a85214`, D-277) the gate's TEST section failed once: `escape_characters` (the sorted search returned no
+  documents for `c-3`, `redis.rs:1047`). It passes alone 10 of 10. The X-246 fix does not cover `search_scores`, which still uses
+  Go's sorted query (X-246, open item 4). Open for the coordinator: the tie policy (X-247) and the fresh-index sorted search.
   On `21ca977` (WP-4-3 gate) `escape_characters` failed once in the TEST section (no documents, `redis.rs:1027`) and passed alone
   10 of 10. Its Redis index is fresh in that run. The tied-scores flake in `cache::redis` shows the same engine behaviour
   (RediSearch paged reads on fresh indexes), so the two are probably one cause. The owner has the probe scripts in
   `/mnt/project-files/o87-evidence/` (D-275).
 
-- **X-245 The SQLite data backend's bulk insert fails above 32,766 bind variables (WP-4-3 deviation 9, open).** A
+- **X-245 (WP-4-3 deviation 9; items resolved by the O-87 thread, see the X-245 entry above).** The court's first record: a
   12,000-row `batch_insert_items` fails in one call with "too many SQL variables". Go's `BatchInsertItems` accepted the same
   12,000 items in one call (the court's probe, 0.5 s), so the Rust rejection is a parity defect in the storage crate. The
   master's production code does not batch-insert, so WP-4-3 is not blocked. The server's import path may reach it. Fix before
   the Phase 4 exit (D-275). Assigned by the coordinator to the O-87 thread (cmsg_01GcMgHu57dPnfvQ5uEF8VZMQH1SmcMouxLPeDdCkeAWJ6).
+  Items are fixed (`3b993a1`, D-277). Users and feedback still have the limit: see X-248.
+
+- **X-248 The SQLite batch inserts for users and feedback still exceed the bind limit (O-87 thread's open item 3; open).** `batch_insert_users`
+  writes 4 binds per user, so above 8,191 users one statement fails. `batch_insert_feedback` writes 8 binds per row, so above 4,095
+  rows it fails. Go batches both through GORM's `CreateBatchSize` as it does items. The O-87 thread did not change them, because its
+  assignment named items. Owner: the storage thread, before the Phase 4 exit (D-277).
 
 - **O-88 The master does not set the dataset gauges (WP-4-3 deviation 1; resolved, D-276).** Go sets `UsersTotal`, `ItemsTotal`,
   `ImplicitFeedbacksTotal`, the label, positive and negative totals, and the active and inactive counts in `master/tasks.go`
