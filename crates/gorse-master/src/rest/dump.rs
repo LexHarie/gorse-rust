@@ -380,3 +380,20 @@ pub(crate) async fn restore(State(master): State<Arc<Master>>, request: Request)
     stats.duration = i64::try_from(start.elapsed().as_nanos()).unwrap_or(i64::MAX);
     ok(&stats).unwrap_or_else(IntoResponse::into_response)
 }
+
+impl Master {
+    /// Go's `Restore`: reads a dump from `body` and writes its records to the
+    /// data store, moving the feedback time stamps by `delta` when one is given.
+    /// `gorse-in-one --playground` imports its data this way. The HTTP route
+    /// passes no `delta`.
+    ///
+    /// # Errors
+    ///
+    /// Fails with the message of the first record that cannot be read or written.
+    pub async fn restore(&self, body: &[u8], delta: Option<gotime::Duration>) -> Result<(), String> {
+        restore_dump(self, body, delta)
+            .await
+            .map(|_| ())
+            .map_err(|err| err.message().to_owned())
+    }
+}
