@@ -6,22 +6,30 @@
 //! dashboard credentials as the Go suite does, and sends its requests through
 //! the router. The mock OpenAI server runs on a thread of its own.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::Router;
 use axum::body::Body;
+use axum::extract::Query;
 use axum::http::{HeaderMap, Request, StatusCode, header};
+use axum::response::{IntoResponse, Response};
+use axum::routing::get;
 use futures_util::StreamExt as _;
+use gorse_common::expression::must_parse_feedback_type_expression;
 use gorse_common::gocontext::Context;
+use gorse_common::gourl::query_escape;
 use gorse_common::mock::OpenAiServer;
 use gorse_config::config::defaults::get_default_config;
 use gorse_config::config::schema::Config;
 use gorse_storage::cache;
 use gorse_storage::data::types::{Feedback, FeedbackKey, Item, User};
+use gorse_storage::meta;
 use serde_json::{Value, json};
 use tower::ServiceExt as _;
 
 use crate::Master;
+use crate::rest::config_map::config_map;
 use crate::rest::router;
 use crate::test_support::{close_stores, new_master, open_stores};
 
@@ -1198,4 +1206,339 @@ fn year_start(year: i64) -> i64 {
         2025 => 1_735_689_600,
         _ => panic!("no fixture for {year}"),
     }
+}
+
+#[tokio::test]
+async fn get_external() {
+    use base64::Engine as _;
+    let suite = Suite::new().await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("a local port");
+    let address = listener.local_addr().expect("a local address");
+    let script_server = Router::new().route("/", get(external_user_items));
+    tokio::spawn(async move {
+        let _ = axum::serve(listener, script_server).await;
+    });
+    let script = format!("fetch(\"http://{address}?user_id=\" + user_id).body");
+    let script_base64 = base64::engine::general_purpose::STANDARD.encode(script);
+    let reply = suite
+        .get(&format!(
+            "/api/dashboard/external?script={}&user-id=1",
+            query_escape(script_base64)
+        ))
+        .await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.text());
+    assert_eq!(reply.json(), json!(["x", "y"]));
+    suite.close().await;
+}
+
+/// The script's server, as Go's `httptest` handler: `["x","y"]` for user `1`,
+/// and not found for any other user.
+async fn external_user_items(Query(query): Query<HashMap<String, String>>) -> Response {
+    if query.get("user_id").map(String::as_str) == Some("1") {
+        return "[\"x\",\"y\"]\n".into_response();
+    }
+    StatusCode::NOT_FOUND.into_response()
+}
+
+#[tokio::test]
+async fn get_config_schema() {
+    let suite = Suite::new().await;
+    let reply = suite.get("/api/dashboard/config/schema").await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.text());
+    // The contract is the schema Go's reflector writes for the config struct.
+    let schema: Value = serde_json::from_str(include_str!(
+        "../../../../contracts/config/config.schema.json"
+    ))
+    .expect("the schema contract");
+    assert_eq!(reply.json(), schema);
+    let properties = &schema["$defs"]["RecommendConfig"]["properties"];
+    assert!(properties.get("cache_size").is_some());
+    assert!(properties.get("non-personalized").is_some());
+    assert!(properties.get("cacheSize").is_none());
+    assert!(properties.get("nonPersonalized").is_none());
+    suite.close().await;
+}
+
+#[tokio::test]
+async fn get_timeseries() {
+    let suite = Suite::new().await;
+    let ctx = Context::background();
+    let now = gorse_common::gotime::now();
+    let points: Vec<cache::TimeSeriesPoint> = [(24, 1.0), (48, 2.0), (72, 3.0)]
+        .into_iter()
+        .map(|(hours, value)| cache::TimeSeriesPoint {
+            name: "test_timeseries".to_owned(),
+            timestamp: now.add(gorse_common::gotime::Duration(
+                -hours * 3600 * gorse_common::gotime::SECOND.0,
+            )),
+            value,
+        })
+        .collect();
+    suite
+        .master
+        .cache()
+        .add_time_series_points(&ctx, &points)
+        .await
+        .expect("add the points");
+    let reply = suite.get("/api/dashboard/timeseries/test_timeseries").await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.text());
+    assert_eq!(
+        reply.json().as_array().map(Vec::len),
+        Some(3),
+        "{}",
+        reply.text()
+    );
+    suite.close().await;
+}
+
+#[tokio::test]
+async fn chat_completions() {
+    let suite = Suite::new().await;
+    let content = "In my younger and more vulnerable years my father gave me some advice that I've been turning over in my mind ever since. \"Whenever you feel like criticizing any one,\" he told me, \" just remember that all the people in this world haven't had the advantages that you've had.\"";
+    let body = json!({
+        "model": "gpt-test",
+        "messages": [{"role": "user", "content": content}],
+    });
+    let reply = suite
+        .send(suite.request(
+            "POST",
+            "/api/chat/completions",
+            Body::from(body.to_string()),
+        ))
+        .await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.text());
+    let chat = reply.json();
+    let choices = chat["choices"].as_array().expect("the choices");
+    assert_eq!(choices.len(), 1);
+    assert_eq!(choices[0]["message"]["content"], json!(content));
+    suite.close().await;
+}
+
+#[tokio::test]
+async fn chat_completions_stream() {
+    let suite = Suite::new().await;
+    let content = "streaming chat completion proxy";
+    let body = json!({
+        "model": "gpt-test",
+        "stream": true,
+        "messages": [{"role": "user", "content": content}],
+    });
+    let reply = suite
+        .send(suite.request(
+            "POST",
+            "/api/chat/completions",
+            Body::from(body.to_string()),
+        ))
+        .await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.text());
+    assert_eq!(reply.header("content-type"), "text/event-stream");
+    let text = reply.text();
+    assert!(text.contains("data: "), "{text}");
+    assert!(text.contains("data: [DONE]"), "{text}");
+    let mut got = String::new();
+    for event in text.split("\n\n") {
+        let event = event.trim();
+        if event.is_empty() || event == "data: [DONE]" {
+            continue;
+        }
+        let payload = event.strip_prefix("data: ").expect("a data event");
+        let chunk: Value = serde_json::from_str(payload).expect("a stream event");
+        if let Some(delta) = chunk["choices"][0]["delta"]["content"].as_str() {
+            got.push_str(delta);
+        }
+    }
+    assert_eq!(got, content);
+    suite.close().await;
+}
+
+#[tokio::test]
+async fn purge() {
+    let suite = Suite::new().await;
+    let ctx = Context::background();
+    let cache = suite.master.cache();
+    let data = suite.master.data();
+    cache
+        .set(&ctx, &[cache::string("key", "value")])
+        .await
+        .expect("set the string");
+    let text = cache.get(&ctx, "key").await.string().expect("the string");
+    assert_eq!(text, "value");
+    let scores: Vec<cache::Score> = [("a", 1.0), ("b", 2.0), ("c", 3.0)]
+        .into_iter()
+        .map(|(id, score)| cache::Score {
+            id: id.to_owned(),
+            score,
+            is_hidden: false,
+            categories: vec![String::new()],
+            timestamp: Default::default(),
+        })
+        .collect();
+    cache
+        .add_scores(&ctx, "sorted", "", &scores)
+        .await
+        .expect("add the scores");
+    let found = cache
+        .search_scores(&ctx, "sorted", "", &[String::new()], 0, -1)
+        .await
+        .expect("the scores");
+    let mut found: Vec<(String, f64)> = found.into_iter().map(|s| (s.id, s.score)).collect();
+    found.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(
+        found,
+        vec![
+            ("a".to_owned(), 1.0),
+            ("b".to_owned(), 2.0),
+            ("c".to_owned(), 3.0),
+        ]
+    );
+
+    let feedback: Vec<Feedback> = (0..100)
+        .map(|i| Feedback {
+            feedback_key: FeedbackKey {
+                feedback_type: "click".to_owned(),
+                user_id: i.to_string(),
+                item_id: i.to_string(),
+            },
+            ..Default::default()
+        })
+        .collect();
+    data.batch_insert_feedback(&ctx, &feedback, true, true, true)
+        .await
+        .expect("insert the feedback");
+    let (_, users) = data.get_users(&ctx, "", 100).await.expect("the users");
+    assert_eq!(users.len(), 100);
+    let (_, items) = data
+        .get_items(&ctx, "", 100, None)
+        .await
+        .expect("the items");
+    assert_eq!(items.len(), 100);
+    let (_, found_feedback) = data
+        .get_feedback(&ctx, "", 100, None, Some(gorse_common::gotime::now()), &[])
+        .await
+        .expect("the feedback");
+    assert_eq!(found_feedback.len(), 100);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/api/purge")
+        .header(header::COOKIE, &suite.cookie)
+        .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(Body::from(
+            "check_list=delete_users,delete_items,delete_feedback,delete_cache",
+        ))
+        .expect("a purge request");
+    let reply = suite.send(request).await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.text());
+
+    assert!(!cache.get(&ctx, "key").await.exists());
+    let remaining = cache
+        .search_scores(&ctx, "sorted", "", &[String::new()], 0, -1)
+        .await
+        .expect("the scores");
+    assert!(remaining.is_empty());
+    let (_, users) = data.get_users(&ctx, "", 100).await.expect("the users");
+    assert!(users.is_empty());
+    let (_, items) = data
+        .get_items(&ctx, "", 100, None)
+        .await
+        .expect("the items");
+    assert!(items.is_empty());
+    let (_, found_feedback) = data
+        .get_feedback(&ctx, "", 100, None, Some(gorse_common::gotime::now()), &[])
+        .await
+        .expect("the feedback");
+    assert!(found_feedback.is_empty());
+    suite.close().await;
+}
+
+/// The JSON with every number as a float, so `0` and `0.0` compare equal: Go
+/// writes a float64 zero as `0`, and the port's encoder keeps it a float.
+fn float_numbers(value: Value) -> Value {
+    match value {
+        Value::Number(number) => json!(number.as_f64()),
+        Value::Array(items) => Value::Array(items.into_iter().map(float_numbers).collect()),
+        Value::Object(fields) => Value::Object(
+            fields
+                .into_iter()
+                .map(|(key, value)| (key, float_numbers(value)))
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
+#[tokio::test]
+async fn config() {
+    let suite = Suite::new().await;
+    let mut cfg = suite.master.config().as_ref().clone();
+    cfg.recommend.data_source.positive_feedback_types =
+        Some(vec![must_parse_feedback_type_expression("a")]);
+    cfg.recommend.data_source.read_feedback_types =
+        Some(vec![must_parse_feedback_type_expression("b")]);
+    cfg.recommend.ranker.recommenders = Some(vec!["latest".to_owned()]);
+    suite.master.replace_config(cfg.clone());
+
+    let reply = suite.get("/api/dashboard/config").await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.text());
+    assert_eq!(
+        float_numbers(reply.json()),
+        float_numbers(Value::Object(config_map(&cfg)))
+    );
+
+    cfg.master.dashboard_redacted = true;
+    suite.master.replace_config(cfg.clone());
+    let mut redacted = config_map(&cfg);
+    redacted.remove("database");
+    let reply = suite.get("/api/dashboard/config").await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.text());
+    assert_eq!(
+        float_numbers(reply.json()),
+        float_numbers(Value::Object(redacted))
+    );
+    cfg.master.dashboard_redacted = false;
+    suite.master.replace_config(cfg.clone());
+
+    // The posts send the configuration as the dashboard does: the map form of
+    // the whole configuration, with the ranker type changed.
+    let post = |body: &Value| {
+        Request::builder()
+            .method("POST")
+            .uri("/api/dashboard/config")
+            .header(header::COOKIE, &suite.cookie)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body.to_string()))
+            .expect("a config request")
+    };
+    cfg.recommend.ranker.kind = "reranker".to_owned();
+    let reply = suite.send(post(&Value::Object(config_map(&cfg)))).await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.text());
+    assert_eq!(suite.master.config().recommend.ranker.kind, "reranker");
+    assert!(suite.scheduled());
+
+    cfg.recommend.ranker.kind = "xxx".to_owned();
+    let reply = suite.send(post(&Value::Object(config_map(&cfg)))).await;
+    assert_eq!(reply.status, StatusCode::BAD_REQUEST, "{}", reply.text());
+    assert_eq!(suite.master.config().recommend.ranker.kind, "reranker");
+
+    let stored = cfg.recommend.marshal_json().expect("the recommend config");
+    suite
+        .master
+        .meta_store()
+        .put(meta::RECOMMEND_CONFIG, &stored)
+        .await
+        .expect("store the config");
+    let reply = suite
+        .send(suite.request("DELETE", "/api/dashboard/config", Body::empty()))
+        .await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.text());
+    let value = suite
+        .master
+        .meta_store()
+        .get(meta::RECOMMEND_CONFIG)
+        .await
+        .expect("read the config");
+    assert!(value.is_none());
+    suite.close().await;
 }

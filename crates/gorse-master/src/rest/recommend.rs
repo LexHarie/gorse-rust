@@ -343,8 +343,14 @@ pub(crate) async fn external(uri: Uri) -> Result<Response, ApiError> {
         script: String::from_utf8_lossy(&script).into_owned(),
         ..ExternalConfig::default()
     };
-    let external = External::new(&config).map_err(ApiError::internal)?;
-    let items = external.pull(&user_id).map_err(ApiError::internal)?;
+    // The script engine and its blocking HTTP client are built and run on a
+    // blocking thread: a blocking client panics on an async worker thread.
+    let items = tokio::task::spawn_blocking(move || -> Result<Vec<String>, ApiError> {
+        let external = External::new(&config).map_err(ApiError::internal)?;
+        external.pull(&user_id).map_err(ApiError::internal)
+    })
+    .await
+    .map_err(ApiError::internal)??;
     ok(&items)
 }
 

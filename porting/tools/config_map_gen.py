@@ -19,7 +19,7 @@ SCHEMA = ROOT / "crates/gorse-config/src/config/schema.rs"
 OUT = ROOT / "crates/gorse-master/src/rest/config_map.rs"
 
 IMPL_RE = re.compile(r"impl Decode for (\w+) \{")
-FIELD_RE = re.compile(r'f\.decode\(\s*"([^"]+)",\s*&mut out\.(\w+),\s*errs\s*\);', re.S)
+FIELD_RE = re.compile(r'f\.decode\(\s*"([^"]+)",\s*&mut out\.(\w+),\s*errs,?\s*\);', re.S)
 
 
 def blocks(text):

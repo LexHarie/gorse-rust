@@ -289,8 +289,20 @@ impl ToConfigValue for RecommendConfig {
 pub(crate) fn data_source_config_map(cfg: &DataSourceConfig) -> Map<String, Value> {
     let mut map = Map::new();
     map.insert(
+        "positive_feedback_types".to_owned(),
+        cfg.positive_feedback_types.to_config_value(),
+    );
+    map.insert(
+        "negative_feedback_types".to_owned(),
+        cfg.negative_feedback_types.to_config_value(),
+    );
+    map.insert(
         "read_feedback_types".to_owned(),
         cfg.read_feedback_types.to_config_value(),
+    );
+    map.insert(
+        "positive_feedback_ttl".to_owned(),
+        cfg.positive_feedback_ttl.to_config_value(),
     );
     map.insert("item_ttl".to_owned(), cfg.item_ttl.to_config_value());
     map
@@ -421,6 +433,14 @@ pub(crate) fn replacement_config_map(cfg: &ReplacementConfig) -> Map<String, Val
         "enable_replacement".to_owned(),
         cfg.enable_replacement.to_config_value(),
     );
+    map.insert(
+        "positive_replacement_decay".to_owned(),
+        cfg.positive_replacement_decay.to_config_value(),
+    );
+    map.insert(
+        "read_replacement_decay".to_owned(),
+        cfg.read_replacement_decay.to_config_value(),
+    );
     map
 }
 
@@ -542,6 +562,10 @@ pub(crate) fn decision_a_p_i_config_map(cfg: &DecisionAPIConfig) -> Map<String, 
         "state_template".to_owned(),
         cfg.state_template.to_config_value(),
     );
+    map.insert(
+        "instructions_template".to_owned(),
+        cfg.instructions_template.to_config_value(),
+    );
     map.insert("auth_token".to_owned(), cfg.auth_token.to_config_value());
     map.insert("model".to_owned(), cfg.model.to_config_value());
     map.insert("url".to_owned(), cfg.url.to_config_value());
@@ -582,6 +606,10 @@ pub(crate) fn open_a_i_config_map(cfg: &OpenAIConfig) -> Map<String, Value> {
     let mut map = Map::new();
     map.insert("base_url".to_owned(), cfg.base_url.to_config_value());
     map.insert("auth_token".to_owned(), cfg.auth_token.to_config_value());
+    map.insert(
+        "chat_completion_model".to_owned(),
+        cfg.chat_completion_model.to_config_value(),
+    );
     map.insert(
         "chat_completion_rpm".to_owned(),
         cfg.chat_completion_rpm.to_config_value(),
