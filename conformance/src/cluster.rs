@@ -16,12 +16,16 @@ use std::future::Future;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 use gorse_storage::cache;
 use gorse_storage::data;
+use gorse_common::util::tls::TlsConfig;
 use gorse_worker::{Worker, WorkerOptions};
+use rcgen::{
+    BasicConstraints, CertificateParams, DnType, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair,
+};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
@@ -47,23 +51,25 @@ const GO_PACKAGES: [&str; 3] = [
 /// The Go binaries of one build of the repository.
 #[derive(Debug)]
 pub struct GoBuild {
-    dir: tempfile::TempDir,
+    dir: PathBuf,
 }
 
 impl GoBuild {
-    /// Builds the Go nodes into a new temporary directory. The first build
-    /// downloads modules, so it can take minutes.
+    /// Builds the Go nodes into [`build_dir`]. Each process builds again, which
+    /// replaces the last build; the first build downloads modules, so it can take
+    /// minutes.
     ///
     /// # Errors
     ///
     /// Fails when `go` is not installed or the build fails. The mixed-cluster
     /// test needs the Go oracle, so it fails with this error rather than skip.
     pub fn build() -> Result<GoBuild> {
-        let dir = tempfile::tempdir().map_err(fail)?;
+        let dir = build_dir()?;
+        fs::create_dir_all(&dir).map_err(fail)?;
         let output = Command::new("go")
             .current_dir(repo_root())
             .args(["build", "-o"])
-            .arg(dir.path())
+            .arg(&dir)
             .args(GO_PACKAGES)
             .output()
             .map_err(|e| fail(format!("go is needed by the mixed-cluster tests: {e}")))?;
@@ -92,8 +98,20 @@ impl GoBuild {
 
     /// The path of one built node, such as `gorse-master`.
     fn binary(&self, name: &str) -> PathBuf {
-        self.dir.path().join(name)
+        self.dir.join(name)
     }
+}
+
+/// The directory the Go nodes are built into: `gorse-go-nodes` in the profile
+/// directory of the test binary (`target/<profile>`). The build of the last
+/// process is replaced, so the nodes do not pile up in the temporary directory.
+fn build_dir() -> Result<PathBuf> {
+    let exe = std::env::current_exe().map_err(fail)?;
+    let profile = exe
+        .parent()
+        .and_then(Path::parent)
+        .ok_or_else(|| fail("the test binary is not under a target directory".to_owned()))?;
+    Ok(profile.join("gorse-go-nodes"))
 }
 
 /// The ports a run listens on. Each is free when the run starts.
@@ -113,6 +131,15 @@ pub struct Ports {
 /// such as `("recommend.ranker", "type", "\"none\"")`.
 pub type Edit<'a> = (&'a str, &'a str, &'a str);
 
+/// The PEM files of a TLS run: the CA that signs every node's certificate, and
+/// the certificate and key that every node presents.
+#[derive(Debug)]
+struct TlsFiles {
+    ca: PathBuf,
+    cert: PathBuf,
+    key: PathBuf,
+}
+
 /// One run of a mixed cluster: its directory, its config and its nodes.
 pub struct Cluster {
     dir: tempfile::TempDir,
@@ -122,6 +149,7 @@ pub struct Cluster {
     pub ports: Ports,
     data_uri: String,
     cache_uri: String,
+    tls: Option<TlsFiles>,
     processes: Vec<(&'static str, Child)>,
 }
 
@@ -133,6 +161,23 @@ impl Cluster {
     ///
     /// Fails when the config or the run's directories cannot be written.
     pub fn new(build: &'static GoBuild, edits: &[Edit<'_>]) -> Result<Cluster> {
+        Self::create(build, edits, false)
+    }
+
+    /// Starts a run like [`Cluster::new`], with mutual TLS between the nodes. The
+    /// master requires a client certificate signed by the run's CA, and every node
+    /// presents the same certificate, which that CA signs.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the certificates or the config cannot be written.
+    pub fn new_tls(build: &'static GoBuild, edits: &[Edit<'_>]) -> Result<Cluster> {
+        Self::create(build, edits, true)
+    }
+
+    /// Writes the run's directories, certificates and config. `secure` turns on
+    /// mutual TLS in the master.
+    fn create(build: &'static GoBuild, edits: &[Edit<'_>], secure: bool) -> Result<Cluster> {
         let dir = tempfile::tempdir().map_err(fail)?;
         let root = dir.path().to_path_buf();
         let ports = Ports {
@@ -188,6 +233,17 @@ impl Cluster {
             "uri",
             &toml_string(&blob_dir.display().to_string()),
         );
+        let tls = if secure {
+            Some(write_certificates(&root)?)
+        } else {
+            None
+        };
+        if let Some(files) = &tls {
+            set_key(&mut config, "master", "ssl_mode", "true");
+            set_key(&mut config, "master", "ssl_ca", &toml_string(&path(&files.ca)));
+            set_key(&mut config, "master", "ssl_cert", &toml_string(&path(&files.cert)));
+            set_key(&mut config, "master", "ssl_key", &toml_string(&path(&files.key)));
+        }
         for &(section, key, value) in edits {
             set_key(&mut config, section, key, value);
         }
@@ -201,6 +257,7 @@ impl Cluster {
             ports,
             data_uri,
             cache_uri,
+            tls,
             processes: Vec::new(),
         })
     }
@@ -263,7 +320,7 @@ impl Cluster {
                 path(&self.dir.path().join("server_cache.data")),
             ),
         ]);
-        self.spawn("gorse-server", args)?;
+        self.spawn("gorse-server", [args, self.tls_flags()].concat())?;
         let port = self.ports.server_http;
         self.wait_for("the Go server to be ready", move || http_ready(port))
             .await
@@ -288,7 +345,7 @@ impl Cluster {
                 path(&self.dir.path().join("worker_cache.data")),
             ),
         ]);
-        self.spawn("gorse-worker", args)?;
+        self.spawn("gorse-worker", [args, self.tls_flags()].concat())?;
         let port = self.ports.worker_http;
         self.wait_for("the Go worker to be ready", move || http_ready(port))
             .await
@@ -313,9 +370,15 @@ impl Cluster {
             http_host: "127.0.0.1".to_owned(),
             http_port: self.ports.worker_http,
             jobs,
-            tls: None,
+            tls: self.tls.as_ref().map(|files| TlsConfig {
+                ssl_ca: path(&files.ca),
+                ssl_cert: path(&files.cert),
+                ssl_key: path(&files.key),
+            }),
             tick_interval: interval,
         };
+        // The worker logs through `tracing`; the log lines are kept for a failure.
+        captured();
         let worker = Arc::new(Worker::new(options).map_err(fail)?);
         let serving = Arc::clone(&worker);
         let task = tokio::spawn(async move { serving.serve().await });
@@ -329,10 +392,13 @@ impl Cluster {
             .await
         {
             Ok(()) => Ok(rust),
-            Err(err) => Err(match rust.stop().await {
-                Err(stopped) => fail(format!("{}\n{}", err.0, stopped.0)),
-                Ok(()) => err,
-            }),
+            Err(err) => {
+                let logs = captured_tail();
+                Err(match rust.stop().await {
+                    Err(stopped) => fail(format!("{}\n{}\n{logs}", err.0, stopped.0)),
+                    Ok(()) => fail(format!("{}\n{logs}", err.0)),
+                })
+            }
         }
     }
 
@@ -369,6 +435,17 @@ impl Cluster {
             let _ = child.wait();
         }
         self.processes.clear();
+    }
+
+    /// The `--ssl-*` flags of a Go node, when the run uses TLS.
+    fn tls_flags(&self) -> Vec<String> {
+        self.tls.as_ref().map_or_else(Vec::new, |files| {
+            flags(&[
+                ("ssl-ca", path(&files.ca)),
+                ("ssl-cert", path(&files.cert)),
+                ("ssl-key", path(&files.key)),
+            ])
+        })
     }
 
     /// Starts one Go node with `args`, with its output in `<name>.log` in the
@@ -430,6 +507,57 @@ impl Drop for Cluster {
 pub struct RustWorker {
     worker: Arc<Worker>,
     task: Option<JoinHandle<std::result::Result<(), gorse_worker::Error>>>,
+}
+
+/// The `tracing` output of this test process, which the Rust workers log to.
+type Captured = Arc<Mutex<Vec<u8>>>;
+
+/// The process's `tracing` output, kept in memory. The subscriber is installed
+/// once and never replaced: swapping subscribers while spans are open makes
+/// `tracing-subscriber` panic when an event reaches a span that the new one did
+/// not record. The output of every test in the process goes to the same buffer.
+fn captured() -> &'static Captured {
+    static CAPTURED: OnceLock<Captured> = OnceLock::new();
+    CAPTURED.get_or_init(|| {
+        let buffer = Captured::default();
+        let writer = Arc::clone(&buffer);
+        let subscriber = tracing_subscriber::fmt()
+            .with_writer(move || Capture(Arc::clone(&writer)))
+            .finish();
+        // Another subscriber may already be set; then the lines are not kept.
+        let _ = tracing::subscriber::set_global_default(subscriber);
+        buffer
+    })
+}
+
+/// The writer of [`captured`]: every write is appended to the buffer.
+struct Capture(Captured);
+
+impl std::io::Write for Capture {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Every `tracing` line that the Rust workers of this process have written.
+pub fn worker_logs() -> String {
+    let buffer = captured().lock().unwrap_or_else(PoisonError::into_inner);
+    String::from_utf8_lossy(&buffer).into_owned()
+}
+
+/// The last lines of [`worker_logs`], for a failure message.
+fn captured_tail() -> String {
+    let text = worker_logs();
+    let lines: Vec<&str> = text.lines().collect();
+    lines[lines.len().saturating_sub(60)..].join("\n")
 }
 
 impl RustWorker {
@@ -495,6 +623,47 @@ fn flags(pairs: &[(&str, String)]) -> Vec<String> {
         .iter()
         .flat_map(|(name, value)| [format!("--{name}"), value.clone()])
         .collect()
+}
+
+/// Writes a CA and one node certificate into `dir`, and returns their paths. The
+/// node certificate allows server and client authentication, so the same files
+/// serve the master and every node that dials it. Its names are `localhost` and
+/// `127.0.0.1`. Neither side checks host names, as Go's `advancedtls` does, so
+/// the names only keep the certificate well formed.
+fn write_certificates(dir: &Path) -> Result<TlsFiles> {
+    let ca_key = KeyPair::generate().map_err(fail)?;
+    let mut ca_params = CertificateParams::new(Vec::<String>::new()).map_err(fail)?;
+    ca_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+    ca_params
+        .distinguished_name
+        .push(DnType::CommonName, "gorse conformance ca");
+    let ca_cert = ca_params.self_signed(&ca_key).map_err(fail)?;
+    let issuer = Issuer::from_params(&ca_params, &ca_key);
+
+    let node_key = KeyPair::generate().map_err(fail)?;
+    let mut node_params =
+        CertificateParams::new(vec!["localhost".to_owned(), "127.0.0.1".to_owned()])
+            .map_err(fail)?;
+    node_params.extended_key_usages = vec![
+        ExtendedKeyUsagePurpose::ServerAuth,
+        ExtendedKeyUsagePurpose::ClientAuth,
+    ];
+    node_params
+        .distinguished_name
+        .push(DnType::CommonName, "gorse conformance node");
+    let node_cert = node_params
+        .signed_by(&node_key, &issuer)
+        .map_err(fail)?;
+
+    let files = TlsFiles {
+        ca: dir.join("ca.pem"),
+        cert: dir.join("node.pem"),
+        key: dir.join("node-key.pem"),
+    };
+    fs::write(&files.ca, ca_cert.pem()).map_err(fail)?;
+    fs::write(&files.cert, node_cert.pem()).map_err(fail)?;
+    fs::write(&files.key, node_key.serialize_pem()).map_err(fail)?;
+    Ok(files)
 }
 
 /// A path as the text a flag takes.

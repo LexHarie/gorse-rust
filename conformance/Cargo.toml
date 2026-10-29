@@ -18,6 +18,8 @@ gorse-storage = { workspace = true, features = ["mysql", "postgres", "sqlite", "
 futures-core.workspace = true
 futures-util.workspace = true
 indexmap.workspace = true
+# The mixed-cluster harness writes the certificates of a TLS run (cluster.rs).
+rcgen.workspace = true
 mongodb.workspace = true
 redis.workspace = true
 rusqlite.workspace = true
@@ -28,6 +30,9 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros", "net", "io-util", "time"] }
 tokio-stream = { version = "0.1.19", features = ["net"] }
 tonic.workspace = true
+# The mixed-cluster harness keeps the Rust worker's log lines for its failures (cluster.rs).
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 [dev-dependencies]
 # The vector cross-read (tests/vector_cross_read.rs) drives the Rust vector stores

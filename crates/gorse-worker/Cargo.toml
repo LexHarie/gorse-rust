@@ -20,6 +20,7 @@ gorse-model-core = { workspace = true }
 # and `blob.NewStore` take all of them.
 gorse-storage = { workspace = true, features = ["mysql", "postgres", "sqlite", "mongodb", "redis", "qdrant", "milvus", "weaviate", "s3", "gcs", "azure"] }
 hex.workspace = true
+hyper-rustls.workspace = true
 md-5.workspace = true
 prometheus = { workspace = true, features = ["process"] }
 serde.workspace = true

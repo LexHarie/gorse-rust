@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use gorse_common::gocontext::Context;
 use gorse_common::gotime;
-use gorse_conformance::cluster::{Cluster, Edit, GoBuild};
+use gorse_conformance::cluster::{Cluster, Edit, GoBuild, worker_logs};
 use gorse_storage::cache;
 use gorse_storage::data::types::{Feedback, FeedbackKey, Item, User};
 
@@ -31,6 +31,16 @@ const TICK: Duration = Duration::from_millis(500);
 enum WorkerKind {
     Go,
     Rust,
+}
+
+/// How the nodes of a run talk to the master.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Transport {
+    /// Plain gRPC, as the contract config sets it.
+    Plain,
+    /// Mutual TLS: the master requires a client certificate, and every node
+    /// presents one that the same CA signs.
+    MutualTls,
 }
 
 /// One recommend row: the item id, its score bits, and its categories.
@@ -138,9 +148,9 @@ async fn read_outcome(cache: &dyn cache::Database, ids: &[String]) -> Outcome {
     outcome
 }
 
-/// Runs one cluster with the worker of `kind` until every user has a
-/// recommendation, then reads what the cache holds.
-async fn run(build: &'static GoBuild, kind: WorkerKind) -> Outcome {
+/// Runs one cluster with the worker of `kind` over `transport` until every user
+/// has a recommendation, then reads what the cache holds.
+async fn run(build: &'static GoBuild, kind: WorkerKind, transport: Transport) -> Outcome {
     // No collaborative model and no ranker, so the only candidates are the latest
     // items. Both are deterministic, so the two runs can match exactly.
     let edits: [Edit; 4] = [
@@ -149,7 +159,11 @@ async fn run(build: &'static GoBuild, kind: WorkerKind) -> Outcome {
         ("recommend.ranker", "recommenders", "[\"latest\"]"),
         ("recommend.fallback", "recommenders", "[\"latest\"]"),
     ];
-    let mut cluster = Cluster::new(build, &edits).expect("write the cluster config");
+    let mut cluster = match transport {
+        Transport::Plain => Cluster::new(build, &edits),
+        Transport::MutualTls => Cluster::new_tls(build, &edits),
+    }
+    .expect("write the cluster config");
     let (users, items, feedback) = seed();
     seed_stores(&cluster, &users, &items, &feedback).await;
     cluster.start_master().await.expect("start the Go master");
@@ -220,12 +234,13 @@ fn diff(go: &Outcome, rust: &Outcome) -> String {
     out
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn rust_worker_matches_go_worker_in_a_mixed_cluster() {
+/// Runs a Go worker and a Rust worker over the same data and transport, and
+/// checks that they wrote the same recommend rows and digests.
+async fn assert_rust_worker_matches_go_worker(transport: Transport) {
     let build =
         GoBuild::shared().expect("the mixed-cluster test needs the Go toolchain; install it");
-    let go = run(build, WorkerKind::Go).await;
-    let rust = run(build, WorkerKind::Rust).await;
+    let go = run(build, WorkerKind::Go, transport).await;
+    let rust = run(build, WorkerKind::Rust, transport).await;
 
     assert_eq!(go.rows.len(), USERS, "the Go run recommends for every user");
     // The latest recommender skips the items a user has liked: 30 items less 2.
@@ -242,4 +257,28 @@ async fn rust_worker_matches_go_worker_in_a_mixed_cluster() {
         "the Rust worker's recommendations differ from the Go worker's:\n{}",
         diff(&go, &rust)
     );
+    // A Rust worker that cannot reach the master logs these. Over TLS that means
+    // the handshake failed, so the run would otherwise pass without the master.
+    let logs = worker_logs();
+    let failures: Vec<&str> = logs
+        .lines()
+        .filter(|line| {
+            line.contains("failed to sync with the master") || line.contains("failed to report update task")
+        })
+        .collect();
+    assert!(
+        failures.is_empty(),
+        "the Rust worker failed to reach the master:\n{}",
+        failures.join("\n")
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn rust_worker_matches_go_worker_in_a_mixed_cluster() {
+    assert_rust_worker_matches_go_worker(Transport::Plain).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn rust_worker_matches_go_worker_over_mutual_tls() {
+    assert_rust_worker_matches_go_worker(Transport::MutualTls).await;
 }
