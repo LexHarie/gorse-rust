@@ -1,8 +1,9 @@
 // Ports: cmd/gorse-in-one/main.go @ add21b5
 
-//! The `gorse-in-one` binary (`cmd/gorse-in-one/main.go`): a master, a server
-//! and a worker in one process, with `--playground` to set up a recommender
-//! system from a published dump.
+//! The `gorse-in-one` binary (`cmd/gorse-in-one/main.go`): a master in
+//! standalone mode, which also runs the recommendation itself, with
+//! `--playground` to set up a recommender system from a published dump. Go's
+//! binary starts no server or worker of its own.
 //!
 //! Go's `setup` imports the playground data before `Serve`. Here the stores are
 //! opened by `Serve` first, then the dump is restored, then the HTTP listener

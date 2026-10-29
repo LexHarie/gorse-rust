@@ -538,11 +538,31 @@ impl Cluster {
     /// Fails when the binary cannot be built or started, or a port is not ready
     /// within the timeout.
     pub async fn start_rust_master_binary(&mut self) -> Result<()> {
+        self.start_rust_master_process("gorse-master").await
+    }
+
+    /// Starts the Rust `gorse-in-one` binary against the run's config. It is the
+    /// master in standalone mode, so it also runs the recommendation itself, as
+    /// Go's `gorse-in-one` does. It is ready as [`Cluster::start_rust_master_binary`]
+    /// is.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the binary cannot be built or started, or a port is not ready
+    /// within the timeout.
+    pub async fn start_rust_in_one_binary(&mut self) -> Result<()> {
+        self.start_rust_master_process("gorse-in-one").await
+    }
+
+    /// Starts one of the Rust binaries that run the master, with the master's
+    /// flags, and waits until its gRPC port listens and its HTTP port answers
+    /// `/apidocs.json` with 200.
+    async fn start_rust_master_process(&mut self, name: &'static str) -> Result<()> {
         let args = flags(&[
             ("config", path(&self.config)),
             ("cache-path", path(&self.dir.path().join("master-cache"))),
         ]);
-        self.spawn_binary("gorse-master", args)?;
+        self.spawn_binary(name, args)?;
         let grpc = self.ports.master_grpc;
         self.wait_for("the Rust master gRPC port", move || port_open(grpc))
             .await?;

@@ -45,6 +45,24 @@ async fn rust_master_binary_runs_beside_go_server_and_worker() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn rust_in_one_binary_runs_beside_go_server_and_worker() {
+    let go = GoBuild::shared().expect("the Go nodes build");
+    let mut cluster = Cluster::new(go, &[]).expect("a run");
+    cluster
+        .start_rust_in_one_binary()
+        .await
+        .expect("the Rust gorse-in-one binary starts");
+    cluster
+        .start_go_server()
+        .await
+        .expect("the Go server joins the Rust gorse-in-one master");
+    cluster
+        .start_go_worker(TICK, 1)
+        .await
+        .expect("the Go worker joins the Rust gorse-in-one master");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn rust_server_binary_runs_beside_go_master_and_worker() {
     let go = GoBuild::shared().expect("the Go nodes build");
     let mut cluster = Cluster::new(go, &[]).expect("a run");
