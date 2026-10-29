@@ -2772,6 +2772,69 @@ said otherwise), so the Rust result is Go's.
   is approximate (O-30). The port's store scans exactly (X-75). Neighbour order at score ties and the last
   bit of a score can therefore differ. The oracle compares around both (D-234).
 
+- **WP-4-2 server node (merged in part, D-242).** The thread's notes (`porting/notes/WP-4-2.md`) are folded here
+  with the integrator's ids. The mixed-cluster conformance test is not written yet, so the WP is not accepted.
+
+- **Q-265 Live check of the item-to-item and user-to-user `offset` past the end (WP-4-2, Q-WP42-1, open).** The source
+  (`server/rest.go` 860 to 872 and 906 to 915) says `null`, and no live Go answer is recorded yet. The port returns
+  `None` there. `mixed_server.rs` checks it.
+
+- **Q-266 `float_roundtrip` on `serde_json` (WP-4-2, Q-WP42-2, provisional).** `gorse-server` enables it, so a float
+  parses to the nearest double, as Go's `strconv` does. Without it the item-to-item test sees a one-ulp difference.
+  Cargo unifies features across a workspace build, so it reaches every crate built together. The merge carries it.
+  The coordinator must approve it. A rejection is a one-line revert in `crates/gorse-server/Cargo.toml`.
+
+- **Q-267 A float label keeps its shortest text (WP-4-2, Q-WP42-3, open).** A label such as `2.50` in a request is
+  stored as `2.5`, while Go keeps the text. Acceptable, or should the request decoder keep the number's text? That
+  needs a storage-crate change.
+
+- **X-212 TLS to the master is not ported in the server (WP-4-2, deviation 1).** `Server::serve` refuses a configured
+  TLS with a clear error. WP-4-3 ports it with `gorse_common::util::tls`.
+
+- **X-213 OpenTelemetry tracing is not applied in `Sync` (WP-4-2, deviation 2).** Go's `Sync` sets up the tracer from
+  the master's config. The Rust `Sync` does not yet.
+
+- **X-214 `/debug/pprof` and the Swagger UI are not served (WP-4-2, deviation 3).** `/apidocs.json` is served from the
+  frozen contract file.
+
+- **X-215 go-restful's CORS container filter is not implemented (WP-4-2, deviation 4).** Success responses still carry
+  `Access-Control-Allow-Origin: *`, as Go's do.
+
+- **X-216 `RemoteAddr` is always empty in request events (WP-4-2, deviation 5).** The router is served without
+  connection info. Go's test expects it empty under `apitest` too.
+
+- **X-217 The REST histogram has a help text (WP-4-2, deviation 6).** Go registers an empty help text, which the
+  `prometheus` crate rejects. The `# HELP` line of `/metrics` therefore differs.
+
+- **X-218 Exponent-form floats are written by `serde_json` (WP-4-2, deviation 7).** The values are equal. The text of
+  very large or very small numbers can differ from Go's `strconv`.
+
+- **X-219 JSON keys are matched case-sensitively (WP-4-2, deviation 8, open).** Go's decoder matches keys
+  case-insensitively, so a request with `"itemid"` for `ItemId` is accepted by Go and refused here. Not tested. It is a
+  wire-compatibility break for clients that send other cases. The WP is not accepted until it is fixed or a
+  coordinator ruling and a test record the refusal.
+
+- **X-220 Trailing slashes are trimmed before routing (WP-4-2, deviation 9).** As go-restful does. `/api/latest/` routes
+  as `/api/latest`.
+
+- **X-221 Numbers in request labels are `json.Number` in Go (WP-4-2, deviation 10).** Go decodes request bodies with
+  `UseNumber`. The storage decoder reads numbers as `f64`, so `validate_request_labels` converts them first. A whole
+  number's text is exact. A fraction keeps its shortest text (Q-267).
+
+- **X-222 Request bytes are the bytes the handler reads (WP-4-2, deviation 11).** They are counted by a body wrapper, as
+  Go's `CountingReadCloser` does. The response bytes are the body's exact size.
+
+- **X-223 The not-found text includes the name (WP-4-2, deviation 12).** `item 6 not found`. Go's storage layer adds the
+  name to `ErrNotFound`. The Rust storage error does not carry the name, so the server adds it.
+
+- **X-224 `serde_json` parses floats exactly (WP-4-2, deviation 13, provisional).** Through `float_roundtrip` (Q-266). A
+  shared-crate decision.
+
+- **X-225 The server name falls back to the `HOSTNAME` variable (WP-4-2, court finding, 2026-10-29).** `read_hostname`
+  reads `/proc/sys/kernel/hostname`, as Go's `os.Hostname` does on Linux. If that file cannot be read, it uses the
+  `HOSTNAME` environment variable. Go's `os.Hostname` falls back to `uname` in that case. The two agree wherever
+  `/proc` exists. The fallback is not tested. The thread removes it or tests it.
+
 - **O-75 The master must pass processed items to the logics (WP-3-5, open).** The Rust master's item and
   user update tasks must build `DatasetItem` and `DatasetUser` from the processed dataset, not from storage
   items (D-WP35-2, D-233). That master code is not in WP-3-5. Open until the master WP merges.
@@ -2781,6 +2844,30 @@ said otherwise), so the Rust result is Go's.
   Go's `RecommendSequential` and `Recommend` can also return a nil list where the port returns an empty
   `Vec`. The recommend oracle counts the nil results, 46 to 48 of its 120 runs in repeated runs, so this
   is measured, not assumed. Open.
+  Extended by WP-4-2 (D-242): on empty stores the Go server answers `[]` for every list route, and the probe
+  of each route is the table below. Three routes answer `null` past the end of the list:
+  item-to-item neighbours, user-to-user neighbours, and session recommend. The port returns `None` there (Q-265
+  checks it live). The per-route check against Go waits for `mixed_server.rs`, so O-76 stays open for the server.
+
+  | Route | Empty store (Go probe) | Other evidence |
+  | --- | --- | --- |
+  | `GET /api/items` | `{"Cursor": "", "Items": []}` | test `TestItems`, `TestFeedback` |
+  | `GET /api/users` | `{"Cursor": "", "Users": []}` | test `TestUsers` |
+  | `GET /api/feedback` | `{"Cursor": "", "Feedback": []}` | test `TestFeedback` |
+  | `GET /api/latest`, `/api/latest/{category}` | `[]` | test `TestItems` (`/api/latest/*` after deletes gives `[]`) |
+  | `GET /api/recommend/{user-id}[/{category}]` | `[]` | probe; test `TestGetRecommends` (`offset=10000` gives `[]`) |
+  | `GET /api/non-personalized/{name}` | `[]` (also past the end) | probe |
+  | `GET /api/collaborative-filtering/{user-id}[/{category}]` | 404 when disabled | probe |
+  | `GET /api/user/{user-id}/feedback`, `/api/item/{item-id}/feedback` | `[]` | probe; test `TestFeedback` |
+  | `GET /api/user/{user-id}/feedback/{type}`, `/api/item/{item-id}/feedback/{type}` | `[]` | probe; test `TestFeedback` |
+  | `GET /api/feedback/{user-id}/{item-id}` | `[]` | probe; test `TestDeleteFeedback` |
+  | `GET /api/feedback/{type}/{user-id}/{item-id}` | `{}` (typed, absent) | probe; test `TestDeleteFeedback` |
+  | `GET /api/item/{item-id}/neighbors[/{category}]`, `/api/item-to-item/{name}/{item-id}` | 404 when not configured | probe; `offset` past the end gives `null` (source: `server/rest.go` 860 to 872) |
+  | `GET /api/user/{user-id}/neighbors`, `/api/user-to-user/{name}/{user-id}` | 404 when not configured | `offset` past the end gives `null` (source: `server/rest.go` 906 to 915) |
+  | `POST /api/session/recommend[/{category}]` | 404 when item-to-item is off | `offset` past the end gives `null` (test `TestSessionRecommend`) |
+
+  The probe ran the Go server in-process on empty stores with the default configuration (2026-10-29). The
+  item-to-item and user-to-user `offset` past the end is still the source's answer, not a live one (Q-265).
 
 - **Q-264 `recommendItemToItem` and `recommendUserToUser` walk a map (WP-3-7, quirk 1).** Go pushes the
   candidates from a `map`, so ties in the heap come out in Go's random map order. The port pushes in ID
