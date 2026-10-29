@@ -357,6 +357,266 @@ fn hex_of(bytes: &[u8]) -> String {
 /// which needs more than a test thread's default stack. The check therefore
 /// runs on a thread with a large one. The server's own threads need the same
 /// (see porting/notes/WP-4-2.md, open items).
+/// The XML bodies that each route takes, one per route, as XML.
+fn xml_sample_bodies() -> Vec<(&'static str, &'static str)> {
+    vec![
+        (
+            "user",
+            "<User><UserId>u1</UserId><Labels><a>x</a><b>y</b></Labels><Comment>c &amp; d</Comment><UpdateAt>2020-01-01T00:00:00Z</UpdateAt></User>",
+        ),
+        (
+            "users",
+            "<Users><UserId>u1</UserId><Comment><![CDATA[<raw>]]></Comment></Users>",
+        ),
+        (
+            "user-patch",
+            "<Patch><Labels>a</Labels><Comment>x</Comment></Patch>",
+        ),
+        (
+            "item",
+            "<Item><ItemId>i1</ItemId><IsHidden>true</IsHidden><Categories>c</Categories><Categories>d</Categories><Timestamp>2020-01-01T00:00:00Z</Timestamp><Labels>l</Labels><Comment>x</Comment></Item>",
+        ),
+        ("items", "<Items><ItemId>i1</ItemId><Categories/></Items>"),
+        (
+            "item-patch",
+            "<P><IsHidden>0</IsHidden><Categories>x</Categories><Timestamp>2021-02-03T04:05:06+02:00</Timestamp><Labels/><Comment>c</Comment></P>",
+        ),
+        (
+            "feedback",
+            "<F><FeedbackType>like</FeedbackType><UserId>u</UserId><ItemId>i</ItemId><Value>1.5</Value><Timestamp>2020-01-01T00:00:00Z</Timestamp></F>",
+        ),
+    ]
+}
+
+/// XML bodies that name each error class of `encoding/xml`'s tokenizer, its
+/// entities and its struct mapping, and the field kinds of each route.
+fn xml_named_bodies() -> Vec<(&'static str, Vec<u8>)> {
+    let deep = format!(
+        "<User><Labels>{}{}</Labels></User>",
+        "<a>".repeat(5000),
+        "</a>".repeat(5000)
+    );
+    let unclosed = format!("<User><Labels>{}", "<a>".repeat(5000));
+    vec![
+        ("user", "".into()),
+        ("user", "   \n".into()),
+        ("user", "text only".into()),
+        ("user", "<User/>".into()),
+        ("user", "<a/>".into()),
+        (
+            "user",
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?><User><UserId>x</UserId></User>".into(),
+        ),
+        (
+            "user",
+            "<?xml version='1.0' encoding='utf-8'?><User/>".into(),
+        ),
+        (
+            "user",
+            "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><User/>".into(),
+        ),
+        ("user", "<?xml version=\"1.1\"?><User/>".into()),
+        ("user", "<?xml version=\"2.0\"?><User/>".into()),
+        ("user", "<?xml?><User/>".into()),
+        ("user", "<?xml version=1.0?><User/>".into()),
+        ("user", "<?target data?><User/>".into()),
+        ("user", "<?".into()),
+        ("user", "<? x?>".into()),
+        ("user", "<?a:b:c?><User/>".into()),
+        ("user", "<!-- c --><User/>".into()),
+        ("user", "<!-- a -- b --><User/>".into()),
+        ("user", "<!-x--><User/>".into()),
+        ("user", "<!--".into()),
+        ("user", "<!---->".into()),
+        ("user", "<![CDATA[x<y]]><User/>".into()),
+        ("user", "<![CDAT[x]]><User/>".into()),
+        ("user", "<![CDATA[x".into()),
+        ("user", "<![CDATA[]]><User/>".into()),
+        ("user", "<!DOCTYPE User [<!ENTITY x \"y\">]><User/>".into()),
+        (
+            "user",
+            "<!DOCTYPE User [<!-- c --><!ENTITY x \"y\">]><User/>".into(),
+        ),
+        ("user", "<!DOCTYPE User \"<User>\"><User/>".into()),
+        ("user", "<!DOCTYPE User [<!ELEMENT a (#PCDATA)>".into()),
+        ("user", "<!DOCTYPE User [<!-- c ><User/>".into()),
+        ("user", "<User><UserId>a&bogus;</UserId></User>".into()),
+        (
+            "user",
+            "<User><UserId>a&#x41;&#65;&#xD800;&#x1F600;</UserId></User>".into(),
+        ),
+        ("user", "<User><UserId>&#0;</UserId></User>".into()),
+        ("user", "<User><UserId>&#x110000;</UserId></User>".into()),
+        ("user", "<User><UserId>&#;</UserId></User>".into()),
+        ("user", "<User><UserId>&#x;</UserId></User>".into()),
+        ("user", "<User><UserId>& </UserId></User>".into()),
+        ("user", "<User><UserId>&amp</UserId></User>".into()),
+        (
+            "user",
+            "<User><UserId>&lt;&gt;&quot;&apos;</UserId></User>".into(),
+        ),
+        ("user", "<User><UserId>a]]>b</UserId></User>".into()),
+        ("user", "<User><UserId>a<b</UserId></User>".into()),
+        ("user", "<User><UserId>\u{1}</UserId></User>".into()),
+        ("user", "<User><UserId>\u{fffe}</UserId></User>".into()),
+        ("user", b"<User><UserId>\xff</UserId></User>".to_vec()),
+        ("user", b"<User><UserId>\xe2\x82</UserId></User>".to_vec()),
+        (
+            "user",
+            b"<User><UserId>\xed\xa0\x80</UserId></User>".to_vec(),
+        ),
+        ("user", "<User><UserId>x</User>".into()),
+        ("user", "<User><UserId>x</UserId>".into()),
+        ("user", "</User>".into()),
+        ("user", "<User a=b/>".into()),
+        ("user", "<User a/>".into()),
+        ("user", "<User a=\"<\"/>".into()),
+        ("user", "<User a=\"x\" b='y' c=\"&amp;\"></User>".into()),
+        ("user", "<User / >".into()),
+        ("user", "<User/ >".into()),
+        ("user", "<User></p:User>".into()),
+        (
+            "user",
+            "<p:User xmlns:p=\"u\"><p:UserId>x</p:UserId></p:User>".into(),
+        ),
+        ("user", "<p:User xmlns:p=\"u\"><UserId>x</p:User>".into()),
+        ("user", "<p:User></User>".into()),
+        ("user", "<a:b:c/>".into()),
+        ("user", "<1a/>".into()),
+        ("user", "<User></User>trailing <<<".into()),
+        ("user", "text<User/>".into()),
+        ("user", "<User><UserId>x</UserId></User><".into()),
+        (
+            "user",
+            "<User><Labels><a><b>x</b></a></Labels></User>".into(),
+        ),
+        ("user", "<User><UpdateAt>bad</UpdateAt></User>".into()),
+        ("user", "<User><UpdateAt/></User>".into()),
+        (
+            "user",
+            "<User><UpdateAt>2020-01-01T00:00:00+24:00</UpdateAt></User>".into(),
+        ),
+        (
+            "user",
+            "<User><UpdateAt> 2020-01-01T00:00:00Z </UpdateAt></User>".into(),
+        ),
+        (
+            "user",
+            "<User><UpdateAt><x/>2020-01-01T00:00:00Z</UpdateAt></User>".into(),
+        ),
+        (
+            "user",
+            "<User><UserId>a<!-- c -->b<![CDATA[c]]>d</UserId></User>".into(),
+        ),
+        (
+            "user",
+            "<User><UserId>x</UserId><UserId>y</UserId></User>".into(),
+        ),
+        ("user", "<User><UserId><x>a</x>b</UserId></User>".into()),
+        ("user", "<User><UserId>a\r\nb\rc</UserId></User>".into()),
+        ("user", "<User>\n\t<UserId>x</UserId>\n</User>".into()),
+        ("user", "<User><UserId>x</UserId></User>\u{0}".into()),
+        ("user", deep.into_bytes()),
+        ("user", unclosed.into_bytes()),
+        ("users", "<Users><UserId>u1</UserId></Users><Users/>".into()),
+        ("users", "<Users/>".into()),
+        ("users", "".into()),
+        (
+            "user-patch",
+            "<P><Labels>a</Labels><Comment>x</Comment></P>".into(),
+        ),
+        ("user-patch", "<P><Comment/></P>".into()),
+        ("item", "<Item><IsHidden>  true\n</IsHidden></Item>".into()),
+        ("item", "<Item><IsHidden>1</IsHidden></Item>".into()),
+        ("item", "<Item><IsHidden>maybe</IsHidden></Item>".into()),
+        ("item", "<Item><IsHidden></IsHidden></Item>".into()),
+        ("item", "<Item><IsHidden> </IsHidden></Item>".into()),
+        (
+            "item",
+            "<Item><Categories/><Categories>a</Categories></Item>".into(),
+        ),
+        (
+            "item",
+            "<Item><Categories><x>y</x>z</Categories></Item>".into(),
+        ),
+        (
+            "item",
+            "<Item><Labels>x</Labels><Labels><a/></Labels></Item>".into(),
+        ),
+        (
+            "item",
+            "<Item><Timestamp>2020-01-01</Timestamp></Item>".into(),
+        ),
+        ("item", "<Item><ItemId>a\u{1}</ItemId></Item>".into()),
+        ("items", "<Items><ItemId>i1</ItemId></Items>".into()),
+        ("items", "<Items/>".into()),
+        (
+            "item-patch",
+            "<P><Timestamp>2021-13-01T00:00:00Z</Timestamp></P>".into(),
+        ),
+        (
+            "item-patch",
+            "<P><Timestamp>2021-02-03T04:05:06+02:00</Timestamp></P>".into(),
+        ),
+        ("item-patch", "<P><Timestamp></Timestamp></P>".into()),
+        (
+            "item-patch",
+            "<P><IsHidden>false</IsHidden><Comment/></P>".into(),
+        ),
+        (
+            "item-patch",
+            "<P><Categories>a</Categories><Categories>b</Categories></P>".into(),
+        ),
+        ("feedback", "<F><Value>abc</Value></F>".into()),
+        ("feedback", "<F><Value>1e400</Value></F>".into()),
+        ("feedback", "<F><Value></Value></F>".into()),
+        ("feedback", "<F><Value> 0x1p-2 </Value></F>".into()),
+        ("feedback", "<F><Value>NaN</Value></F>".into()),
+        ("feedback", "<F><Value>-Inf</Value></F>".into()),
+        ("feedback", "<F><Value>1_000</Value></F>".into()),
+        (
+            "feedback",
+            "<F><FeedbackType>like</FeedbackType><Other><FeedbackType>x</FeedbackType></Other></F>"
+                .into(),
+        ),
+    ]
+}
+
+/// The XML cases: the named bodies, each sample with the content types and
+/// encodings XML bodies come in, and every truncation and corruption of a sample.
+fn xml_cases() -> Vec<Case> {
+    let mut cases = Vec::new();
+    let mut push = |target: &str, content_type: &str, encoding: &str, body: Vec<u8>| {
+        cases.push(Case {
+            target: target.to_owned(),
+            content_type: content_type.to_owned(),
+            content_encoding: encoding.to_owned(),
+            body,
+        });
+    };
+    for (target, body) in xml_named_bodies() {
+        push(target, "application/xml", "", body);
+    }
+    for (target, xml) in xml_sample_bodies() {
+        let data = xml.as_bytes();
+        push(target, "application/xml; charset=utf-8", "", data.to_vec());
+        push(target, "text/xml", "", data.to_vec());
+        push(target, "application/xml", "gzip", gzip_stream(data, 6));
+        push(target, "application/xml", "deflate", zlib(data, 6));
+        for end in 0..data.len() {
+            push(target, "application/xml", "", data[..end].to_vec());
+        }
+        for index in 0..data.len() {
+            for mask in [0x01, 0x20, 0x80, 0xff] {
+                let mut corrupt = data.to_vec();
+                corrupt[index] ^= mask;
+                push(target, "application/xml", "", corrupt);
+            }
+        }
+    }
+    cases
+}
+
 #[test]
 fn request_bodies_decode_as_go_reads_them() {
     std::thread::Builder::new()
@@ -376,6 +636,7 @@ fn check_request_bodies() {
     let mut cases = corpus_cases();
     cases.extend(named_cases());
     cases.extend(generated_cases());
+    cases.extend(xml_cases());
     let replies = run_probe(&cases);
     assert_eq!(
         replies.len(),

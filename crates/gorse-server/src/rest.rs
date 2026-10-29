@@ -18,6 +18,8 @@ mod quota;
 mod recommend;
 mod response;
 mod users;
+mod xml;
+mod xmlname;
 
 #[cfg(test)]
 mod tests;

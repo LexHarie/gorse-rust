@@ -18,6 +18,7 @@ use indexmap::IndexMap;
 use super::gojson::{Kind, Member, Node, is_blank, scan};
 use super::inflate::{Inflated, gzip, zlib};
 use super::response::ApiError;
+use super::xml::XmlEntity;
 
 /// The media type of a JSON body, which go-restful matches by containment.
 const JSON: &str = "application/json";
@@ -35,6 +36,10 @@ pub(crate) trait GoStruct: Default {
     /// The struct's fields in declaration order: the JSON name, which is the
     /// field's name, and the kind of value the field takes.
     const FIELDS: &'static [(&'static str, FieldKind)];
+    /// The fields an XML element may name, which `encoding/xml` matches with the
+    /// Go field names exactly. These are [`Self::FIELDS`] unless the Go struct
+    /// has a field that JSON skips.
+    const XML_FIELDS: &'static [(&'static str, FieldKind)] = Self::FIELDS;
 
     /// Sets the field called `name` to `value`. The pair always comes from
     /// `FIELDS`, so a pair the struct does not take is ignored.
@@ -127,9 +132,12 @@ impl<T: GoStruct> GoEntity for Vec<T> {
 /// `deflate` body is inflated first, and a `deflate` body with a bad header
 /// fails before the content type is checked, as go-restful's `NewReader` fails.
 /// A content type that is neither JSON nor XML is refused before the body is
-/// read. A body with no value is `EOF`. An XML body is not decoded: one with an
-/// element is refused here (X-WP42-17).
-pub(crate) fn read_entity<T: GoEntity>(headers: &HeaderMap, body: &Bytes) -> Result<T, ApiError> {
+/// read. A body with no value is `EOF`. An XML body is decoded as
+/// `encoding/xml` decodes it.
+pub(crate) fn read_entity<T: GoEntity + XmlEntity>(
+    headers: &HeaderMap,
+    body: &Bytes,
+) -> Result<T, ApiError> {
     let body = match headers
         .get(header::CONTENT_ENCODING)
         .map(|value| value.as_bytes())
@@ -207,19 +215,10 @@ fn json_entity<T: GoEntity>(body: &Decoded) -> Result<T, ApiError> {
     T::decode(&root, bytes).map_err(ApiError::BadRequest)
 }
 
-/// Refuses an XML body. Go's XML decoder reports a body with no element as
-/// `EOF`, which is what this gives for it, or the reader's error when a
-/// decompressor failed.
-fn xml_entity<T>(body: &Decoded) -> Result<T, ApiError> {
-    if body.bytes.contains(&b'<') {
-        Err(ApiError::BadRequest(
-            "XML request bodies are not supported".to_owned(),
-        ))
-    } else {
-        Err(ApiError::BadRequest(
-            body.failure.clone().unwrap_or_else(|| "EOF".to_owned()),
-        ))
-    }
+/// Decodes an XML body with `encoding/xml`'s decoder. A body with no element
+/// is `EOF`, or the reader's error when a decompressor failed.
+fn xml_entity<T: XmlEntity>(body: &Decoded) -> Result<T, ApiError> {
+    T::decode_body(&body.bytes, body.failure.as_deref()).map_err(ApiError::BadRequest)
 }
 
 /// Where a struct sits in the document. The names in its errors come from it.
@@ -430,7 +429,7 @@ fn scalar_label(node: &Node, body: &[u8]) -> Labels {
 
 /// A time string, read as `time.Time`'s `UnmarshalJSON` reads it: with
 /// `time.Parse` and the RFC 3339 layout. Its error text is Go's.
-fn rfc3339(text: &str) -> Result<Time, String> {
+pub(super) fn rfc3339(text: &str) -> Result<Time, String> {
     gotime::parse(gotime::RFC3339, text).map_err(|err| err.to_string())
 }
 
@@ -506,12 +505,20 @@ impl GoStruct for User {
         ("Labels", FieldKind::Labels),
         ("Comment", FieldKind::String),
     ];
+    /// `UpdateAt` is a `time.Time` that JSON skips, and XML does not.
+    const XML_FIELDS: &'static [(&'static str, FieldKind)] = &[
+        ("UserId", FieldKind::String),
+        ("Labels", FieldKind::Labels),
+        ("Comment", FieldKind::String),
+        ("UpdateAt", FieldKind::OptTime),
+    ];
 
     fn set(&mut self, name: &str, value: Assign) {
         match (name, value) {
             ("UserId", Assign::String(text)) => self.user_id = text,
             ("Labels", Assign::Labels(labels)) => self.labels = labels,
             ("Comment", Assign::String(text)) => self.comment = text,
+            ("UpdateAt", Assign::Time(time)) => self.update_at = time,
             _ => {}
         }
     }
