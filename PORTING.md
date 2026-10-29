@@ -32,7 +32,7 @@ Every Rust module names the Go files it ports with a
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-18, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); the frozen config.schema.json and config.keys.md match a fresh run of the Go generator byte for byte (X-49, closed 2026-10-28). WP-1-18 (dataset) is merged: Q-210 to Q-217, X-117 to X-129, O-51 and O-52 open, and the ml-1m test is ignored (O-1). Every Phase 1 WP is merged. All in `porting/work-packages.md` |
 | 2. Storage | exited (D-207) | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-3 (MongoDB data store, feature `mongodb`, MongoDB 6.0.28; O-53 open for 8.0; the `get_item_stream` doc is corrected, O-54). WP-2-11 (meta store, SQLite through rusqlite 0.39.0, D-160 to D-166; O-48 closed, O-49 and O-50 open for Phases 3 and 4). WP-2-2 (SQL data store, MySQL, Postgres and SQLite as one build; D-177 to D-181; O-36 closed by the SQL and MongoDB runs; O-57 and O-59 closed by the Go and Rust cross-reads on PostgreSQL, MySQL and SQLite, D-177 to D-181). WP-2-6 (SQL cache store: MySQL and Postgres on sqlx 0.9.0, SQLite on rusqlite 0.39.0; D-167 to D-175; Q-232 MySQL auth open). WP-2-9 (D-197 to D-200), WP-2-12 (D-202 to D-206) and WP-2-13 (D-186 to D-193) merged. The court audit of the env-gated backend tests is O-66 (D-201). Phase 2 exited (D-207): `test_gcs` stays ignored with its reason, and O-62 stays open for a real-GCS run before Phase 5. |
 | 3. Models and logics | in progress | Accepted: WP-3-1 (D-216), WP-3-4 (D-217), WP-3-2 (D-224), WP-3-3 (D-230, contract touches D-231), WP-3-5 (D-234, design D-233), WP-3-6 (D-229; Q-254 closed by D-232, Q-255 open) and WP-3-7 (D-236, design D-235). WP-3-8 needs the datasets (O-1, O-70 to O-72). The master must pass processed items (O-75). REST must confirm nil against empty results (O-76). O-30 is extended by WP-3-7 and stays open |
-| 4. Nodes | in progress | WP-4-1 to WP-4-8; WP-4-1 accepted (D-264); WP-4-2 merged in part (D-266), not accepted: X-244 (a Go-valid deep label in the storage stack) blocks it, and X-239 stays provisional; WP-4-8 is `cmd/gorse-bench` (D-239). `cmd/goat` is not ported (D-238). WP-4-7 stays blocked on the SDK dataset under O-1 (D-237) |
+| 4. Nodes | in progress | WP-4-1 to WP-4-8; WP-4-1 accepted (D-264); WP-4-2 merged in part (D-266), not accepted: X-244 (a Go-valid deep label in the storage stack) blocks it; the fix is iterative label walks (D-267), and X-239 stays provisional; WP-4-8 is `cmd/gorse-bench` (D-239). `cmd/goat` is not ported (D-238). WP-4-7 stays blocked on the SDK dataset under O-1 (D-237) |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
 
 Each work package's section 8 report goes in the message of the commit that
@@ -2321,6 +2321,14 @@ or accepts a metric gap outside the Go tests' own tolerances.
   Acceptance needs X-244 closed: either the storage walks become iterative, or the runtime runs storage calls on threads with
   a larger stack (WP-4-5 owns the binary's runtime). Either way, a test shows a 10000-level label round-trips through SQL and
   Mongo on the Rust server in a release build. The coordinator assigns the owner (D-266).
+
+- **D-267 Coordinator ruling on X-244: iterative label walks in storage (2026-10-29).** Go's goroutine stacks grow, so Go
+  has no depth limit short of memory, and a larger fixed stack would only move the cliff. Option B (a larger runtime stack
+  in WP-4-5) is therefore not taken. The label walks in the storage crates must use an explicit stack on every backend: SQL,
+  proxy, and Mongo's `labels_to_bson`. The WP-4-2 server thread owns the change and may edit only the label-walk functions in
+  the storage crates. Done when: debug-build tests at 10,000 and 100,000 levels pass on every backend path; existing test
+  outputs are unchanged; and the integrator runs the full gate with every backend URI on the merged head. WP-4-2 acceptance
+  waits for it (D-266).
 
 - **Datasets.** The network policy of this environment blocks
   `https://cdn.gorse.io`, where the Go model tests and the SDK test setup download
