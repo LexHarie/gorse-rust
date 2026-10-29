@@ -5,9 +5,8 @@
 //!
 //! Go renders the templates with `gonja`; here they are `minijinja` (D-196).
 //! Both read Jinja syntax, and the values a template sees carry the Go field
-//! names, as gonja reads a struct. A template prints a value as its own engine
-//! prints it, so a bool, a float or a list inside `{{ }}` reads differently from
-//! gonja's output (`PORTING_NOTES.md` X-154). Strings print the same.
+//! names, as gonja reads a struct. The environment's formatter prints each value
+//! as gonja does (`go_text`), so `{{ }}` gives the same text in both.
 
 use std::collections::BTreeMap;
 
@@ -18,7 +17,8 @@ use gorse_common::reranker;
 use gorse_config::config::schema::{DecisionAPIConfig, RerankerAPIConfig};
 use gorse_storage::cache::{self, Score};
 use gorse_storage::data::types::{Item, Labels, User};
-use minijinja::{Environment, Value};
+use minijinja::value::ValueKind;
+use minijinja::{Environment, Output, State, Value};
 use serde_json::Value as Json;
 use thiserror::Error;
 
@@ -76,6 +76,7 @@ impl RankerTemplates {
         document_template: &str,
     ) -> Result<RankerTemplates, minijinja::Error> {
         let mut env = Environment::new();
+        env.set_formatter(go_formatter);
         env.add_template_owned(query_name, query_template.to_owned())?;
         env.add_template_owned(document_name, document_template.to_owned())?;
         Ok(RankerTemplates {
@@ -125,6 +126,56 @@ fn user_value(user: Option<&User>) -> Value {
             ("Comment", Value::from(user.comment.as_str())),
             ("UpdateAt", Value::from(user.update_at.to_string())),
         ])),
+    }
+}
+
+/// The formatter of the templates: prints a value as [`go_text`] gives it.
+fn go_formatter(out: &mut Output, _: &mut State, value: &Value) -> Result<(), minijinja::Error> {
+    out.write_str(&go_text(value))?;
+    Ok(())
+}
+
+/// The text gonja gives a value, which `{{ }}` prints. A float has 11 fixed
+/// decimals with the trailing zeros trimmed ([`go_float`]); a bool is `True` or
+/// `False`; nil is empty. A list is `[a, b]`, with a string element in single
+/// quotes, as gonja's `String` prints it. Other values print as minijinja does.
+fn go_text(value: &Value) -> String {
+    match value.kind() {
+        ValueKind::Undefined | ValueKind::None => String::new(),
+        ValueKind::Bool => String::from(if value.is_true() { "True" } else { "False" }),
+        ValueKind::Number if value.is_integer() => value.to_string(),
+        ValueKind::Number => {
+            f64::try_from(value.clone()).map_or_else(|_| value.to_string(), go_float)
+        }
+        ValueKind::String => value.as_str().unwrap_or_default().to_owned(),
+        ValueKind::Seq => {
+            let elements: Vec<String> = value
+                .try_iter()
+                .map(|elements| {
+                    elements
+                        .map(|element| match element.as_str() {
+                            Some(text) => format!("'{text}'"),
+                            None => go_text(&element),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            format!("[{}]", elements.join(", "))
+        }
+        _ => value.to_string(),
+    }
+}
+
+/// gonja's float text: `strconv.FormatFloat(f, 'f', 11, 64)` with the trailing
+/// zeros trimmed, and a `0` after a point that is left bare. So `1` is `1.0`,
+/// `1e-12` is `0.0`, and `0.123456789012345` is `0.12345678901`.
+fn go_float(float: f64) -> String {
+    let fixed = format!("{float:.11}");
+    let trimmed = fixed.trim_end_matches('0');
+    if trimmed.ends_with('.') {
+        format!("{trimmed}0")
+    } else {
+        trimmed.to_owned()
     }
 }
 
