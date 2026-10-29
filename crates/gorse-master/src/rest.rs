@@ -9,7 +9,7 @@
 //! second is plain `net/http` handlers (the dashboard page, login, bulk import
 //! and export, dump and restore, the chat proxy), which the login filter does
 //! not see. [`router`] builds both: the dashboard routes and the raw handlers
-//! are explicit routes, and every other path goes to [`dispatch`].
+//! are explicit routes, and every other path goes to `dispatch`.
 
 pub(crate) mod auth;
 mod bulk;

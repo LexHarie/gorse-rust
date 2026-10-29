@@ -656,6 +656,19 @@ async fn exercise(base: &str) -> Vec<(&'static str, Reply)> {
         ("cluster", "/api/dashboard/cluster"),
         ("stats", "/api/dashboard/stats"),
         ("tasks", "/api/dashboard/tasks"),
+        // The default item-to-item recommender is by embeddings, which this run
+        // does not have, so its collection is missing and Go answers that error.
+        (
+            "item-to-item without its collection",
+            "/api/dashboard/item-to-item/neighbors/item-0?n=2&offset=10",
+        ),
+        // The user-to-user recommender is by items and has its collection. An
+        // offset past its last neighbour leaves no result, which Go's nil list
+        // answers as an empty list, because the handler builds its answer with make.
+        (
+            "user-to-user past the end",
+            "/api/dashboard/user-to-user/neighbors/user-0?n=2&offset=10",
+        ),
     ] {
         replies.push((
             name,
@@ -837,6 +850,22 @@ async fn master_rest_matches_go() {
             .collect::<Vec<_>>(),
         "the two runs ask the same requests"
     );
+    // Two cases must be the answers they are named for, not an error that both
+    // masters happen to share: a missing collection, and Go's empty list.
+    for (name, reply) in &go_replies {
+        let (status, body) = match *name {
+            "item-to-item without its collection" => {
+                (500, "collection item_to_item_neighbors: not found")
+            }
+            "user-to-user past the end" => (200, "[]"),
+            _ => continue,
+        };
+        assert_eq!(
+            (reply.status, reply.text()),
+            (status, body.to_owned()),
+            "{name}: Go's answer"
+        );
+    }
     let found: Vec<String> = go_replies
         .iter()
         .zip(&rust_replies)
