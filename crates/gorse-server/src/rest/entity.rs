@@ -16,6 +16,7 @@ use gorse_storage::data::types::{ItemPatch, Labels, User, UserPatch};
 use indexmap::IndexMap;
 
 use super::gojson::{Kind, Member, Node, is_blank, scan};
+use super::inflate::{Inflated, gzip, zlib};
 use super::response::ApiError;
 
 /// The media type of a JSON body, which go-restful matches by containment.
@@ -122,20 +123,33 @@ impl<T: GoStruct> GoEntity for Vec<T> {
 ///
 /// # Errors
 ///
-/// Fails with the text go-restful and `encoding/json` give. A content type
-/// that is neither JSON nor XML is refused before the body is read. A body with
-/// no value is `EOF`. An XML body is not decoded: one with an element is refused
-/// here (X-WP42-17).
+/// Fails with the text go-restful and `encoding/json` give. A `gzip` or
+/// `deflate` body is inflated first, and a `deflate` body with a bad header
+/// fails before the content type is checked, as go-restful's `NewReader` fails.
+/// A content type that is neither JSON nor XML is refused before the body is
+/// read. A body with no value is `EOF`. An XML body is not decoded: one with an
+/// element is refused here (X-WP42-17).
 pub(crate) fn read_entity<T: GoEntity>(headers: &HeaderMap, body: &Bytes) -> Result<T, ApiError> {
+    let body = match headers
+        .get(header::CONTENT_ENCODING)
+        .map(|value| value.as_bytes())
+    {
+        Some(b"gzip") => Decoded::from(gzip(body)),
+        Some(b"deflate") => Decoded::from(zlib(body).map_err(ApiError::BadRequest)?),
+        _ => Decoded {
+            bytes: body.to_vec(),
+            failure: None,
+        },
+    };
     let content_type = headers
         .get(header::CONTENT_TYPE)
         .map_or_else(String::new, |value| {
             String::from_utf8_lossy(value.as_bytes()).into_owned()
         });
     if content_type.contains(JSON) {
-        json_entity(body)
+        json_entity(&body)
     } else if content_type.contains(XML) {
-        xml_entity(body)
+        xml_entity(&body)
     } else {
         Err(ApiError::BadRequest(format!(
             "[ServiceError:400] Unable to unmarshal content of type:{content_type}"
@@ -143,24 +157,68 @@ pub(crate) fn read_entity<T: GoEntity>(headers: &HeaderMap, body: &Bytes) -> Res
     }
 }
 
-/// Decodes a JSON body: its first value, scanned and then decoded.
-fn json_entity<T: GoEntity>(body: &[u8]) -> Result<T, ApiError> {
-    if is_blank(body) {
-        return Err(ApiError::BadRequest("EOF".to_owned()));
+/// The bytes an entity reader sees: the body, or what a decompressor gave
+/// before it failed. Go's reader returns that failure once the decoder needs
+/// bytes past them.
+struct Decoded {
+    /// The bytes that came out.
+    bytes: Vec<u8>,
+    /// The reader's error after `bytes`, when a decompressor failed.
+    failure: Option<String>,
+}
+
+impl From<Inflated> for Decoded {
+    fn from(inflated: Inflated) -> Self {
+        Decoded {
+            bytes: inflated.output,
+            failure: inflated.failure,
+        }
     }
-    let root = scan(body).map_err(ApiError::BadRequest)?;
-    T::decode(&root, body).map_err(ApiError::BadRequest)
+}
+
+impl Decoded {
+    /// The error for a read that needed more bytes than there are. The reader's
+    /// own error replaces the end-of-input text, as Go returns it.
+    fn ran_out(&self, text: String) -> String {
+        match &self.failure {
+            Some(failure) if text == "unexpected EOF" => failure.clone(),
+            _ => text,
+        }
+    }
+}
+
+/// Decodes a JSON body: its first value, scanned and then decoded.
+fn json_entity<T: GoEntity>(body: &Decoded) -> Result<T, ApiError> {
+    let bytes = &body.bytes;
+    if is_blank(bytes) {
+        return Err(ApiError::BadRequest(
+            body.failure.clone().unwrap_or_else(|| "EOF".to_owned()),
+        ));
+    }
+    let root = scan(bytes).map_err(|text| ApiError::BadRequest(body.ran_out(text)))?;
+    // A number or a literal ends only where the next byte is seen, so one that
+    // ends the bytes needs the reader's next read, which is its error.
+    if let Some(failure) = &body.failure {
+        let scalar = !matches!(root.kind, Kind::Array(_) | Kind::Object(_));
+        if scalar && root.span.end == bytes.len() {
+            return Err(ApiError::BadRequest(failure.clone()));
+        }
+    }
+    T::decode(&root, bytes).map_err(ApiError::BadRequest)
 }
 
 /// Refuses an XML body. Go's XML decoder reports a body with no element as
-/// `EOF`, which is what this gives for it.
-fn xml_entity<T>(body: &[u8]) -> Result<T, ApiError> {
-    if body.contains(&b'<') {
+/// `EOF`, which is what this gives for it, or the reader's error when a
+/// decompressor failed.
+fn xml_entity<T>(body: &Decoded) -> Result<T, ApiError> {
+    if body.bytes.contains(&b'<') {
         Err(ApiError::BadRequest(
             "XML request bodies are not supported".to_owned(),
         ))
     } else {
-        Err(ApiError::BadRequest("EOF".to_owned()))
+        Err(ApiError::BadRequest(
+            body.failure.clone().unwrap_or_else(|| "EOF".to_owned()),
+        ))
     }
 }
 

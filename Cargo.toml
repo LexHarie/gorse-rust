@@ -15,6 +15,7 @@ repository = "https://github.com/LexHarie/gorse-rust"
 
 [workspace.dependencies]
 # Internal crates.
+flate2 = "1.1.10"
 gorse-protocol = { path = "crates/gorse-protocol" }
 gorse-common = { path = "crates/gorse-common" }
 gorse-expr = { path = "crates/gorse-expr" }
