@@ -1093,6 +1093,19 @@ async fn mixed_mongo_deep_labels_match_go_server() {
     let differing = compare(&go, &rust, &deep_mongo_cases()).await;
     go.stop().await;
     rust.stop().await;
+    // The databases are this run's alone, so they are dropped before the
+    // outcome is judged, whichever way it goes.
+    for store in [&go_store, &rust_store] {
+        let client = mongodb::Client::with_uri_str(store)
+            .await
+            .expect("the store URI parses");
+        client
+            .default_database()
+            .expect("the store URI names a database")
+            .drop()
+            .await
+            .expect("drop the run's database");
+    }
     assert!(differing.is_empty(), "{}", report(&differing));
 }
 
