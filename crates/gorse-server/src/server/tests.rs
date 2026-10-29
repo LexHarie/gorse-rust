@@ -2,8 +2,8 @@
 
 //! The meta sync of a server node, as Go's `TestServer_Sync`: a mock master
 //! sends the config, and one sync opens the stores at the paths it names.
-//! The config carries only the store paths; the rest of the defaults are the
-//! ones `unmarshal` starts from, which is what the sync reads them with.
+//! The config is JSON with the Go field names, as the Go master marshals its
+//! `config.Config`, and it carries only the store paths.
 
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -15,7 +15,7 @@ use serde_json::json;
 use tonic::transport::{Channel, Endpoint, Server};
 use tonic::{Request, Response, Status};
 
-use super::{OpenedPaths, new_server};
+use super::{OpenedPaths, new_server, read_hostname_from};
 
 /// Go's `mockMaster`: it answers the meta request with a fixed meta, and rejects
 /// the other calls as unimplemented, as its embedded `UnimplementedMasterServer`
@@ -69,7 +69,7 @@ async fn server_sync() {
     let dir = tempfile::tempdir().expect("temp dir");
     let data_store = format!("sqlite://{}/data.db", dir.path().display());
     let cache_store = format!("sqlite://{}/cache.db", dir.path().display());
-    let config = json!({"database": {"data_store": data_store, "cache_store": cache_store}});
+    let config = json!({"Database": {"DataStore": data_store, "CacheStore": cache_store}});
     let master = start_master(Meta {
         config: config.to_string(),
         ..Default::default()
@@ -85,4 +85,20 @@ async fn server_sync() {
 
     assert_eq!(opened.data_path, data_store);
     assert_eq!(opened.cache_path, cache_store);
+}
+
+/// Go's `os.Hostname` gives the file's text without one trailing newline. A
+/// missing file is an error. There is no fallback to the `HOSTNAME` variable,
+/// which Go does not read (X-225).
+#[test]
+fn hostname_drops_one_trailing_newline() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let path = dir.path().join("hostname");
+    std::fs::write(&path, "node-a\n").expect("write the name");
+    assert_eq!(read_hostname_from(&path).expect("a name"), "node-a");
+    std::fs::write(&path, "node-b\n\n").expect("write the name");
+    assert_eq!(read_hostname_from(&path).expect("a name"), "node-b\n");
+    std::fs::write(&path, "node-c").expect("write the name");
+    assert_eq!(read_hostname_from(&path).expect("a name"), "node-c");
+    assert!(read_hostname_from(&dir.path().join("missing")).is_err());
 }

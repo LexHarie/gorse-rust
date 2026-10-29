@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use axum::body::Bytes;
 use axum::extract::{Path, RawQuery, State};
+use axum::http::HeaderMap;
 use axum::response::Response;
 use gorse_common::dateparse;
 use gorse_common::gocontext::Context;
@@ -19,10 +20,10 @@ use serde::{Deserialize, Serialize};
 
 use super::RestServer;
 use super::embedding::create_embedding;
+use super::entity::{Assign, FieldKind, GoStruct, read_entity};
 use super::quota;
 use super::response::{
-    ApiError, GoFields, Query, ok, parse_int, path_param, read_entity, validate_request_labels,
-    with_wild_card,
+    ApiError, Query, ok, parse_int, path_param, validate_request_labels, with_wild_card,
 };
 use super::users::{Success, empty_ok, not_found_or_internal};
 use gorse_storage::vectors::{self, Vector};
@@ -45,15 +46,30 @@ pub(crate) struct Item {
     pub comment: String,
 }
 
-impl GoFields for Item {
-    const FIELDS: &'static [&'static str] = &[
-        "ItemId",
-        "IsHidden",
-        "Categories",
-        "Timestamp",
-        "Labels",
-        "Comment",
+impl GoStruct for Item {
+    const NAME: &'static str = "Item";
+    const TYPE: &'static str = "server.Item";
+    const FIELDS: &'static [(&'static str, FieldKind)] = &[
+        ("ItemId", FieldKind::String),
+        ("IsHidden", FieldKind::Bool),
+        ("Categories", FieldKind::Strings),
+        ("Timestamp", FieldKind::String),
+        ("Labels", FieldKind::Labels),
+        ("Comment", FieldKind::String),
     ];
+
+    fn set(&mut self, name: &str, value: Assign) {
+        match (name, value) {
+            ("ItemId", Assign::String(text)) => self.item_id = text,
+            ("IsHidden", Assign::Bool(flag)) => self.is_hidden = flag,
+            ("Categories", Assign::Strings(list)) => self.categories = Some(list),
+            ("Categories", Assign::Null) => self.categories = None,
+            ("Timestamp", Assign::String(text)) => self.timestamp = text,
+            ("Labels", Assign::Labels(labels)) => self.labels = labels,
+            ("Comment", Assign::String(text)) => self.comment = text,
+            _ => {}
+        }
+    }
 }
 
 /// Go's `ItemIterator`: one page of items and the cursor for the next page.
@@ -145,9 +161,10 @@ async fn batch_insert_items(rest: &RestServer, items: Vec<Item>) -> Result<Respo
 /// Go's `insertItems`: `POST /api/items`.
 pub(crate) async fn insert_items(
     State(rest): State<Arc<RestServer>>,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    let mut items: Vec<Item> = read_entity(&body)?;
+    let mut items: Vec<Item> = read_entity(&headers, &body)?;
     for item in &mut items {
         validate_request_labels(&mut item.labels)?;
     }
@@ -157,9 +174,10 @@ pub(crate) async fn insert_items(
 /// Go's `insertItem`: `POST /api/item`.
 pub(crate) async fn insert_item(
     State(rest): State<Arc<RestServer>>,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    let mut item: Item = read_entity(&body)?;
+    let mut item: Item = read_entity(&headers, &body)?;
     validate_request_labels(&mut item.labels)?;
     batch_insert_items(&rest, vec![item]).await
 }
@@ -169,12 +187,13 @@ pub(crate) async fn insert_item(
 pub(crate) async fn modify_item(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
     let ctx = Context::background();
     let config = rest.config();
     let item_id = path_param(&params, "item-id").to_owned();
-    let mut patch: ItemPatch = read_entity(&body)?;
+    let mut patch: ItemPatch = read_entity(&headers, &body)?;
     validate_request_labels(&mut patch.labels)?;
     quota::check_labels_size(&config, &patch.labels).map_err(ApiError::TooManyRequests)?;
     if let Some(comment) = &patch.comment {

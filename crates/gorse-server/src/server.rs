@@ -14,8 +14,6 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use gorse_common::util::tls::TlsConfig;
 use gorse_config::config::defaults::get_default_config;
-use gorse_config::config::load::unmarshal;
-use gorse_config::formats::json;
 use gorse_protocol::{Meta, NodeInfo, NodeType, master_client::MasterClient};
 use gorse_storage::cache;
 use gorse_storage::data;
@@ -132,10 +130,16 @@ pub fn server_name(http_host: &str, http_port: u16) -> Result<String, ServerErro
 
 /// The host name, as Go's `os.Hostname` gives it on Linux: the kernel's name.
 fn read_hostname() -> Result<String, ServerError> {
-    match std::fs::read_to_string("/proc/sys/kernel/hostname") {
-        Ok(name) => Ok(name.trim_end().to_owned()),
-        Err(err) => std::env::var("HOSTNAME").map_err(|_| ServerError::ServerName(err.to_string())),
-    }
+    read_hostname_from(std::path::Path::new("/proc/sys/kernel/hostname"))
+}
+
+/// Go's `os.Hostname` on Linux reads the kernel's host name from `path` and
+/// drops one trailing newline. Go tries `uname` first, which gives the same
+/// name on Linux (X-225). It never reads the `HOSTNAME` variable.
+fn read_hostname_from(path: &std::path::Path) -> Result<String, ServerError> {
+    let name =
+        std::fs::read_to_string(path).map_err(|err| ServerError::ServerName(err.to_string()))?;
+    Ok(name.strip_suffix('\n').unwrap_or(&name).to_owned())
 }
 
 impl Server {
@@ -250,14 +254,13 @@ impl Server {
                 return;
             }
         };
-        let config =
-            match json::decode(meta.config.as_bytes()).and_then(|settings| unmarshal(&settings)) {
-                Ok(config) => config,
-                Err(err) => {
-                    tracing::error!(error = %err, "failed to parse master config");
-                    return;
-                }
-            };
+        // Go's `json.Unmarshal` of the master's config onto the server's config,
+        // so the JSON names are the Go field names and a missing field keeps its value.
+        let mut config = (*self.rest.config()).clone();
+        if let Err(err) = config.unmarshal_json(&meta.config) {
+            tracing::error!(error = %err, "failed to parse master config");
+            return;
+        }
         self.rest.set_config(config.clone());
         let database = &config.database;
         if opened.data_path != database.data_store

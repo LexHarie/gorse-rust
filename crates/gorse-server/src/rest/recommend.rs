@@ -31,10 +31,10 @@ use gorse_storage::data::types::{Feedback as DataFeedback, FeedbackKey, Item};
 use serde::{Deserialize, Serialize};
 
 use super::RestServer;
+use super::entity::read_entity;
 use super::feedback::Feedback;
 use super::response::{
     ApiError, PathParams, Query, ok, parse_duration, parse_int, path_param, read_categories,
-    read_entity,
 };
 
 /// Go's `cache.Score` as the REST API writes it: only `Id` and `Score` are
@@ -529,6 +529,7 @@ pub(crate) async fn session_recommend(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<PathParams>,
     RawQuery(raw): RawQuery,
+    headers: axum::http::HeaderMap,
     body: axum::body::Bytes,
 ) -> Result<Response, ApiError> {
     let ctx = Context::background();
@@ -543,7 +544,7 @@ pub(crate) async fn session_recommend(
             "item-to-item recommendation is not enabled".to_owned(),
         ));
     };
-    let feedbacks: SessionFeedback = read_entity(&body)?;
+    let feedbacks: SessionFeedback = read_entity(&headers, &body)?;
     let query = Query::parse(raw.as_deref());
     let n = default_n(&query, &config)?;
     let category = path_param(&params, "category");

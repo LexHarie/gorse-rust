@@ -42,6 +42,9 @@ gorse-common = { workspace = true }
 gorse-dataset = { workspace = true }
 gorse-storage = { workspace = true, features = ["qdrant", "milvus", "weaviate"] }
 gorse-storage-core = { workspace = true }
+# The mixed-server test (tests/mixed_server.rs) runs the Rust server against the Go nodes.
+gorse-server = { workspace = true }
+reqwest = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]

@@ -6,17 +6,15 @@
 //! between its handlers, and the error type the handlers return.
 
 use std::collections::HashMap;
-use std::fmt;
+use std::io;
 
-use axum::body::Bytes;
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use gorse_common::gotime;
 use gorse_common::gourl;
-use gorse_storage::data::types::{ItemPatch, Labels, User, UserPatch, validate_labels};
-use serde::de::{DeserializeOwned, MapAccess, Visitor};
-use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::{Map, Value};
+use gorse_storage::data::types::{Labels, validate_labels};
+use serde::Serialize;
+use serde_json::ser::{Formatter, PrettyFormatter};
 
 /// The parsed query string of a request. Go's `QueryParameter` and
 /// `QueryParameters` read it through `url.Values`, which keeps every value of
@@ -194,11 +192,92 @@ pub(crate) fn text(content: &str) -> Response {
 /// strings in JSON, so the escape is a plain byte substitution.
 pub(crate) fn go_json<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, serde_json::Error> {
     let mut out = Vec::new();
-    let formatter = serde_json::ser::PrettyFormatter::with_indent(b" ");
+    let formatter = GoFormatter(PrettyFormatter::with_indent(b" "));
     let mut serializer = serde_json::Serializer::with_formatter(&mut out, formatter);
     value.serialize(&mut serializer)?;
     Ok(escape_html(&out))
 }
+
+/// serde_json's pretty printer, with the floats written as `encoding/json`
+/// writes them. serde_json writes a whole float as `1.0`, and Go writes `1`.
+struct GoFormatter<'a>(PrettyFormatter<'a>);
+
+impl Formatter for GoFormatter<'_> {
+    fn begin_array<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.begin_array(writer)
+    }
+
+    fn end_array<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.end_array(writer)
+    }
+
+    fn begin_array_value<W: ?Sized + io::Write>(
+        &mut self,
+        writer: &mut W,
+        first: bool,
+    ) -> io::Result<()> {
+        self.0.begin_array_value(writer, first)
+    }
+
+    fn end_array_value<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.end_array_value(writer)
+    }
+
+    fn begin_object<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.begin_object(writer)
+    }
+
+    fn end_object<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.end_object(writer)
+    }
+
+    fn begin_object_key<W: ?Sized + io::Write>(
+        &mut self,
+        writer: &mut W,
+        first: bool,
+    ) -> io::Result<()> {
+        self.0.begin_object_key(writer, first)
+    }
+
+    fn begin_object_value<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.begin_object_value(writer)
+    }
+
+    fn end_object_value<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.end_object_value(writer)
+    }
+
+    fn write_f32<W: ?Sized + io::Write>(&mut self, writer: &mut W, value: f32) -> io::Result<()> {
+        write_go_f32(writer, value)
+    }
+
+    fn write_f64<W: ?Sized + io::Write>(&mut self, writer: &mut W, value: f64) -> io::Result<()> {
+        write_go_f64(writer, value)
+    }
+}
+
+/// Writes a float as `encoding/json` does: the shortest text that reads back to
+/// the same value, in plain notation, or in `e` notation outside `[1e-6, 1e21)`.
+/// The `e` exponent has its sign, and a negative exponent drops the zero that
+/// pads it, as Go does. The range is checked in the float's own precision, as Go
+/// checks it. `serde_json` calls these only for finite values.
+macro_rules! go_float {
+    ($name:ident, $float:ty) => {
+        fn $name<W: ?Sized + io::Write>(writer: &mut W, value: $float) -> io::Result<()> {
+            let abs = value.abs();
+            if abs != 0.0 && (abs < 1e-6 || abs >= 1e21) {
+                let text = format!("{value:e}");
+                let (mantissa, exponent) = text.split_once('e').unwrap_or((text.as_str(), "0"));
+                let sign = if exponent.starts_with('-') { "" } else { "+" };
+                return write!(writer, "{mantissa}e{sign}{exponent}");
+            }
+            write!(writer, "{value}")
+        }
+    };
+}
+
+go_float!(write_go_f32, f32);
+go_float!(write_go_f64, f64);
 
 fn escape_html(json: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(json.len());
@@ -222,135 +301,6 @@ fn escape_html(json: &[u8]) -> Vec<u8> {
         i += 1;
     }
     out
-}
-
-/// Go's `ReadEntity` for a JSON body. Go's `json.Decoder` reads the first JSON
-/// value and ignores what follows it, so this does the same.
-///
-/// # Errors
-///
-/// Fails with the decoder's message when the body is not the JSON the handler
-/// expects. An empty body is `EOF`, as Go's decoder reports it.
-pub(crate) fn read_entity<T: GoFields>(body: &Bytes) -> Result<T, ApiError> {
-    if body.iter().all(u8::is_ascii_whitespace) {
-        return Err(ApiError::BadRequest("EOF".to_owned()));
-    }
-    let value =
-        fold_members(body, T::FIELDS).map_err(|err| ApiError::BadRequest(err.to_string()))?;
-    serde_json::from_value(value).map_err(|err| ApiError::BadRequest(err.to_string()))
-}
-
-/// A request type and the JSON names of its fields. Go's decoder matches a
-/// member name to a field without regard to case, so the names are needed
-/// before the typed decoder runs.
-pub(crate) trait GoFields: DeserializeOwned {
-    /// The JSON names of the fields, as the type's `serde` attributes write them.
-    const FIELDS: &'static [&'static str];
-}
-
-impl GoFields for User {
-    const FIELDS: &'static [&'static str] = &["UserId", "Labels", "Comment"];
-}
-
-impl GoFields for UserPatch {
-    const FIELDS: &'static [&'static str] = &["Labels", "Comment"];
-}
-
-impl GoFields for ItemPatch {
-    const FIELDS: &'static [&'static str] =
-        &["IsHidden", "Categories", "Timestamp", "Labels", "Comment"];
-}
-
-impl<T: GoFields> GoFields for Vec<T> {
-    const FIELDS: &'static [&'static str] = T::FIELDS;
-}
-
-/// The first JSON value in `body`, with the member names of its object, or of
-/// each object in its top-level array, matched to `fields`. Like Go's decoder,
-/// this reads the first value and ignores what follows it. Labels are free-form,
-/// so their member names are left as they are.
-fn fold_members(body: &[u8], fields: &[&str]) -> Result<Value, serde_json::Error> {
-    let mut deserializer = serde_json::Deserializer::from_slice(body);
-    match body.iter().find(|byte| !byte.is_ascii_whitespace()) {
-        Some(b'{') => {
-            let members = Members::deserialize(&mut deserializer)?;
-            Ok(Value::Object(match_names(members, fields)))
-        }
-        Some(b'[') => {
-            let items = Vec::<Members>::deserialize(&mut deserializer)?;
-            Ok(Value::Array(
-                items
-                    .into_iter()
-                    .map(|members| Value::Object(match_names(members, fields)))
-                    .collect(),
-            ))
-        }
-        _ => Value::deserialize(&mut deserializer),
-    }
-}
-
-/// The members of one JSON object, in the order the body gives them. A
-/// `serde_json::Map` would sort them, and Go's decoder lets the later of two
-/// members that name one field win.
-struct Members(Vec<(String, Value)>);
-
-impl<'de> Deserialize<'de> for Members {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct MembersVisitor;
-
-        impl<'de> Visitor<'de> for MembersVisitor {
-            type Value = Members;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a JSON object")
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Members, A::Error> {
-                let mut members = Vec::new();
-                while let Some(member) = map.next_entry::<String, Value>()? {
-                    members.push(member);
-                }
-                Ok(Members(members))
-            }
-        }
-
-        deserializer.deserialize_map(MembersVisitor)
-    }
-}
-
-/// Matches each member name to the field it names, as Go's decoder does: a name
-/// equal to a field's name names that field, and otherwise the first field whose
-/// name folds to the same letters does. A later member for a field replaces an
-/// earlier one. A name that matches no field stays as it is, and the typed
-/// decoder ignores it.
-fn match_names(members: Members, fields: &[&str]) -> Map<String, Value> {
-    let mut matched = Map::new();
-    for (name, value) in members.0 {
-        let field = fields
-            .iter()
-            .find(|field| **field == name)
-            .or_else(|| fields.iter().find(|field| fold_eq(field, &name)))
-            .map_or(name, |field| (*field).to_owned());
-        matched.insert(field, value);
-    }
-    matched
-}
-
-/// Whether two names are equal under Unicode simple case folding, the comparison
-/// Go's decoder makes.
-fn fold_eq(field: &str, name: &str) -> bool {
-    field.chars().map(fold_char).eq(name.chars().map(fold_char))
-}
-
-/// A character folded to its lower-case letter, through its upper case, so that
-/// `ſ` folds with `s` and the Kelvin sign with `k`.
-fn fold_char(c: char) -> char {
-    let mut upper = c.to_uppercase();
-    let upper = match (upper.next(), upper.next()) {
-        (Some(one), None) => one,
-        _ => c,
-    };
-    upper.to_lowercase().next().unwrap_or(upper)
 }
 
 /// Go's `readEntity` decodes with `UseNumber`, so every number in a request's
