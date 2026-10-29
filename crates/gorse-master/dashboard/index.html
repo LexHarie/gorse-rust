@@ -1,0 +1,16 @@
+<!doctype html><html class="h-100" lang="en"><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ffffff"><link rel="icon" href="/favicon.ico"><link href="https://use.fontawesome.com/releases/v7.0.0/css/all.css" rel="stylesheet"><script>(function () {
+        try {
+          var theme = window.localStorage.getItem('gorse-dashboard-theme');
+          if (theme !== 'dark' && theme !== 'light') {
+            theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          document.documentElement.setAttribute('data-theme', theme);
+          document.documentElement.style.colorScheme = theme;
+          var themeColorMeta = document.querySelector('meta[name="theme-color"]');
+          if (themeColorMeta) {
+            themeColorMeta.setAttribute('content', theme === 'dark' ? '#111827' : '#ffffff');
+          }
+        } catch (error) {
+          // Ignore storage/media-query failures and let the app boot with its default theme.
+        }
+      }());</script><title>Gorse Dashboard</title><script defer="defer" src="/js/chunk-vendors.e6c5c29d.js" type="module"></script><script defer="defer" src="/js/app.a6c98a07.js" type="module"></script><link href="/css/chunk-vendors.d9835511.css" rel="stylesheet"><link href="/css/app.4a0f7911.css" rel="stylesheet"><script defer="defer" src="/js/chunk-vendors-legacy.e6c5c29d.js" nomodule></script><script defer="defer" src="/js/app-legacy.8a9d7150.js" nomodule></script></head><body class="h-100"><noscript><strong>We're sorry but Gorse Dashboard doesn't work properly without JavaScript enabled. Please enable it to continue.</strong></noscript><div id="app"></div></body></html>
