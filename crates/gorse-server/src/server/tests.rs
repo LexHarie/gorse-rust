@@ -15,7 +15,7 @@ use serde_json::json;
 use tonic::transport::{Channel, Endpoint, Server};
 use tonic::{Request, Response, Status};
 
-use super::{OpenedPaths, new_server};
+use super::{OpenedPaths, new_server, read_hostname_from};
 
 /// Go's `mockMaster`: it answers the meta request with a fixed meta, and rejects
 /// the other calls as unimplemented, as its embedded `UnimplementedMasterServer`
@@ -85,4 +85,20 @@ async fn server_sync() {
 
     assert_eq!(opened.data_path, data_store);
     assert_eq!(opened.cache_path, cache_store);
+}
+
+/// Go's `os.Hostname` gives the file's text without one trailing newline. A
+/// missing file is an error. There is no fallback to the `HOSTNAME` variable,
+/// which Go does not read (X-225).
+#[test]
+fn hostname_drops_one_trailing_newline() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let path = dir.path().join("hostname");
+    std::fs::write(&path, "node-a\n").expect("write the name");
+    assert_eq!(read_hostname_from(&path).expect("a name"), "node-a");
+    std::fs::write(&path, "node-b\n\n").expect("write the name");
+    assert_eq!(read_hostname_from(&path).expect("a name"), "node-b\n");
+    std::fs::write(&path, "node-c").expect("write the name");
+    assert_eq!(read_hostname_from(&path).expect("a name"), "node-c");
+    assert!(read_hostname_from(&dir.path().join("missing")).is_err());
 }
