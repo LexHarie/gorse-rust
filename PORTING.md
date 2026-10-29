@@ -32,7 +32,7 @@ Every Rust module names the Go files it ports with a
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-18, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); the frozen config.schema.json and config.keys.md match a fresh run of the Go generator byte for byte (X-49, closed 2026-10-28). WP-1-18 (dataset) is merged: Q-210 to Q-217, X-117 to X-129, O-51 and O-52 open, and the ml-1m test is ignored (O-1). Every Phase 1 WP is merged. All in `porting/work-packages.md` |
 | 2. Storage | exited (D-207) | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-3 (MongoDB data store, feature `mongodb`, MongoDB 6.0.28; O-53 open for 8.0; the `get_item_stream` doc is corrected, O-54). WP-2-11 (meta store, SQLite through rusqlite 0.39.0, D-160 to D-166; O-48 closed, O-49 and O-50 open for Phases 3 and 4). WP-2-2 (SQL data store, MySQL, Postgres and SQLite as one build; D-177 to D-181; O-36 closed by the SQL and MongoDB runs; O-57 and O-59 closed by the Go and Rust cross-reads on PostgreSQL, MySQL and SQLite, D-177 to D-181). WP-2-6 (SQL cache store: MySQL and Postgres on sqlx 0.9.0, SQLite on rusqlite 0.39.0; D-167 to D-175; Q-232 MySQL auth open). WP-2-9 (D-197 to D-200), WP-2-12 (D-202 to D-206) and WP-2-13 (D-186 to D-193) merged. The court audit of the env-gated backend tests is O-66 (D-201). Phase 2 exited (D-207): `test_gcs` stays ignored with its reason, and O-62 stays open for a real-GCS run before Phase 5. |
 | 3. Models and logics | in progress | Accepted: WP-3-1 (D-216), WP-3-4 (D-217), WP-3-2 (D-224), WP-3-3 (D-230, contract touches D-231), WP-3-5 (D-234, design D-233), WP-3-6 (D-229; Q-254 closed by D-232, Q-255 open) and WP-3-7 (D-236, design D-235). WP-3-8 needs the datasets (O-1, O-70 to O-72). The master must pass processed items (O-75). REST must confirm nil against empty results (O-76). O-30 is extended by WP-3-7 and stays open |
-| 4. Nodes | in progress | WP-4-1 to WP-4-8; WP-4-1 accepted (D-264); WP-4-2 merged in part (D-266), not accepted: X-244 (Mongo's BSON driver still recurses on deep labels, D-268) blocks it; the fix is iterative label walks (D-267), and X-239 stays provisional; WP-4-8 is `cmd/gorse-bench` (D-239). `cmd/goat` is not ported (D-238). WP-4-7 stays blocked on the SDK dataset under O-1 (D-237) |
+| 4. Nodes | in progress | WP-4-1 to WP-4-8; WP-4-1 accepted (D-264); WP-4-2 merged in part (D-266), not accepted: X-244 (the Mongo deep-label reply names a different field path than Go, D-270) blocks it; the fix is iterative label walks (D-267), and X-239 stays provisional; WP-4-8 is `cmd/gorse-bench` (D-239). `cmd/goat` is not ported (D-238). WP-4-7 stays blocked on the SDK dataset under O-1 (D-237) |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
 
 Each work package's section 8 report goes in the message of the commit that
@@ -2364,6 +2364,24 @@ or accepts a metric gap outside the Go tests' own tolerances.
   functions that D-267 named, and the server thread may make that change under this ruling. Done when: a live 10,000-level
   debug test on the Mongo path matches Go's outcome, and the existing outputs are unchanged. WP-4-2 acceptance waits for
   both, and the court runs the full gate on the merged head (D-268).
+
+- **D-270 WP-4-2 Mongo raw-BSON head merged in part, still not accepted (court verdict, 2026-10-29).** `claude/wp-4-2-server`
+  at `446ab86` (code at `6836098`) is merged as `a070c2a0`. The gate on the merged tree with every backend URI set: the
+  test section has 92 suites, 1217 passed, 0 failed, 55 ignored. Every stage exits 0 except `REDIS_TLS_UNSET` (101, the
+  negative check) and `MIXEDMONGO` (101, below). The Mongo deep-label test runs to completion now, in 3.8 s, with no stack
+  overflow, so the D-268 abort is gone.
+
+  Not accepted. `mixed_mongo_deep_labels_match_go_server` reports one route that differs: `POST /api/user`, the write that
+  reaches MongoDB at 9,999 levels (10,001 is refused at the REST layer on both sides, which is an inference from the thread's
+  mixed cases). Both sides get MongoDB's `(Overflow) BSONObj exceeds maximum nested object depth` error, but they name
+  different fields. Go: `'u.$set.labels.a.a…'`. Rust: `'updates.0.u.$set.labels.a.a…'`. Go writes users with `BulkWrite` and
+  `UpdateOneModel` (`storage/data/mongodb.go` 617 to 622), and the Rust side sends a raw `update` command, whose element path
+  carries `updates.0.`. The text must match exactly, so X-244 stays open, and it blocks acceptance. The server thread
+  reproduces the path Go's driver reports, and the live test is the oracle. The court answered the thread's open question:
+  MongoDB's depth refusal does not match Go's wording today.
+
+  Environment. The live test leaves `gorse_mixed_go_*` and `gorse_mixed_rust_*` databases on the court's Mongo. Nothing drops
+  them, and they are to be dropped at the next court run.
 
 - **Datasets.** The network policy of this environment blocks
   `https://cdn.gorse.io`, where the Go model tests and the SDK test setup download
