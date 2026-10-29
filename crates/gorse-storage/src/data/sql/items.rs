@@ -16,7 +16,7 @@ use gorse_common::gotime::{self, Time};
 use gorse_common::jsonutil;
 use sqlx::{ColumnIndex, Decode, Row, Type};
 
-use super::super::types::{Item, ItemPatch, Labels, ScoredItem};
+use super::super::types::{self, Item, ItemPatch, Labels, ScoredItem};
 use super::super::{Error, GetOptions};
 use super::query::{self, Driver, Sql};
 use super::{Pools, SqlDatabase, time};
@@ -53,6 +53,12 @@ pub(super) fn unmarshal<T: serde::de::DeserializeOwned + Default>(text: &str) ->
     Ok(value)
 }
 
+/// Go's `jsonutil.Unmarshal` of a stored labels value, as a `storage` error.
+/// Labels nested past Go's limit are refused with Go's text.
+pub(super) fn unmarshal_labels(text: &str) -> Result<Labels, Error> {
+    types::unmarshal_labels(text.as_bytes()).map_err(|err| Error::Backend(std::sync::Arc::new(err)))
+}
+
 /// Decodes an item from the row [`columns`] selects.
 pub fn item_from_row<R>(row: &R) -> Result<Item, Error>
 where
@@ -66,7 +72,7 @@ where
         is_hidden: query::boolean(row, 1)?,
         categories: unmarshal(&query::text(row, 2)?)?,
         timestamp: time::parse(&query::text(row, 3)?)?,
-        labels: unmarshal(&query::text(row, 4)?)?,
+        labels: unmarshal_labels(&query::text(row, 4)?)?,
         comment: query::text(row, 5)?,
         update_at: time::parse(&query::text(row, 6)?)?,
     })

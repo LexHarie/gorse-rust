@@ -10,13 +10,11 @@
 //! flattened, and `UpdateAt` is skipped (`json:"-"`). The gorm and mapstructure
 //! tags belong to the stores and to Go's config code, and are not ported here.
 
-use std::fmt;
-
 use gorse_common::gosort;
 use gorse_common::gotime::Time;
 use gorse_common::jsonutil;
 use indexmap::IndexMap;
-use serde::de::{self, MapAccess, SeqAccess, Visitor};
+use serde::de;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::value::RawValue;
 
@@ -51,95 +49,259 @@ pub enum Labels {
     Object(IndexMap<String, Labels>),
 }
 
+/// Go's `jsontext` `maxNestingDepth`: the deepest nesting that `json.Marshal`
+/// and `json.Unmarshal` accept. Labels come from JSON that Go decodes with the
+/// same limit, so a list or object opened past it is refused here too.
+pub const MAX_NESTING_DEPTH: usize = 10_000;
+
+/// Checks the nesting of a JSON text as Go's scanner does. A list or an object
+/// opened while [`MAX_NESTING_DEPTH`] are already open is refused with Go's
+/// text, `exceeded max depth`. The error has no position, as Go's has none.
+pub fn check_nesting(json: &[u8]) -> Result<(), serde_json::Error> {
+    let mut depth = 0;
+    let mut in_string = false;
+    let mut escaped = false;
+    for &byte in json {
+        if in_string {
+            match (escaped, byte) {
+                (true, _) => escaped = false,
+                (false, b'\\') => escaped = true,
+                (false, b'"') => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+        match byte {
+            b'"' => in_string = true,
+            b'[' | b'{' if depth == MAX_NESTING_DEPTH => {
+                return Err(<serde_json::Error as de::Error>::custom(
+                    "exceeded max depth",
+                ));
+            }
+            b'[' | b'{' => depth += 1,
+            b']' | b'}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// Go's `jsonutil.Unmarshal` of labels, with Go's text for nesting past
+/// [`MAX_NESTING_DEPTH`]. The nesting is checked before the value is decoded,
+/// since a deserializer's error carries the position it failed at.
+pub fn unmarshal_labels(json: &[u8]) -> Result<Labels, serde_json::Error> {
+    check_nesting(json)?;
+    let mut labels = Labels::Nil;
+    jsonutil::unmarshal(json, &mut labels)?;
+    Ok(labels)
+}
+
 impl Serialize for Labels {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            Labels::Nil => serializer.serialize_none(),
-            Labels::Bool(value) => serializer.serialize_bool(*value),
-            Labels::Float64(value) => serializer.serialize_f64(*value),
-            Labels::Number(text) => {
-                // The text is written as it is, as `json.Marshal` writes a
-                // json.Number. A text that is not a JSON number is an error.
-                let raw = RawValue::from_string(text.clone())
-                    .map_err(<S::Error as serde::ser::Error>::custom)?;
-                raw.serialize(serializer)
-            }
-            Labels::String(value) => serializer.serialize_str(value),
-            Labels::Array(items) => items.serialize(serializer),
-            Labels::Object(map) => {
-                // encoding/json writes a map's names in sorted order.
-                let mut entries: Vec<(&String, &Labels)> = map.iter().collect();
-                entries.sort_by(|a, b| a.0.cmp(b.0));
-                serializer.collect_map(entries)
-            }
-        }
+        // The labels are written as text by a loop and handed over as raw JSON,
+        // so a value nested deeper than the call stack still serializes.
+        let text = labels_json(self).map_err(<S::Error as serde::ser::Error>::custom)?;
+        check_nesting(text.as_bytes()).map_err(<S::Error as serde::ser::Error>::custom)?;
+        let raw = RawValue::from_string(text).map_err(<S::Error as serde::ser::Error>::custom)?;
+        raw.serialize(serializer)
     }
 }
 
 impl<'de> Deserialize<'de> for Labels {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_any(LabelsVisitor)
+        // The value is taken as its raw text, which a JSON deserializer reads
+        // without recursing, and the labels are built from that text by a loop.
+        let raw = Box::<RawValue>::deserialize(deserializer)?;
+        check_nesting(raw.get().as_bytes()).map_err(<D::Error as de::Error>::custom)?;
+        labels_from_json(raw.get()).map_err(<D::Error as de::Error>::custom)
     }
 }
 
-/// Decodes any JSON value into [`Labels`], numbers as `float64`.
-struct LabelsVisitor;
-
-impl<'de> Visitor<'de> for LabelsVisitor {
-    type Value = Labels;
-
-    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("any JSON value")
-    }
-
-    fn visit_unit<E: de::Error>(self) -> Result<Labels, E> {
-        Ok(Labels::Nil)
-    }
-
-    fn visit_none<E: de::Error>(self) -> Result<Labels, E> {
-        Ok(Labels::Nil)
-    }
-
-    fn visit_bool<E: de::Error>(self, value: bool) -> Result<Labels, E> {
-        Ok(Labels::Bool(value))
-    }
-
-    fn visit_i64<E: de::Error>(self, value: i64) -> Result<Labels, E> {
-        Ok(Labels::Float64(value as f64))
-    }
-
-    fn visit_u64<E: de::Error>(self, value: u64) -> Result<Labels, E> {
-        Ok(Labels::Float64(value as f64))
-    }
-
-    fn visit_f64<E: de::Error>(self, value: f64) -> Result<Labels, E> {
-        Ok(Labels::Float64(value))
-    }
-
-    fn visit_str<E: de::Error>(self, value: &str) -> Result<Labels, E> {
-        Ok(Labels::String(value.to_owned()))
-    }
-
-    fn visit_string<E: de::Error>(self, value: String) -> Result<Labels, E> {
-        Ok(Labels::String(value))
-    }
-
-    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Labels, A::Error> {
-        let mut items = Vec::new();
-        while let Some(item) = seq.next_element()? {
-            items.push(item);
+impl Drop for Labels {
+    fn drop(&mut self) {
+        // Dropping nested labels would recurse, so the children are taken out
+        // and dropped in a loop, as `gojson::Value` does.
+        let mut pending = match self {
+            Labels::Array(items) => std::mem::take(items),
+            Labels::Object(entries) => std::mem::take(entries).into_values().collect(),
+            _ => return,
+        };
+        while let Some(mut value) = pending.pop() {
+            match &mut value {
+                Labels::Array(items) => pending.append(items),
+                Labels::Object(entries) => {
+                    pending.extend(std::mem::take(entries).into_values());
+                }
+                _ => {}
+            }
         }
-        Ok(Labels::Array(items))
+    }
+}
+
+/// Reads the labels that a JSON text holds, numbers as `float64`, as
+/// [`Deserialize`] does. The text has already been checked as JSON by the
+/// deserializer that captured it. The lists and objects being read are kept on
+/// a stack, so a value nested at any depth is read in full.
+fn labels_from_json(text: &str) -> Result<Labels, String> {
+    /// A list or an object that is still being read.
+    enum Open {
+        List(Vec<Labels>),
+        /// The entries read so far, and the name of the value being read.
+        Object(IndexMap<String, Labels>, String),
+    }
+    let mut reader = Reader { text, pos: 0 };
+    let mut open: Vec<Open> = Vec::new();
+    loop {
+        // Read the next value. A list or an object with entries opens a frame,
+        // and its first value is read next.
+        let value = match reader.peek() {
+            Some(b'[') => {
+                reader.pos += 1;
+                if reader.eat(b']') {
+                    Labels::Array(Vec::new())
+                } else {
+                    open.push(Open::List(Vec::new()));
+                    continue;
+                }
+            }
+            Some(b'{') => {
+                reader.pos += 1;
+                if reader.eat(b'}') {
+                    Labels::Object(IndexMap::new())
+                } else {
+                    let name = reader.name()?;
+                    open.push(Open::Object(IndexMap::new(), name));
+                    continue;
+                }
+            }
+            Some(b'"') => Labels::String(reader.string()?),
+            Some(b't') => {
+                reader.word("true")?;
+                Labels::Bool(true)
+            }
+            Some(b'f') => {
+                reader.word("false")?;
+                Labels::Bool(false)
+            }
+            Some(b'n') => {
+                reader.word("null")?;
+                Labels::Nil
+            }
+            Some(_) => Labels::Float64(reader.number()?),
+            None => return Err("unexpected end of JSON input".to_owned()),
+        };
+        // Give the value to the innermost frame. A separator then either moves
+        // on to the next value, or closes the frame, which is a value in turn.
+        let mut value = value;
+        loop {
+            match open.last_mut() {
+                None => return Ok(value),
+                Some(Open::List(items)) => items.push(value),
+                Some(Open::Object(entries, name)) => {
+                    entries.insert(std::mem::take(name), value);
+                }
+            }
+            if reader.eat(b',') {
+                if let Some(Open::Object(_, name)) = open.last_mut() {
+                    *name = reader.name()?;
+                }
+                break;
+            }
+            value = match open.pop() {
+                Some(Open::List(items)) if reader.eat(b']') => Labels::Array(items),
+                Some(Open::Object(entries, _)) if reader.eat(b'}') => Labels::Object(entries),
+                _ => return Err(format!("expected a separator at byte {}", reader.pos)),
+            };
+        }
+    }
+}
+
+/// A cursor over a JSON text that has been checked as JSON.
+struct Reader<'a> {
+    text: &'a str,
+    pos: usize,
+}
+
+impl Reader<'_> {
+    /// The next byte that is not white space. It is not read.
+    fn peek(&mut self) -> Option<u8> {
+        self.skip_space();
+        self.text.as_bytes().get(self.pos).copied()
     }
 
-    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Labels, A::Error> {
-        // A repeated name keeps its first position and takes its last value,
-        // as Go's map does.
-        let mut object = IndexMap::new();
-        while let Some((key, value)) = map.next_entry::<String, Labels>()? {
-            object.insert(key, value);
+    fn skip_space(&mut self) {
+        while matches!(
+            self.text.as_bytes().get(self.pos),
+            Some(b' ' | b'\t' | b'\n' | b'\r')
+        ) {
+            self.pos += 1;
         }
-        Ok(Labels::Object(object))
+    }
+
+    /// Reads `byte` when it is the next byte that is not white space.
+    fn eat(&mut self, byte: u8) -> bool {
+        if self.peek() == Some(byte) {
+            self.pos += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// A JSON string. serde_json decodes the escapes of the quoted text.
+    fn string(&mut self) -> Result<String, String> {
+        self.skip_space();
+        let bytes = self.text.as_bytes();
+        let start = self.pos;
+        let mut end = start + 1;
+        while bytes.get(end).is_some_and(|&byte| byte != b'"') {
+            end += if bytes[end] == b'\\' { 2 } else { 1 };
+        }
+        self.pos = end + 1;
+        let token = self
+            .text
+            .get(start..=end)
+            .ok_or_else(|| format!("unterminated string at byte {start}"))?;
+        serde_json::from_str(token).map_err(|err| err.to_string())
+    }
+
+    /// The name of an object's entry, and the colon after it.
+    fn name(&mut self) -> Result<String, String> {
+        let name = self.string()?;
+        if self.eat(b':') {
+            Ok(name)
+        } else {
+            Err(format!("expected ':' at byte {}", self.pos))
+        }
+    }
+
+    /// A JSON number, as `float64`. Go's decoder rejects a number that
+    /// overflows, and so does this.
+    fn number(&mut self) -> Result<f64, String> {
+        let start = self.pos;
+        while matches!(
+            self.text.as_bytes().get(self.pos),
+            Some(b'0'..=b'9' | b'-' | b'+' | b'.' | b'e' | b'E')
+        ) {
+            self.pos += 1;
+        }
+        let value: f64 = self.text[start..self.pos]
+            .parse()
+            .map_err(|_| format!("invalid number at byte {start}"))?;
+        if value.is_infinite() {
+            return Err(format!("number out of range at byte {start}"));
+        }
+        Ok(value)
+    }
+
+    /// One of the words `true`, `false` and `null`.
+    fn word(&mut self, word: &str) -> Result<(), String> {
+        if self.text[self.pos..].starts_with(word) {
+            self.pos += word.len();
+            Ok(())
+        } else {
+            Err(format!("invalid literal at byte {}", self.pos))
+        }
     }
 }
 
@@ -194,51 +356,81 @@ pub fn validate_labels(labels: &Labels) -> Result<(), LabelsError> {
 
 /// The error for a list of labels that do not validate, with the list as JSON.
 fn unsupported_labels(items: &[Labels]) -> LabelsError {
-    LabelsError::Unsupported(labels_json(items))
+    // A number that cannot be written is an error Go's `MustMarshal` panics on
+    // too, and the labels here are always writable.
+    LabelsError::Unsupported(list_json(items).expect("labels marshal as JSON"))
 }
 
-/// The list of labels as `jsonutil.MustMarshal` writes it. The writer walks a
-/// stack instead of recursing, so a list nested to the decoder's limit is
-/// written in full.
-fn labels_json(items: &[Labels]) -> String {
-    /// One piece of the output, pushed in reverse so that it pops in order.
-    enum Step<'a> {
-        Value(&'a Labels),
-        Key(&'a str),
-        Text(&'static str),
-    }
-    let mut out = String::from("[");
-    let mut steps = vec![Step::Text("]")];
+/// One piece of the JSON text of labels. The pieces are pushed in reverse, so
+/// that they pop in the order they are written.
+enum Step<'a> {
+    Value(&'a Labels),
+    Key(&'a str),
+    Text(&'static str),
+}
+
+/// The labels as `json.Marshal` writes them, through `jsonutil`. The lists and
+/// maps are opened and closed on a stack, not by recursion, so labels nested
+/// at any depth are written in full.
+pub(crate) fn labels_json(labels: &Labels) -> Result<String, serde_json::Error> {
+    write_steps(vec![Step::Value(labels)])
+}
+
+/// The labels of a list, as the text that [`LabelsError::Unsupported`] holds.
+fn list_json(items: &[Labels]) -> Result<String, serde_json::Error> {
+    let mut steps = Vec::new();
+    push_list(&mut steps, items);
+    steps.push(Step::Text("["));
+    write_steps(steps)
+}
+
+/// Pushes the pieces of a list, closing bracket included, in reverse order.
+fn push_list<'a>(steps: &mut Vec<Step<'a>>, items: &'a [Labels]) {
+    steps.push(Step::Text("]"));
     for (index, item) in items.iter().enumerate().rev() {
         steps.push(Step::Value(item));
         if index > 0 {
             steps.push(Step::Text(","));
         }
     }
+}
+
+/// Writes the pieces, popping them in order.
+fn write_steps(mut steps: Vec<Step<'_>>) -> Result<String, serde_json::Error> {
+    let mut out = String::new();
     while let Some(step) = steps.pop() {
         match step {
             Step::Text(text) => out.push_str(text),
             Step::Key(name) => {
-                out.push_str(&marshal_text(&jsonutil::marshal(name)));
+                out.push_str(utf8(&jsonutil::marshal(name)?));
                 out.push(':');
+            }
+            Step::Value(Labels::Nil) => out.push_str("null"),
+            Step::Value(Labels::Bool(value)) => {
+                out.push_str(if *value { "true" } else { "false" });
+            }
+            Step::Value(Labels::Float64(value)) => {
+                out.push_str(utf8(&jsonutil::marshal(value)?));
+            }
+            Step::Value(Labels::Number(text)) => {
+                // The text is written as it is, as `json.Marshal` writes a
+                // json.Number. A text that is not a JSON number is an error.
+                out.push_str(RawValue::from_string(text.clone())?.get());
+            }
+            Step::Value(Labels::String(value)) => {
+                out.push_str(utf8(&jsonutil::marshal(value)?));
             }
             Step::Value(Labels::Array(items)) => {
                 out.push('[');
-                steps.push(Step::Text("]"));
-                for (index, item) in items.iter().enumerate().rev() {
-                    steps.push(Step::Value(item));
-                    if index > 0 {
-                        steps.push(Step::Text(","));
-                    }
-                }
+                push_list(&mut steps, items);
             }
-            Step::Value(Labels::Object(map)) => {
+            Step::Value(Labels::Object(entries)) => {
                 out.push('{');
                 steps.push(Step::Text("}"));
                 // encoding/json writes a map's names in sorted order.
-                let mut entries: Vec<(&String, &Labels)> = map.iter().collect();
-                entries.sort_by(|a, b| a.0.cmp(b.0));
-                for (index, &(name, item)) in entries.iter().enumerate().rev() {
+                let mut sorted: Vec<(&String, &Labels)> = entries.iter().collect();
+                sorted.sort_by(|a, b| a.0.cmp(b.0));
+                for (index, &(name, item)) in sorted.iter().enumerate().rev() {
                     steps.push(Step::Value(item));
                     steps.push(Step::Key(name));
                     if index > 0 {
@@ -246,18 +438,40 @@ fn labels_json(items: &[Labels]) -> String {
                     }
                 }
             }
-            Step::Value(scalar) => out.push_str(&marshal_text(&jsonutil::marshal(scalar))),
         }
     }
-    out
+    Ok(out)
 }
 
-/// The JSON bytes of a value that cannot nest, as text. A value that
-/// `jsonutil` cannot write is an error Go's `MustMarshal` panics on too, and
-/// the labels here are always writable.
-fn marshal_text(json: &Result<Vec<u8>, serde_json::Error>) -> String {
-    let json = json.as_ref().expect("labels marshal as JSON");
-    String::from_utf8_lossy(json).into_owned()
+/// The bytes that `jsonutil` wrote, as text. serde_json writes UTF-8.
+fn utf8(json: &[u8]) -> &str {
+    std::str::from_utf8(json).expect("serde_json writes UTF-8")
+}
+
+/// Labels nested `depth` levels, alternating lists and maps from the outside
+/// in, with the text that Go writes for them. The text is built as the labels
+/// are, so the test compares two values that were made apart.
+#[cfg(test)]
+pub(crate) fn nested_labels(depth: usize) -> (Labels, String) {
+    let mut value = Labels::String("leaf".to_owned());
+    let mut opened = Vec::with_capacity(depth);
+    let mut closed = String::new();
+    for level in 0..depth {
+        if level % 2 == 0 {
+            value = Labels::Array(vec![value]);
+            opened.push("[");
+            closed.push(']');
+        } else {
+            value = Labels::Object(IndexMap::from([("k".to_owned(), value)]));
+            opened.push("{\"k\":");
+            closed.push('}');
+        }
+    }
+    let text = format!(
+        "{}\"leaf\"{closed}",
+        opened.iter().rev().copied().collect::<String>()
+    );
+    (value, text)
 }
 
 /// An item: `storage/data`'s `Item`.
@@ -627,6 +841,76 @@ mod tests {
                 ("n", Labels::Float64(1.5)),
                 ("list", array(vec![Labels::Bool(true), string("x")])),
             ])
+        );
+    }
+
+    #[test]
+    fn labels_nested_ten_thousand_levels_round_trip_as_json() {
+        labels_round_trip_as_json(MAX_NESTING_DEPTH);
+    }
+
+    #[test]
+    fn labels_nested_past_the_go_limit_are_refused_as_go_refuses() {
+        labels_refused_as_json(MAX_NESTING_DEPTH + 1);
+    }
+
+    #[test]
+    fn labels_nested_one_hundred_thousand_levels_are_refused_as_go_refuses() {
+        labels_refused_as_json(100_000);
+    }
+
+    #[test]
+    fn check_nesting_counts_only_brackets_outside_strings() {
+        // Brackets inside a string, and an escaped quote, are not levels.
+        let text = format!("[\"{}\\\"]\", []]", "[".repeat(20_000));
+        assert!(check_nesting(text.as_bytes()).is_ok());
+        let deep = format!("{}{}", "[".repeat(10_001), "]".repeat(10_001));
+        assert_eq!(
+            check_nesting(deep.as_bytes())
+                .expect_err("too deep")
+                .to_string(),
+            "exceeded max depth"
+        );
+    }
+
+    /// Writes labels nested `depth` levels, which Go writes in full, and reads
+    /// them back, as the SQL backends do. Both walks must finish without the
+    /// call stack limiting them, and the text must not change on the way.
+    fn labels_round_trip_as_json(depth: usize) {
+        let (labels, text) = nested_labels(depth);
+        let written =
+            String::from_utf8(jsonutil::marshal(&labels).expect("marshal")).expect("utf-8");
+        assert!(written == text, "labels were written differently");
+        let read = unmarshal_labels(text.as_bytes()).expect("unmarshal");
+        let again = String::from_utf8(jsonutil::marshal(&read).expect("marshal")).expect("utf-8");
+        assert!(again == text, "labels changed on the way back");
+    }
+
+    /// Refuses labels nested past Go's limit, on writing and on reading, with
+    /// the text Go gives: `json.Marshal` and `json.Unmarshal` both return
+    /// `exceeded max depth` for them.
+    fn labels_refused_as_json(depth: usize) {
+        let (labels, text) = nested_labels(depth);
+        let written = jsonutil::marshal(&labels).expect_err("marshal past the limit");
+        assert_eq!(written.to_string(), "exceeded max depth");
+        let read = unmarshal_labels(text.as_bytes()).expect_err("unmarshal past the limit");
+        assert_eq!(read.to_string(), "exceeded max depth");
+    }
+
+    #[test]
+    fn labels_with_a_number_that_is_not_json_are_an_error() {
+        // The writer reports the error rather than panicking, as Go's
+        // json.Marshal reports it.
+        let labels = array(vec![array(vec![number("1.2.3")])]);
+        assert!(jsonutil::marshal(&labels).is_err());
+    }
+
+    #[test]
+    fn labels_read_duplicate_names_last_value_first_position() {
+        let labels: Labels = serde_json::from_str(r#"{"a":1,"b":[],"a":"x"}"#).expect("decode");
+        assert_eq!(
+            String::from_utf8(jsonutil::marshal(&labels).expect("marshal")).expect("utf-8"),
+            r#"{"a":"x","b":[]}"#
         );
     }
 

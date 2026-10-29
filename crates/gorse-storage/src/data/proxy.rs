@@ -93,7 +93,7 @@ pub(crate) fn labels_from_pb(bytes: &[u8]) -> Result<Labels, String> {
     if bytes.is_empty() {
         return Err("unexpected end of JSON input".to_owned());
     }
-    serde_json::from_slice(bytes).map_err(|err| err.to_string())
+    super::types::unmarshal_labels(bytes).map_err(|err| err.to_string())
 }
 
 /// A list of strings that Go holds as a nil slice when it is empty.
@@ -1543,7 +1543,37 @@ fn backend_encoding(err: serde_json::Error) -> Error {
 
 #[cfg(test)]
 mod tests {
+    use super::super::types::{MAX_NESTING_DEPTH, nested_labels};
     use super::*;
+
+    #[test]
+    fn labels_nested_ten_thousand_levels_round_trip_through_pb() {
+        labels_round_trip_through_pb(10_000);
+    }
+
+    #[test]
+    fn labels_nested_past_the_go_limit_are_refused_through_pb() {
+        // Go's json.Marshal and json.Unmarshal refuse these, with its text.
+        for depth in [MAX_NESTING_DEPTH + 1, 100_000] {
+            let (labels, text) = nested_labels(depth);
+            let written = labels_to_pb(&labels).expect_err("marshal past the limit");
+            assert_eq!(written.to_string(), "exceeded max depth");
+            let read = labels_from_pb(text.as_bytes()).expect_err("unmarshal past the limit");
+            assert_eq!(read, "exceeded max depth");
+        }
+    }
+
+    /// Writes labels nested `depth` levels to the protobuf bytes and reads them
+    /// back. The bytes are the text Go writes, and the value reads back as it.
+    fn labels_round_trip_through_pb(depth: usize) {
+        let (labels, text) = nested_labels(depth);
+        let bytes = labels_to_pb(&labels).expect("marshal");
+        assert!(bytes == text.as_bytes(), "labels were written differently");
+        let read = labels_from_pb(&bytes).expect("unmarshal");
+        let again = String::from_utf8(gorse_common::jsonutil::marshal(&read).expect("marshal"))
+            .expect("utf-8");
+        assert!(again == text, "labels changed on the way back");
+    }
 
     #[test]
     fn zero_time_is_go_zero_time_on_the_wire() {

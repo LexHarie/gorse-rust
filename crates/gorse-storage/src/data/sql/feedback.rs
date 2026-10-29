@@ -20,7 +20,9 @@ use sqlx::{ColumnIndex, Decode, Row, Type};
 
 use super::super::types::{Feedback, FeedbackKey, Labels};
 use super::super::{Error, ScanOption, new_scan_options};
-use super::items::{decode_cursor, encode_cursor, json_column, unmarshal, upsert_clause};
+use super::items::{
+    decode_cursor, encode_cursor, json_column, unmarshal, unmarshal_labels, upsert_clause,
+};
 use super::query::{self, Driver, Sql};
 use super::{Pools, SqlDatabase, time};
 
@@ -46,7 +48,7 @@ where
     for<'r> Option<String>: Decode<'r, R::Database> + Type<R::Database>,
 {
     let labels = match query::optional_text(row, 6)? {
-        Some(text) => unmarshal::<Labels>(&text)?,
+        Some(text) => unmarshal_labels(&text)?,
         None => Labels::Nil,
     };
     Ok(Feedback {

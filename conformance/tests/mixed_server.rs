@@ -671,7 +671,39 @@ fn cases() -> Vec<Case> {
             "/api/item/item-num2",
             None,
         ),
+        // The user object is one level, so labels nested 9,999 deep make a body
+        // 10,000 deep, the most that Go's decoder accepts.
+        Case {
+            route: "POST /api/user",
+            method: Method::POST,
+            path: "/api/user",
+            body: Some(deep_user("deep-user-9999", 9_999)),
+            content_type: Some("application/json"),
+            content_encoding: None,
+        },
+        // Labels nested 10,001 deep make a body past Go's limit, which Go's
+        // decoder refuses with `exceeded max depth`.
+        Case {
+            route: "POST /api/user",
+            method: Method::POST,
+            path: "/api/user",
+            body: Some(deep_user("deep-user-10001", 10_001)),
+            content_type: Some("application/json"),
+            content_encoding: None,
+        },
     ]
+}
+
+/// A user whose labels are `depth` objects nested in each other, ending in a
+/// string. Labels of objects are valid at any depth, where lists of lists are
+/// not, so the body is accepted up to the decoder's limit.
+fn deep_user(user_id: &str, depth: usize) -> Vec<u8> {
+    format!(
+        r#"{{"UserId":"{user_id}","Labels":{}"x"{},"Comment":""}}"#,
+        r#"{"a":"#.repeat(depth),
+        "}".repeat(depth)
+    )
+    .into_bytes()
 }
 
 /// A case for `route`, sent with `method` to `path`, with an optional JSON body.
@@ -856,8 +888,9 @@ struct Side {
 impl Side {
     /// Starts a cluster with its master, its server and its worker, and waits
     /// until the worker has recommended for every user.
-    async fn start(build: &'static GoBuild, rust: bool) -> Side {
-        let mut cluster = Cluster::new(build, &EDITS).expect("write the cluster config");
+    async fn start(build: &'static GoBuild, rust: bool, data_uri: Option<&str>) -> Side {
+        let mut cluster =
+            Cluster::new_with_store(build, &EDITS, data_uri).expect("write the cluster config");
         let (users, items, feedback) = seed();
         seed_stores(&cluster, &users, &items, &feedback).await;
         cluster.start_master().await.expect("start the Go master");
@@ -1007,15 +1040,22 @@ async fn mixed_server_matches_go_server() {
         "every contract route needs a case, and every case names a contract route"
     );
 
-    let go = Side::start(build, false).await;
-    let rust = Side::start(build, true).await;
+    let go = Side::start(build, false, None).await;
+    let rust = Side::start(build, true, None).await;
+    let differing = compare(&go, &rust, &cases).await;
+    go.stop().await;
+    rust.stop().await;
+    assert!(differing.is_empty(), "{}", report(&differing));
+}
+
+/// Sends `cases` to both sides, in order, and returns the differences by route.
+async fn compare(go: &Side, rust: &Side, cases: &[Case]) -> BTreeMap<&'static str, Vec<String>> {
     let client = Client::builder()
         .timeout(REQUEST_TIMEOUT)
         .build()
         .expect("build the HTTP client");
-
-    let mut differing: BTreeMap<&str, Vec<String>> = BTreeMap::new();
-    for case in &cases {
+    let mut differing: BTreeMap<&'static str, Vec<String>> = BTreeMap::new();
+    for case in cases {
         let expected = send(&client, go.port, case).await;
         let actual = send(&client, rust.port, case).await;
         let lines = differences(case, &expected, &actual);
@@ -1023,8 +1063,76 @@ async fn mixed_server_matches_go_server() {
             differing.entry(case.route).or_default().extend(lines);
         }
     }
+    differing
+}
 
+/// The same deep labels, sent to a Go cluster and a Rust cluster that store in
+/// a live MongoDB. The outcomes must match, whether they are successes or the
+/// same errors. `MONGO_URI` names the server, such as `mongodb://127.0.0.1:27017`
+/// with no database and no query, and the test fails without it. Each side
+/// stores in a database of its own, named for this run.
+#[tokio::test]
+async fn mixed_mongo_deep_labels_match_go_server() {
+    let Ok(server) = std::env::var("MONGO_URI") else {
+        panic!("MONGO_URI is not set");
+    };
+    let build = GoBuild::shared().expect("build the Go nodes");
+    let run = format!(
+        "{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("the clock is after 1970")
+            .as_nanos()
+    );
+    let go_store = format!("{server}/gorse_mixed_go_{run}");
+    let rust_store = format!("{server}/gorse_mixed_rust_{run}");
+    let go = Side::start(build, false, Some(go_store.as_str())).await;
+    let rust = Side::start(build, true, Some(rust_store.as_str())).await;
+    let differing = compare(&go, &rust, &deep_mongo_cases()).await;
     go.stop().await;
     rust.stop().await;
     assert!(differing.is_empty(), "{}", report(&differing));
+}
+
+/// Deep labels for the MongoDB comparison. Labels 90 deep are stored and read
+/// back. Labels 9,999 deep are past what MongoDB stores, and the outcome is
+/// whatever Go's driver and server give, which the Rust side must match.
+/// Labels 10,001 deep are past Go's decoder, which refuses them before any
+/// store is written.
+fn deep_mongo_cases() -> Vec<Case> {
+    vec![
+        Case {
+            route: "POST /api/user",
+            method: Method::POST,
+            path: "/api/user",
+            body: Some(deep_user("mongo-user-90", 90)),
+            content_type: Some("application/json"),
+            content_encoding: None,
+        },
+        Case {
+            route: "GET /api/user/{user-id}",
+            method: Method::GET,
+            path: "/api/user/mongo-user-90",
+            body: None,
+            content_type: None,
+            content_encoding: None,
+        },
+        Case {
+            route: "POST /api/user",
+            method: Method::POST,
+            path: "/api/user",
+            body: Some(deep_user("mongo-user-9999", 9_999)),
+            content_type: Some("application/json"),
+            content_encoding: None,
+        },
+        Case {
+            route: "POST /api/user",
+            method: Method::POST,
+            path: "/api/user",
+            body: Some(deep_user("mongo-user-10001", 10_001)),
+            content_type: Some("application/json"),
+            content_encoding: None,
+        },
+    ]
 }

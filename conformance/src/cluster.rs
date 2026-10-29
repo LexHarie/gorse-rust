@@ -161,7 +161,23 @@ impl Cluster {
     ///
     /// Fails when the config or the run's directories cannot be written.
     pub fn new(build: &'static GoBuild, edits: &[Edit<'_>]) -> Result<Cluster> {
-        Self::create(build, edits, false)
+        Self::create(build, edits, false, None)
+    }
+
+    /// Starts a run like [`Cluster::new`], with the data store at `data_uri`
+    /// when it is given, and the run's SQLite file when it is not. The store
+    /// is what the Go and the Rust nodes both open, so it must be shared
+    /// between them only as the run's own.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the config or the run's directories cannot be written.
+    pub fn new_with_store(
+        build: &'static GoBuild,
+        edits: &[Edit<'_>],
+        data_uri: Option<&str>,
+    ) -> Result<Cluster> {
+        Self::create(build, edits, false, data_uri)
     }
 
     /// Starts a run like [`Cluster::new`], with mutual TLS between the nodes. The
@@ -172,12 +188,17 @@ impl Cluster {
     ///
     /// Fails when the certificates or the config cannot be written.
     pub fn new_tls(build: &'static GoBuild, edits: &[Edit<'_>]) -> Result<Cluster> {
-        Self::create(build, edits, true)
+        Self::create(build, edits, true, None)
     }
 
     /// Writes the run's directories, certificates and config. `secure` turns on
     /// mutual TLS in the master.
-    fn create(build: &'static GoBuild, edits: &[Edit<'_>], secure: bool) -> Result<Cluster> {
+    fn create(
+        build: &'static GoBuild,
+        edits: &[Edit<'_>],
+        secure: bool,
+        data_uri: Option<&str>,
+    ) -> Result<Cluster> {
         let dir = tempfile::tempdir().map_err(fail)?;
         let root = dir.path().to_path_buf();
         let ports = Ports {
@@ -186,7 +207,10 @@ impl Cluster {
             server_http: free_port()?,
             worker_http: free_port()?,
         };
-        let data_uri = format!("sqlite://{}", root.join("data.db").display());
+        let data_uri = match data_uri {
+            Some(uri) => uri.to_owned(),
+            None => format!("sqlite://{}", root.join("data.db").display()),
+        };
         let cache_uri = format!("sqlite://{}", root.join("cache.db").display());
         let vector_uri = format!("xvec://{}", root.join("vectors").display());
         let blob_dir = root.join("blob");

@@ -192,7 +192,7 @@ pub(crate) fn text(content: &str) -> Response {
 /// strings in JSON, so the escape is a plain byte substitution.
 pub(crate) fn go_json<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, serde_json::Error> {
     let mut out = Vec::new();
-    let formatter = GoFormatter(PrettyFormatter::with_indent(b" "));
+    let formatter = GoFormatter(PrettyFormatter::with_indent(b" "), 0);
     let mut serializer = serde_json::Serializer::with_formatter(&mut out, formatter);
     value.serialize(&mut serializer)?;
     Ok(escape_html(&out))
@@ -200,15 +200,30 @@ pub(crate) fn go_json<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, serde
 
 /// serde_json's pretty printer, with the floats written as `encoding/json`
 /// writes them. serde_json writes a whole float as `1.0`, and Go writes `1`.
-struct GoFormatter<'a>(PrettyFormatter<'a>);
+/// The second field counts the arrays and objects that are open, which is the
+/// indentation a raw fragment is written at.
+struct GoFormatter<'a>(PrettyFormatter<'a>, usize);
 
 impl Formatter for GoFormatter<'_> {
     fn begin_array<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.1 += 1;
         self.0.begin_array(writer)
     }
 
     fn end_array<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.1 -= 1;
         self.0.end_array(writer)
+    }
+
+    /// A raw fragment is a complete compact JSON value, such as labels that the
+    /// storage layer writes as text. It is indented as the values built here
+    /// are, so the response reads the same whichever way its value was built.
+    fn write_raw_fragment<W: ?Sized + io::Write>(
+        &mut self,
+        writer: &mut W,
+        fragment: &str,
+    ) -> io::Result<()> {
+        write_indented(writer, fragment, self.1)
     }
 
     fn begin_array_value<W: ?Sized + io::Write>(
@@ -224,10 +239,12 @@ impl Formatter for GoFormatter<'_> {
     }
 
     fn begin_object<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.1 += 1;
         self.0.begin_object(writer)
     }
 
     fn end_object<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.1 -= 1;
         self.0.end_object(writer)
     }
 
@@ -254,6 +271,67 @@ impl Formatter for GoFormatter<'_> {
     fn write_f64<W: ?Sized + io::Write>(&mut self, writer: &mut W, value: f64) -> io::Result<()> {
         write_go_f64(writer, value)
     }
+}
+
+/// Writes a compact JSON value indented as serde's pretty printer indents the
+/// values around it, with one space per level and `depth` levels already open.
+/// An empty array or object stays `[]` or `{}`, as the pretty printer writes
+/// it, and `": "` follows each key.
+fn write_indented<W: ?Sized + io::Write>(
+    writer: &mut W,
+    json: &str,
+    depth: usize,
+) -> io::Result<()> {
+    fn newline<W: ?Sized + io::Write>(writer: &mut W, depth: usize) -> io::Result<()> {
+        writer.write_all(b"\n")?;
+        writer.write_all(" ".repeat(depth).as_bytes())
+    }
+    let bytes = json.as_bytes();
+    let mut depth = depth;
+    let mut in_string = false;
+    let mut escaped = false;
+    for (index, &byte) in bytes.iter().enumerate() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+            }
+            writer.write_all(&[byte])?;
+            continue;
+        }
+        match byte {
+            b'"' => {
+                in_string = true;
+                writer.write_all(&[byte])?;
+            }
+            b'[' | b'{' => {
+                writer.write_all(&[byte])?;
+                let close = if byte == b'[' { b']' } else { b'}' };
+                if bytes.get(index + 1) != Some(&close) {
+                    depth += 1;
+                    newline(writer, depth)?;
+                }
+            }
+            b']' | b'}' => {
+                let open = if byte == b']' { b'[' } else { b'{' };
+                if index == 0 || bytes[index - 1] != open {
+                    depth -= 1;
+                    newline(writer, depth)?;
+                }
+                writer.write_all(&[byte])?;
+            }
+            b',' => {
+                writer.write_all(b",")?;
+                newline(writer, depth)?;
+            }
+            b':' => writer.write_all(b": ")?,
+            other => writer.write_all(&[other])?,
+        }
+    }
+    Ok(())
 }
 
 /// Writes a float as `encoding/json` does: the shortest text that reads back to
@@ -314,19 +392,24 @@ pub(crate) fn validate_request_labels(labels: &mut Labels) -> Result<(), ApiErro
 }
 
 /// Turns every `float64` in `labels` into a `json.Number` with the same value.
+/// The walk keeps the lists and maps still to be visited on a stack, so labels
+/// nested at any depth are converted in full.
 fn use_numbers(labels: &mut Labels) {
-    if let Labels::Float64(value) = *labels {
-        *labels = Labels::Number(value.to_string());
-        return;
-    }
-    match labels {
-        Labels::Array(items) => items.iter_mut().for_each(use_numbers),
-        Labels::Object(fields) => fields.values_mut().for_each(use_numbers),
-        Labels::Nil
-        | Labels::Bool(_)
-        | Labels::Float64(_)
-        | Labels::Number(_)
-        | Labels::String(_) => {}
+    let mut pending = vec![labels];
+    while let Some(labels) = pending.pop() {
+        if let Labels::Float64(value) = *labels {
+            *labels = Labels::Number(value.to_string());
+            continue;
+        }
+        match labels {
+            Labels::Array(items) => pending.extend(items.iter_mut()),
+            Labels::Object(fields) => pending.extend(fields.values_mut()),
+            Labels::Nil
+            | Labels::Bool(_)
+            | Labels::Float64(_)
+            | Labels::Number(_)
+            | Labels::String(_) => {}
+        }
     }
 }
 
@@ -418,4 +501,37 @@ fn go_quote(text: &str) -> String {
     }
     quoted.push('"');
     quoted
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::value::RawValue;
+
+    use super::*;
+
+    #[test]
+    fn raw_fragments_are_indented_as_the_values_around_them() {
+        // The same object, once with its labels as a raw fragment and once with
+        // the labels built as values. Both must be indented alike.
+        #[derive(Serialize)]
+        struct Raw {
+            labels: Box<RawValue>,
+            comment: &'static str,
+        }
+        #[derive(Serialize)]
+        struct Built {
+            labels: serde_json::Value,
+            comment: &'static str,
+        }
+        let raw = Raw {
+            labels: RawValue::from_string(r#"[1,[],{},{"b":[true,null],"c":"<"}]"#.to_owned())
+                .expect("valid JSON"),
+            comment: "x",
+        };
+        let built = Built {
+            labels: serde_json::json!([1, [], {}, {"b": [true, null], "c": "<"}]),
+            comment: "x",
+        };
+        assert_eq!(go_json(&raw).expect("raw"), go_json(&built).expect("built"));
+    }
 }
