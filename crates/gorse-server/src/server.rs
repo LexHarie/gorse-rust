@@ -14,8 +14,6 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use gorse_common::util::tls::TlsConfig;
 use gorse_config::config::defaults::get_default_config;
-use gorse_config::config::load::unmarshal;
-use gorse_config::formats::json;
 use gorse_protocol::{Meta, NodeInfo, NodeType, master_client::MasterClient};
 use gorse_storage::cache;
 use gorse_storage::data;
@@ -250,14 +248,13 @@ impl Server {
                 return;
             }
         };
-        let config =
-            match json::decode(meta.config.as_bytes()).and_then(|settings| unmarshal(&settings)) {
-                Ok(config) => config,
-                Err(err) => {
-                    tracing::error!(error = %err, "failed to parse master config");
-                    return;
-                }
-            };
+        // Go's `json.Unmarshal` of the master's config onto the server's config,
+        // so the JSON names are the Go field names and a missing field keeps its value.
+        let mut config = (*self.rest.config()).clone();
+        if let Err(err) = config.unmarshal_json(&meta.config) {
+            tracing::error!(error = %err, "failed to parse master config");
+            return;
+        }
         self.rest.set_config(config.clone());
         let database = &config.database;
         if opened.data_path != database.data_store

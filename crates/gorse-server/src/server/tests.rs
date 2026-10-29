@@ -2,8 +2,8 @@
 
 //! The meta sync of a server node, as Go's `TestServer_Sync`: a mock master
 //! sends the config, and one sync opens the stores at the paths it names.
-//! The config carries only the store paths; the rest of the defaults are the
-//! ones `unmarshal` starts from, which is what the sync reads them with.
+//! The config is JSON with the Go field names, as the Go master marshals its
+//! `config.Config`, and it carries only the store paths.
 
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -69,7 +69,7 @@ async fn server_sync() {
     let dir = tempfile::tempdir().expect("temp dir");
     let data_store = format!("sqlite://{}/data.db", dir.path().display());
     let cache_store = format!("sqlite://{}/cache.db", dir.path().display());
-    let config = json!({"database": {"data_store": data_store, "cache_store": cache_store}});
+    let config = json!({"Database": {"DataStore": data_store, "CacheStore": cache_store}});
     let master = start_master(Meta {
         config: config.to_string(),
         ..Default::default()
