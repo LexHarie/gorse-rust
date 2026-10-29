@@ -2883,6 +2883,7 @@ said otherwise), so the Rust result is Go's.
   frames add to that stack in production. The Mongo path was not measured. Acceptance needs the walks made iterative, or the
   runtime given storage threads with a larger stack (WP-4-5), and a test that a 10000-level label round-trips through SQL and
   Mongo on the Rust server in a release build (D-266). Ruling D-267: iterative walks on every backend, owned by the WP-4-2 server thread for the label-walk functions only; debug tests at 10,000 and 100,000 levels; acceptance waits.
+  Status (D-268): the SQL and proxy paths pass at 10,000 levels in debug. The Mongo live test (`mixed_mongo_deep_labels_match_go_server`) still aborts with a stack overflow in the `bson` crate's raw serializer, because the write path hands a nested `Bson` tree to the driver. The read path and `Bson`'s drop recurse too. Open and blocks acceptance; the server thread is to build and read raw BSON with an explicit stack.
 
 - **WP-4-1 worker node (merged in part, D-262).** The thread's notes (`porting/notes/WP-4-1.md`) are folded here with
   the integrator's ids. The harness (`conformance/src/cluster.rs`) and `mixed_worker` are merged with the worker. The
