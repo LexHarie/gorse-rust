@@ -12,13 +12,13 @@ use axum::response::Response;
 use gorse_common::gocontext::Context;
 use gorse_common::gotime;
 use gorse_storage::cache;
-use gorse_storage::data::types::{User, UserPatch, validate_labels};
+use gorse_storage::data::types::{User, UserPatch};
 use gorse_storage::data::Error as DataError;
 use serde::Serialize;
 
 use super::RestServer;
 use super::quota;
-use super::response::{ApiError, Query, read_entity, ok, parse_int};
+use super::response::{ApiError, Query, read_entity, ok, parse_int, validate_request_labels};
 
 use std::sync::Arc;
 
@@ -46,8 +46,8 @@ pub(crate) async fn insert_user(
     State(rest): State<Arc<RestServer>>,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    let user: User = read_entity(&body)?;
-    validate_labels(&user.labels).map_err(|err| ApiError::BadRequest(err.to_string()))?;
+    let mut user: User = read_entity(&body)?;
+    validate_request_labels(&mut user.labels)?;
     quota::check_user_size(&rest.config(), &user)
         .map_err(ApiError::TooManyRequests)?;
     quota::check_user_count_limit(&rest, std::slice::from_ref(&user.user_id)).await?;
@@ -77,8 +77,8 @@ pub(crate) async fn modify_user(
     body: Bytes,
 ) -> Result<Response, ApiError> {
     let user_id = super::response::path_param(&params, "user-id").to_owned();
-    let patch: UserPatch = read_entity(&body)?;
-    validate_labels(&patch.labels).map_err(|err| ApiError::BadRequest(err.to_string()))?;
+    let mut patch: UserPatch = read_entity(&body)?;
+    validate_request_labels(&mut patch.labels)?;
     quota::check_labels_size(&rest.config(), &patch.labels).map_err(ApiError::TooManyRequests)?;
     if let Some(comment) = &patch.comment {
         quota::check_comment_size(&rest.config(), comment).map_err(ApiError::TooManyRequests)?;
@@ -132,10 +132,10 @@ pub(crate) async fn insert_users(
     State(rest): State<Arc<RestServer>>,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    let users: Vec<User> = read_entity(&body)?;
+    let mut users: Vec<User> = read_entity(&body)?;
     let config = rest.config();
-    for user in &users {
-        validate_labels(&user.labels).map_err(|err| ApiError::BadRequest(err.to_string()))?;
+    for user in &mut users {
+        validate_request_labels(&mut user.labels)?;
         quota::check_user_size(&config, user).map_err(ApiError::TooManyRequests)?;
     }
     let user_ids: Vec<String> = users.iter().map(|user| user.user_id.clone()).collect();

@@ -12,6 +12,7 @@ use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use gorse_common::gourl;
 use gorse_common::gotime;
+use gorse_storage::data::types::{Labels, validate_labels};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -230,6 +231,29 @@ pub(crate) fn read_entity<T: DeserializeOwned>(body: &Bytes) -> Result<T, ApiErr
     }
     let mut deserializer = serde_json::Deserializer::from_slice(body);
     T::deserialize(&mut deserializer).map_err(|err| ApiError::BadRequest(err.to_string()))
+}
+
+/// Go's `readEntity` decodes with `UseNumber`, so every number in a request's
+/// labels is a `json.Number`. The storage decoder reads numbers as `float64`,
+/// so the labels of a request are converted here, then validated as Go's
+/// `ValidateLabels` validates them. A number keeps the shortest text that reads
+/// back to its `float64`, which is the text of a whole number as Go writes it.
+pub(crate) fn validate_request_labels(labels: &mut Labels) -> Result<(), ApiError> {
+    use_numbers(labels);
+    validate_labels(labels).map_err(|err| ApiError::BadRequest(err.to_string()))
+}
+
+/// Turns every `float64` in `labels` into a `json.Number` with the same value.
+fn use_numbers(labels: &mut Labels) {
+    if let Labels::Float64(value) = *labels {
+        *labels = Labels::Number(value.to_string());
+        return;
+    }
+    match labels {
+        Labels::Array(items) => items.iter_mut().for_each(use_numbers),
+        Labels::Object(fields) => fields.values_mut().for_each(use_numbers),
+        Labels::Nil | Labels::Bool(_) | Labels::Float64(_) | Labels::Number(_) | Labels::String(_) => {}
+    }
 }
 
 /// Go's `ParseInt`: the query parameter as an integer, or `fallback` when it is

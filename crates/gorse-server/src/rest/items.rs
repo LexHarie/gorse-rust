@@ -14,13 +14,13 @@ use gorse_common::dateparse;
 use gorse_common::gocontext::Context;
 use gorse_common::gotime::{self, Time};
 use gorse_storage::cache::{self, ScoreCondition, ScorePatch};
-use gorse_storage::data::types::{Item as DataItem, ItemPatch, Labels, validate_labels};
+use gorse_storage::data::types::{Item as DataItem, ItemPatch, Labels};
 use serde::{Deserialize, Serialize};
 
 use super::RestServer;
 use super::embedding::create_embedding;
 use super::quota;
-use super::response::{ApiError, Query, ok, parse_int, path_param, read_entity, with_wild_card};
+use super::response::{ApiError, Query, ok, parse_int, path_param, read_entity, validate_request_labels, with_wild_card};
 use super::users::{Success, empty_ok, not_found_or_internal};
 use gorse_storage::vectors::{self, Vector};
 
@@ -123,9 +123,9 @@ pub(crate) async fn insert_items(
     State(rest): State<Arc<RestServer>>,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    let items: Vec<Item> = read_entity(&body)?;
-    for item in &items {
-        validate_labels(&item.labels).map_err(|err| ApiError::BadRequest(err.to_string()))?;
+    let mut items: Vec<Item> = read_entity(&body)?;
+    for item in &mut items {
+        validate_request_labels(&mut item.labels)?;
     }
     batch_insert_items(&rest, items).await
 }
@@ -135,8 +135,8 @@ pub(crate) async fn insert_item(
     State(rest): State<Arc<RestServer>>,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    let item: Item = read_entity(&body)?;
-    validate_labels(&item.labels).map_err(|err| ApiError::BadRequest(err.to_string()))?;
+    let mut item: Item = read_entity(&body)?;
+    validate_request_labels(&mut item.labels)?;
     batch_insert_items(&rest, vec![item]).await
 }
 
@@ -150,8 +150,8 @@ pub(crate) async fn modify_item(
     let ctx = Context::background();
     let config = rest.config();
     let item_id = path_param(&params, "item-id").to_owned();
-    let patch: ItemPatch = read_entity(&body)?;
-    validate_labels(&patch.labels).map_err(|err| ApiError::BadRequest(err.to_string()))?;
+    let mut patch: ItemPatch = read_entity(&body)?;
+    validate_request_labels(&mut patch.labels)?;
     quota::check_labels_size(&config, &patch.labels).map_err(ApiError::TooManyRequests)?;
     if let Some(comment) = &patch.comment {
         quota::check_comment_size(&config, comment).map_err(ApiError::TooManyRequests)?;

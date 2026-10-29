@@ -25,7 +25,8 @@ use std::time::Instant;
 use axum::Router;
 use axum::body::Body;
 use axum::extract::{MatchedPath, Request, State};
-use axum::http::{HeaderValue, StatusCode};
+use axum::http::uri::PathAndQuery;
+use axum::http::{HeaderValue, StatusCode, Uri};
 use axum::middleware::{self, Next};
 use axum::response::Response;
 use axum::routing::{get, patch, post, put};
@@ -37,6 +38,7 @@ use gorse_storage::cache;
 use gorse_storage::data;
 use gorse_storage::vectors;
 use http_body_util::BodyExt;
+use tower::ServiceExt;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -173,7 +175,7 @@ impl RestServer {
 /// an unknown path or method keeps go-restful's own 404 or 405 without an
 /// `X-Request-ID`.
 pub fn router(rest: Arc<RestServer>) -> Router {
-    let api = Router::new()
+    let routes = Router::new()
         .route("/api/health/live", get(health_live))
         .route("/api/health/ready", get(health_ready))
         .route("/api/user", post(users::insert_user))
@@ -231,7 +233,7 @@ pub fn router(rest: Arc<RestServer>) -> Router {
             get(feedback::get_typed_feedback_by_item),
         )
         .route(
-            "/api/item/{item-id}/feedback/",
+            "/api/item/{item-id}/feedback",
             get(feedback::get_feedback_by_item),
         )
         .route(
@@ -243,9 +245,6 @@ pub fn router(rest: Arc<RestServer>) -> Router {
             get(recommend::get_collaborative_filtering),
         )
         .route("/api/latest", get(recommend::get_latest))
-        // Go's router matches the empty category of `/api/latest/` to
-        // `/api/latest/{category}`, which axum does not, so both are routed.
-        .route("/api/latest/", get(recommend::get_latest))
         .route("/api/latest/{category}", get(recommend::get_latest))
         .route(
             "/api/non-personalized/{name}",
@@ -260,7 +259,7 @@ pub fn router(rest: Arc<RestServer>) -> Router {
             get(recommend::get_user_to_user),
         )
         .route(
-            "/api/item/{item-id}/neighbors/",
+            "/api/item/{item-id}/neighbors",
             get(recommend::get_item_neighbors),
         )
         .route(
@@ -268,7 +267,7 @@ pub fn router(rest: Arc<RestServer>) -> Router {
             get(recommend::get_item_neighbors),
         )
         .route(
-            "/api/user/{user-id}/neighbors/",
+            "/api/user/{user-id}/neighbors",
             get(recommend::get_user_neighbors),
         )
         .route("/api/recommend/{user-id}", get(recommend::get_recommend))
@@ -288,7 +287,32 @@ pub fn router(rest: Arc<RestServer>) -> Router {
         .route_layer(middleware::from_fn_with_state(rest.clone(), auth_filter))
         .route_layer(middleware::from_fn_with_state(rest.clone(), log_filter))
         .with_state(rest);
-    api
+    Router::new().fallback_service(routes.map_request(trim_trailing_slash))
+}
+
+/// Go's router ignores a trailing slash, so `/api/latest/` is `/api/latest`.
+/// The path is trimmed before the routes see it, and the routes have none.
+fn trim_trailing_slash(mut request: Request) -> Request {
+    let path = request.uri().path();
+    if path.len() <= 1 || !path.ends_with('/') {
+        return request;
+    }
+    let trimmed = match path.trim_end_matches('/') {
+        "" => "/",
+        trimmed => trimmed,
+    };
+    let path_and_query = match request.uri().query() {
+        Some(query) => format!("{trimmed}?{query}"),
+        None => trimmed.to_owned(),
+    };
+    let mut parts = request.uri().clone().into_parts();
+    if let Ok(path_and_query) = PathAndQuery::from_maybe_shared(path_and_query) {
+        parts.path_and_query = Some(path_and_query);
+        if let Ok(uri) = Uri::from_parts(parts) {
+            *request.uri_mut() = uri;
+        }
+    }
+    request
 }
 
 /// Go's `LogFilter`: gives the response a fresh `X-Request-ID`, writes the

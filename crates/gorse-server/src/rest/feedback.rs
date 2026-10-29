@@ -17,12 +17,12 @@ use gorse_common::expression::FeedbackTypeExpression;
 use gorse_common::gocontext::Context;
 use gorse_common::gotime::{self, Time};
 use gorse_storage::cache;
-use gorse_storage::data::types::{Feedback as DataFeedback, FeedbackKey, Labels, validate_labels};
+use gorse_storage::data::types::{Feedback as DataFeedback, FeedbackKey, Labels};
 use serde::{Deserialize, Serialize};
 
 use super::RestServer;
 use super::quota;
-use super::response::{ApiError, Query, ok, parse_int, path_param, read_entity, text};
+use super::response::{ApiError, Query, ok, parse_int, path_param, read_entity, text, validate_request_labels};
 use super::users::Success;
 
 /// Go's `Feedback`: a feedback as the REST API takes it, with its time stamp as
@@ -103,9 +103,8 @@ async fn insert_feedback(
     for literal in &literals {
         users.insert(literal.user_id.clone());
         items.insert(literal.item_id.clone());
-        let data_feedback = literal.to_data_feedback()?;
-        validate_labels(&data_feedback.labels)
-            .map_err(|err| ApiError::BadRequest(err.to_string()))?;
+        let mut data_feedback = literal.to_data_feedback()?;
+        validate_request_labels(&mut data_feedback.labels)?;
         quota::check_labels_size(&config, &data_feedback.labels)
             .map_err(ApiError::TooManyRequests)?;
         quota::check_comment_size(&config, &data_feedback.comment)
