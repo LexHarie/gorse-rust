@@ -49,11 +49,59 @@ pub enum Labels {
     Object(IndexMap<String, Labels>),
 }
 
+/// Go's `jsontext` `maxNestingDepth`: the deepest nesting that `json.Marshal`
+/// and `json.Unmarshal` accept. Labels come from JSON that Go decodes with the
+/// same limit, so a list or object opened past it is refused here too.
+pub const MAX_NESTING_DEPTH: usize = 10_000;
+
+/// Checks the nesting of a JSON text as Go's scanner does. A list or an object
+/// opened while [`MAX_NESTING_DEPTH`] are already open is refused with Go's
+/// text, `exceeded max depth`. The error has no position, as Go's has none.
+pub fn check_nesting(json: &[u8]) -> Result<(), serde_json::Error> {
+    let mut depth = 0;
+    let mut in_string = false;
+    let mut escaped = false;
+    for &byte in json {
+        if in_string {
+            match (escaped, byte) {
+                (true, _) => escaped = false,
+                (false, b'\\') => escaped = true,
+                (false, b'"') => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+        match byte {
+            b'"' => in_string = true,
+            b'[' | b'{' if depth == MAX_NESTING_DEPTH => {
+                return Err(<serde_json::Error as de::Error>::custom(
+                    "exceeded max depth",
+                ));
+            }
+            b'[' | b'{' => depth += 1,
+            b']' | b'}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// Go's `jsonutil.Unmarshal` of labels, with Go's text for nesting past
+/// [`MAX_NESTING_DEPTH`]. The nesting is checked before the value is decoded,
+/// since a deserializer's error carries the position it failed at.
+pub fn unmarshal_labels(json: &[u8]) -> Result<Labels, serde_json::Error> {
+    check_nesting(json)?;
+    let mut labels = Labels::Nil;
+    jsonutil::unmarshal(json, &mut labels)?;
+    Ok(labels)
+}
+
 impl Serialize for Labels {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         // The labels are written as text by a loop and handed over as raw JSON,
         // so a value nested deeper than the call stack still serializes.
         let text = labels_json(self).map_err(<S::Error as serde::ser::Error>::custom)?;
+        check_nesting(text.as_bytes()).map_err(<S::Error as serde::ser::Error>::custom)?;
         let raw = RawValue::from_string(text).map_err(<S::Error as serde::ser::Error>::custom)?;
         raw.serialize(serializer)
     }
@@ -64,6 +112,7 @@ impl<'de> Deserialize<'de> for Labels {
         // The value is taken as its raw text, which a JSON deserializer reads
         // without recursing, and the labels are built from that text by a loop.
         let raw = Box::<RawValue>::deserialize(deserializer)?;
+        check_nesting(raw.get().as_bytes()).map_err(<D::Error as de::Error>::custom)?;
         labels_from_json(raw.get()).map_err(<D::Error as de::Error>::custom)
     }
 }
@@ -323,7 +372,7 @@ enum Step<'a> {
 /// The labels as `json.Marshal` writes them, through `jsonutil`. The lists and
 /// maps are opened and closed on a stack, not by recursion, so labels nested
 /// at any depth are written in full.
-fn labels_json(labels: &Labels) -> Result<String, serde_json::Error> {
+pub(crate) fn labels_json(labels: &Labels) -> Result<String, serde_json::Error> {
     write_steps(vec![Step::Value(labels)])
 }
 
@@ -797,26 +846,55 @@ mod tests {
 
     #[test]
     fn labels_nested_ten_thousand_levels_round_trip_as_json() {
-        labels_round_trip_as_json(10_000);
+        labels_round_trip_as_json(MAX_NESTING_DEPTH);
     }
 
     #[test]
-    fn labels_nested_one_hundred_thousand_levels_round_trip_as_json() {
-        labels_round_trip_as_json(100_000);
+    fn labels_nested_past_the_go_limit_are_refused_as_go_refuses() {
+        labels_refused_as_json(MAX_NESTING_DEPTH + 1);
     }
 
-    /// Writes labels nested `depth` levels and reads them back, as the SQL
-    /// backends do. Both walks must finish without the call stack limiting
-    /// them, and the text must not change on the way.
+    #[test]
+    fn labels_nested_one_hundred_thousand_levels_are_refused_as_go_refuses() {
+        labels_refused_as_json(100_000);
+    }
+
+    #[test]
+    fn check_nesting_counts_only_brackets_outside_strings() {
+        // Brackets inside a string, and an escaped quote, are not levels.
+        let text = format!("[\"{}\\\"]\", []]", "[".repeat(20_000));
+        assert!(check_nesting(text.as_bytes()).is_ok());
+        let deep = format!("{}{}", "[".repeat(10_001), "]".repeat(10_001));
+        assert_eq!(
+            check_nesting(deep.as_bytes())
+                .expect_err("too deep")
+                .to_string(),
+            "exceeded max depth"
+        );
+    }
+
+    /// Writes labels nested `depth` levels, which Go writes in full, and reads
+    /// them back, as the SQL backends do. Both walks must finish without the
+    /// call stack limiting them, and the text must not change on the way.
     fn labels_round_trip_as_json(depth: usize) {
         let (labels, text) = nested_labels(depth);
         let written =
             String::from_utf8(jsonutil::marshal(&labels).expect("marshal")).expect("utf-8");
         assert!(written == text, "labels were written differently");
-        let mut read = Labels::Nil;
-        jsonutil::unmarshal(text.as_bytes(), &mut read).expect("unmarshal");
+        let read = unmarshal_labels(text.as_bytes()).expect("unmarshal");
         let again = String::from_utf8(jsonutil::marshal(&read).expect("marshal")).expect("utf-8");
         assert!(again == text, "labels changed on the way back");
+    }
+
+    /// Refuses labels nested past Go's limit, on writing and on reading, with
+    /// the text Go gives: `json.Marshal` and `json.Unmarshal` both return
+    /// `exceeded max depth` for them.
+    fn labels_refused_as_json(depth: usize) {
+        let (labels, text) = nested_labels(depth);
+        let written = jsonutil::marshal(&labels).expect_err("marshal past the limit");
+        assert_eq!(written.to_string(), "exceeded max depth");
+        let read = unmarshal_labels(text.as_bytes()).expect_err("unmarshal past the limit");
+        assert_eq!(read.to_string(), "exceeded max depth");
     }
 
     #[test]

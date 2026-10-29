@@ -392,19 +392,24 @@ pub(crate) fn validate_request_labels(labels: &mut Labels) -> Result<(), ApiErro
 }
 
 /// Turns every `float64` in `labels` into a `json.Number` with the same value.
+/// The walk keeps the lists and maps still to be visited on a stack, so labels
+/// nested at any depth are converted in full.
 fn use_numbers(labels: &mut Labels) {
-    if let Labels::Float64(value) = *labels {
-        *labels = Labels::Number(value.to_string());
-        return;
-    }
-    match labels {
-        Labels::Array(items) => items.iter_mut().for_each(use_numbers),
-        Labels::Object(fields) => fields.values_mut().for_each(use_numbers),
-        Labels::Nil
-        | Labels::Bool(_)
-        | Labels::Float64(_)
-        | Labels::Number(_)
-        | Labels::String(_) => {}
+    let mut pending = vec![labels];
+    while let Some(labels) = pending.pop() {
+        if let Labels::Float64(value) = *labels {
+            *labels = Labels::Number(value.to_string());
+            continue;
+        }
+        match labels {
+            Labels::Array(items) => pending.extend(items.iter_mut()),
+            Labels::Object(fields) => pending.extend(fields.values_mut()),
+            Labels::Nil
+            | Labels::Bool(_)
+            | Labels::Float64(_)
+            | Labels::Number(_)
+            | Labels::String(_) => {}
+        }
     }
 }
 

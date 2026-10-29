@@ -1439,7 +1439,7 @@ pub fn register(registry: &mut Registry) {
 #[cfg(test)]
 mod tests {
     use super::super::database_test::{self, Backend, TimeStamps};
-    use super::super::types::nested_labels;
+    use super::super::types::{labels_json, nested_labels};
     use super::*;
 
     impl Backend for MongoDB {
@@ -1543,15 +1543,18 @@ mod tests {
     }
 
     /// Converts labels nested `depth` levels to BSON and back, and compares the
-    /// text. The BSON is dropped by [`drop_bson_iteratively`].
+    /// text. The BSON is dropped by [`drop_bson_iteratively`]. Go's BSON
+    /// conversion has no nesting limit, unlike its JSON, so these convert in
+    /// full. What MongoDB then accepts is decided by the live conformance run.
     fn convert_labels_both_ways(depth: usize) {
         let (labels, text) = nested_labels(depth);
         let bson = labels_to_bson(&labels);
         let read = labels_from_bson(&bson).expect("unpack");
-        let written = String::from_utf8(gorse_common::jsonutil::marshal(&read).expect("marshal"))
-            .expect("utf-8");
-        assert!(written == text, "labels changed through BSON");
+        // The BSON is dropped before any assertion, so that a failure does not
+        // unwind through its recursive drop.
         drop_bson_iteratively(bson);
+        let written = labels_json(&read).expect("write");
+        assert!(written == text, "labels changed through BSON");
     }
 
     /// Drops a BSON value without recursing. The `bson` crate drops nested

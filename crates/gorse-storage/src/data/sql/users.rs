@@ -12,7 +12,7 @@ use sqlx::{ColumnIndex, Decode, Row, Type};
 use super::super::Error;
 use super::super::types::{Labels, User, UserPatch};
 use super::items::{
-    decode_cursor, encode_cursor, json_column, json_text, unmarshal, upsert_clause,
+    decode_cursor, encode_cursor, json_column, json_text, unmarshal_labels, upsert_clause,
 };
 use super::query::{self, Driver};
 use super::{Pools, SqlDatabase, time};
@@ -36,7 +36,7 @@ where
 {
     Ok(User {
         user_id: query::text(row, 0)?,
-        labels: unmarshal::<Labels>(&query::text(row, 1)?)?,
+        labels: unmarshal_labels(&query::text(row, 1)?)?,
         comment: query::text(row, 2)?,
         update_at: time::parse(&query::text(row, 3)?)?,
     })
