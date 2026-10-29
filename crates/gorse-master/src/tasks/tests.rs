@@ -1631,3 +1631,127 @@ fn num_cpus() -> i64 {
         .map(|n| n.get() as i64)
         .unwrap_or(1)
 }
+
+/// Go's `loadDataset` sets the dataset gauges from the datasets it has just
+/// loaded (master/tasks.go 159 to 214). The gauges are process-wide, so each
+/// one starts at a sentinel that no load writes, and the load must overwrite it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn test_load_dataset_sets_gauges() {
+    let _serial = SERIAL.lock().await;
+    let (_dir, master) = setup(Config::default()).await;
+    let ctx = Context::background();
+    set_config(&master, |cfg| {
+        cfg.recommend.cache_size = 3;
+        cfg.recommend.data_source.positive_feedback_types = Some(vec![expression("positive")]);
+        cfg.recommend.data_source.negative_feedback_types = Some(vec![expression("dislike")]);
+        cfg.recommend.data_source.read_feedback_types = Some(vec![expression("read")]);
+        cfg.master.n_jobs = num_cpus();
+    });
+    let data = master.data();
+
+    // five items with labels 0, 1, 2, 0, 1 and three users with labels 0, 1, 0
+    let items: Vec<Item> = (0..5)
+        .map(|i| Item {
+            item_id: i.to_string(),
+            timestamp: gotime::date(2000 + i, Month::JANUARY, 1, 1, 1, 0, 0, &gotime::utc()),
+            labels: strings(&[&(i % 3).to_string()]),
+            ..Default::default()
+        })
+        .collect();
+    data.batch_insert_items(&ctx, &items)
+        .await
+        .expect("insert the items");
+    let users: Vec<User> = (0..3)
+        .map(|i| User {
+            user_id: i.to_string(),
+            labels: strings(&[&(i % 2).to_string()]),
+            ..Default::default()
+        })
+        .collect();
+    data.batch_insert_users(&ctx, &users)
+        .await
+        .expect("insert the users");
+
+    // the feedback of `test_negative_feedback_priority`: 4 positive, 5 negative
+    let now = gotime::now();
+    let feedbacks = vec![
+        feedback("positive", "0", "0", now.clone()),
+        feedback("positive", "0", "1", now.clone()),
+        feedback("dislike", "0", "2", now.clone()),
+        feedback("read", "0", "3", now.clone()),
+        feedback("read", "0", "4", now.clone()),
+        feedback("positive", "1", "0", now.clone()),
+        feedback("dislike", "1", "0", now.clone()),
+        feedback("positive", "1", "1", now.clone()),
+        feedback("positive", "2", "2", now.clone().add(Duration(-HOUR.0))),
+        feedback("dislike", "2", "2", now.clone()),
+        feedback("positive", "2", "3", now.clone()),
+    ];
+    data.batch_insert_feedback(&ctx, &feedbacks, false, false, true)
+        .await
+        .expect("insert the feedback");
+
+    let gauges: [&prometheus::Gauge; 11] = [
+        &metrics::USERS_TOTAL,
+        &metrics::ITEMS_TOTAL,
+        &metrics::IMPLICIT_FEEDBACKS_TOTAL,
+        &metrics::USER_LABELS_TOTAL,
+        &metrics::ITEM_LABELS_TOTAL,
+        &metrics::POSITIVE_FEEDBACKS_TOTAL,
+        &metrics::NEGATIVE_FEEDBACK_TOTAL,
+        &metrics::ACTIVE_USERS_TOTAL,
+        &metrics::INACTIVE_USERS_TOTAL,
+        &metrics::ACTIVE_ITEMS_TOTAL,
+        &metrics::INACTIVE_ITEMS_TOTAL,
+    ];
+    for gauge in gauges {
+        gauge.set(-1.0);
+    }
+
+    let datasets = master.load_dataset(&ctx).await.expect("load the dataset");
+
+    // the splits partition the ranking dataset, and both hold every user and item
+    let ranking_feedback =
+        datasets.ranking_train_set.count_feedback() + datasets.ranking_test_set.count_feedback();
+    let positive = datasets.click_train_set.positive_count + datasets.click_test_set.positive_count;
+    let negative = datasets.click_train_set.negative_count + datasets.click_test_set.negative_count;
+    assert_eq!(3.0, metrics::USERS_TOTAL.get(), "users");
+    assert_eq!(5.0, metrics::ITEMS_TOTAL.get(), "items");
+    assert_eq!(
+        ranking_feedback as f64,
+        metrics::IMPLICIT_FEEDBACKS_TOTAL.get(),
+        "implicit feedbacks"
+    );
+    // Go adds a label to its index at the second occurrence, so a label seen
+    // once is not counted (master/tasks.go, the user and item loaders): the user
+    // labels 0, 1, 0 count one, and the item labels 0, 1, 2, 0, 1 count two.
+    assert_eq!(1.0, metrics::USER_LABELS_TOTAL.get(), "user labels");
+    assert_eq!(2.0, metrics::ITEM_LABELS_TOTAL.get(), "item labels");
+    assert_eq!(4.0, positive as f64, "the fixture's positive samples");
+    assert_eq!(
+        positive as f64,
+        metrics::POSITIVE_FEEDBACKS_TOTAL.get(),
+        "positive feedbacks"
+    );
+    assert_eq!(5.0, negative as f64, "the fixture's negative samples");
+    assert_eq!(
+        negative as f64,
+        metrics::NEGATIVE_FEEDBACK_TOTAL.get(),
+        "negative feedbacks"
+    );
+    assert!(
+        metrics::ACTIVE_USERS_TOTAL.get() > 0.0,
+        "users with feedback: {}",
+        metrics::ACTIVE_USERS_TOTAL.get()
+    );
+    assert_eq!(
+        metrics::USERS_TOTAL.get(),
+        metrics::ACTIVE_USERS_TOTAL.get() + metrics::INACTIVE_USERS_TOTAL.get(),
+        "active and inactive users"
+    );
+    assert_eq!(
+        metrics::ITEMS_TOTAL.get(),
+        metrics::ACTIVE_ITEMS_TOTAL.get() + metrics::INACTIVE_ITEMS_TOTAL.get(),
+        "active and inactive items"
+    );
+}
