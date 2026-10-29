@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 use std::fmt;
+use std::io;
 
 use axum::body::Bytes;
 use axum::http::{HeaderValue, StatusCode, header};
@@ -16,6 +17,7 @@ use gorse_common::gourl;
 use gorse_storage::data::types::{ItemPatch, Labels, User, UserPatch, validate_labels};
 use serde::de::{DeserializeOwned, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::ser::{Formatter, PrettyFormatter};
 use serde_json::{Map, Value};
 
 /// The parsed query string of a request. Go's `QueryParameter` and
@@ -194,11 +196,92 @@ pub(crate) fn text(content: &str) -> Response {
 /// strings in JSON, so the escape is a plain byte substitution.
 pub(crate) fn go_json<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, serde_json::Error> {
     let mut out = Vec::new();
-    let formatter = serde_json::ser::PrettyFormatter::with_indent(b" ");
+    let formatter = GoFormatter(PrettyFormatter::with_indent(b" "));
     let mut serializer = serde_json::Serializer::with_formatter(&mut out, formatter);
     value.serialize(&mut serializer)?;
     Ok(escape_html(&out))
 }
+
+/// serde_json's pretty printer, with the floats written as `encoding/json`
+/// writes them. serde_json writes a whole float as `1.0`, and Go writes `1`.
+struct GoFormatter<'a>(PrettyFormatter<'a>);
+
+impl Formatter for GoFormatter<'_> {
+    fn begin_array<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.begin_array(writer)
+    }
+
+    fn end_array<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.end_array(writer)
+    }
+
+    fn begin_array_value<W: ?Sized + io::Write>(
+        &mut self,
+        writer: &mut W,
+        first: bool,
+    ) -> io::Result<()> {
+        self.0.begin_array_value(writer, first)
+    }
+
+    fn end_array_value<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.end_array_value(writer)
+    }
+
+    fn begin_object<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.begin_object(writer)
+    }
+
+    fn end_object<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.end_object(writer)
+    }
+
+    fn begin_object_key<W: ?Sized + io::Write>(
+        &mut self,
+        writer: &mut W,
+        first: bool,
+    ) -> io::Result<()> {
+        self.0.begin_object_key(writer, first)
+    }
+
+    fn begin_object_value<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.begin_object_value(writer)
+    }
+
+    fn end_object_value<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.end_object_value(writer)
+    }
+
+    fn write_f32<W: ?Sized + io::Write>(&mut self, writer: &mut W, value: f32) -> io::Result<()> {
+        write_go_f32(writer, value)
+    }
+
+    fn write_f64<W: ?Sized + io::Write>(&mut self, writer: &mut W, value: f64) -> io::Result<()> {
+        write_go_f64(writer, value)
+    }
+}
+
+/// Writes a float as `encoding/json` does: the shortest text that reads back to
+/// the same value, in plain notation, or in `e` notation outside `[1e-6, 1e21)`.
+/// The `e` exponent has its sign, and a negative exponent drops the zero that
+/// pads it, as Go does. The range is checked in the float's own precision, as Go
+/// checks it. `serde_json` calls these only for finite values.
+macro_rules! go_float {
+    ($name:ident, $float:ty) => {
+        fn $name<W: ?Sized + io::Write>(writer: &mut W, value: $float) -> io::Result<()> {
+            let abs = value.abs();
+            if abs != 0.0 && (abs < 1e-6 || abs >= 1e21) {
+                let text = format!("{value:e}");
+                let (mantissa, exponent) = text.split_once('e').unwrap_or((text.as_str(), "0"));
+                let sign = if exponent.starts_with('-') { "" } else { "+" };
+                return write!(writer, "{mantissa}e{sign}{exponent}");
+            }
+            write!(writer, "{value}")
+        }
+    };
+}
+
+go_float!(write_go_f32, f32);
+go_float!(write_go_f64, f64);
 
 fn escape_html(json: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(json.len());
@@ -235,9 +318,20 @@ pub(crate) fn read_entity<T: GoFields>(body: &Bytes) -> Result<T, ApiError> {
     if body.iter().all(u8::is_ascii_whitespace) {
         return Err(ApiError::BadRequest("EOF".to_owned()));
     }
-    let value =
-        fold_members(body, T::FIELDS).map_err(|err| ApiError::BadRequest(err.to_string()))?;
-    serde_json::from_value(value).map_err(|err| ApiError::BadRequest(err.to_string()))
+    let value = fold_members(body, T::FIELDS).map_err(decode_error)?;
+    serde_json::from_value(value).map_err(decode_error)
+}
+
+/// The error text for a body that did not decode. A body that ends too soon is
+/// Go's `unexpected EOF`. Other syntax and type errors keep serde's text, which
+/// is not Go's (X-WP42-14).
+fn decode_error(err: serde_json::Error) -> ApiError {
+    let text = if err.is_eof() {
+        "unexpected EOF".to_owned()
+    } else {
+        err.to_string()
+    };
+    ApiError::BadRequest(text)
 }
 
 /// A request type and the JSON names of its fields. Go's decoder matches a

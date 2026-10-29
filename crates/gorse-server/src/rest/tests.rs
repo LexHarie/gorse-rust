@@ -301,3 +301,56 @@ fn json_floats_parse_exactly() {
     let exact = text.parse::<f64>().expect("a float");
     assert_eq!(parsed.as_f64().map(f64::to_bits), Some(exact.to_bits()));
 }
+
+/// Serializes `value` as the REST writer does, and returns the text.
+fn go_text<T: serde::Serialize + ?Sized>(value: &T) -> String {
+    let json = super::response::go_json(value).expect("a float");
+    String::from_utf8(json).expect("UTF-8")
+}
+
+/// Go writes a float as the shortest text that reads back to it. A whole float
+/// has no fraction, and the `e` form is used outside `[1e-6, 1e21)`. The texts
+/// are the ones Go's `encoding/json` gives for the same values (a Go probe),
+/// so a whole score is `1700001740`, not `1700001740.0`.
+#[test]
+fn go_json_writes_floats_as_go_does() {
+    let doubles: &[(f64, &str)] = &[
+        (1.0, "1"),
+        (1_700_001_740.0, "1700001740"),
+        (0.5, "0.5"),
+        (1e-6, "0.000001"),
+        (9.99999e-7, "9.99999e-7"),
+        (1e-7, "1e-7"),
+        (1.5e-7, "1.5e-7"),
+        (1e20, "100000000000000000000"),
+        (1e21, "1e+21"),
+        (-2.5e-9, "-2.5e-9"),
+        (1e100, "1e+100"),
+        (5e-324, "5e-324"),
+    ];
+    for &(value, text) in doubles {
+        assert_eq!(go_text(&value), text, "{value:e}");
+    }
+
+    // Embeddings are float32, and Go gives the shortest float32 text.
+    let singles: &[(f32, &str)] = &[
+        (1.0, "1"),
+        (1_700_001_740.0, "1700001800"),
+        (0.1, "0.1"),
+        (1e21, "1e+21"),
+    ];
+    for &(value, text) in singles {
+        assert_eq!(go_text(&value), text, "{value:e}");
+    }
+}
+
+/// Go's decoder reports a body that ends too soon as `unexpected EOF`.
+#[tokio::test]
+async fn a_body_that_ends_too_soon_is_unexpected_eof() {
+    let suite = Suite::default_suite().await;
+    suite
+        .send(post("/api/user").key().raw(r#"{"UserId":"#))
+        .await
+        .status(StatusCode::BAD_REQUEST)
+        .text("unexpected EOF");
+}
