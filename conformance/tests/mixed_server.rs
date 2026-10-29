@@ -1068,9 +1068,10 @@ async fn compare(go: &Side, rust: &Side, cases: &[Case]) -> BTreeMap<&'static st
 
 /// The same deep labels, sent to a Go cluster and a Rust cluster that store in
 /// a live MongoDB. The outcomes must match, whether they are successes or the
-/// same errors. `MONGO_URI` names the server, such as `mongodb://127.0.0.1:27017`
-/// with no database and no query, and the test fails without it. Each side
-/// stores in a database of its own, named for this run.
+/// same errors. `MONGO_URI` names the server, such as
+/// `mongodb://root:password@127.0.0.1:27017/?authSource=admin`, and the test
+/// fails without it. Each side stores in a database of its own, named for this
+/// run, on that server; see [`store_uri`].
 #[tokio::test]
 async fn mixed_mongo_deep_labels_match_go_server() {
     let Ok(server) = std::env::var("MONGO_URI") else {
@@ -1085,14 +1086,39 @@ async fn mixed_mongo_deep_labels_match_go_server() {
             .expect("the clock is after 1970")
             .as_nanos()
     );
-    let go_store = format!("{server}/gorse_mixed_go_{run}");
-    let rust_store = format!("{server}/gorse_mixed_rust_{run}");
+    let go_store = store_uri(&server, &format!("gorse_mixed_go_{run}"));
+    let rust_store = store_uri(&server, &format!("gorse_mixed_rust_{run}"));
     let go = Side::start(build, false, Some(go_store.as_str())).await;
     let rust = Side::start(build, true, Some(rust_store.as_str())).await;
     let differing = compare(&go, &rust, &deep_mongo_cases()).await;
     go.stop().await;
     rust.stop().await;
     assert!(differing.is_empty(), "{}", report(&differing));
+}
+
+/// The URI of `database` on the server `server` names. The database goes
+/// before the query, so a server URI that carries `?authSource=admin` still
+/// works, and the trailing slash is optional.
+fn store_uri(server: &str, database: &str) -> String {
+    let (base, query) = match server.split_once('?') {
+        Some((base, query)) => (base, Some(query)),
+        None => (server, None),
+    };
+    let base = base.trim_end_matches('/');
+    match query {
+        Some(query) => format!("{base}/{database}?{query}"),
+        None => format!("{base}/{database}"),
+    }
+}
+
+#[test]
+fn store_uri_puts_the_database_before_the_query() {
+    assert_eq!(
+        store_uri("mongodb://h:1/?authSource=admin", "d"),
+        "mongodb://h:1/d?authSource=admin"
+    );
+    assert_eq!(store_uri("mongodb://h:1/", "d"), "mongodb://h:1/d");
+    assert_eq!(store_uri("mongodb://h:1", "d"), "mongodb://h:1/d");
 }
 
 /// Deep labels for the MongoDB comparison. Labels 90 deep are stored and read

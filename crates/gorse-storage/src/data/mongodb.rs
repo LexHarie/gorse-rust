@@ -32,7 +32,9 @@ use gorse_storage_core::errors::Error as StorageError;
 use gorse_storage_core::options::Opt;
 use gorse_storage_core::scheme::{MONGO_PREFIX, MONGO_SRV_PREFIX, TablePrefix};
 use indexmap::{IndexMap, IndexSet};
+use mongodb::bson::raw::{RawBsonRef, RawDocumentBuf};
 use mongodb::bson::{self, Bson, DateTime, Document, doc};
+use mongodb::error::ErrorKind;
 use mongodb::options::IndexOptions;
 use mongodb::{Client, Collection, Cursor, IndexModel};
 
@@ -85,19 +87,35 @@ impl MongoDB {
         self.client.database(&self.db_name)
     }
 
-    /// The users collection.
-    fn users(&self) -> Collection<Document> {
+    /// The users collection. Its documents are read raw, so that their labels
+    /// are never a BSON tree; see [`split_stored`].
+    fn users(&self) -> Collection<RawDocumentBuf> {
         self.db().collection(&self.users_table)
     }
 
-    /// The items collection.
-    fn items(&self) -> Collection<Document> {
+    /// The items collection, read raw as [`MongoDB::users`] is.
+    fn items(&self) -> Collection<RawDocumentBuf> {
         self.db().collection(&self.items_table)
     }
 
-    /// The feedback collection.
-    fn feedback(&self) -> Collection<Document> {
+    /// The feedback collection, read raw as [`MongoDB::users`] is.
+    fn feedback(&self) -> Collection<RawDocumentBuf> {
         self.db().collection(&self.feedback_table)
+    }
+
+    /// Applies one update, whose update document `update` is raw BSON, to the
+    /// documents `filter` matches in the collection named `collection`. The
+    /// update is sent as a raw `update` command; see [`update_command`].
+    async fn update_raw(
+        &self,
+        collection: &str,
+        filter: &Document,
+        update: &RawDocumentBuf,
+        upsert: bool,
+    ) -> Result<(), Error> {
+        let command = update_command(collection, filter, update, upsert)?;
+        let reply = self.db().run_raw_command(command).await.map_err(refused)?;
+        write_refused(&reply)
     }
 }
 
@@ -174,103 +192,231 @@ fn feedback_key_document(key: &FeedbackKey) -> Document {
     }
 }
 
-/// Go's `[]string` as a BSON array, or BSON null for a nil slice.
-fn categories_bson(categories: Option<&[String]>) -> Bson {
-    match categories {
-        None => Bson::Null,
-        Some(categories) => strings_bson(categories),
-    }
-}
-
 /// A list of strings as a BSON array.
 fn strings_bson(values: &[String]) -> Bson {
     Bson::Array(values.iter().map(|v| Bson::String(v.clone())).collect())
 }
 
-/// Go's `any` labels as BSON. The lists and maps that the walk is inside are
-/// kept on a stack, not by recursion, so labels nested at any depth are
-/// converted in full.
-fn labels_to_bson(labels: &Labels) -> Bson {
-    /// A list or a map whose children are being converted: the children it has
-    /// yet to take, what it has so far, and for a map the name of the child in
-    /// progress.
-    enum Open<'a> {
-        List(std::slice::Iter<'a, Labels>, Vec<Bson>),
-        Map(
-            indexmap::map::Iter<'a, String, Labels>,
-            Document,
-            Option<&'a String>,
-        ),
+/// The error for a field name with a zero byte, which BSON cannot hold. The
+/// text is the one the BSON encoder gives.
+#[derive(Debug, thiserror::Error)]
+#[error("cstrings cannot contain null bytes: {0:?}")]
+struct InvalidName(String);
+
+/// The error for a write or command the server refused, worded as Go's
+/// driver words it, since the labels of a document travel in it.
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+struct Refused(String);
+
+/// A BSON document written into one buffer, as the driver encodes it. The
+/// driver walks a `Document` recursively, so a document that carries labels
+/// is written here instead, field by field, and the labels are written by an
+/// explicit stack. Each document or array has its length written as a
+/// placeholder that is set when it closes, so every byte is written once,
+/// however deep the labels are nested.
+struct Writer {
+    bytes: Vec<u8>,
+    /// Where each open document or array starts, so that its length can be
+    /// set when it closes.
+    open: Vec<usize>,
+}
+
+impl Writer {
+    /// A writer for a document, which [`Writer::finish`] closes.
+    fn new() -> Writer {
+        let mut writer = Writer {
+            bytes: Vec::new(),
+            open: Vec::new(),
+        };
+        writer.open_length();
+        writer
     }
-    let mut open: Vec<Open<'_>> = Vec::new();
-    let mut child = labels;
-    loop {
-        // A scalar is converted at once. A list or a map opens a frame, and its
-        // first child is converted next.
-        let mut finished = match child {
-            Labels::Nil => Some(Bson::Null),
-            Labels::Bool(value) => Some(Bson::Boolean(*value)),
-            Labels::Float64(value) => Some(Bson::Double(*value)),
-            Labels::Number(text) => Some(number_to_bson(text)),
-            Labels::String(text) => Some(Bson::String(text.clone())),
+
+    /// Writes the type and the name of a field.
+    fn element(&mut self, kind: u8, name: &str) -> Result<(), Error> {
+        if name.contains('\0') {
+            return Err(backend(InvalidName(name.to_owned())));
+        }
+        self.bytes.push(kind);
+        self.bytes.extend_from_slice(name.as_bytes());
+        self.bytes.push(0);
+        Ok(())
+    }
+
+    /// Writes a placeholder length for the document or array that starts here.
+    fn open_length(&mut self) {
+        self.open.push(self.bytes.len());
+        self.bytes.extend_from_slice(&[0; 4]);
+    }
+
+    /// Opens an embedded document (`kind` 0x03) or an array (0x04) as the
+    /// field `name`. It is closed by [`Writer::close`].
+    fn open(&mut self, kind: u8, name: &str) -> Result<(), Error> {
+        self.element(kind, name)?;
+        self.open_length();
+        Ok(())
+    }
+
+    /// Closes the document or array that was opened last.
+    fn close(&mut self) -> Result<(), Error> {
+        self.bytes.push(0);
+        let start = self.open.pop().expect("a document is open to close");
+        let length = i32::try_from(self.bytes.len() - start).map_err(backend)?;
+        self.bytes[start..start + 4].copy_from_slice(&length.to_le_bytes());
+        Ok(())
+    }
+
+    /// Closes the top-level document, which [`Writer::new`] opened, and returns
+    /// its bytes as a document.
+    fn finish(mut self) -> Result<RawDocumentBuf, Error> {
+        debug_assert_eq!(self.open.len(), 1, "only the top-level document is open");
+        self.close()?;
+        RawDocumentBuf::from_bytes(self.bytes).map_err(backend)
+    }
+
+    /// Writes a BSON string: its length with the zero that ends it, the bytes
+    /// and the zero.
+    fn text(&mut self, value: &str) -> Result<(), Error> {
+        let length = i32::try_from(value.len() + 1).map_err(backend)?;
+        self.bytes.extend_from_slice(&length.to_le_bytes());
+        self.bytes.extend_from_slice(value.as_bytes());
+        self.bytes.push(0);
+        Ok(())
+    }
+
+    fn string(&mut self, name: &str, value: &str) -> Result<(), Error> {
+        self.element(0x02, name)?;
+        self.text(value)
+    }
+
+    /// An embedded document, written as the driver writes a `Document`.
+    fn document(&mut self, name: &str, document: &Document) -> Result<(), Error> {
+        let raw = RawDocumentBuf::from_document(document).map_err(backend)?;
+        self.raw_document(name, &raw)
+    }
+
+    /// An embedded document that is already written.
+    fn raw_document(&mut self, name: &str, document: &RawDocumentBuf) -> Result<(), Error> {
+        self.element(0x03, name)?;
+        self.bytes.extend_from_slice(document.as_bytes());
+        Ok(())
+    }
+
+    /// A list of strings as a BSON array, with the indexes as its keys.
+    fn strings(&mut self, name: &str, values: &[String]) -> Result<(), Error> {
+        self.open(0x04, name)?;
+        for (index, value) in values.iter().enumerate() {
+            self.string(&index.to_string(), value)?;
+        }
+        self.close()
+    }
+
+    fn boolean(&mut self, name: &str, value: bool) -> Result<(), Error> {
+        self.element(0x08, name)?;
+        self.bytes.push(u8::from(value));
+        Ok(())
+    }
+
+    fn null(&mut self, name: &str) -> Result<(), Error> {
+        self.element(0x0A, name)
+    }
+
+    fn double(&mut self, name: &str, value: f64) -> Result<(), Error> {
+        self.element(0x01, name)?;
+        self.bytes.extend_from_slice(&value.to_le_bytes());
+        Ok(())
+    }
+
+    fn int64(&mut self, name: &str, value: i64) -> Result<(), Error> {
+        self.element(0x12, name)?;
+        self.bytes.extend_from_slice(&value.to_le_bytes());
+        Ok(())
+    }
+
+    fn datetime(&mut self, name: &str, value: DateTime) -> Result<(), Error> {
+        self.element(0x09, name)?;
+        self.bytes
+            .extend_from_slice(&value.timestamp_millis().to_le_bytes());
+        Ok(())
+    }
+
+    /// Go's `json.Number` as BSON. The Go driver's encoder writes it as an
+    /// int64 when its text is an int64, and as a double otherwise
+    /// (`JSONNumberEncodeValue`). Text that is neither cannot come from JSON;
+    /// the port writes it as a string, where Go's encoder returns an error.
+    fn number(&mut self, name: &str, text: &str) -> Result<(), Error> {
+        if let Ok(value) = text.parse::<i64>() {
+            self.int64(name, value)
+        } else if let Ok(value) = text.parse::<f64>() {
+            self.double(name, value)
+        } else {
+            self.string(name, text)
+        }
+    }
+
+    /// Writes one label as the field `name`. A scalar is written at once. A
+    /// list or a map is opened, and its children are written by the loop in
+    /// [`Writer::labels`], which takes the frame from `frames`.
+    fn label<'a>(
+        &mut self,
+        name: &str,
+        label: &'a Labels,
+        frames: &mut Vec<WriteFrame<'a>>,
+    ) -> Result<(), Error> {
+        match label {
+            Labels::Nil => self.null(name),
+            Labels::Bool(value) => self.boolean(name, *value),
+            Labels::Float64(value) => self.double(name, *value),
+            Labels::Number(text) => self.number(name, text),
+            Labels::String(text) => self.string(name, text),
             Labels::Array(values) => {
-                open.push(Open::List(values.iter(), Vec::with_capacity(values.len())));
-                None
+                self.open(0x04, name)?;
+                frames.push(WriteFrame::List(values.iter(), 0));
+                Ok(())
             }
             Labels::Object(entries) => {
-                open.push(Open::Map(entries.iter(), Document::new(), None));
-                None
+                self.open(0x03, name)?;
+                frames.push(WriteFrame::Map(entries.iter()));
+                Ok(())
             }
-        };
-        // A finished value goes to the frame around it. A frame with no children
-        // left is finished in turn, until a frame has a child to convert.
-        child = loop {
-            if let Some(value) = finished.take() {
-                match open.last_mut() {
-                    None => return value,
-                    Some(Open::List(_, values)) => values.push(value),
-                    Some(Open::Map(_, entries, name)) => {
-                        let name = name.take().expect("a map's child has its name");
-                        entries.insert(name.clone(), value);
-                    }
+        }
+    }
+
+    /// Go's `any` labels, written as the field `name`. The lists and maps that
+    /// the walk is inside are kept on a stack, not by recursion, so labels
+    /// nested at any depth are written in full.
+    fn labels(&mut self, name: &str, labels: &Labels) -> Result<(), Error> {
+        let mut frames = Vec::new();
+        self.label(name, labels, &mut frames)?;
+        while let Some(frame) = frames.last_mut() {
+            let next = match frame {
+                WriteFrame::List(children, index) => children.next().map(|child| {
+                    let name = index.to_string();
+                    *index += 1;
+                    (name, child)
+                }),
+                WriteFrame::Map(children) => {
+                    children.next().map(|(key, child)| (key.clone(), child))
+                }
+            };
+            match next {
+                Some((name, child)) => self.label(&name, child, &mut frames)?,
+                None => {
+                    frames.pop();
+                    self.close()?;
                 }
             }
-            let frame = open
-                .last_mut()
-                .expect("a frame is open while its child converts");
-            match frame {
-                Open::List(children, _) => {
-                    if let Some(next) = children.next() {
-                        break next;
-                    }
-                }
-                Open::Map(children, _, name) => {
-                    if let Some((key, next)) = children.next() {
-                        *name = Some(key);
-                        break next;
-                    }
-                }
-            }
-            finished = Some(match open.pop().expect("the frame is open") {
-                Open::List(_, values) => Bson::Array(values),
-                Open::Map(_, entries, _) => Bson::Document(entries),
-            });
-        };
+        }
+        Ok(())
     }
 }
 
-/// A `json.Number` as BSON. The Go driver's encoder writes it as an int64 when
-/// its text is an int64, and as a double otherwise (`JSONNumberEncodeValue`).
-/// Text that is neither cannot come from JSON; the port writes it as a string,
-/// where Go's encoder returns an error.
-fn number_to_bson(text: &str) -> Bson {
-    if let Ok(value) = text.parse::<i64>() {
-        Bson::Int64(value)
-    } else if let Ok(value) = text.parse::<f64>() {
-        Bson::Double(value)
-    } else {
-        Bson::String(text.to_owned())
-    }
+/// A list or a map whose children are being written: the children it has yet
+/// to write, and for a list the index of the next one.
+enum WriteFrame<'a> {
+    List(std::slice::Iter<'a, Labels>, usize),
+    Map(indexmap::map::Iter<'a, String, Labels>),
 }
 
 /// Go's `unpack`: a BSON value as the `any` Go reads it. A document becomes a
@@ -279,34 +425,42 @@ fn number_to_bson(text: &str) -> Bson {
 /// that makes no difference, so the elements are unpacked here too. The lists
 /// and documents being unpacked are kept on a stack, so a value nested at any
 /// depth is unpacked in full.
-fn labels_from_bson(value: &Bson) -> Result<Labels, Error> {
-    /// A list or a document being unpacked, as in [`labels_to_bson`].
+fn labels_from_raw(value: RawBsonRef<'_>) -> Result<Labels, Error> {
+    /// A list or a document being unpacked: the children it has yet to take,
+    /// what it has so far, and for a document the name of the child in progress.
     enum Open<'a> {
-        List(std::slice::Iter<'a, Bson>, Vec<Labels>),
+        List(std::vec::IntoIter<RawBsonRef<'a>>, Vec<Labels>),
         Document(
-            std::vec::IntoIter<(&'a String, &'a Bson)>,
+            std::vec::IntoIter<(&'a str, RawBsonRef<'a>)>,
             IndexMap<String, Labels>,
-            Option<&'a String>,
+            Option<&'a str>,
         ),
     }
     let mut open: Vec<Open<'_>> = Vec::new();
     let mut child = value;
     loop {
         let mut finished = match child {
-            Bson::Null => Some(Labels::Nil),
-            Bson::Boolean(value) => Some(Labels::Bool(*value)),
-            Bson::Double(value) => Some(Labels::Float64(*value)),
+            RawBsonRef::Null => Some(Labels::Nil),
+            RawBsonRef::Boolean(value) => Some(Labels::Bool(value)),
+            RawBsonRef::Double(value) => Some(Labels::Float64(value)),
             // Go keeps an int32 or int64 as it is. Its JSON text is the same as a
             // `json.Number`'s, which is how Gorse's labels hold a number.
-            Bson::Int32(value) => Some(Labels::Number(value.to_string())),
-            Bson::Int64(value) => Some(Labels::Number(value.to_string())),
-            Bson::String(text) => Some(Labels::String(text.clone())),
-            Bson::Array(values) => {
-                open.push(Open::List(values.iter(), Vec::with_capacity(values.len())));
+            RawBsonRef::Int32(value) => Some(Labels::Number(value.to_string())),
+            RawBsonRef::Int64(value) => Some(Labels::Number(value.to_string())),
+            RawBsonRef::String(text) => Some(Labels::String(text.to_owned())),
+            RawBsonRef::Array(values) => {
+                let children = values
+                    .into_iter()
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(backend)?;
+                open.push(Open::List(children.into_iter(), Vec::new()));
                 None
             }
-            Bson::Document(entries) => {
-                let children: Vec<_> = entries.iter().collect();
+            RawBsonRef::Document(entries) => {
+                let children = entries
+                    .iter()
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(backend)?;
                 open.push(Open::Document(children.into_iter(), IndexMap::new(), None));
                 None
             }
@@ -319,7 +473,7 @@ fn labels_from_bson(value: &Bson) -> Result<Labels, Error> {
                     Some(Open::List(_, values)) => values.push(value),
                     Some(Open::Document(_, entries, name)) => {
                         let name = name.take().expect("a document's child has its name");
-                        entries.insert(name.clone(), value);
+                        entries.insert(name.to_owned(), value);
                     }
                 }
             }
@@ -345,6 +499,33 @@ fn labels_from_bson(value: &Bson) -> Result<Labels, Error> {
             });
         };
     }
+}
+
+/// A stored document as the server sends it, read into its labels and its
+/// other fields. The labels are unpacked from the raw bytes by
+/// [`labels_from_raw`], and the other fields are shallow, so they are read
+/// into a `Document`.
+fn split_stored(raw: &RawDocumentBuf) -> Result<(Document, Labels), Error> {
+    let mut fields = Document::new();
+    let mut labels = Labels::default();
+    for entry in raw.iter() {
+        let (key, value) = entry.map_err(backend)?;
+        if key == "labels" {
+            labels = labels_from_raw(value)?;
+        } else {
+            fields.insert(key, Bson::try_from(value).map_err(backend)?);
+        }
+    }
+    Ok((fields, labels))
+}
+
+/// Decodes a stored document with the decoder of its type.
+fn decode_stored<T>(
+    raw: &RawDocumentBuf,
+    decode: fn(&Document, Labels) -> Result<T, Error>,
+) -> Result<T, Error> {
+    let (doc, labels) = split_stored(raw)?;
+    decode(&doc, labels)
 }
 
 /// Reads a string field. A missing or null field is the zero value, as Go's
@@ -393,14 +574,6 @@ fn time_field(doc: &Document, key: &str) -> Result<Time, Error> {
     }
 }
 
-/// Reads a labels field. A missing field is nil.
-fn labels_field(doc: &Document, key: &str) -> Result<Labels, Error> {
-    match doc.get(key) {
-        None => Ok(Labels::Nil),
-        Some(value) => labels_from_bson(value),
-    }
-}
-
 /// Reads the categories of an item or a user. A missing or null field is a
 /// nil slice, which is `None`.
 fn categories_field(doc: &Document, key: &str) -> Result<Option<Vec<String>>, Error> {
@@ -424,32 +597,33 @@ fn bson_type_error(key: &str) -> FieldType {
     FieldType(key.to_owned())
 }
 
-/// Go's `GetItem` and `BatchGetItems` decoding: an `Item` from its document.
-fn item_from_document(doc: &Document) -> Result<Item, Error> {
+/// Go's `GetItem` and `BatchGetItems` decoding: an `Item` from its document,
+/// and its labels, which [`split_stored`] reads.
+fn item_from_document(doc: &Document, labels: Labels) -> Result<Item, Error> {
     Ok(Item {
         item_id: string_field(doc, "itemid")?,
         is_hidden: bool_field(doc, "ishidden")?,
         categories: categories_field(doc, "categories")?,
         timestamp: time_field(doc, "timestamp")?,
         update_at: time_field(doc, "updateat")?,
-        labels: labels_field(doc, "labels")?,
+        labels,
         comment: string_field(doc, "comment")?,
     })
 }
 
 /// Go's `ScoredItem` decoding: an item with its `score`.
-fn scored_item_from_document(doc: &Document) -> Result<ScoredItem, Error> {
+fn scored_item_from_document(doc: &Document, labels: Labels) -> Result<ScoredItem, Error> {
     Ok(ScoredItem {
-        item: item_from_document(doc)?,
+        item: item_from_document(doc, labels)?,
         score: f64_field(doc, "score")?,
     })
 }
 
 /// Go's `User` decoding.
-fn user_from_document(doc: &Document) -> Result<User, Error> {
+fn user_from_document(doc: &Document, labels: Labels) -> Result<User, Error> {
     Ok(User {
         user_id: string_field(doc, "userid")?,
-        labels: labels_field(doc, "labels")?,
+        labels,
         comment: string_field(doc, "comment")?,
         update_at: time_field(doc, "updateat")?,
     })
@@ -470,51 +644,153 @@ fn feedback_key_from_document(doc: &Document) -> Result<FeedbackKey, Error> {
 }
 
 /// Go's `Feedback` decoding.
-fn feedback_from_document(doc: &Document) -> Result<Feedback, Error> {
+fn feedback_from_document(doc: &Document, labels: Labels) -> Result<Feedback, Error> {
     Ok(Feedback {
         feedback_key: feedback_key_from_document(doc)?,
         value: f64_field(doc, "value")?,
         timestamp: time_field(doc, "timestamp")?,
         updated: time_field(doc, "updated")?,
-        labels: labels_field(doc, "labels")?,
+        labels,
         comment: string_field(doc, "comment")?,
     })
 }
 
-/// The document Go writes for an item: its struct fields in order, with
-/// `updateat` set to `update_at`.
-fn item_document(item: &Item, update_at: &Time) -> Document {
-    doc! {
-        "itemid": item.item_id.as_str(),
-        "ishidden": item.is_hidden,
-        "categories": categories_bson(item.categories.as_deref()),
-        "timestamp": to_datetime(&item.timestamp),
-        "updateat": to_datetime(update_at),
-        "labels": labels_to_bson(&item.labels),
-        "comment": item.comment.as_str(),
+/// Writes the fields of an item, in the order Go writes them, with `updateat`
+/// set to `update_at`.
+fn write_item(writer: &mut Writer, item: &Item, update_at: &Time) -> Result<(), Error> {
+    writer.string("itemid", &item.item_id)?;
+    writer.boolean("ishidden", item.is_hidden)?;
+    match &item.categories {
+        None => writer.null("categories")?,
+        Some(categories) => writer.strings("categories", categories)?,
+    }
+    writer.datetime("timestamp", to_datetime(&item.timestamp))?;
+    writer.datetime("updateat", to_datetime(update_at))?;
+    writer.labels("labels", &item.labels)?;
+    writer.string("comment", &item.comment)
+}
+
+/// Writes the fields of a user, in the order Go writes them, with `updateat`
+/// set to `update_at`.
+fn write_user(writer: &mut Writer, user: &User, update_at: &Time) -> Result<(), Error> {
+    writer.string("userid", &user.user_id)?;
+    writer.labels("labels", &user.labels)?;
+    writer.string("comment", &user.comment)?;
+    writer.datetime("updateat", to_datetime(update_at))
+}
+
+/// Writes the fields of a feedback record, in the order Go writes them.
+fn write_feedback(writer: &mut Writer, feedback: &Feedback) -> Result<(), Error> {
+    writer.document(
+        "feedbackkey",
+        &feedback_key_document(&feedback.feedback_key),
+    )?;
+    writer.double("value", feedback.value)?;
+    writer.datetime("timestamp", to_datetime(&feedback.timestamp))?;
+    writer.datetime("updated", to_datetime(&feedback.updated))?;
+    writer.labels("labels", &feedback.labels)?;
+    writer.string("comment", &feedback.comment)
+}
+
+/// An update that sets the fields `set` writes, as Go's `$set` does.
+fn set_update(set: impl FnOnce(&mut Writer) -> Result<(), Error>) -> Result<RawDocumentBuf, Error> {
+    operator_update("$set", set)
+}
+
+/// An update with one operator, whose fields `fields` writes.
+fn operator_update(
+    operator: &str,
+    fields: impl FnOnce(&mut Writer) -> Result<(), Error>,
+) -> Result<RawDocumentBuf, Error> {
+    let mut update = Writer::new();
+    update.open(0x03, operator)?;
+    fields(&mut update)?;
+    update.close()?;
+    update.finish()
+}
+
+/// The update Go applies for a feedback record. With `overwrite` the record is
+/// set as it is. Otherwise the key is set on insert, the value and the times
+/// are merged in, and the labels and comment are set.
+fn feedback_update(feedback: &Feedback, overwrite: bool) -> Result<RawDocumentBuf, Error> {
+    if overwrite {
+        return set_update(|set| write_feedback(set, feedback));
+    }
+    let mut update = Writer::new();
+    update.document(
+        "$setOnInsert",
+        &doc! {"feedbackkey": feedback_key_document(&feedback.feedback_key)},
+    )?;
+    update.document("$inc", &doc! {"value": feedback.value})?;
+    update.document(
+        "$min",
+        &doc! {"timestamp": to_datetime(&feedback.timestamp)},
+    )?;
+    update.document("$max", &doc! {"updated": to_datetime(&feedback.updated)})?;
+    update.open(0x03, "$set")?;
+    update.labels("labels", &feedback.labels)?;
+    update.string("comment", &feedback.comment)?;
+    update.close()?;
+    update.finish()
+}
+
+/// The `update` command for one update of the documents `filter` matches in
+/// `collection`. The driver takes an update as a `Document`, which can hold
+/// labels only as a BSON tree, so the command is built as raw BSON and the
+/// driver sends its bytes as they are.
+fn update_command(
+    collection: &str,
+    filter: &Document,
+    update: &RawDocumentBuf,
+    upsert: bool,
+) -> Result<RawDocumentBuf, Error> {
+    let mut statement = Writer::new();
+    statement.document("q", filter)?;
+    statement.raw_document("u", update)?;
+    statement.boolean("upsert", upsert)?;
+    statement.boolean("multi", false)?;
+    let statement = statement.finish()?;
+    let mut command = Writer::new();
+    command.string("update", collection)?;
+    command.open(0x04, "updates")?;
+    command.raw_document("0", &statement)?;
+    command.close()?;
+    command.finish()
+}
+
+/// The error for a command the server refused, with the code name in brackets
+/// as Go's driver gives it. Other errors keep the driver's own text.
+fn refused(err: mongodb::error::Error) -> Error {
+    match err.kind.as_ref() {
+        ErrorKind::Command(command) if command.code_name.is_empty() => {
+            backend(Refused(command.message.clone()))
+        }
+        ErrorKind::Command(command) => backend(Refused(format!(
+            "({}) {}",
+            command.code_name, command.message
+        ))),
+        _ => backend(err),
     }
 }
 
-/// The document Go writes for a user, with `updateat` set to `update_at`.
-fn user_document(user: &User, update_at: &Time) -> Document {
-    doc! {
-        "userid": user.user_id.as_str(),
-        "labels": labels_to_bson(&user.labels),
-        "comment": user.comment.as_str(),
-        "updateat": to_datetime(update_at),
+/// The error for the write errors in the reply to an update, worded as Go's
+/// `WriteException` is: each error's message, in a list.
+fn write_refused(reply: &Document) -> Result<(), Error> {
+    let Ok(errors) = reply.get_array("writeErrors") else {
+        return Ok(());
+    };
+    if errors.is_empty() {
+        return Ok(());
     }
-}
-
-/// The document Go writes for a feedback record.
-fn feedback_document(feedback: &Feedback) -> Document {
-    doc! {
-        "feedbackkey": feedback_key_document(&feedback.feedback_key),
-        "value": feedback.value,
-        "timestamp": to_datetime(&feedback.timestamp),
-        "updated": to_datetime(&feedback.updated),
-        "labels": labels_to_bson(&feedback.labels),
-        "comment": feedback.comment.as_str(),
-    }
+    let messages: Vec<&str> = errors
+        .iter()
+        .filter_map(Bson::as_document)
+        .map(|error| error.get_str("errmsg").unwrap_or_default())
+        .collect();
+    Err(backend(Refused(format!(
+        "write exception: write errors: [{}]",
+        messages.join(", ")
+    ))))
 }
 
 /// Go's `FeedbackTypeExpressionToMongo`: the filter one feedback type
@@ -608,13 +884,13 @@ fn search_index_keys_match(existing: &Document, expected: &[(String, Bson)]) -> 
 /// end at a cursor error without returning it, since they never check
 /// `r.Err()`, so the port does the same.
 async fn decode_all<T>(
-    mut cursor: Cursor<Document>,
-    decode: fn(&Document) -> Result<T, Error>,
+    mut cursor: Cursor<RawDocumentBuf>,
+    decode: fn(&Document, Labels) -> Result<T, Error>,
 ) -> Result<Vec<T>, Error> {
     let mut rows = Vec::new();
     while let Ok(true) = cursor.advance().await {
-        let doc: Document = cursor.deserialize_current().map_err(backend)?;
-        rows.push(decode(&doc)?);
+        let raw: RawDocumentBuf = cursor.deserialize_current().map_err(backend)?;
+        rows.push(decode_stored(&raw, decode)?);
     }
     Ok(rows)
 }
@@ -625,8 +901,8 @@ async fn decode_all<T>(
 /// polled. A `batch_size` that is not positive never fills a batch, so the
 /// whole scan comes as one batch, as it does in Go.
 fn batches<'a, T>(
-    find: impl std::future::Future<Output = Result<Cursor<Document>, Error>> + Send + 'a,
-    decode: fn(&Document) -> Result<T, Error>,
+    find: impl std::future::Future<Output = Result<Cursor<RawDocumentBuf>, Error>> + Send + 'a,
+    decode: fn(&Document, Labels) -> Result<T, Error>,
     batch_size: i64,
 ) -> BoxStream<'a, Result<Vec<T>, Error>>
 where
@@ -644,8 +920,8 @@ where
                 if !matches!(cursor.advance().await, Ok(true)) {
                     break;
                 }
-                let doc: Document = cursor.deserialize_current().map_err(backend)?;
-                batch.push(decode(&doc)?);
+                let raw: RawDocumentBuf = cursor.deserialize_current().map_err(backend)?;
+                batch.push(decode_stored(&raw, decode)?);
             }
             Ok(if batch.is_empty() {
                 None
@@ -789,16 +1065,15 @@ impl Database for MongoDB {
     async fn batch_insert_items(&self, ctx: &Context, items: &[Item]) -> Result<(), Error> {
         check_ctx(ctx)?;
         let now = gotime::now();
-        let collection = self.items();
         for item in items {
-            collection
-                .update_one(
-                    doc! {"itemid": {"$eq": item.item_id.as_str()}},
-                    doc! {"$set": item_document(item, &now)},
-                )
-                .upsert(true)
-                .await
-                .map_err(backend)?;
+            let update = set_update(|set| write_item(set, item, &now))?;
+            self.update_raw(
+                &self.items_table,
+                &doc! {"itemid": {"$eq": item.item_id.as_str()}},
+                &update,
+                true,
+            )
+            .await?;
         }
         Ok(())
     }
@@ -853,7 +1128,7 @@ impl Database for MongoDB {
             .await
             .map_err(backend)?
         {
-            Some(doc) => item_from_document(&doc),
+            Some(raw) => decode_stored(&raw, item_from_document),
             None => Err(StorageError::NotFound.into()),
         }
     }
@@ -879,8 +1154,8 @@ impl Database for MongoDB {
         // Unlike the other loops, the search returns the cursor's error, as Go does.
         let mut items = Vec::new();
         while cursor.advance().await.map_err(backend)? {
-            let doc: Document = cursor.deserialize_current().map_err(backend)?;
-            items.push(scored_item_from_document(&doc)?);
+            let raw: RawDocumentBuf = cursor.deserialize_current().map_err(backend)?;
+            items.push(decode_stored(&raw, scored_item_from_document)?);
         }
         Ok(items)
     }
@@ -892,31 +1167,39 @@ impl Database for MongoDB {
         patch: &ItemPatch,
     ) -> Result<(), Error> {
         check_ctx(ctx)?;
-        let mut update = Document::new();
-        if let Some(is_hidden) = patch.is_hidden {
-            update.insert("ishidden", is_hidden);
-        }
-        if let Some(categories) = &patch.categories {
-            update.insert("categories", strings_bson(categories));
-        }
-        if let Some(comment) = &patch.comment {
-            update.insert("comment", comment.as_str());
-        }
-        if patch.labels != Labels::Nil {
-            update.insert("labels", labels_to_bson(&patch.labels));
-        }
-        if let Some(timestamp) = &patch.timestamp {
-            update.insert("timestamp", to_datetime(timestamp));
-        }
-        if update.is_empty() {
+        let sets_something = patch.is_hidden.is_some()
+            || patch.categories.is_some()
+            || patch.comment.is_some()
+            || patch.labels != Labels::Nil
+            || patch.timestamp.is_some();
+        if !sets_something {
             return Ok(());
         }
-        update.insert("updateat", to_datetime(&gotime::now()));
-        self.items()
-            .update_one(doc! {"itemid": {"$eq": item_id}}, doc! {"$set": update})
-            .await
-            .map_err(backend)?;
-        Ok(())
+        let update = set_update(|set| {
+            if let Some(is_hidden) = patch.is_hidden {
+                set.boolean("ishidden", is_hidden)?;
+            }
+            if let Some(categories) = &patch.categories {
+                set.strings("categories", categories)?;
+            }
+            if let Some(comment) = &patch.comment {
+                set.string("comment", comment)?;
+            }
+            if patch.labels != Labels::Nil {
+                set.labels("labels", &patch.labels)?;
+            }
+            if let Some(timestamp) = &patch.timestamp {
+                set.datetime("timestamp", to_datetime(timestamp))?;
+            }
+            set.datetime("updateat", to_datetime(&gotime::now()))
+        })?;
+        self.update_raw(
+            &self.items_table,
+            &doc! {"itemid": {"$eq": item_id}},
+            &update,
+            false,
+        )
+        .await
     }
 
     async fn get_items(
@@ -1013,16 +1296,15 @@ impl Database for MongoDB {
     async fn batch_insert_users(&self, ctx: &Context, users: &[User]) -> Result<(), Error> {
         check_ctx(ctx)?;
         let now = gotime::now();
-        let collection = self.users();
         for user in users {
-            collection
-                .update_one(
-                    doc! {"userid": {"$eq": user.user_id.as_str()}},
-                    doc! {"$set": user_document(user, &now)},
-                )
-                .upsert(true)
-                .await
-                .map_err(backend)?;
+            let update = set_update(|set| write_user(set, user, &now))?;
+            self.update_raw(
+                &self.users_table,
+                &doc! {"userid": {"$eq": user.user_id.as_str()}},
+                &update,
+                true,
+            )
+            .await?;
         }
         Ok(())
     }
@@ -1048,7 +1330,7 @@ impl Database for MongoDB {
             .await
             .map_err(backend)?
         {
-            Some(doc) => user_from_document(&doc),
+            Some(raw) => decode_stored(&raw, user_from_document),
             None => Err(StorageError::NotFound.into()),
         }
     }
@@ -1060,22 +1342,25 @@ impl Database for MongoDB {
         patch: &UserPatch,
     ) -> Result<(), Error> {
         check_ctx(ctx)?;
-        let mut update = Document::new();
-        if patch.labels != Labels::Nil {
-            update.insert("labels", labels_to_bson(&patch.labels));
-        }
-        if let Some(comment) = &patch.comment {
-            update.insert("comment", comment.as_str());
-        }
-        if update.is_empty() {
+        if patch.labels == Labels::Nil && patch.comment.is_none() {
             return Ok(());
         }
-        update.insert("updateat", to_datetime(&gotime::now()));
-        self.users()
-            .update_one(doc! {"userid": {"$eq": user_id}}, doc! {"$set": update})
-            .await
-            .map_err(backend)?;
-        Ok(())
+        let update = set_update(|set| {
+            if patch.labels != Labels::Nil {
+                set.labels("labels", &patch.labels)?;
+            }
+            if let Some(comment) = &patch.comment {
+                set.string("comment", comment)?;
+            }
+            set.datetime("updateat", to_datetime(&gotime::now()))
+        })?;
+        self.update_raw(
+            &self.users_table,
+            &doc! {"userid": {"$eq": user_id}},
+            &update,
+            false,
+        )
+        .await
     }
 
     async fn get_users(
@@ -1197,20 +1482,19 @@ impl Database for MongoDB {
         }
         let now = gotime::now();
         if insert_user {
-            let collection = self.users();
             for user_id in &users {
                 let user = User {
                     user_id: user_id.clone(),
                     ..User::default()
                 };
-                collection
-                    .update_one(
-                        doc! {"userid": {"$eq": user_id.as_str()}},
-                        doc! {"$setOnInsert": user_document(&user, &now)},
-                    )
-                    .upsert(true)
-                    .await
-                    .map_err(backend)?;
+                let update = operator_update("$setOnInsert", |set| write_user(set, &user, &now))?;
+                self.update_raw(
+                    &self.users_table,
+                    &doc! {"userid": {"$eq": user_id.as_str()}},
+                    &update,
+                    true,
+                )
+                .await?;
             }
         } else {
             for user_id in users.clone() {
@@ -1224,20 +1508,19 @@ impl Database for MongoDB {
             }
         }
         if insert_item {
-            let collection = self.items();
             for item_id in &items {
                 let item = Item {
                     item_id: item_id.clone(),
                     ..Item::default()
                 };
-                collection
-                    .update_one(
-                        doc! {"itemid": {"$eq": item_id.as_str()}},
-                        doc! {"$setOnInsert": item_document(&item, &now)},
-                    )
-                    .upsert(true)
-                    .await
-                    .map_err(backend)?;
+                let update = operator_update("$setOnInsert", |set| write_item(set, &item, &now))?;
+                self.update_raw(
+                    &self.items_table,
+                    &doc! {"itemid": {"$eq": item_id.as_str()}},
+                    &update,
+                    true,
+                )
+                .await?;
             }
         } else {
             for item_id in items.clone() {
@@ -1250,7 +1533,6 @@ impl Database for MongoDB {
                 }
             }
         }
-        let collection = self.feedback();
         for f in feedback {
             if !users.contains(&f.feedback_key.user_id) || !items.contains(&f.feedback_key.item_id)
             {
@@ -1259,25 +1541,9 @@ impl Database for MongoDB {
             let mut f = f.clone();
             f.updated = f.timestamp.clone();
             let filter = doc! {"feedbackkey": feedback_key_document(&f.feedback_key)};
-            let update = if overwrite {
-                doc! {"$set": feedback_document(&f)}
-            } else {
-                doc! {
-                    "$setOnInsert": {"feedbackkey": feedback_key_document(&f.feedback_key)},
-                    "$inc": {"value": f.value},
-                    "$min": {"timestamp": to_datetime(&f.timestamp)},
-                    "$max": {"updated": to_datetime(&f.updated)},
-                    "$set": {
-                        "labels": labels_to_bson(&f.labels),
-                        "comment": f.comment.as_str(),
-                    },
-                }
-            };
-            collection
-                .update_one(filter, update)
-                .upsert(true)
-                .await
-                .map_err(backend)?;
+            let update = feedback_update(&f, overwrite)?;
+            self.update_raw(&self.feedback_table, &filter, &update, true)
+                .await?;
         }
         Ok(())
     }
@@ -1542,34 +1808,23 @@ mod tests {
         convert_labels_both_ways(100_000);
     }
 
-    /// Converts labels nested `depth` levels to BSON and back, and compares the
-    /// text. The BSON is dropped by [`drop_bson_iteratively`]. Go's BSON
-    /// conversion has no nesting limit, unlike its JSON, so these convert in
-    /// full. What MongoDB then accepts is decided by the live conformance run.
+    /// Writes labels nested `depth` levels as the field `labels` of a document,
+    /// then reads the document back as the driver reads a cursor's documents,
+    /// and compares the text. Go's BSON has no nesting limit, unlike its JSON,
+    /// so these convert in full. What MongoDB accepts is decided by the live
+    /// conformance run.
     fn convert_labels_both_ways(depth: usize) {
         let (labels, text) = nested_labels(depth);
-        let bson = labels_to_bson(&labels);
-        let read = labels_from_bson(&bson).expect("unpack");
-        // The BSON is dropped before any assertion, so that a failure does not
-        // unwind through its recursive drop.
-        drop_bson_iteratively(bson);
-        let written = labels_json(&read).expect("write");
-        assert!(written == text, "labels changed through BSON");
-    }
-
-    /// Drops a BSON value without recursing. The `bson` crate drops nested
-    /// values recursively, which overflows the stack at these depths.
-    fn drop_bson_iteratively(value: Bson) {
-        let mut pending = vec![value];
-        while let Some(mut value) = pending.pop() {
-            match &mut value {
-                Bson::Array(values) => pending.append(values),
-                Bson::Document(entries) => {
-                    pending.extend(std::mem::take(entries).into_iter().map(|(_, value)| value));
-                }
-                _ => {}
-            }
-        }
+        let mut written = Writer::new();
+        written.labels("labels", &labels).expect("write");
+        let bytes = written.finish().expect("document");
+        let raw: RawDocumentBuf =
+            bson::from_slice(bytes.as_bytes()).expect("read the document as a cursor does");
+        let (_, read) = split_stored(&raw).expect("unpack");
+        assert!(
+            labels_json(&read).expect("write") == text,
+            "labels changed through BSON"
+        );
     }
 
     #[test]
@@ -1586,20 +1841,214 @@ mod tests {
             .into_iter()
             .collect(),
         );
-        assert_eq!(labels_from_bson(&labels_to_bson(&labels)).unwrap(), labels);
+        let mut written = Writer::new();
+        written.labels("labels", &labels).expect("write");
+        let raw = written.finish().expect("document");
+        let (_, read) = split_stored(&raw).expect("unpack");
+        assert_eq!(read, labels);
+    }
+
+    /// The bytes of labels are the bytes the driver writes for the same labels
+    /// as a `Document`, so the stored documents do not change.
+    #[test]
+    fn labels_are_written_as_the_driver_writes_them() {
+        let labels = Labels::Object(
+            [
+                ("title".to_owned(), Labels::String("Hello".to_owned())),
+                ("count".to_owned(), Labels::Number("3".to_owned())),
+                ("ratio".to_owned(), Labels::Number("1.5".to_owned())),
+                ("nothing".to_owned(), Labels::Nil),
+                ("flag".to_owned(), Labels::Bool(true)),
+                (
+                    "embedding".to_owned(),
+                    Labels::Array(vec![
+                        Labels::Float64(0.25),
+                        Labels::Number("-7".to_owned()),
+                        Labels::String("x".to_owned()),
+                    ]),
+                ),
+                (
+                    "nested".to_owned(),
+                    Labels::Object(
+                        [("deep".to_owned(), Labels::Array(Vec::new()))]
+                            .into_iter()
+                            .collect(),
+                    ),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        );
+        let mut written = Writer::new();
+        written.labels("labels", &labels).expect("write");
+        let written = written.finish().expect("document");
+        let expected = doc! {"labels": {
+            "title": "Hello",
+            "count": 3_i64,
+            "ratio": 1.5_f64,
+            "nothing": null,
+            "flag": true,
+            "embedding": [0.25_f64, -7_i64, "x"],
+            "nested": {"deep": []},
+        }};
+        let expected = bson::to_raw_document_buf(&expected).expect("encode");
+        assert_eq!(written.as_bytes(), expected.as_bytes());
+    }
+
+    /// The fields of an item and of a feedback record are written in Go's order,
+    /// with the types the port has always stored, and a nil categories is null.
+    #[test]
+    fn records_are_written_as_go_writes_them() {
+        let now = Time::default();
+        let item = Item {
+            item_id: "i".to_owned(),
+            is_hidden: true,
+            categories: Some(vec!["a".to_owned()]),
+            labels: Labels::Number("3".to_owned()),
+            comment: "c".to_owned(),
+            ..Item::default()
+        };
+        let mut written = Writer::new();
+        write_item(&mut written, &item, &now).expect("write");
+        let written = written.finish().expect("document");
+        let expected = doc! {
+            "itemid": "i",
+            "ishidden": true,
+            "categories": ["a"],
+            "timestamp": to_datetime(&item.timestamp),
+            "updateat": to_datetime(&now),
+            "labels": 3_i64,
+            "comment": "c",
+        };
+        let expected = bson::to_raw_document_buf(&expected).expect("encode");
+        assert_eq!(written.as_bytes(), expected.as_bytes());
+
+        let feedback = Feedback {
+            feedback_key: FeedbackKey {
+                feedback_type: "like".to_owned(),
+                user_id: "u".to_owned(),
+                item_id: "i".to_owned(),
+            },
+            value: 1.5,
+            ..Feedback::default()
+        };
+        let mut written = Writer::new();
+        write_feedback(&mut written, &feedback).expect("write");
+        let written = written.finish().expect("document");
+        let expected = doc! {
+            "feedbackkey": {"feedbacktype": "like", "userid": "u", "itemid": "i"},
+            "value": 1.5_f64,
+            "timestamp": to_datetime(&feedback.timestamp),
+            "updated": to_datetime(&feedback.updated),
+            "labels": null,
+            "comment": "",
+        };
+        let expected = bson::to_raw_document_buf(&expected).expect("encode");
+        assert_eq!(written.as_bytes(), expected.as_bytes());
+
+        let mut items = Writer::new();
+        write_item(
+            &mut items,
+            &Item {
+                categories: None,
+                ..Item::default()
+            },
+            &now,
+        )
+        .expect("write");
+        let items = items.finish().expect("document");
+        assert_eq!(
+            items.get("categories").expect("a field"),
+            Some(RawBsonRef::Null)
+        );
     }
 
     /// The stored types of JSON numbers, as the Go driver stores them (probed
     /// against MongoDB 6 with the Go store: `n: 3` came back as an int64).
     #[test]
     fn json_numbers_are_stored_as_go_stores_them() {
-        assert_eq!(number_to_bson("3"), Bson::Int64(3));
-        assert_eq!(number_to_bson("3.0"), Bson::Double(3.0));
-        assert_eq!(number_to_bson("1.5"), Bson::Double(1.5));
+        let mut written = Writer::new();
+        for (name, text) in [("n", "3"), ("d", "3.0"), ("f", "1.5")] {
+            written
+                .labels(name, &Labels::Number(text.to_owned()))
+                .expect("write");
+        }
+        let raw = written.finish().expect("document");
+        assert_eq!(raw.get_i64("n").expect("an int64"), 3);
+        assert_eq!(raw.get_f64("d").expect("a double"), 3.0);
+        assert_eq!(raw.get_f64("f").expect("a double"), 1.5);
         assert_eq!(
-            labels_from_bson(&number_to_bson("3")).unwrap(),
+            labels_from_raw(raw.get("n").expect("a field").expect("a value")).unwrap(),
             Labels::Number("3".to_owned())
         );
+    }
+
+    /// A field name with a zero byte is an error, as the BSON encoder makes it.
+    #[test]
+    fn field_names_with_a_zero_byte_are_an_error() {
+        let mut written = Writer::new();
+        assert!(written.labels("a\0b", &Labels::Nil).is_err());
+    }
+
+    /// The `update` command is the one the driver would send for the update, with
+    /// the update's document as its `u`.
+    #[test]
+    fn update_command_is_the_update_the_driver_sends() {
+        let labels = Labels::Object(
+            [("k".to_owned(), Labels::Number("3".to_owned()))]
+                .into_iter()
+                .collect(),
+        );
+        let update = set_update(|set| set.labels("labels", &labels)).expect("update");
+        let command =
+            update_command("items", &doc! {"itemid": "a"}, &update, true).expect("command");
+        let expected = doc! {
+            "update": "items",
+            "updates": [{
+                "q": {"itemid": "a"},
+                "u": {"$set": {"labels": {"k": 3_i64}}},
+                "upsert": true,
+                "multi": false,
+            }],
+        };
+        let expected = bson::to_raw_document_buf(&expected).expect("encode");
+        assert_eq!(command.as_bytes(), expected.as_bytes());
+    }
+
+    /// Labels nested 100,000 levels travel in an update command, and come out of
+    /// its `$set` as they went in.
+    #[test]
+    fn update_command_carries_labels_at_any_depth() {
+        let (labels, text) = nested_labels(100_000);
+        let update = set_update(|set| set.labels("labels", &labels)).expect("update");
+        let command =
+            update_command("items", &doc! {"itemid": "a"}, &update, true).expect("command");
+        let statement = command
+            .get_array("updates")
+            .expect("updates")
+            .get_document(0)
+            .expect("a statement");
+        let set = statement
+            .get_document("u")
+            .expect("u")
+            .get_document("$set")
+            .expect("$set");
+        let read =
+            labels_from_raw(set.get("labels").expect("a field").expect("a value")).expect("unpack");
+        assert!(labels_json(&read).expect("write") == text);
+    }
+
+    /// A write the server refuses is worded as Go's `WriteException` is.
+    #[test]
+    fn refused_writes_are_worded_as_go_words_them() {
+        let reply = doc! {
+            "ok": 1,
+            "n": 0,
+            "writeErrors": [{"index": 0, "code": 2, "errmsg": "too deep"}],
+        };
+        let err = write_refused(&reply).expect_err("a write error");
+        assert_eq!(err.to_string(), "write exception: write errors: [too deep]");
+        assert!(write_refused(&doc! {"ok": 1, "n": 1}).is_ok());
     }
 
     /// Go decodes "QR==" to "A", with non-zero trailing bits, and so does the port.
