@@ -134,7 +134,7 @@ fn check(command: &Command, name: &str) {
             .map(|value| value.to_string_lossy().into_owned())
             .collect();
         match &want.default {
-            Some(default) => assert_eq!(defaults, [default.clone()], "{name}: --{long} default"),
+            Some(default) => assert_eq!(defaults, [default.as_str()], "{name}: --{long} default"),
             // Go prints a default only when it is not the zero value of its type.
             None => assert!(
                 defaults.is_empty()
