@@ -6,6 +6,7 @@
 //! another's rows. The expectations are Go's. JSON bodies compare as values, as
 //! `apitest`'s `JSONEq` does, and every other body compares as text.
 
+mod decode;
 mod emit;
 mod empty;
 mod feedback;
@@ -205,9 +206,12 @@ impl Req {
         self
     }
 
-    /// Sets a body as it is.
+    /// Sets a body as it is, with the JSON content type that Go's clients
+    /// send: a request without it is refused before its body is read.
     pub(super) fn raw(mut self, body: &str) -> Self {
         self.body = Some(body.to_owned());
+        self.headers
+            .push(("Content-Type".to_owned(), "application/json".to_owned()));
         self
     }
 

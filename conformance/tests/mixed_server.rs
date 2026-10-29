@@ -102,6 +102,9 @@ struct Case {
     /// The path and the query, with the values filled in.
     path: &'static str,
     body: Option<&'static str>,
+    /// The `Content-Type` header, when the request has one. A request with a body
+    /// has the JSON type unless a case says otherwise.
+    content_type: Option<&'static str>,
 }
 
 /// The parts of a reply the comparison reads.
@@ -451,6 +454,53 @@ fn cases() -> Vec<Case> {
             "/api/feedback/like/user-1/item-3",
             None,
         ),
+        // Bodies that Go refuses. The reply carries Go's text for each refusal, so
+        // the Rust server must give the same text, status and headers.
+        request(
+            "POST /api/user",
+            Method::POST,
+            "/api/user",
+            Some(r#"{"UserId":1}"#),
+        ),
+        request(
+            "POST /api/user",
+            Method::POST,
+            "/api/user",
+            Some(r#"{"UserId":"user-x",}"#),
+        ),
+        Case {
+            content_type: None,
+            ..request(
+                "POST /api/user",
+                Method::POST,
+                "/api/user",
+                Some(r#"{"UserId":"user-y"}"#),
+            )
+        },
+        request(
+            "PATCH /api/user/{user-id}",
+            Method::PATCH,
+            "/api/user/user-0",
+            Some("  "),
+        ),
+        request(
+            "PATCH /api/item/{item-id}",
+            Method::PATCH,
+            "/api/item/item-0",
+            Some(r#"{"Timestamp":"2023-13-14T22:13:20Z"}"#),
+        ),
+        request(
+            "POST /api/feedback",
+            Method::POST,
+            "/api/feedback",
+            Some(r#"[{"FeedbackType":"like","UserId":"user-0","ItemId":"item-1","Value":1e400}]"#),
+        ),
+        request(
+            "POST /api/items",
+            Method::POST,
+            "/api/items",
+            Some(r#"[{"ItemId":"item-x","Categories":[1]}]"#),
+        ),
     ]
 }
 
@@ -466,6 +516,7 @@ fn request(
         method,
         path,
         body,
+        content_type: body.map(|_| "application/json"),
     }
 }
 
@@ -646,9 +697,10 @@ async fn send(client: &Client, port: u16, case: &Case) -> Reply {
     let url = format!("http://127.0.0.1:{port}{}", case.path);
     let mut request = client.request(case.method.clone(), url);
     if let Some(body) = case.body {
-        request = request
-            .header("Content-Type", "application/json")
-            .body(body);
+        request = request.body(body);
+    }
+    if let Some(content_type) = case.content_type {
+        request = request.header("Content-Type", content_type);
     }
     let response = request.send().await.expect("send the request");
     let status = response.status().as_u16();

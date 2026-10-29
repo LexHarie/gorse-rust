@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use axum::body::Bytes;
 use axum::extract::{Path, RawQuery, State};
+use axum::http::HeaderMap;
 use axum::response::Response;
 use gorse_common::dateparse;
 use gorse_common::expression::FeedbackTypeExpression;
@@ -21,11 +22,9 @@ use gorse_storage::data::types::{Feedback as DataFeedback, FeedbackKey, Labels};
 use serde::{Deserialize, Serialize};
 
 use super::RestServer;
+use super::entity::{Assign, FieldKind, GoStruct, read_entity};
 use super::quota;
-use super::response::{
-    ApiError, GoFields, Query, ok, parse_int, path_param, read_entity, text,
-    validate_request_labels,
-};
+use super::response::{ApiError, Query, ok, parse_int, path_param, text, validate_request_labels};
 use super::users::Success;
 
 /// Go's `Feedback`: a feedback as the REST API takes it, with its time stamp as
@@ -49,16 +48,31 @@ pub(crate) struct Feedback {
     pub comment: String,
 }
 
-impl GoFields for Feedback {
-    const FIELDS: &'static [&'static str] = &[
-        "FeedbackType",
-        "UserId",
-        "ItemId",
-        "Value",
-        "Timestamp",
-        "Labels",
-        "Comment",
+impl GoStruct for Feedback {
+    const NAME: &'static str = "Feedback";
+    const TYPE: &'static str = "server.Feedback";
+    const FIELDS: &'static [(&'static str, FieldKind)] = &[
+        ("FeedbackType", FieldKind::String),
+        ("UserId", FieldKind::String),
+        ("ItemId", FieldKind::String),
+        ("Value", FieldKind::Float64),
+        ("Timestamp", FieldKind::String),
+        ("Labels", FieldKind::Labels),
+        ("Comment", FieldKind::String),
     ];
+
+    fn set(&mut self, name: &str, value: Assign) {
+        match (name, value) {
+            ("FeedbackType", Assign::String(text)) => self.feedback_type = text,
+            ("UserId", Assign::String(text)) => self.user_id = text,
+            ("ItemId", Assign::String(text)) => self.item_id = text,
+            ("Value", Assign::Float64(value)) => self.value = value,
+            ("Timestamp", Assign::String(text)) => self.timestamp = text,
+            ("Labels", Assign::Labels(labels)) => self.labels = labels,
+            ("Comment", Assign::String(text)) => self.comment = text,
+            _ => {}
+        }
+    }
 }
 
 impl Feedback {
@@ -106,12 +120,13 @@ pub(crate) struct FeedbackIterator {
 /// and `PUT /api/feedback` overwrites it.
 async fn insert_feedback(
     rest: &RestServer,
+    headers: &HeaderMap,
     body: &Bytes,
     overwrite: bool,
 ) -> Result<Response, ApiError> {
     let ctx = Context::background();
     let config = rest.config();
-    let literals: Vec<Feedback> = read_entity(body)?;
+    let literals: Vec<Feedback> = read_entity(headers, body)?;
     let mut feedback = Vec::with_capacity(literals.len());
     let mut users = BTreeSet::new();
     let mut items = BTreeSet::new();
@@ -174,17 +189,19 @@ async fn insert_feedback(
 /// `POST /api/feedback`: adds the feedback to what exists.
 pub(crate) async fn insert_feedback_overwrite_false(
     State(rest): State<Arc<RestServer>>,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    insert_feedback(&rest, &body, false).await
+    insert_feedback(&rest, &headers, &body, false).await
 }
 
 /// `PUT /api/feedback`: overwrites the feedback that exists.
 pub(crate) async fn insert_feedback_overwrite_true(
     State(rest): State<Arc<RestServer>>,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    insert_feedback(&rest, &body, true).await
+    insert_feedback(&rest, &headers, &body, true).await
 }
 
 /// Go's `getFeedback`: `GET /api/feedback`, one page of feedback up to now.

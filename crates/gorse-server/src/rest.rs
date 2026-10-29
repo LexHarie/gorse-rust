@@ -8,7 +8,9 @@
 //! histogram). The handlers are in the submodules, one per group of routes.
 
 mod embedding;
+mod entity;
 mod feedback;
+mod gojson;
 mod items;
 mod quota;
 mod recommend;

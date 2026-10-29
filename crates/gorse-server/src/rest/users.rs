@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use axum::body::Bytes;
 use axum::extract::{Path, RawQuery, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use gorse_common::gocontext::Context;
 use gorse_common::gotime;
@@ -17,8 +17,9 @@ use gorse_storage::data::types::{User, UserPatch};
 use serde::Serialize;
 
 use super::RestServer;
+use super::entity::read_entity;
 use super::quota;
-use super::response::{ApiError, Query, ok, parse_int, read_entity, validate_request_labels};
+use super::response::{ApiError, Query, ok, parse_int, validate_request_labels};
 
 use std::sync::Arc;
 
@@ -44,9 +45,10 @@ pub(crate) struct UserIterator {
 /// Go's `insertUser`: `POST /api/user`.
 pub(crate) async fn insert_user(
     State(rest): State<Arc<RestServer>>,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    let mut user: User = read_entity(&body)?;
+    let mut user: User = read_entity(&headers, &body)?;
     validate_request_labels(&mut user.labels)?;
     quota::check_user_size(&rest.config(), &user).map_err(ApiError::TooManyRequests)?;
     quota::check_user_count_limit(&rest, std::slice::from_ref(&user.user_id)).await?;
@@ -73,10 +75,11 @@ pub(crate) async fn insert_user(
 pub(crate) async fn modify_user(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
     let user_id = super::response::path_param(&params, "user-id").to_owned();
-    let mut patch: UserPatch = read_entity(&body)?;
+    let mut patch: UserPatch = read_entity(&headers, &body)?;
     validate_request_labels(&mut patch.labels)?;
     quota::check_labels_size(&rest.config(), &patch.labels).map_err(ApiError::TooManyRequests)?;
     if let Some(comment) = &patch.comment {
@@ -134,9 +137,10 @@ pub(crate) fn not_found_or_internal(err: &DataError, subject: &str) -> ApiError 
 /// Go's `insertUsers`: `POST /api/users`.
 pub(crate) async fn insert_users(
     State(rest): State<Arc<RestServer>>,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    let mut users: Vec<User> = read_entity(&body)?;
+    let mut users: Vec<User> = read_entity(&headers, &body)?;
     let config = rest.config();
     for user in &mut users {
         validate_request_labels(&mut user.labels)?;
