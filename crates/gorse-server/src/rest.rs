@@ -9,15 +9,15 @@
 
 mod embedding;
 mod entity;
-mod feedback;
+pub mod feedback;
 mod gojson;
 mod inflate;
-mod items;
+pub mod items;
 mod printable;
 mod quota;
-mod recommend;
-mod response;
-mod users;
+pub mod recommend;
+pub mod response;
+pub mod users;
 mod xml;
 mod xmlname;
 

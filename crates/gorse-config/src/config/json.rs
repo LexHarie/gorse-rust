@@ -634,7 +634,9 @@ impl ServerConfig {
 }
 
 impl RecommendConfig {
-    fn marshal_json(&self) -> Result<String> {
+    /// Go's `json.Marshal` of the recommend config, as the master stores it in
+    /// the meta database (`RECOMMEND_CONFIG`).
+    pub fn marshal_json(&self) -> Result<String> {
         Ok(object(&[
             ("CacheSize", int_json(self.cache_size)),
             ("CacheExpire", duration_json(self.cache_expire)),

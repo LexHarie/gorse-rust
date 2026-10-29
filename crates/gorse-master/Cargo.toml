@@ -10,6 +10,9 @@ publish = false
 
 [dependencies]
 async-trait.workspace = true
+axum = { workspace = true, features = ["multipart"] }
+base64.workspace = true
+cookie = { workspace = true, features = ["private"] }
 futures-core.workspace = true
 futures-util.workspace = true
 gorse-common = { workspace = true }
@@ -25,8 +28,15 @@ gorse-storage-core = { workspace = true }
 gorse-storage = { workspace = true, features = ["mysql", "postgres", "sqlite", "mongodb", "redis", "qdrant", "milvus", "weaviate", "s3", "gcs", "azure"] }
 gorse-server = { workspace = true }
 gorse-worker = { workspace = true }
+minijinja.workspace = true
+moka.workspace = true
 notify.workspace = true
+openidconnect.workspace = true
+reqwest = { workspace = true, features = ["json", "stream"] }
+rust-embed = { workspace = true, features = ["debug-embed", "include-exclude"] }
 prometheus = { workspace = true, features = ["process"] }
+prost.workspace = true
+prost-types.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -34,6 +44,7 @@ tokio = { workspace = true, features = ["fs", "io-util", "macros", "net", "rt", 
 tokio-rustls.workspace = true
 tokio-stream = { workspace = true, features = ["net"] }
 tonic.workspace = true
+tower.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]

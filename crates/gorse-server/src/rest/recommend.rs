@@ -60,7 +60,7 @@ impl From<Score> for ScoreBody {
 
 /// Go's `Last-Modified` header, which `SetLastModified` sets from a cache time.
 /// Go formats it with `time.RFC1123`, which writes the zone as `UTC`.
-async fn last_modified(rest: &RestServer, key: &str) -> Option<HeaderValue> {
+pub async fn last_modified(rest: &RestServer, key: &str) -> Option<HeaderValue> {
     let value = rest
         .cache()
         .get(&Context::background(), key)
@@ -72,7 +72,7 @@ async fn last_modified(rest: &RestServer, key: &str) -> Option<HeaderValue> {
 
 /// Writes `header`, when there is one, on the response, as Go's `AddHeader`
 /// does before a handler writes its body. The header stays on an error response.
-fn with_last_modified(response: Response, header_value: Option<HeaderValue>) -> Response {
+pub fn with_last_modified(response: Response, header_value: Option<HeaderValue>) -> Response {
     let mut response = response;
     if let Some(value) = header_value {
         response.headers_mut().insert(header::LAST_MODIFIED, value);
@@ -92,7 +92,7 @@ fn default_n(query: &Query, config: &Config) -> Result<i64, ApiError> {
 
 /// Go's `filterVisibleItemsByCategories`: keeps the scores whose item is not
 /// hidden and has every one of `categories`. The result is never nil.
-async fn filter_visible_items_by_categories(
+pub async fn filter_visible_items_by_categories(
     rest: &RestServer,
     scores: Vec<Score>,
     categories: &[String],

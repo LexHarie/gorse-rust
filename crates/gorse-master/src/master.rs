@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex, PoisonError, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError, RwLock};
 use std::time::Duration as StdDuration;
 
 use gorse_common::gocontext::{CancelFunc, Context};
@@ -26,6 +26,7 @@ use gorse_protocol::{
     data_store_server::DataStoreServer, master_server::MasterServer,
     vector_store_server::VectorStoreServer,
 };
+use gorse_server::rest::RestServer;
 use gorse_storage::blob;
 use gorse_storage::cache;
 use gorse_storage::data;
@@ -118,6 +119,14 @@ pub struct Master {
     pub(crate) background_tasks: Mutex<Vec<JoinHandle<()>>>,
     /// Stops the gRPC server when it is sent (Go's `grpcServer.GracefulStop`).
     grpc_shutdown: Mutex<Option<watch::Sender<bool>>>,
+    /// The REST state the server routes read (Go's embedded `server.RestServer`).
+    /// The master keeps its configuration and stores in step with it.
+    pub(crate) rest: Arc<RestServer>,
+    /// Cancels the task the loop runs now (Go's `m.cancel`).
+    task_cancel: Mutex<Option<CancelFunc>>,
+    /// The OIDC login state, set when the master serves with OIDC enabled (Go's
+    /// `oauth2Config`, `verifier` and `tokenCache`).
+    pub(crate) oidc: OnceLock<crate::oidc::Oidc>,
 }
 
 impl Master {
@@ -135,6 +144,12 @@ impl Master {
             .collaborative
             .fit_period
             .min(cfg.recommend.ranker.fit_period);
+        let rest = Arc::new(RestServer::new(
+            cfg.clone(),
+            Arc::new(cache::no_database::NoDatabase),
+            Arc::new(data::no_database::NoDatabase),
+            Arc::new(vectors::NoDatabase),
+        ));
         Arc::new(Self {
             config: RwLock::new(Arc::new(cfg)),
             config_path: config_path.to_owned(),
@@ -158,7 +173,15 @@ impl Master {
             background_cancel,
             background_tasks: Mutex::new(Vec::new()),
             grpc_shutdown: Mutex::new(None),
+            rest,
+            task_cancel: Mutex::new(None),
+            oidc: OnceLock::new(),
         })
+    }
+
+    /// The config file the master reloads its configuration from, or empty.
+    pub(crate) fn config_path(&self) -> &str {
+        &self.config_path
     }
 
     /// The configuration in force now.
@@ -169,6 +192,26 @@ impl Master {
             .clone()
     }
 
+    /// Replaces the configuration the master and its REST state read. Go keeps
+    /// one `Config` pointer that both share.
+    pub(crate) fn replace_config(&self, cfg: Config) {
+        self.rest.set_config(cfg.clone());
+        *self.config.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(cfg);
+    }
+
+    /// Cancels the task that runs now, as Go's `m.cancel()` does. A task that
+    /// has finished, or none, is not affected.
+    pub(crate) fn cancel_task(&self) {
+        if let Some(cancel) = self
+            .task_cancel
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_ref()
+        {
+            cancel.cancel();
+        }
+    }
+
     /// Replaces the stores the master reads and writes. Go sets them in the
     /// struct before `Serve`, and the tests do the same.
     pub fn set_stores(
@@ -177,6 +220,9 @@ impl Master {
         cache: Arc<dyn cache::Database>,
         vectors: Arc<dyn vectors::Database>,
     ) {
+        self.rest.set_data(data.clone());
+        self.rest.set_cache(cache.clone());
+        self.rest.set_vectors(vectors.clone());
         *self.data.write().unwrap_or_else(PoisonError::into_inner) = data;
         *self.cache.write().unwrap_or_else(PoisonError::into_inner) = cache;
         *self.vectors.write().unwrap_or_else(PoisonError::into_inner) = vectors;
@@ -247,7 +293,7 @@ impl Master {
         if let Err(err) = new_config.validate() {
             return Err(Error::Config(err.to_string()));
         }
-        *self.config.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(new_config);
+        self.replace_config(new_config);
         let _ = self.scheduled.try_send(());
         Ok(())
     }
@@ -334,6 +380,16 @@ impl Master {
     pub async fn serve(self: &Arc<Self>) -> Result<(), Error> {
         let cfg = self.config();
 
+        // Discover the OIDC provider. A failure is logged, and the login stays off, as Go does.
+        if cfg.oidc.enable {
+            match crate::oidc::Oidc::discover(&cfg.oidc).await {
+                Ok(oidc) => {
+                    let _ = self.oidc.set(oidc);
+                }
+                Err(err) => error!(error = %err, "failed to create oidc provider"),
+            }
+        }
+
         // connect blob store
         let blob_server = if !cfg.blob.uri.contains("://") {
             Some(Arc::new(blob::master::MasterStoreServer::new(
@@ -403,7 +459,7 @@ impl Master {
         if let Err(err) = self.apply_recommend_override(&mut overridden).await {
             error!(error = %err, "failed to apply config overrides");
         } else {
-            *self.config.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(overridden);
+            self.replace_config(overridden);
         }
 
         // load collective filtering model meta
@@ -579,6 +635,10 @@ impl Master {
             }
             // download dataset
             let (ctx, cancel) = self.background.with_cancel();
+            *self
+                .task_cancel
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = Some(cancel.clone());
             let result = self.run_load_dataset_task(&ctx).await;
             cancel.cancel();
             if self.background.err().is_some() {
@@ -596,6 +656,19 @@ impl Master {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .insert(tracer.to_owned(), progress);
+    }
+
+    /// Go's `tracer.List()`: the progress of the tasks this node runs.
+    pub(crate) fn tracer_list(&self) -> Vec<Progress> {
+        self.tracer.list()
+    }
+
+    /// The progress each remote node last pushed, by node (Go's `remoteProgress.Range`).
+    pub(crate) fn remote_progress_snapshot(&self) -> HashMap<String, Vec<Progress>> {
+        self.remote_progress
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// Starts the gRPC server on `address`, with the TLS files when there are
@@ -673,5 +746,18 @@ async fn wait_until(deadline: Option<tokio::time::Instant>) {
     match deadline {
         Some(deadline) => tokio::time::sleep_until(deadline).await,
         None => std::future::pending().await,
+    }
+}
+
+#[cfg(test)]
+impl Master {
+    /// Whether a task run is waiting to start (Go's `len(m.scheduled) > 0`). The
+    /// receiver is taken when the task loop starts, so this is `false` once it has.
+    pub(crate) fn scheduled_pending(&self) -> bool {
+        self.scheduled_rx
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_mut()
+            .is_some_and(|receiver| receiver.try_recv().is_ok())
     }
 }

@@ -24,6 +24,7 @@ use gorse_config::config::load::load_config;
 use gorse_master::Master;
 use gorse_storage::cache;
 use gorse_storage::data;
+use gorse_storage::meta;
 use gorse_worker::{Worker, WorkerOptions};
 use rcgen::{
     BasicConstraints, CertificateParams, DnType, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair,
@@ -325,6 +326,25 @@ impl Cluster {
         let mut registry = cache::Registry::default();
         cache::register_builtin(&mut registry);
         registry.open(&self.cache_uri, "", &[]).await.map_err(fail)
+    }
+
+    /// Opens the run's meta store, the SQLite file both masters keep the node
+    /// list in, at the path the master opens it from. A test registers nodes
+    /// through it before the master starts, and closes it before then.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the configuration does not load or the store cannot be opened.
+    pub async fn meta_store(&self) -> Result<Box<dyn meta::Database>> {
+        let cache_path = self.dir.path().join("master-cache");
+        fs::create_dir_all(&cache_path).map_err(fail)?;
+        let cfg = load_config(&path(&self.config)).map_err(fail)?;
+        let meta_path = format!("sqlite://{}/meta.sqlite3", cache_path.display());
+        let store = meta::open(&meta_path, cfg.master.meta_timeout)
+            .await
+            .map_err(fail)?;
+        store.init().await.map_err(fail)?;
+        Ok(store)
     }
 
     /// Starts the Go `gorse-master` and waits until its gRPC port accepts
@@ -670,6 +690,11 @@ pub struct RustMaster {
 }
 
 impl RustMaster {
+    /// The master's REST router, which the REST test serves over HTTP.
+    pub fn router(&self) -> axum::Router {
+        gorse_master::rest::router(Arc::clone(&self.master))
+    }
+
     /// Shuts the master down and waits for its background tasks to end.
     pub async fn stop(self) {
         self.master.shutdown().await;
