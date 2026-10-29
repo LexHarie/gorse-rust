@@ -780,14 +780,25 @@ fn refused(err: mongodb::error::Error) -> Error {
     }
 }
 
-/// The path a server error gives to an element of an update, in Go's wording.
-/// The server names the element from the start of the command it received.
-/// Go's driver sends an update's statements as a document sequence, so the
-/// path starts at the statement, as `u.$set…`. This driver sends the
-/// statements in the command body, so the path starts at `updates.0.`, which
-/// is taken off.
+/// The field path a server error gives for an element of an update, in Go's
+/// wording. The server names the element from the start of the command it
+/// received. Go's driver sends an update's statements as a document sequence,
+/// so the path starts at the statement, as `u.$set…`. This driver sends the
+/// statements in the command body, so the path starts at `updates.0.`. Only
+/// that exact leading prefix of the first field path is taken off. Any other
+/// message is returned unchanged, byte for byte. This is a deviation forced by
+/// the driver, and it is logged in `porting/notes/WP-4-2.md`.
 fn statement_path(message: &str) -> String {
-    message.replace("'updates.0.", "'")
+    const MARK: &str = "field name '";
+    const PREFIX: &str = "updates.0.";
+    let Some(at) = message.find(MARK) else {
+        return message.to_owned();
+    };
+    let path = at + MARK.len();
+    match message[path..].strip_prefix(PREFIX) {
+        Some(rest) => format!("{}{rest}", &message[..path]),
+        None => message.to_owned(),
+    }
 }
 
 /// The error for the write errors in the reply to an update, worded as Go's
@@ -2067,18 +2078,46 @@ mod tests {
         assert!(write_refused(&doc! {"ok": 1, "n": 1}).is_ok());
     }
 
-    /// The path of an element in an update is named from the statement, as Go's
-    /// driver names it, and only the statement's own prefix is taken off.
+    /// The field path of an element in an update is named from the statement, as
+    /// Go's driver names it: the exact leading `updates.0.` is taken off.
     #[test]
     fn statement_paths_start_at_the_statement() {
+        let depth = "BSONObj exceeds maximum nested object depth in element with field name";
         assert_eq!(
-            statement_path(
-                "BSONObj exceeds maximum nested object depth in element with field name 'updates.0.u.$set.labels.a'"
-            ),
-            "BSONObj exceeds maximum nested object depth in element with field name 'u.$set.labels.a'"
+            statement_path(&format!("{depth} 'updates.0.u.$set.labels.a'")),
+            format!("{depth} 'u.$set.labels.a'")
         );
-        assert_eq!(statement_path("'updates.1.u'"), "'updates.1.u'");
-        assert_eq!(statement_path("no path here"), "no path here");
+        assert_eq!(
+            statement_path("écrit: in element with field name 'updates.0.u'"),
+            "écrit: in element with field name 'u'"
+        );
+    }
+
+    /// Any other message is returned byte for byte: a path already in Go's form,
+    /// a prefix that is not leading or not exact, a second path, and text
+    /// without a field path.
+    #[test]
+    fn statement_paths_leave_other_messages_unchanged() {
+        let depth = "BSONObj exceeds maximum nested object depth in element with field name";
+        for message in [
+            format!("{depth} 'u.$set.labels.a'"),
+            format!("{depth} 'x.updates.0.u'"),
+            format!("{depth} 'updates.10.u'"),
+            format!("{depth} 'updates.0'"),
+            format!("{depth} 'updates.0u'"),
+            format!("{depth} 'updates.1.u'"),
+            format!("{depth} updates.0.u"),
+            "updates.0.u was refused".to_owned(),
+            "no path here".to_owned(),
+            String::new(),
+        ] {
+            assert_eq!(statement_path(&message), message);
+        }
+        // Only the first field path is named from the statement.
+        assert_eq!(
+            statement_path("field name 'updates.0.a' and field name 'updates.0.b'"),
+            "field name 'a' and field name 'updates.0.b'"
+        );
     }
 
     /// Go decodes "QR==" to "A", with non-zero trailing bits, and so does the port.
