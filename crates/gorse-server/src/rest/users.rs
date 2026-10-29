@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 /// Go's `Success`: the result of a write, with the number of rows it changed.
 #[derive(Debug, Clone, Copy, Default, Serialize)]
-pub(crate) struct Success {
+pub struct Success {
     /// The number of rows affected (`RowAffected`).
     #[serde(rename = "RowAffected")]
     pub row_affected: i64,
@@ -33,7 +33,7 @@ pub(crate) struct Success {
 
 /// Go's `UserIterator`: one page of users and the cursor for the next page.
 #[derive(Debug, Clone, Default, Serialize)]
-pub(crate) struct UserIterator {
+pub struct UserIterator {
     /// The cursor for the next page, empty at the end (`Cursor`).
     #[serde(rename = "Cursor")]
     pub cursor: String,
@@ -43,7 +43,7 @@ pub(crate) struct UserIterator {
 }
 
 /// Go's `insertUser`: `POST /api/user`.
-pub(crate) async fn insert_user(
+pub async fn insert_user(
     State(rest): State<Arc<RestServer>>,
     headers: HeaderMap,
     body: Bytes,
@@ -72,7 +72,7 @@ pub(crate) async fn insert_user(
 
 /// Go's `modifyUser`: `PATCH /api/user/{user-id}`. A failure of the timestamp
 /// write is not reported, as in Go: the response is empty.
-pub(crate) async fn modify_user(
+pub async fn modify_user(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
     headers: HeaderMap,
@@ -102,14 +102,14 @@ pub(crate) async fn modify_user(
 
 /// The response Go writes when a handler returns without writing anything: a
 /// 200 with an empty body.
-pub(crate) fn empty_ok() -> Response {
+pub fn empty_ok() -> Response {
     let mut response = Response::new(axum::body::Body::empty());
     *response.status_mut() = StatusCode::OK;
     response
 }
 
 /// Go's `getUser`: `GET /api/user/{user-id}`.
-pub(crate) async fn get_user(
+pub async fn get_user(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
@@ -126,7 +126,7 @@ pub(crate) async fn get_user(
 /// missing record and the 500 for anything else. The 404 reads `subject not
 /// found`, as Go's store wraps `ErrNotFound` with the record's name, for example
 /// `item 6 not found`.
-pub(crate) fn not_found_or_internal(err: &DataError, subject: &str) -> ApiError {
+pub fn not_found_or_internal(err: &DataError, subject: &str) -> ApiError {
     if err.kind() == Some(gorse_storage_core::errors::Error::NotFound) {
         ApiError::PageNotFound(format!("{subject} not found"))
     } else {
@@ -135,7 +135,7 @@ pub(crate) fn not_found_or_internal(err: &DataError, subject: &str) -> ApiError 
 }
 
 /// Go's `insertUsers`: `POST /api/users`.
-pub(crate) async fn insert_users(
+pub async fn insert_users(
     State(rest): State<Arc<RestServer>>,
     headers: HeaderMap,
     body: Bytes,
@@ -173,7 +173,7 @@ pub(crate) async fn insert_users(
 }
 
 /// Go's `getUsers`: `GET /api/users`.
-pub(crate) async fn get_users(
+pub async fn get_users(
     State(rest): State<Arc<RestServer>>,
     RawQuery(raw): RawQuery,
 ) -> Result<Response, ApiError> {
@@ -188,7 +188,7 @@ pub(crate) async fn get_users(
 }
 
 /// Go's `deleteUser`: `DELETE /api/user/{user-id}`.
-pub(crate) async fn delete_user(
+pub async fn delete_user(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {

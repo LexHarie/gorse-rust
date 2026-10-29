@@ -31,7 +31,7 @@ use gorse_storage::vectors::{self, Vector};
 /// Go's `Item`: the item as the REST API takes it, with its time stamp as text.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-pub(crate) struct Item {
+pub struct Item {
     /// The item id (`ItemId`).
     pub item_id: String,
     /// Whether the item is hidden (`IsHidden`).
@@ -74,7 +74,7 @@ impl GoStruct for Item {
 
 /// Go's `ItemIterator`: one page of items and the cursor for the next page.
 #[derive(Debug, Clone, Default, Serialize)]
-pub(crate) struct ItemIterator {
+pub struct ItemIterator {
     /// The cursor for the next page, empty at the end (`Cursor`).
     #[serde(rename = "Cursor")]
     pub cursor: String,
@@ -159,7 +159,7 @@ async fn batch_insert_items(rest: &RestServer, items: Vec<Item>) -> Result<Respo
 }
 
 /// Go's `insertItems`: `POST /api/items`.
-pub(crate) async fn insert_items(
+pub async fn insert_items(
     State(rest): State<Arc<RestServer>>,
     headers: HeaderMap,
     body: Bytes,
@@ -172,7 +172,7 @@ pub(crate) async fn insert_items(
 }
 
 /// Go's `insertItem`: `POST /api/item`.
-pub(crate) async fn insert_item(
+pub async fn insert_item(
     State(rest): State<Arc<RestServer>>,
     headers: HeaderMap,
     body: Bytes,
@@ -184,7 +184,7 @@ pub(crate) async fn insert_item(
 
 /// Go's `modifyItem`: `PATCH /api/item/{item-id}`. A failure of the timestamp
 /// write is not reported, as in Go: the response is empty.
-pub(crate) async fn modify_item(
+pub async fn modify_item(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
     headers: HeaderMap,
@@ -238,7 +238,7 @@ pub(crate) async fn modify_item(
 
 /// Go's `getItems`: `GET /api/items`. A non-empty `q` searches the items, by
 /// an embedding index when `index` is set and by full text otherwise.
-pub(crate) async fn get_items(
+pub async fn get_items(
     State(rest): State<Arc<RestServer>>,
     RawQuery(raw): RawQuery,
 ) -> Result<Response, ApiError> {
@@ -364,7 +364,7 @@ async fn search_full_text(rest: &RestServer, query: &str, n: i64) -> Result<Resp
 }
 
 /// Go's `getItem`: `GET /api/item/{item-id}`.
-pub(crate) async fn get_item(
+pub async fn get_item(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
@@ -378,7 +378,7 @@ pub(crate) async fn get_item(
 }
 
 /// Go's `deleteItem`: `DELETE /api/item/{item-id}`.
-pub(crate) async fn delete_item(
+pub async fn delete_item(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
@@ -400,7 +400,7 @@ pub(crate) async fn delete_item(
 }
 
 /// Go's `insertItemCategory`: `PUT /api/item/{item-id}/category/{category}`.
-pub(crate) async fn insert_item_category(
+pub async fn insert_item_category(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
@@ -434,7 +434,7 @@ pub(crate) async fn insert_item_category(
 }
 
 /// Go's `deleteItemCategory`: `DELETE /api/item/{item-id}/category/{category}`.
-pub(crate) async fn delete_item_category(
+pub async fn delete_item_category(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {

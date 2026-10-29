@@ -6,8 +6,11 @@
 //! tasks that load the dataset and train the models, and the Prometheus metrics.
 //! The REST routes (WP-4-4) and the binaries (WP-4-5) are not here yet.
 
+mod dashboard;
 mod master;
 mod metrics;
+mod oidc;
+pub mod rest;
 mod rpc;
 mod tasks;
 #[cfg(test)]

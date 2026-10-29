@@ -31,7 +31,7 @@ use super::users::Success;
 /// text.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-pub(crate) struct Feedback {
+pub struct Feedback {
     /// The feedback type (`FeedbackType`).
     pub feedback_type: String,
     /// The user (`UserId`).
@@ -82,7 +82,7 @@ impl Feedback {
     /// # Errors
     ///
     /// Fails with `dateparse`'s message when the time stamp is malformed.
-    pub(crate) fn to_data_feedback(&self) -> Result<DataFeedback, ApiError> {
+    pub fn to_data_feedback(&self) -> Result<DataFeedback, ApiError> {
         let timestamp = if self.timestamp.is_empty() {
             Time::default()
         } else {
@@ -107,7 +107,7 @@ impl Feedback {
 /// Go's `FeedbackIterator`: one page of feedback and the cursor for the next
 /// page.
 #[derive(Debug, Clone, Default, Serialize)]
-pub(crate) struct FeedbackIterator {
+pub struct FeedbackIterator {
     /// The cursor for the next page, empty at the end (`Cursor`).
     #[serde(rename = "Cursor")]
     pub cursor: String,
@@ -187,7 +187,7 @@ async fn insert_feedback(
 }
 
 /// `POST /api/feedback`: adds the feedback to what exists.
-pub(crate) async fn insert_feedback_overwrite_false(
+pub async fn insert_feedback_overwrite_false(
     State(rest): State<Arc<RestServer>>,
     headers: HeaderMap,
     body: Bytes,
@@ -196,7 +196,7 @@ pub(crate) async fn insert_feedback_overwrite_false(
 }
 
 /// `PUT /api/feedback`: overwrites the feedback that exists.
-pub(crate) async fn insert_feedback_overwrite_true(
+pub async fn insert_feedback_overwrite_true(
     State(rest): State<Arc<RestServer>>,
     headers: HeaderMap,
     body: Bytes,
@@ -205,7 +205,7 @@ pub(crate) async fn insert_feedback_overwrite_true(
 }
 
 /// Go's `getFeedback`: `GET /api/feedback`, one page of feedback up to now.
-pub(crate) async fn get_feedback(
+pub async fn get_feedback(
     State(rest): State<Arc<RestServer>>,
     RawQuery(raw): RawQuery,
 ) -> Result<Response, ApiError> {
@@ -228,7 +228,7 @@ pub(crate) async fn get_feedback(
 }
 
 /// Go's `getTypedFeedback`: `GET /api/feedback/{feedback-type}`.
-pub(crate) async fn get_typed_feedback(
+pub async fn get_typed_feedback(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
     RawQuery(raw): RawQuery,
@@ -253,7 +253,7 @@ pub(crate) async fn get_typed_feedback(
 }
 
 /// Go's `getUserItemFeedback`: `GET /api/feedback/{user-id}/{item-id}`.
-pub(crate) async fn get_user_item_feedback(
+pub async fn get_user_item_feedback(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
@@ -268,7 +268,7 @@ pub(crate) async fn get_user_item_feedback(
 }
 
 /// Go's `deleteUserItemFeedback`: `DELETE /api/feedback/{user-id}/{item-id}`.
-pub(crate) async fn delete_user_item_feedback(
+pub async fn delete_user_item_feedback(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
@@ -286,7 +286,7 @@ pub(crate) async fn delete_user_item_feedback(
 
 /// Go's `getTypedUserItemFeedback`: `GET /api/feedback/{feedback-type}/{user-id}/{item-id}`.
 /// The first matching feedback is written, or the text `{}` when there is none.
-pub(crate) async fn get_typed_user_item_feedback(
+pub async fn get_typed_user_item_feedback(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
@@ -311,7 +311,7 @@ pub(crate) async fn get_typed_user_item_feedback(
 
 /// Go's `deleteTypedUserItemFeedback`:
 /// `DELETE /api/feedback/{feedback-type}/{user-id}/{item-id}`.
-pub(crate) async fn delete_typed_user_item_feedback(
+pub async fn delete_typed_user_item_feedback(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
@@ -335,7 +335,7 @@ pub(crate) async fn delete_typed_user_item_feedback(
 
 /// Go's `getTypedFeedbackByUser`: `GET /api/user/{user-id}/feedback/{feedback-type}`.
 /// The type is read as a feedback type expression, so `*` and `!` work.
-pub(crate) async fn get_typed_feedback_by_user(
+pub async fn get_typed_feedback_by_user(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
@@ -355,7 +355,7 @@ pub(crate) async fn get_typed_feedback_by_user(
 }
 
 /// Go's `getFeedbackByUser`: `GET /api/user/{user-id}/feedback`.
-pub(crate) async fn get_feedback_by_user(
+pub async fn get_feedback_by_user(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
@@ -370,7 +370,7 @@ pub(crate) async fn get_feedback_by_user(
 }
 
 /// Go's `getTypedFeedbackByItem`: `GET /api/item/{item-id}/feedback/{feedback-type}`.
-pub(crate) async fn get_typed_feedback_by_item(
+pub async fn get_typed_feedback_by_item(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
@@ -385,7 +385,7 @@ pub(crate) async fn get_typed_feedback_by_item(
 }
 
 /// Go's `getFeedbackByItem`: `GET /api/item/{item-id}/feedback/`.
-pub(crate) async fn get_feedback_by_item(
+pub async fn get_feedback_by_item(
     State(rest): State<Arc<RestServer>>,
     Path(params): Path<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
