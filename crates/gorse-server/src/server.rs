@@ -337,3 +337,6 @@ async fn metrics() -> impl IntoResponse {
     let _ = encoder.encode(&families, &mut buffer);
     ([(header::CONTENT_TYPE, encoder.format_type().to_owned())], buffer)
 }
+
+#[cfg(test)]
+mod tests;

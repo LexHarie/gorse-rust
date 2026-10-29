@@ -15,7 +15,7 @@ use gorse_storage::data::types::{Feedback, FeedbackKey, Item, Labels};
 use gorse_storage::vectors::{self, Distance, Vector, VectorConfig};
 use serde_json::{Value, json};
 
-use super::{Suite, get, patch, post};
+use super::{Suite, delete, get, patch, post, put};
 
 /// Go's `cache.Score` with only the id and the score, as its JSON encoding
 /// writes it.
@@ -942,4 +942,343 @@ async fn get_recommends_latest() {
         .await
         .status(StatusCode::OK)
         .json(json!(["5", "6", "7", "8"]));
+}
+
+/// Go's `data.Feedback` of type `a` at `timestamp`, with the user `0`.
+fn session_feedback(item_id: &str, timestamp: &str) -> Value {
+    feedback_at(item_id, timestamp)
+}
+
+#[tokio::test]
+async fn session_recommend() {
+    let suite = Suite::default_suite().await;
+    let ctx = Context::background();
+    let mut positive = FeedbackTypeExpression::default();
+    positive.from_string("a").expect("a feedback type");
+    suite.update_config(|c| {
+        c.recommend.context_size = 4;
+        c.recommend.data_source.positive_feedback_types = Some(vec![positive]);
+        c.recommend.item_to_item = Some(vec![gorse_config::config::schema::ItemToItemConfig {
+            name: "default".to_owned(),
+            kind: "tags".to_owned(),
+            column: "item.Labels".to_owned(),
+            ..Default::default()
+        }]);
+    });
+
+    // insert item-to-item vectors
+    let collection = vectors::item_to_item_collection("default");
+    suite
+        .vectors
+        .add_collection(&ctx, &collection, 0, Distance::Dot, VectorConfig::default())
+        .await
+        .expect("add the collection");
+    suite
+        .vectors
+        .add_vectors(
+            &ctx,
+            &collection,
+            &[
+                sparse_vector("1", &[0], &[1.0], &[]),
+                sparse_vector("2", &[1], &[1.0], &[]),
+                sparse_vector("3", &[2], &[1.0], &[]),
+                sparse_vector("4", &[3], &[1.0], &[]),
+                sparse_vector("5", &[4], &[1.0], &[]),
+                sparse_vector("6", &[3], &[1.0], &[]),
+                sparse_vector("7", &[2, 3], &[1.0, 1.0], &["*"]),
+                sparse_vector("8", &[1, 2, 3], &[1.0, 1.0, 1.0], &[]),
+                sparse_vector("9", &[0, 1, 2, 3], &[1.0, 1.0, 1.0, 1.0], &["*"]),
+                sparse_vector("100", &[0], &[100.0], &[]),
+            ],
+        )
+        .await
+        .expect("add the vectors");
+    let items = vec![
+        Item {
+            item_id: "6".to_owned(),
+            ..Default::default()
+        },
+        Item {
+            item_id: "7".to_owned(),
+            categories: Some(vec!["*".to_owned()]),
+            ..Default::default()
+        },
+        Item {
+            item_id: "8".to_owned(),
+            ..Default::default()
+        },
+        Item {
+            item_id: "9".to_owned(),
+            categories: Some(vec!["*".to_owned()]),
+            ..Default::default()
+        },
+    ];
+    suite
+        .data
+        .batch_insert_items(&ctx, &items)
+        .await
+        .expect("insert the items");
+
+    // hide items
+    suite
+        .send(
+            post("/api/item")
+                .key()
+                .json(&json!({"ItemId": "100", "IsHidden": true, "Categories": null, "Timestamp": "", "Labels": null, "Comment": ""})),
+        )
+        .await
+        .status(StatusCode::OK)
+        .json(json!({"RowAffected": 1}));
+
+    // test fallback
+    let feedback = json!([
+        session_feedback("1", "2010-01-01T01:01:01.000000001Z"),
+        session_feedback("2", "2009-01-01T01:01:01.000000001Z"),
+        session_feedback("3", "2008-01-01T01:01:01.000000001Z"),
+        session_feedback("4", "2007-01-01T01:01:01.000000001Z"),
+        session_feedback("5", "2006-01-01T01:01:01.000000001Z"),
+    ]);
+    suite
+        .send(post("/api/session/recommend?n=3").key().json(&feedback))
+        .await
+        .status(StatusCode::OK)
+        .json(json!([score_json("9", 4.0), score_json("8", 3.0), score_json("7", 2.0)]));
+    suite
+        .send(post("/api/session/recommend?offset=100").key().json(&feedback))
+        .await
+        .status(StatusCode::OK)
+        .json(Value::Null);
+    suite.update_config(|c| {
+        c.recommend.fallback.recommenders = Some(vec!["item_based".to_owned()]);
+    });
+    suite
+        .send(post("/api/session/recommend/*?n=3").key().json(&feedback))
+        .await
+        .status(StatusCode::OK)
+        .json(json!([score_json("9", 4.0), score_json("7", 2.0)]));
+}
+
+/// Go's `time.Date(1989, 6, day, 1, 1, 1, 1, time.UTC).Unix()`.
+fn day_unix(day: usize) -> i64 {
+    [612666061, 612752461, 612838861, 612925261, 613011661][day - 1]
+}
+
+/// Go's `time.Date(1989, 6, day, 1, 1, 1, 1, time.UTC).String()`, the
+/// timestamp the visibility test sends.
+fn day_string(day: usize) -> String {
+    format!("1989-06-{day:02} 01:01:01.000000001 +0000 UTC")
+}
+
+/// Go's `cache.Score` list as the route writes it: the id and the score.
+fn scores_json(documents: &[Score]) -> Value {
+    Value::Array(
+        documents
+            .iter()
+            .map(|document| score_json(&document.id, document.score))
+            .collect(),
+    )
+}
+
+/// Go's `cache.ConvertDocumentsToValues`: the ids of the documents.
+fn ids_json(documents: &[Score]) -> Value {
+    Value::Array(
+        documents
+            .iter()
+            .map(|document| Value::String(document.id.clone()))
+            .collect(),
+    )
+}
+
+#[tokio::test]
+async fn visibility() {
+    let suite = Suite::default_suite().await;
+    let ctx = Context::background();
+    suite.update_config(|c| {
+        c.recommend.item_to_item = Some(vec![gorse_config::config::schema::ItemToItemConfig {
+            name: "default".to_owned(),
+            kind: "tags".to_owned(),
+            column: "item.Labels".to_owned(),
+            ..Default::default()
+        }]);
+    });
+    // insert items: 0, 1, 2, 3, 4
+    let items: Vec<Value> = (0..5)
+        .map(|i| {
+            json!({"ItemId": i.to_string(), "IsHidden": false, "Categories": ["a"], "Timestamp": day_string(i + 1), "Labels": null, "Comment": ""})
+        })
+        .collect();
+    suite
+        .send(post("/api/items?n=3").key().json(&Value::Array(items)))
+        .await
+        .status(StatusCode::OK);
+
+    // insert cache: the documents, newest first, as Go reverses them
+    let mut documents: Vec<Score> = (0..5)
+        .map(|i| document(&i.to_string(), day_unix(i + 1) as f64, &["", "a"]))
+        .collect();
+    documents.reverse();
+    let collection = vectors::item_to_item_collection("default");
+    suite
+        .vectors
+        .add_collection(&ctx, &collection, 0, Distance::Dot, VectorConfig::default())
+        .await
+        .expect("add the collection");
+    let mut values = vec![sparse_vector("100", &[0], &[1.0], &[])];
+    let mut neighbor_documents = Vec::new();
+    for document in &documents[..documents.len() - 1] {
+        values.push(sparse_vector(
+            &document.id,
+            &[0],
+            &[document.score as f32],
+            &document.categories.iter().map(String::as_str).collect::<Vec<_>>(),
+        ));
+        neighbor_documents.push(Score {
+            score: f64::from(document.score as f32),
+            ..document.clone()
+        });
+    }
+    suite
+        .vectors
+        .add_vectors(&ctx, &collection, &values)
+        .await
+        .expect("add the vectors");
+    suite
+        .cache
+        .add_scores(&ctx, cache::RECOMMEND, "100", &documents)
+        .await
+        .expect("add the recommendation");
+
+    // delete item
+    suite.send(delete("/api/item/0").key()).await.status(StatusCode::OK);
+    // modify item
+    suite
+        .send(patch("/api/item/1").key().json(&hide_patch(Some(true))))
+        .await
+        .status(StatusCode::OK);
+    // overwrite item
+    suite
+        .send(post("/api/item").key().json(&json!({"ItemId": "2", "IsHidden": true, "Categories": null, "Timestamp": "", "Labels": null, "Comment": ""})))
+        .await
+        .status(StatusCode::OK);
+
+    // recommend
+    suite
+        .send(get("/api/latest").key())
+        .await
+        .status(StatusCode::OK)
+        .json(scores_json(&documents[..2]));
+    suite
+        .send(get("/api/item/100/neighbors/").key())
+        .await
+        .status(StatusCode::OK)
+        .json(scores_json(&neighbor_documents[..2]));
+    suite
+        .send(get("/api/recommend/100/").key())
+        .await
+        .status(StatusCode::OK)
+        .json(ids_json(&documents[..2]));
+
+    // insert item
+    suite
+        .send(post("/api/item").key().json(&json!({"ItemId": "0", "IsHidden": false, "Categories": null, "Timestamp": day_string(1), "Labels": null, "Comment": ""})))
+        .await
+        .status(StatusCode::OK);
+    // modify item
+    suite
+        .send(patch("/api/item/1").key().json(&hide_patch(Some(false))))
+        .await
+        .status(StatusCode::OK);
+    // overwrite item
+    suite
+        .send(post("/api/item").key().json(&json!({"ItemId": "2", "IsHidden": false, "Categories": null, "Timestamp": day_string(3), "Labels": null, "Comment": ""})))
+        .await
+        .status(StatusCode::OK);
+
+    // recommend
+    suite
+        .send(get("/api/latest").key())
+        .await
+        .status(StatusCode::OK)
+        .json(scores_json(&documents));
+    suite
+        .send(get("/api/item/100/neighbors/").key())
+        .await
+        .status(StatusCode::OK)
+        .json(scores_json(&neighbor_documents));
+    suite
+        .send(get("/api/recommend/100/").key())
+        .await
+        .status(StatusCode::OK)
+        .json(ids_json(&documents));
+
+    // delete category
+    suite
+        .send(delete("/api/item/0/category/a").key())
+        .await
+        .status(StatusCode::OK);
+    // modify category
+    suite
+        .send(patch("/api/item/1").key().json(&json!({"IsHidden": null, "Categories": [], "Timestamp": null, "Labels": null, "Comment": null})))
+        .await
+        .status(StatusCode::OK);
+    // overwrite category
+    suite
+        .send(post("/api/item").key().json(&json!({"ItemId": "2", "IsHidden": false, "Categories": [], "Timestamp": "", "Labels": null, "Comment": ""})))
+        .await
+        .status(StatusCode::OK);
+
+    // recommend
+    suite
+        .send(get("/api/latest/a").key())
+        .await
+        .status(StatusCode::OK)
+        .json(scores_json(&documents[..2]));
+    suite
+        .send(get("/api/item/100/neighbors/a").key())
+        .await
+        .status(StatusCode::OK)
+        .json(scores_json(&neighbor_documents[..2]));
+    suite
+        .send(get("/api/recommend/100/a").key())
+        .await
+        .status(StatusCode::OK)
+        .json(ids_json(&documents[..2]));
+
+    // insert category
+    suite
+        .send(put("/api/item/0/category/a").key())
+        .await
+        .status(StatusCode::OK);
+    // modify category
+    suite
+        .send(patch("/api/item/1").key().json(&json!({"IsHidden": null, "Categories": ["a"], "Timestamp": null, "Labels": null, "Comment": null})))
+        .await
+        .status(StatusCode::OK);
+    // overwrite category
+    suite
+        .send(post("/api/item").key().json(&json!({"ItemId": "2", "IsHidden": false, "Categories": ["a"], "Timestamp": day_string(3), "Labels": null, "Comment": ""})))
+        .await
+        .status(StatusCode::OK);
+
+    // recommend
+    suite
+        .send(get("/api/latest/a").key())
+        .await
+        .status(StatusCode::OK)
+        .json(scores_json(&documents));
+    suite
+        .send(get("/api/item/100/neighbors/a").key())
+        .await
+        .status(StatusCode::OK)
+        .json(scores_json(&neighbor_documents));
+    suite
+        .send(get("/api/recommend/100/a").key())
+        .await
+        .status(StatusCode::OK)
+        .json(ids_json(&documents));
+}
+
+/// Go's `data.ItemPatch` that sets only `IsHidden`, when `is_hidden` is given.
+fn hide_patch(is_hidden: Option<bool>) -> Value {
+    json!({"IsHidden": is_hidden, "Categories": null, "Timestamp": null, "Labels": null, "Comment": null})
 }

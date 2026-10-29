@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::body::Body;
-use axum::http::{Method, Request, StatusCode, header};
+use axum::http::{Method, Request, StatusCode};
 use gorse_config::config::defaults::get_default_config;
 use gorse_config::config::schema::Config;
 use gorse_storage::cache;
@@ -100,11 +100,6 @@ impl Suite {
     /// The suite with Go's default settings.
     pub(super) async fn default_suite() -> Self {
         Self::new(|_| {}).await
-    }
-
-    /// Replaces the configuration, as Go's tests assign `suite.Config`.
-    pub(super) fn set_config(&self, config: Config) {
-        self.rest.set_config(config);
     }
 
     /// Changes one setting of the configuration and keeps the rest, as a Go
@@ -281,10 +276,3 @@ fn as_float64s(value: serde_json::Value) -> serde_json::Value {
     }
 }
 
-/// The `Content-Type` a reply carries.
-pub(super) fn content_type(reply: &Reply) -> Option<&str> {
-    reply
-        .headers
-        .get(header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-}
