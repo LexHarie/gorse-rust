@@ -166,9 +166,10 @@ impl Server {
             "start server"
         );
         let channel = self.connect_master().await?;
-        let listener = tokio::net::TcpListener::bind(format!("{}:{}", self.http_host, self.http_port))
-            .await
-            .map_err(|err| ServerError::Http(err.to_string()))?;
+        let listener =
+            tokio::net::TcpListener::bind(format!("{}:{}", self.http_host, self.http_port))
+                .await
+                .map_err(|err| ServerError::Http(err.to_string()))?;
         let mut stop = self.shutdown.subscribe();
         let served = axum::serve(listener, self.app())
             .with_graceful_shutdown(async move {
@@ -195,7 +196,8 @@ impl Server {
     async fn connect_master(&self) -> Result<Channel, ServerError> {
         if self.tls.is_some() {
             return Err(ServerError::Master(
-                "TLS to the master is not ported yet (WP-4-3 with gorse_common::util::tls)".to_owned(),
+                "TLS to the master is not ported yet (WP-4-3 with gorse_common::util::tls)"
+                    .to_owned(),
             ));
         }
         let uri = format!("http://{}:{}", self.master_host, self.master_port);
@@ -248,19 +250,23 @@ impl Server {
                 return;
             }
         };
-        let config = match json::decode(meta.config.as_bytes())
-            .and_then(|settings| unmarshal(&settings))
-        {
-            Ok(config) => config,
-            Err(err) => {
-                tracing::error!(error = %err, "failed to parse master config");
-                return;
-            }
-        };
+        let config =
+            match json::decode(meta.config.as_bytes()).and_then(|settings| unmarshal(&settings)) {
+                Ok(config) => config,
+                Err(err) => {
+                    tracing::error!(error = %err, "failed to parse master config");
+                    return;
+                }
+            };
         self.rest.set_config(config.clone());
         let database = &config.database;
-        if opened.data_path != database.data_store || opened.data_prefix != database.data_table_prefix {
-            if database.data_store.starts_with(gorse_storage_core::scheme::SQLITE_PREFIX) {
+        if opened.data_path != database.data_store
+            || opened.data_prefix != database.data_table_prefix
+        {
+            if database
+                .data_store
+                .starts_with(gorse_storage_core::scheme::SQLITE_PREFIX)
+            {
                 tracing::info!("connect cache store via master");
                 self.rest
                     .set_data(Arc::new(data::proxy::ProxyClient::new(channel.clone())));
@@ -282,8 +288,13 @@ impl Server {
             opened.data_path = database.data_store.clone();
             opened.data_prefix = database.data_table_prefix.clone();
         }
-        if opened.cache_path != database.cache_store || opened.cache_prefix != database.cache_table_prefix {
-            if database.cache_store.starts_with(gorse_storage_core::scheme::SQLITE_PREFIX) {
+        if opened.cache_path != database.cache_store
+            || opened.cache_prefix != database.cache_table_prefix
+        {
+            if database
+                .cache_store
+                .starts_with(gorse_storage_core::scheme::SQLITE_PREFIX)
+            {
                 tracing::info!("connect cache store via master");
                 self.rest
                     .set_cache(Arc::new(cache::proxy::ProxyClient::new(channel.clone())));
@@ -305,13 +316,20 @@ impl Server {
             opened.cache_path = database.cache_store.clone();
             opened.cache_prefix = database.cache_table_prefix.clone();
         }
-        if opened.vector_path != database.vector_store || opened.vector_prefix != database.vector_table_prefix {
-            if database.vector_store.starts_with(gorse_storage_core::scheme::XVEC_PREFIX) {
+        if opened.vector_path != database.vector_store
+            || opened.vector_prefix != database.vector_table_prefix
+        {
+            if database
+                .vector_store
+                .starts_with(gorse_storage_core::scheme::XVEC_PREFIX)
+            {
                 tracing::info!("connect vector store via master");
                 self.rest
                     .set_vectors(Arc::new(vectors::proxy::ProxyClient::new(channel.clone())));
             } else {
-                match vectors::open(&database.vector_store, &database.vector_table_prefix, &[]).await {
+                match vectors::open(&database.vector_store, &database.vector_table_prefix, &[])
+                    .await
+                {
                     Ok(store) => self.rest.set_vectors(Arc::from(store)),
                     Err(err) => {
                         tracing::error!(error = %err, "failed to connect vector store");
@@ -340,7 +358,10 @@ async fn metrics() -> impl IntoResponse {
     let families = prometheus::gather();
     let encoder = prometheus::TextEncoder::new();
     let _ = encoder.encode(&families, &mut buffer);
-    ([(header::CONTENT_TYPE, encoder.format_type().to_owned())], buffer)
+    (
+        [(header::CONTENT_TYPE, encoder.format_type().to_owned())],
+        buffer,
+    )
 }
 
 #[cfg(test)]

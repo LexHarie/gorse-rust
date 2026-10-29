@@ -20,7 +20,10 @@ use serde::{Deserialize, Serialize};
 use super::RestServer;
 use super::embedding::create_embedding;
 use super::quota;
-use super::response::{ApiError, Query, ok, parse_int, path_param, read_entity, validate_request_labels, with_wild_card};
+use super::response::{
+    ApiError, Query, ok, parse_int, path_param, read_entity, validate_request_labels,
+    with_wild_card,
+};
 use super::users::{Success, empty_ok, not_found_or_internal};
 use gorse_storage::vectors::{self, Vector};
 
@@ -55,7 +58,10 @@ pub(crate) struct ItemIterator {
 
 /// The item cache's collections, Go's `cache.ItemCache`.
 fn item_cache() -> Vec<String> {
-    cache::ITEM_CACHE.iter().map(|name| (*name).to_owned()).collect()
+    cache::ITEM_CACHE
+        .iter()
+        .map(|name| (*name).to_owned())
+        .collect()
 }
 
 /// Go's `batchInsertItems`: writes the items to the cache and the data store,
@@ -108,14 +114,21 @@ async fn batch_insert_items(rest: &RestServer, items: Vec<Item>) -> Result<Respo
     let now = gotime::now();
     let values: Vec<cache::Value> = data_items
         .iter()
-        .map(|item| cache::time(cache::key(&[cache::LAST_MODIFY_ITEM_TIME, &item.item_id]), now.clone()))
+        .map(|item| {
+            cache::time(
+                cache::key(&[cache::LAST_MODIFY_ITEM_TIME, &item.item_id]),
+                now.clone(),
+            )
+        })
         .collect();
     rest.cache()
         .set(&ctx, &values)
         .await
         .map_err(ApiError::internal)?;
     tracing::info!(count, "batch insert items");
-    ok(&super::users::Success { row_affected: count })
+    ok(&super::users::Success {
+        row_affected: count,
+    })
 }
 
 /// Go's `insertItems`: `POST /api/items`.
@@ -183,7 +196,10 @@ pub(crate) async fn modify_item(
         .modify_item(&ctx, &item_id, &patch)
         .await
         .map_err(ApiError::internal)?;
-    let timestamp = cache::time(cache::key(&[cache::LAST_MODIFY_ITEM_TIME, &item_id]), gotime::now());
+    let timestamp = cache::time(
+        cache::key(&[cache::LAST_MODIFY_ITEM_TIME, &item_id]),
+        gotime::now(),
+    );
     if rest.cache().set(&ctx, &[timestamp]).await.is_err() {
         return Ok(empty_ok());
     }
@@ -225,9 +241,10 @@ async fn search_embedding(
     n: i64,
 ) -> Result<Response, ApiError> {
     let config = rest.config();
-    let index_config = config.recommend.get_item_to_item_config(index).ok_or_else(|| {
-        ApiError::BadRequest(format!("item search index {index} not found"))
-    })?;
+    let index_config = config
+        .recommend
+        .get_item_to_item_config(index)
+        .ok_or_else(|| ApiError::BadRequest(format!("item search index {index} not found")))?;
     if index_config.kind != "embedding" {
         return Err(ApiError::BadRequest(format!(
             "item search index {index} must be an embedding item-to-item recommender"
@@ -265,7 +282,10 @@ async fn search_embedding(
         )
         .await
         .map_err(ApiError::internal)?;
-    let ids: Vec<String> = results.iter().map(|result| result.vector.id.clone()).collect();
+    let ids: Vec<String> = results
+        .iter()
+        .map(|result| result.vector.id.clone())
+        .collect();
     let items = rest
         .data()
         .batch_get_items(&ctx, &ids, &Default::default())
@@ -290,10 +310,15 @@ async fn search_embedding(
 /// Go's `searchFullText`: the items the data store matches to `query`.
 async fn search_full_text(rest: &RestServer, query: &str, n: i64) -> Result<Response, ApiError> {
     let config = rest.config();
-    if config.recommend.search.columns.as_ref().is_none_or(Vec::is_empty) {
+    if config
+        .recommend
+        .search
+        .columns
+        .as_ref()
+        .is_none_or(Vec::is_empty)
+    {
         return Err(ApiError::BadRequest(
-            "item search is not supported because [recommend.search].columns is empty"
-                .to_owned(),
+            "item search is not supported because [recommend.search].columns is empty".to_owned(),
         ));
     }
     let scored = rest

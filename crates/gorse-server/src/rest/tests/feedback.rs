@@ -56,7 +56,11 @@ async fn feedback() {
 
     // BatchInsertFeedback
     suite
-        .send(post("/api/feedback").key().json(&Value::Array(feedback.clone())))
+        .send(
+            post("/api/feedback")
+                .key()
+                .json(&Value::Array(feedback.clone())),
+        )
         .await
         .status(StatusCode::OK)
         .json(json!({"RowAffected": 5}));
@@ -119,11 +123,14 @@ async fn feedback() {
 
     // test overwrite
     suite
-        .send(
-            put("/api/feedback").key().json(&json!([
-                stored_feedback("click", "0", "0", 0.0, Value::Null, "override")
-            ])),
-        )
+        .send(put("/api/feedback").key().json(&json!([stored_feedback(
+            "click",
+            "0",
+            "0",
+            0.0,
+            Value::Null,
+            "override"
+        )])))
         .await
         .status(StatusCode::OK)
         .json(json!({"RowAffected": 1}));
@@ -133,7 +140,12 @@ async fn feedback() {
     expression.from_string("click").expect("a feedback type");
     let ret = suite
         .data
-        .get_user_feedback(&ctx, "0", Some(now.clone()), std::slice::from_ref(&expression))
+        .get_user_feedback(
+            &ctx,
+            "0",
+            Some(now.clone()),
+            std::slice::from_ref(&expression),
+        )
         .await
         .expect("read the feedback");
     assert_eq!(ret.len(), 1);
@@ -142,9 +154,16 @@ async fn feedback() {
     // test not overwrite
     suite
         .send(
-            post("/api/feedback").key().json(&Value::Array(vec![
-                stored_feedback("click", "0", "0", 0.0, Value::Null, "not_override"),
-            ])),
+            post("/api/feedback")
+                .key()
+                .json(&Value::Array(vec![stored_feedback(
+                    "click",
+                    "0",
+                    "0",
+                    0.0,
+                    Value::Null,
+                    "not_override",
+                )])),
         )
         .await
         .status(StatusCode::OK)
@@ -188,7 +207,11 @@ async fn delete_feedback() {
         stored_feedback("type1", "4", "8", 0.0, Value::Null, ""),
     ];
     suite
-        .send(post("/api/feedback").key().json(&Value::Array(feedback.clone())))
+        .send(
+            post("/api/feedback")
+                .key()
+                .json(&Value::Array(feedback.clone())),
+        )
         .await
         .status(StatusCode::OK)
         .json(json!({"RowAffected": 5}));

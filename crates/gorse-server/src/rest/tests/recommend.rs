@@ -43,7 +43,6 @@ async fn item_to_item() {
             name: "default".to_owned(),
             kind: "embedding".to_owned(),
             column: "item.Labels.embedding".to_owned(),
-            ..Default::default()
         }]);
     });
     let now = gotime::unix(0, 0);
@@ -90,7 +89,13 @@ async fn item_to_item() {
     let collection = vectors::item_to_item_collection("default");
     suite
         .vectors
-        .add_collection(&ctx, &collection, 2, Distance::Euclidean, VectorConfig::default())
+        .add_collection(
+            &ctx,
+            &collection,
+            2,
+            Distance::Euclidean,
+            VectorConfig::default(),
+        )
         .await
         .expect("add the collection");
     suite
@@ -172,10 +177,34 @@ async fn non_personalized_recommend() {
     // (name, collection, subset, category, url): Go's `ListOperator`. The user
     // neighbours are left out, as in Go, which does not hide users yet.
     let operators = [
-        ("NonPersonalized", cache::NON_PERSONALIZED, "trending", "", "/api/non-personalized/trending"),
-        ("NonPersonalizedCategory", cache::NON_PERSONALIZED, "trending", "0", "/api/non-personalized/trending"),
-        ("CollaborativeFiltering", cache::RECOMMEND, "0", "", "/api/collaborative-filtering/0"),
-        ("CollaborativeFilteringCategory", cache::RECOMMEND, "0", "0", "/api/collaborative-filtering/0/0"),
+        (
+            "NonPersonalized",
+            cache::NON_PERSONALIZED,
+            "trending",
+            "",
+            "/api/non-personalized/trending",
+        ),
+        (
+            "NonPersonalizedCategory",
+            cache::NON_PERSONALIZED,
+            "trending",
+            "0",
+            "/api/non-personalized/trending",
+        ),
+        (
+            "CollaborativeFiltering",
+            cache::RECOMMEND,
+            "0",
+            "",
+            "/api/collaborative-filtering/0",
+        ),
+        (
+            "CollaborativeFilteringCategory",
+            cache::RECOMMEND,
+            "0",
+            "0",
+            "/api/collaborative-filtering/0/0",
+        ),
     ];
     let last_modified = gotime::now();
 
@@ -398,10 +427,19 @@ async fn get_recommends() {
         .await
         .expect("insert the items");
     // insert recommendation
-    let recommendation: Vec<Score> = [("1", 99.0), ("2", 98.0), ("3", 97.0), ("4", 96.0), ("5", 95.0), ("6", 94.0), ("7", 93.0), ("8", 92.0)]
-        .into_iter()
-        .map(|(item_id, score)| document(item_id, score, &[""]))
-        .collect();
+    let recommendation: Vec<Score> = [
+        ("1", 99.0),
+        ("2", 98.0),
+        ("3", 97.0),
+        ("4", 96.0),
+        ("5", 95.0),
+        ("6", 94.0),
+        ("7", 93.0),
+        ("8", 92.0),
+    ]
+    .into_iter()
+    .map(|(item_id, score)| document(item_id, score, &[""]))
+    .collect();
     suite
         .cache
         .add_scores(&ctx, cache::RECOMMEND, "0", &recommendation)
@@ -420,10 +458,18 @@ async fn get_recommends() {
         .status(StatusCode::OK)
         .json(json!(["1", "3", "5"]));
     suite
-        .send(get("/api/recommend/0?n=3").key().header("X-API-Version", "2"))
+        .send(
+            get("/api/recommend/0?n=3")
+                .key()
+                .header("X-API-Version", "2"),
+        )
         .await
         .status(StatusCode::OK)
-        .json(json!([score_json("1", 99.0), score_json("3", 97.0), score_json("5", 95.0)]));
+        .json(json!([
+            score_json("1", 99.0),
+            score_json("3", 97.0),
+            score_json("5", 95.0)
+        ]));
     suite
         .send(get("/api/recommend/0?n=3&offset=3").key())
         .await
@@ -489,10 +535,20 @@ async fn get_recommends_replacement() {
     let ctx = Context::background();
     suite.update_config(|c| c.recommend.replacement.enable_replacement = true);
     // insert recommendation
-    let recommendation: Vec<Score> = [("0", 100.0), ("1", 99.0), ("2", 98.0), ("3", 97.0), ("4", 96.0), ("5", 95.0), ("6", 94.0), ("7", 93.0), ("8", 92.0)]
-        .into_iter()
-        .map(|(item_id, score)| document(item_id, score, &[""]))
-        .collect();
+    let recommendation: Vec<Score> = [
+        ("0", 100.0),
+        ("1", 99.0),
+        ("2", 98.0),
+        ("3", 97.0),
+        ("4", 96.0),
+        ("5", 95.0),
+        ("6", 94.0),
+        ("7", 93.0),
+        ("8", 92.0),
+    ]
+    .into_iter()
+    .map(|(item_id, score)| document(item_id, score, &[""]))
+    .collect();
     suite
         .cache
         .add_scores(&ctx, cache::RECOMMEND, "0", &recommendation)
@@ -588,15 +644,13 @@ async fn get_recommends_fallback_item_to_item() {
         .expect("add the recommendation");
     // insert feedback
     suite
-        .send(
-            post("/api/feedback").key().json(&json!([
-                feedback_at("1", "2010-01-01T01:01:01.000000001Z"),
-                feedback_at("2", "2009-01-01T01:01:01.000000001Z"),
-                feedback_at("3", "2008-01-01T01:01:01.000000001Z"),
-                feedback_at("4", "2007-01-01T01:01:01.000000001Z"),
-                feedback_at("5", "2006-01-01T01:01:01.000000001Z"),
-            ])),
-        )
+        .send(post("/api/feedback").key().json(&json!([
+            feedback_at("1", "2010-01-01T01:01:01.000000001Z"),
+            feedback_at("2", "2009-01-01T01:01:01.000000001Z"),
+            feedback_at("3", "2008-01-01T01:01:01.000000001Z"),
+            feedback_at("4", "2007-01-01T01:01:01.000000001Z"),
+            feedback_at("5", "2006-01-01T01:01:01.000000001Z"),
+        ])))
         .await
         .status(StatusCode::OK)
         .json(json!({"RowAffected": 5}));
@@ -607,7 +661,6 @@ async fn get_recommends_fallback_item_to_item() {
             name: "default".to_owned(),
             kind: "tags".to_owned(),
             column: "item.Labels".to_owned(),
-            ..Default::default()
         }]);
     });
     let collection = vectors::item_to_item_collection("default");
@@ -681,14 +734,12 @@ async fn get_recommends_fallback_user_to_user() {
         .expect("add the recommendation");
     // insert feedback
     suite
-        .send(
-            post("/api/feedback").key().json(&json!([
-                feedback_at_zero("1"),
-                feedback_at_zero("2"),
-                feedback_at_zero("3"),
-                feedback_at_zero("4"),
-            ])),
-        )
+        .send(post("/api/feedback").key().json(&json!([
+            feedback_at_zero("1"),
+            feedback_at_zero("2"),
+            feedback_at_zero("3"),
+            feedback_at_zero("4"),
+        ])))
         .await
         .status(StatusCode::OK)
         .json(json!({"RowAffected": 4}));
@@ -856,7 +907,9 @@ async fn get_recommends_fallback_collaborative_filtering() {
         .await
         .expect("add the collaborative filtering recommendation");
     // test collaborative filtering
-    suite.update_config(|c| c.recommend.fallback.recommenders = Some(vec!["collaborative".to_owned()]));
+    suite.update_config(|c| {
+        c.recommend.fallback.recommenders = Some(vec!["collaborative".to_owned()])
+    });
     suite
         .send(get("/api/recommend/0?n=8").key())
         .await
@@ -910,7 +963,9 @@ async fn get_recommends_fallback_non_personalized() {
         .await
         .expect("add the non-personalized recommendation");
     // test non-personalized fallback
-    suite.update_config(|c| c.recommend.fallback.recommenders = Some(vec!["non-personalized/popular".to_owned()]));
+    suite.update_config(|c| {
+        c.recommend.fallback.recommenders = Some(vec!["non-personalized/popular".to_owned()])
+    });
     suite
         .send(get("/api/recommend/0?n=8").key())
         .await
@@ -962,7 +1017,6 @@ async fn session_recommend() {
             name: "default".to_owned(),
             kind: "tags".to_owned(),
             column: "item.Labels".to_owned(),
-            ..Default::default()
         }]);
     });
 
@@ -1042,9 +1096,17 @@ async fn session_recommend() {
         .send(post("/api/session/recommend?n=3").key().json(&feedback))
         .await
         .status(StatusCode::OK)
-        .json(json!([score_json("9", 4.0), score_json("8", 3.0), score_json("7", 2.0)]));
+        .json(json!([
+            score_json("9", 4.0),
+            score_json("8", 3.0),
+            score_json("7", 2.0)
+        ]));
     suite
-        .send(post("/api/session/recommend?offset=100").key().json(&feedback))
+        .send(
+            post("/api/session/recommend?offset=100")
+                .key()
+                .json(&feedback),
+        )
         .await
         .status(StatusCode::OK)
         .json(Value::Null);
@@ -1098,7 +1160,6 @@ async fn visibility() {
             name: "default".to_owned(),
             kind: "tags".to_owned(),
             column: "item.Labels".to_owned(),
-            ..Default::default()
         }]);
     });
     // insert items: 0, 1, 2, 3, 4
@@ -1130,7 +1191,11 @@ async fn visibility() {
             &document.id,
             &[0],
             &[document.score as f32],
-            &document.categories.iter().map(String::as_str).collect::<Vec<_>>(),
+            &document
+                .categories
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
         ));
         neighbor_documents.push(Score {
             score: f64::from(document.score as f32),
@@ -1149,7 +1214,10 @@ async fn visibility() {
         .expect("add the recommendation");
 
     // delete item
-    suite.send(delete("/api/item/0").key()).await.status(StatusCode::OK);
+    suite
+        .send(delete("/api/item/0").key())
+        .await
+        .status(StatusCode::OK);
     // modify item
     suite
         .send(patch("/api/item/1").key().json(&hide_patch(Some(true))))

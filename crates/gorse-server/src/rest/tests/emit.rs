@@ -61,12 +61,15 @@ async fn emit_request() {
     let body = json!({"UserId": "emit-request", "Labels": null, "Comment": ""}).to_string();
     let before = gotime::now();
     let reply = suite
-        .send(post("/api/user").key().raw(&body).header("Content-Type", "application/json"))
+        .send(
+            post("/api/user")
+                .key()
+                .raw(&body)
+                .header("Content-Type", "application/json"),
+        )
         .await;
     let after = gotime::now();
-    reply
-        .status(StatusCode::OK)
-        .json(json!({"RowAffected": 1}));
+    reply.status(StatusCode::OK).json(json!({"RowAffected": 1}));
 
     let request_id = reply
         .headers

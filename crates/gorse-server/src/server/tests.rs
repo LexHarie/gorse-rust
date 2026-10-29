@@ -77,7 +77,8 @@ async fn server_sync() {
     .await;
     let channel = connect(master).await;
     let mut client = MasterClient::new(channel.clone());
-    let server = new_server("127.0.0.1", master.port(), "127.0.0.1", 0, None).expect("a server node");
+    let server =
+        new_server("127.0.0.1", master.port(), "127.0.0.1", 0, None).expect("a server node");
 
     let mut opened = OpenedPaths::default();
     server.sync_once(&mut client, &channel, &mut opened).await;

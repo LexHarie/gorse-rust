@@ -12,13 +12,13 @@ use axum::response::Response;
 use gorse_common::gocontext::Context;
 use gorse_common::gotime;
 use gorse_storage::cache;
-use gorse_storage::data::types::{User, UserPatch};
 use gorse_storage::data::Error as DataError;
+use gorse_storage::data::types::{User, UserPatch};
 use serde::Serialize;
 
 use super::RestServer;
 use super::quota;
-use super::response::{ApiError, Query, read_entity, ok, parse_int, validate_request_labels};
+use super::response::{ApiError, Query, ok, parse_int, read_entity, validate_request_labels};
 
 use std::sync::Arc;
 
@@ -48,8 +48,7 @@ pub(crate) async fn insert_user(
 ) -> Result<Response, ApiError> {
     let mut user: User = read_entity(&body)?;
     validate_request_labels(&mut user.labels)?;
-    quota::check_user_size(&rest.config(), &user)
-        .map_err(ApiError::TooManyRequests)?;
+    quota::check_user_size(&rest.config(), &user).map_err(ApiError::TooManyRequests)?;
     quota::check_user_count_limit(&rest, std::slice::from_ref(&user.user_id)).await?;
     let ctx = Context::background();
     rest.data()
@@ -88,7 +87,10 @@ pub(crate) async fn modify_user(
         .modify_user(&ctx, &user_id, &patch)
         .await
         .map_err(ApiError::internal)?;
-    let timestamp = cache::time(cache::key(&[cache::LAST_MODIFY_USER_TIME, &user_id]), gotime::now());
+    let timestamp = cache::time(
+        cache::key(&[cache::LAST_MODIFY_USER_TIME, &user_id]),
+        gotime::now(),
+    );
     if rest.cache().set(&ctx, &[timestamp]).await.is_err() {
         return Ok(empty_ok());
     }
@@ -150,7 +152,12 @@ pub(crate) async fn insert_users(
     let now = gotime::now();
     let values: Vec<cache::Value> = users
         .iter()
-        .map(|user| cache::time(cache::key(&[cache::LAST_MODIFY_USER_TIME, &user.user_id]), now.clone()))
+        .map(|user| {
+            cache::time(
+                cache::key(&[cache::LAST_MODIFY_USER_TIME, &user.user_id]),
+                now.clone(),
+            )
+        })
         .collect();
     rest.cache()
         .set(&ctx, &values)

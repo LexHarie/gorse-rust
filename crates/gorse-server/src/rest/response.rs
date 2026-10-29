@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use axum::body::Bytes;
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use gorse_common::gourl;
 use gorse_common::gotime;
+use gorse_common::gourl;
 use gorse_storage::data::types::{Labels, validate_labels};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -129,7 +129,11 @@ impl ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        tracing::error!(status = self.status().as_u16(), error = self.message(), "request failed");
+        tracing::error!(
+            status = self.status().as_u16(),
+            error = self.message(),
+            "request failed"
+        );
         let mut response = plain(self.status(), self.message().to_owned());
         response.headers_mut().insert(
             header::ACCESS_CONTROL_ALLOW_ORIGIN,
@@ -252,7 +256,11 @@ fn use_numbers(labels: &mut Labels) {
     match labels {
         Labels::Array(items) => items.iter_mut().for_each(use_numbers),
         Labels::Object(fields) => fields.values_mut().for_each(use_numbers),
-        Labels::Nil | Labels::Bool(_) | Labels::Float64(_) | Labels::Number(_) | Labels::String(_) => {}
+        Labels::Nil
+        | Labels::Bool(_)
+        | Labels::Float64(_)
+        | Labels::Number(_)
+        | Labels::String(_) => {}
     }
 }
 

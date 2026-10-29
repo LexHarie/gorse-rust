@@ -41,11 +41,46 @@ fn score(item_id: &str, unix: i64) -> Value {
 async fn items() {
     let suite = Suite::default_suite().await;
     let items = vec![
-        data_item("0", true, Value::Null, "1996-03-15T00:00:00Z", json!(["a"]), "comment_0"),
-        data_item("2", false, json!(["*"]), "1997-03-15T00:00:00Z", json!(["a"]), "comment_2"),
-        data_item("4", true, Value::Null, "1998-03-15T00:00:00Z", json!(["a", "b"]), "comment_4"),
-        data_item("6", false, json!(["*"]), "1999-03-15T00:00:00Z", json!(["b"]), "comment_6"),
-        data_item("8", true, Value::Null, "2000-03-15T00:00:00Z", json!(["b"]), "comment_8"),
+        data_item(
+            "0",
+            true,
+            Value::Null,
+            "1996-03-15T00:00:00Z",
+            json!(["a"]),
+            "comment_0",
+        ),
+        data_item(
+            "2",
+            false,
+            json!(["*"]),
+            "1997-03-15T00:00:00Z",
+            json!(["a"]),
+            "comment_2",
+        ),
+        data_item(
+            "4",
+            true,
+            Value::Null,
+            "1998-03-15T00:00:00Z",
+            json!(["a", "b"]),
+            "comment_4",
+        ),
+        data_item(
+            "6",
+            false,
+            json!(["*"]),
+            "1999-03-15T00:00:00Z",
+            json!(["b"]),
+            "comment_6",
+        ),
+        data_item(
+            "8",
+            true,
+            Value::Null,
+            "2000-03-15T00:00:00Z",
+            json!(["b"]),
+            "comment_8",
+        ),
     ];
 
     // insert items
@@ -56,7 +91,11 @@ async fn items() {
         .json(json!({"RowAffected": 1}));
     // batch insert items
     suite
-        .send(post("/api/items").key().json(&Value::Array(items[1..].to_vec())))
+        .send(
+            post("/api/items")
+                .key()
+                .json(&Value::Array(items[1..].to_vec())),
+        )
         .await
         .status(StatusCode::OK)
         .json(json!({"RowAffected": 4}));
@@ -129,17 +168,13 @@ async fn items() {
     // test modify
     let timestamp = "2010-01-01T01:01:01Z";
     suite
-        .send(
-            patch("/api/item/2")
-                .key()
-                .json(&json!({
-                    "IsHidden": true,
-                    "Categories": ["-"],
-                    "Timestamp": timestamp,
-                    "Labels": ["a", "b", "c"],
-                    "Comment": "modified",
-                })),
-        )
+        .send(patch("/api/item/2").key().json(&json!({
+            "IsHidden": true,
+            "Categories": ["-"],
+            "Timestamp": timestamp,
+            "Labels": ["a", "b", "c"],
+            "Comment": "modified",
+        })))
         .await
         .status(StatusCode::OK)
         .json(json!({"RowAffected": 1}));
@@ -147,7 +182,14 @@ async fn items() {
         .send(get("/api/item/2").key())
         .await
         .status(StatusCode::OK)
-        .json(data_item("2", true, json!(["-"]), timestamp, json!(["a", "b", "c"]), "modified"));
+        .json(data_item(
+            "2",
+            true,
+            json!(["-"]),
+            timestamp,
+            json!(["a", "b", "c"]),
+            "modified",
+        ));
     suite
         .send(
             patch("/api/item/2")
@@ -179,7 +221,14 @@ async fn items() {
         .send(get("/api/item/2").key())
         .await
         .status(StatusCode::OK)
-        .json(data_item("2", false, json!(["-", "@"]), timestamp, json!(["a", "b", "c"]), "modified"));
+        .json(data_item(
+            "2",
+            false,
+            json!(["-", "@"]),
+            timestamp,
+            json!(["a", "b", "c"]),
+            "modified",
+        ));
     // get latest items
     suite
         .send(get("/api/latest/@?n=1").key())
@@ -197,7 +246,14 @@ async fn items() {
         .send(get("/api/item/2").key())
         .await
         .status(StatusCode::OK)
-        .json(data_item("2", false, json!(["-"]), timestamp, json!(["a", "b", "c"]), "modified"));
+        .json(data_item(
+            "2",
+            false,
+            json!(["-"]),
+            timestamp,
+            json!(["a", "b", "c"]),
+            "modified",
+        ));
     // get latest items
     suite
         .send(get("/api/latest/@?n=1").key())

@@ -38,8 +38,8 @@ use gorse_storage::cache;
 use gorse_storage::data;
 use gorse_storage::vectors;
 use http_body_util::BodyExt;
-use tower::ServiceExt;
 use serde::Serialize;
+use tower::ServiceExt;
 use uuid::Uuid;
 
 use crate::metrics::REST_API_REQUEST_SECONDS;
@@ -185,18 +185,21 @@ pub fn router(rest: Arc<RestServer>) -> Router {
                 .get(users::get_user)
                 .delete(users::delete_user),
         )
-        .route("/api/users", post(users::insert_users).get(users::get_users))
         .route(
-            "/api/item",
-            post(items::insert_item),
+            "/api/users",
+            post(users::insert_users).get(users::get_users),
         )
+        .route("/api/item", post(items::insert_item))
         .route(
             "/api/item/{item-id}",
             patch(items::modify_item)
                 .get(items::get_item)
                 .delete(items::delete_item),
         )
-        .route("/api/items", get(items::get_items).post(items::insert_items))
+        .route(
+            "/api/items",
+            get(items::get_items).post(items::insert_items),
+        )
         .route(
             "/api/item/{item-id}/category/{category}",
             put(items::insert_item_category).delete(items::delete_item_category),
@@ -280,10 +283,7 @@ pub fn router(rest: Arc<RestServer>) -> Router {
             "/api/session/recommend/{category}",
             post(recommend::session_recommend),
         )
-        .route_layer(middleware::from_fn_with_state(
-            rest.clone(),
-            metrics_filter,
-        ))
+        .route_layer(middleware::from_fn_with_state(rest.clone(), metrics_filter))
         .route_layer(middleware::from_fn_with_state(rest.clone(), auth_filter))
         .route_layer(middleware::from_fn_with_state(rest.clone(), log_filter))
         .with_state(rest);
@@ -338,7 +338,10 @@ async fn log_filter(State(rest): State<Arc<RestServer>>, request: Request, next:
     let counter = bytes_read.clone();
     let body = Body::new(body.map_frame(move |frame| {
         if let Some(data) = frame.data_ref() {
-            counter.fetch_add(i64::try_from(data.len()).unwrap_or(i64::MAX), Ordering::Relaxed);
+            counter.fetch_add(
+                i64::try_from(data.len()).unwrap_or(i64::MAX),
+                Ordering::Relaxed,
+            );
         }
         frame
     }));
@@ -379,7 +382,11 @@ async fn log_filter(State(rest): State<Arc<RestServer>>, request: Request, next:
 
 /// Go's `AuthFilter`: when `server.api_key` is set, every route except the
 /// health checks needs the same key in `X-API-Key`.
-async fn auth_filter(State(rest): State<Arc<RestServer>>, request: Request, next: Next) -> Response {
+async fn auth_filter(
+    State(rest): State<Arc<RestServer>>,
+    request: Request,
+    next: Next,
+) -> Response {
     if matched_route(&request).starts_with("/api/health/") {
         return next.run(request).await;
     }
@@ -432,7 +439,6 @@ fn matched_route(request: &Request) -> String {
         .map_or_else(String::new, |path| path.as_str().to_owned())
 }
 
-
 fn response_size(response: &Response) -> i64 {
     use axum::body::HttpBody;
     response
@@ -475,4 +481,3 @@ async fn health_ready(State(rest): State<Arc<RestServer>>) -> Result<Response, A
     let reason = String::from_utf8_lossy(&reason).into_owned();
     Err(ApiError::Status(StatusCode::SERVICE_UNAVAILABLE, reason))
 }
-

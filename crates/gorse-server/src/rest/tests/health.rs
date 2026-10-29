@@ -44,7 +44,9 @@ async fn health() {
     let data = suite.data.clone();
     let cache_store = suite.cache.clone();
     suite.rest.set_data(Arc::new(data::no_database::NoDatabase));
-    suite.rest.set_cache(Arc::new(cache::no_database::NoDatabase));
+    suite
+        .rest
+        .set_cache(Arc::new(cache::no_database::NoDatabase));
     suite
         .send(get("/api/health/live"))
         .await

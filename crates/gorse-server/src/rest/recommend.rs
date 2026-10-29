@@ -25,9 +25,9 @@ use gorse_logics::item_to_item::query_item_to_item;
 use gorse_logics::recommend::Recommender;
 use gorse_logics::user_to_user::query_user_to_user;
 use gorse_storage::cache::{self, Score};
-use gorse_storage::data::types::{Feedback as DataFeedback, FeedbackKey, Item};
 use gorse_storage::data;
 use gorse_storage::data::types::sort_feedbacks;
+use gorse_storage::data::types::{Feedback as DataFeedback, FeedbackKey, Item};
 use serde::{Deserialize, Serialize};
 
 use super::RestServer;
@@ -212,7 +212,11 @@ pub(crate) async fn get_latest(
         limit += read.len() as i64;
     }
     let after = if config.recommend.data_source.item_ttl > 0 {
-        Some(gotime::now().add_date(0, 0, -i64::try_from(config.recommend.data_source.item_ttl).unwrap_or(i64::MAX)))
+        Some(gotime::now().add_date(
+            0,
+            0,
+            -i64::try_from(config.recommend.data_source.item_ttl).unwrap_or(i64::MAX),
+        ))
     } else {
         None
     };
@@ -381,7 +385,12 @@ pub(crate) async fn get_item_neighbors(
     let item_id = path_param(&params, "item-id");
     let categories = read_categories(&params, &query, &[]);
     let config = rest.config();
-    let Some(first) = config.recommend.item_to_item.as_deref().and_then(<[_]>::first) else {
+    let Some(first) = config
+        .recommend
+        .item_to_item
+        .as_deref()
+        .and_then(<[_]>::first)
+    else {
         return Err(ApiError::PageNotFound(
             "item-to-item recommendation is not enabled".to_owned(),
         ));
@@ -399,7 +408,12 @@ pub(crate) async fn get_user_neighbors(
     let query = Query::parse(raw.as_deref());
     let user_id = path_param(&params, "user-id");
     let config = rest.config();
-    let Some(first) = config.recommend.user_to_user.as_deref().and_then(<[_]>::first) else {
+    let Some(first) = config
+        .recommend
+        .user_to_user
+        .as_deref()
+        .and_then(<[_]>::first)
+    else {
         return Err(ApiError::PageNotFound(
             "user-to-user recommendation is not enabled".to_owned(),
         ));
@@ -415,7 +429,12 @@ pub(crate) async fn get_collaborative_filtering(
     RawQuery(raw): RawQuery,
 ) -> Result<Response, ApiError> {
     let config = rest.config();
-    if config.recommend.collaborative.kind.eq_ignore_ascii_case("none") {
+    if config
+        .recommend
+        .collaborative
+        .kind
+        .eq_ignore_ascii_case("none")
+    {
         return Err(ApiError::PageNotFound(
             "collaborative filtering recommendation is disabled".to_owned(),
         ));
@@ -423,11 +442,8 @@ pub(crate) async fn get_collaborative_filtering(
     let query = Query::parse(raw.as_deref());
     let user_id = path_param(&params, "user-id");
     let categories = read_categories(&params, &query, &[]);
-    let header_value = last_modified(
-        &rest,
-        &cache::key(&[cache::RECOMMEND_UPDATE_TIME, user_id]),
-    )
-    .await;
+    let header_value =
+        last_modified(&rest, &cache::key(&[cache::RECOMMEND_UPDATE_TIME, user_id])).await;
     let response = search_documents(&rest, cache::RECOMMEND, user_id, &categories, &query)
         .await
         .unwrap_or_else(IntoResponse::into_response);
@@ -517,7 +533,12 @@ pub(crate) async fn session_recommend(
 ) -> Result<Response, ApiError> {
     let ctx = Context::background();
     let config = rest.config();
-    let Some(item_to_item) = config.recommend.item_to_item.as_deref().and_then(<[_]>::first) else {
+    let Some(item_to_item) = config
+        .recommend
+        .item_to_item
+        .as_deref()
+        .and_then(<[_]>::first)
+    else {
         return Err(ApiError::PageNotFound(
             "item-to-item recommendation is not enabled".to_owned(),
         ));

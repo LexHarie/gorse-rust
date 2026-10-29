@@ -56,7 +56,11 @@ impl Suite {
         data::sql::register(&mut data_registry);
         let data: Arc<dyn data::Database> = Arc::from(
             data_registry
-                .open(&format!("sqlite://{}/data.db", dir.path().display()), "", &[])
+                .open(
+                    &format!("sqlite://{}/data.db", dir.path().display()),
+                    "",
+                    &[],
+                )
                 .await
                 .expect("open the data store"),
         );
@@ -64,7 +68,11 @@ impl Suite {
         cache::sql::register(&mut cache_registry);
         let cache: Arc<dyn cache::Database> = Arc::from(
             cache_registry
-                .open(&format!("sqlite://{}/cache.db", dir.path().display()), "", &[])
+                .open(
+                    &format!("sqlite://{}/cache.db", dir.path().display()),
+                    "",
+                    &[],
+                )
                 .await
                 .expect("open the cache store"),
         );
@@ -237,7 +245,12 @@ impl Reply {
     pub(super) fn json(&self, expected: serde_json::Value) -> &Self {
         let actual: serde_json::Value = serde_json::from_str(&self.body)
             .unwrap_or_else(|err| panic!("body is not JSON ({err}): {}", self.body));
-        assert_eq!(as_float64s(actual), as_float64s(expected), "body: {}", self.body);
+        assert_eq!(
+            as_float64s(actual),
+            as_float64s(expected),
+            "body: {}",
+            self.body
+        );
         self
     }
 
@@ -276,4 +289,3 @@ fn as_float64s(value: serde_json::Value) -> serde_json::Value {
         other => other,
     }
 }
-

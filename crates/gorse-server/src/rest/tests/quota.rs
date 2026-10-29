@@ -14,11 +14,19 @@ async fn quota() {
 
     suite.update_config(|c| c.quota.max_users_count = 1);
     suite
-        .send(post("/api/user").key().json(&json!({"UserId": "limited-user-1", "Labels": null, "Comment": ""})))
+        .send(
+            post("/api/user")
+                .key()
+                .json(&json!({"UserId": "limited-user-1", "Labels": null, "Comment": ""})),
+        )
         .await
         .status(StatusCode::OK);
     suite
-        .send(post("/api/user").key().json(&json!({"UserId": "limited-user-2", "Labels": null, "Comment": ""})))
+        .send(
+            post("/api/user")
+                .key()
+                .json(&json!({"UserId": "limited-user-2", "Labels": null, "Comment": ""})),
+        )
         .await
         .status(StatusCode::TOO_MANY_REQUESTS);
     suite.update_config(|c| c.quota.max_users_count = 0);
@@ -36,7 +44,9 @@ async fn quota() {
 
     suite.update_config(|c| c.quota.max_comment_size = 3);
     suite
-        .send(post("/api/user").key().json(&json!({"UserId": "oversized-user-comment", "Labels": null, "Comment": "toolong"})))
+        .send(post("/api/user").key().json(
+            &json!({"UserId": "oversized-user-comment", "Labels": null, "Comment": "toolong"}),
+        ))
         .await
         .status(StatusCode::TOO_MANY_REQUESTS);
     suite
@@ -51,7 +61,9 @@ async fn quota() {
 
     suite.update_config(|c| c.quota.max_labels_size = 5);
     suite
-        .send(post("/api/users").key().json(&json!([{"UserId": "oversized-user-labels", "Labels": ["abcdef"], "Comment": ""}])))
+        .send(post("/api/users").key().json(
+            &json!([{"UserId": "oversized-user-labels", "Labels": ["abcdef"], "Comment": ""}]),
+        ))
         .await
         .status(StatusCode::TOO_MANY_REQUESTS);
     suite.update_config(|c| c.quota.max_labels_size = 0);

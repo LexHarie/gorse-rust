@@ -29,7 +29,11 @@ async fn users() {
         .status(StatusCode::OK)
         .json(users[0].clone());
     suite
-        .send(post("/api/users").key().json(&Value::Array(users[1..].to_vec())))
+        .send(
+            post("/api/users")
+                .key()
+                .json(&Value::Array(users[1..].to_vec())),
+        )
         .await
         .status(StatusCode::OK)
         .json(json!({"RowAffected": 4}));

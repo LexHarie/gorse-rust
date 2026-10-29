@@ -22,7 +22,9 @@ use serde::{Deserialize, Serialize};
 
 use super::RestServer;
 use super::quota;
-use super::response::{ApiError, Query, ok, parse_int, path_param, read_entity, text, validate_request_labels};
+use super::response::{
+    ApiError, Query, ok, parse_int, path_param, read_entity, text, validate_request_labels,
+};
 use super::users::Success;
 
 /// Go's `Feedback`: a feedback as the REST API takes it, with its time stamp as
@@ -147,7 +149,10 @@ async fn insert_feedback(
         .set(&ctx, &values)
         .await
         .map_err(ApiError::internal)?;
-    tracing::info!(num_feedback = feedback.len(), "Insert feedback successfully");
+    tracing::info!(
+        num_feedback = feedback.len(),
+        "Insert feedback successfully"
+    );
     ok(&Success {
         row_affected: feedback.len() as i64,
     })
@@ -179,7 +184,14 @@ pub(crate) async fn get_feedback(
     let now = rest.config().now();
     let (cursor, feedback) = rest
         .data()
-        .get_feedback(&Context::background(), query.get("cursor"), n, None, Some(now), &[])
+        .get_feedback(
+            &Context::background(),
+            query.get("cursor"),
+            n,
+            None,
+            Some(now),
+            &[],
+        )
         .await
         .map_err(ApiError::internal)?;
     ok(&FeedbackIterator { cursor, feedback })
@@ -237,7 +249,9 @@ pub(crate) async fn delete_user_item_feedback(
         .delete_user_item_feedback(&Context::background(), user_id, item_id, &[])
         .await
         .map_err(ApiError::internal)?;
-    ok(&Success { row_affected: count })
+    ok(&Success {
+        row_affected: count,
+    })
 }
 
 /// Go's `getTypedUserItemFeedback`: `GET /api/feedback/{feedback-type}/{user-id}/{item-id}`.
@@ -284,7 +298,9 @@ pub(crate) async fn delete_typed_user_item_feedback(
         )
         .await
         .map_err(ApiError::internal)?;
-    ok(&Success { row_affected: count })
+    ok(&Success {
+        row_affected: count,
+    })
 }
 
 /// Go's `getTypedFeedbackByUser`: `GET /api/user/{user-id}/feedback/{feedback-type}`.

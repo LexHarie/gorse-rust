@@ -47,8 +47,12 @@ async fn start_embedding_service(embedding: Vec<f32>) -> (String, Arc<EmbeddingS
     let app = Router::new()
         .route("/v1/embeddings", post(embeddings))
         .with_state(service.clone());
-    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind the embedding service");
-    let address = listener.local_addr().expect("the embedding service address");
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind the embedding service");
+    let address = listener
+        .local_addr()
+        .expect("the embedding service address");
     tokio::spawn(axum::serve(listener, app).into_future());
     (format!("http://{address}"), service)
 }
@@ -165,7 +169,14 @@ async fn search_embedding() {
         }]);
     });
     let config = (*suite.rest.config()).clone();
-    assert!(config.recommend.search.columns.as_ref().is_none_or(Vec::is_empty));
+    assert!(
+        config
+            .recommend
+            .search
+            .columns
+            .as_ref()
+            .is_none_or(Vec::is_empty)
+    );
 
     let items = vec![
         Item {
@@ -202,7 +213,13 @@ async fn search_embedding() {
     let collection = vectors::item_to_item_collection("semantic");
     suite
         .vectors
-        .add_collection(&ctx, &collection, embedding.len() as i64, Distance::Euclidean, VectorConfig::default())
+        .add_collection(
+            &ctx,
+            &collection,
+            embedding.len() as i64,
+            Distance::Euclidean,
+            VectorConfig::default(),
+        )
         .await
         .expect("add the collection");
     suite
