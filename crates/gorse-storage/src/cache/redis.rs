@@ -998,7 +998,51 @@ mod tests {
         let db = open(dsn, &format!("gorse_{name}_"), &[]).unwrap();
         db.purge().await.unwrap();
         db.init().await.unwrap();
+        wait_indexed(&db).await;
         db
+    }
+
+    /// The value of a field of an `FT.INFO` reply, a flat list of names and values.
+    fn info_field(items: &[RedisValue], name: &str) -> Option<RedisValue> {
+        items.chunks(2).find_map(|pair| {
+            let [key, value] = pair else { return None };
+            let key: String = parse(key.clone()).ok()?;
+            (key == name).then(|| value.clone())
+        })
+    }
+
+    /// Waits until RediSearch has indexed every document written to the index:
+    /// `FT.INFO` reports `percent_indexed` 1 and `indexing` 0. Documents are
+    /// indexed in the background, and a sorted search that runs before they are
+    /// indexed can miss them, so the search returns fewer documents than were
+    /// written. Go's sorted search misses the same way: 1 search in 1,000 at
+    /// once after AddScores, under an indexing backlog on the server, and none
+    /// after the wait (X-249). A stuck index fails the test after ten seconds,
+    /// so it cannot hang it.
+    async fn wait_indexed(db: &Redis) {
+        const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+        let deadline = std::time::Instant::now() + TIMEOUT;
+        loop {
+            let mut cmd = redis::cmd("FT.INFO");
+            cmd.arg(db.document_table());
+            let info: RedisValue = db.send(&cmd).await.expect("FT.INFO");
+            let RedisValue::Array(items) = info else {
+                panic!("FT.INFO reply is not an array");
+            };
+            let percent = info_field(&items, "percent_indexed").expect("FT.INFO percent_indexed");
+            let indexing = info_field(&items, "indexing").expect("FT.INFO indexing");
+            let percent: f64 = parse(percent).expect("percent_indexed is a number");
+            let indexing: i64 = parse(indexing).expect("indexing is a number");
+            if percent == 1.0 && indexing == 0 {
+                return;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "index {} still indexing after {TIMEOUT:?}: percent_indexed {percent}, indexing {indexing}",
+                db.document_table()
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
     }
 
     /// A UTC date at midnight.
@@ -1055,6 +1099,7 @@ mod tests {
             db.add_scores(&ctx, &collection, &subset, std::slice::from_ref(&doc))
                 .await
                 .unwrap();
+            wait_indexed(&db).await;
             let documents = db
                 .search_scores(&ctx, &collection, &subset, &["b".into()], 0, -1)
                 .await
@@ -1073,6 +1118,7 @@ mod tests {
             )
             .await
             .unwrap();
+            wait_indexed(&db).await;
             let documents = db
                 .search_scores(&ctx, &collection, &subset, &["b".into()], 0, -1)
                 .await
@@ -1090,6 +1136,7 @@ mod tests {
             )
             .await
             .unwrap();
+            wait_indexed(&db).await;
             let documents = db
                 .search_scores(&ctx, &collection, &subset, &["b".into()], 0, -1)
                 .await
