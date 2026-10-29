@@ -11,11 +11,11 @@ mod empty;
 mod feedback;
 mod health;
 mod items;
+mod names;
 mod quota;
 mod recommend;
 mod search;
 mod users;
-mod visibility;
 
 use std::sync::Arc;
 
@@ -288,4 +288,16 @@ fn as_float64s(value: serde_json::Value) -> serde_json::Value {
         ),
         other => other,
     }
+}
+
+/// Parses a score's text to the nearest double, as Go's `strconv` does. The
+/// default serde_json parser can land one ulp away from it, as it did for the
+/// item-to-item score 1/101 (Q-WP42-2), so the workspace enables
+/// `float_roundtrip`. This test pins that setting.
+#[test]
+fn json_floats_parse_exactly() {
+    let text = "0.009900990099009901";
+    let parsed: serde_json::Value = serde_json::from_str(text).expect("a JSON number");
+    let exact = text.parse::<f64>().expect("a float");
+    assert_eq!(parsed.as_f64().map(f64::to_bits), Some(exact.to_bits()));
 }
