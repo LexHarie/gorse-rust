@@ -13,6 +13,7 @@ mod recommend;
 mod tests;
 mod train;
 
+use std::mem::{size_of, size_of_val};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -20,7 +21,7 @@ use gorse_common::event;
 use gorse_common::expression::{FeedbackTypeExpression, match_feedback_type_expressions};
 use gorse_common::gocontext::Context;
 use gorse_common::gotime;
-use gorse_dataset::dataset::Dataset;
+use gorse_dataset::dataset::{Dataset, DatasetItem, DatasetUser};
 use gorse_logics::non_personalized::NonPersonalized;
 use gorse_model::ctr::data as ctr_data;
 use gorse_storage::cache::{self, Score, TimeSeriesPoint};
@@ -105,6 +106,72 @@ pub(crate) fn feedback_size(_feedback: &Feedback) -> usize {
 /// The sum of the sizes of `values` under `size` (Go's `deepSize`).
 pub(crate) fn deep_size_of<T>(values: &[T], size: fn(&T) -> usize) -> i64 {
     values.iter().map(|value| size(value) as i64).sum()
+}
+
+/// The heap bytes of a vector: its length times its element size. Capacity is
+/// not counted, so the value follows the data and not the growth of the vector.
+fn vec_heap<T>(values: &[T]) -> usize {
+    size_of_val(values)
+}
+
+/// The heap bytes of a vector of vectors: the inner headers and their elements.
+fn nested_heap<T>(values: &[Vec<T>]) -> usize {
+    vec_heap(values) + values.iter().map(|value| vec_heap(value)).sum::<usize>()
+}
+
+/// The port's `DeepSize` of a ranking user: its struct and the bytes of its
+/// ID and comment.
+fn dataset_user_size(user: &DatasetUser) -> usize {
+    size_of::<DatasetUser>() + user.user_id.len() + user.comment.len()
+}
+
+/// The port's `DeepSize` of a ranking item: its struct, its strings and its
+/// categories.
+fn dataset_item_size(item: &DatasetItem) -> usize {
+    let categories = item.categories.as_ref().map_or(0, |categories| {
+        vec_heap(categories) + categories.iter().map(String::len).sum::<usize>()
+    });
+    size_of::<DatasetItem>() + item.item_id.len() + item.comment.len() + categories
+}
+
+/// The port's `DeepSize` of a ranking dataset or one of its splits: its struct,
+/// its users, its items and the feedback lists. Go's `sizeof.DeepSize` walks
+/// Go's layout, so these values do not equal Go's. The index, the dictionaries
+/// and the timestamp and negative lists are private to the dataset and are not
+/// counted.
+pub(crate) fn ranking_dataset_size(dataset: &Dataset) -> i64 {
+    let users: usize = dataset.get_users().iter().map(dataset_user_size).sum();
+    let items: usize = dataset.get_items().iter().map(dataset_item_size).sum();
+    let size = size_of::<Dataset>()
+        + users
+        + items
+        + nested_heap(dataset.get_user_feedback())
+        + nested_heap(dataset.get_item_feedback());
+    size as i64
+}
+
+/// The port's `DeepSize` of a click-through rate dataset or one of its splits:
+/// its struct and the vectors of its samples, labels and embeddings. Its unified
+/// index and embedding index are not counted (see [`ranking_dataset_size`]).
+pub(crate) fn click_dataset_size(dataset: &ctr_data::Dataset) -> i64 {
+    let embeddings = vec_heap(&dataset.item_embeddings)
+        + dataset
+            .item_embeddings
+            .iter()
+            .map(|item| nested_heap(item))
+            .sum::<usize>();
+    let context = dataset.context_labels.as_deref().map_or(0, nested_heap);
+    let size = size_of::<ctr_data::Dataset>()
+        + nested_heap(&dataset.user_labels)
+        + nested_heap(&dataset.item_labels)
+        + context
+        + vec_heap(&dataset.users)
+        + vec_heap(&dataset.items)
+        + vec_heap(&dataset.target)
+        + vec_heap(&dataset.timestamps)
+        + embeddings
+        + vec_heap(&dataset.item_embedding_dimension);
+    size as i64
 }
 
 /// Counts the feedback that no excluded expression list matches, and their
@@ -436,6 +503,14 @@ impl Master {
         metrics::LOAD_DATASET_STEP_SECONDS_VEC
             .with_label_values(&["split_ranking_dataset"])
             .set(gotime::since(&start).seconds());
+        // The labels are Go's: the ranking splits feed the collaborative
+        // filtering labels (master/tasks.go 234 and 235).
+        metrics::MEMORY_IN_USE_BYTES_VEC
+            .with_label_values(&["collaborative_filtering_train_set"])
+            .set(ranking_dataset_size(&ranking_train_set) as f64);
+        metrics::MEMORY_IN_USE_BYTES_VEC
+            .with_label_values(&["collaborative_filtering_test_set"])
+            .set(ranking_dataset_size(&ranking_test_set) as f64);
 
         // split click dataset
         let start = gotime::now();
@@ -443,6 +518,13 @@ impl Master {
         metrics::LOAD_DATASET_STEP_SECONDS_VEC
             .with_label_values(&["split_click_dataset"])
             .set(gotime::since(&start).seconds());
+        // The click splits feed the ranking labels (master/tasks.go 244 and 245).
+        metrics::MEMORY_IN_USE_BYTES_VEC
+            .with_label_values(&["ranking_train_set"])
+            .set(click_dataset_size(&click_train_set) as f64);
+        metrics::MEMORY_IN_USE_BYTES_VEC
+            .with_label_values(&["ranking_test_set"])
+            .set(click_dataset_size(&click_test_set) as f64);
 
         metrics::LOAD_DATASET_TOTAL_SECONDS.set(gotime::since(&initial_start_time).seconds());
         Ok(Datasets {
