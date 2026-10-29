@@ -43,7 +43,11 @@ fn go_render(cases: &[(&str, &str)]) -> Vec<(String, Option<String>)> {
         .stdin
         .take()
         .expect("stdin is piped")
-        .write_all(serde_json::to_string(&input).expect("the cases are JSON").as_bytes())
+        .write_all(
+            serde_json::to_string(&input)
+                .expect("the cases are JSON")
+                .as_bytes(),
+        )
         .expect("write the cases to the oracle");
     let output = child.wait_with_output().expect("run the oracle");
     assert!(
@@ -72,7 +76,10 @@ fn document_template_prints_labels_as_gonja_does() {
         ("{{ item.Labels }}", "[1, 2.5, 3]"),
         ("{{ item.Labels }}", "[0.123456789012345, 1e-12, -0]"),
         ("{{ item.Labels }}", "[1e21, 123456789012345678]"),
-        ("{% for v in item.Labels %}{{ v }};{% endfor %}", "[1, 2.5, 3]"),
+        (
+            "{% for v in item.Labels %}{{ v }};{% endfor %}",
+            "[1, 2.5, 3]",
+        ),
         ("{{ item.Labels[0] }}", "[1, 2.5]"),
         ("{{ item.Labels | length }}", "[1, 2.5, 3]"),
         ("{{ item.Labels }}", "4"),
@@ -86,8 +93,8 @@ fn document_template_prints_labels_as_gonja_does() {
             labels: serde_json::from_str(labels).expect("the labels are JSON"),
             ..Default::default()
         };
-        let templates = RankerTemplates::new("query", "", "document", template)
-            .expect("the template parses");
+        let templates =
+            RankerTemplates::new("query", "", "document", template).expect("the template parses");
         let (_, documents) = templates
             .render(None, &[], &[item])
             .expect("the template renders");

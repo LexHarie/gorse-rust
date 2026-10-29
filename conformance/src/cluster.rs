@@ -19,9 +19,9 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
+use gorse_common::util::tls::TlsConfig;
 use gorse_storage::cache;
 use gorse_storage::data;
-use gorse_common::util::tls::TlsConfig;
 use gorse_worker::{Worker, WorkerOptions};
 use rcgen::{
     BasicConstraints, CertificateParams, DnType, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair,
@@ -55,9 +55,9 @@ pub struct GoBuild {
 }
 
 impl GoBuild {
-    /// Builds the Go nodes into [`build_dir`]. Each process builds again, which
-    /// replaces the last build; the first build downloads modules, so it can take
-    /// minutes.
+    /// Builds the Go nodes into `gorse-go-nodes` beside the test binary. Each
+    /// process builds again, which replaces the last build; the first build
+    /// downloads modules, so it can take minutes.
     ///
     /// # Errors
     ///
@@ -240,9 +240,24 @@ impl Cluster {
         };
         if let Some(files) = &tls {
             set_key(&mut config, "master", "ssl_mode", "true");
-            set_key(&mut config, "master", "ssl_ca", &toml_string(&path(&files.ca)));
-            set_key(&mut config, "master", "ssl_cert", &toml_string(&path(&files.cert)));
-            set_key(&mut config, "master", "ssl_key", &toml_string(&path(&files.key)));
+            set_key(
+                &mut config,
+                "master",
+                "ssl_ca",
+                &toml_string(&path(&files.ca)),
+            );
+            set_key(
+                &mut config,
+                "master",
+                "ssl_cert",
+                &toml_string(&path(&files.cert)),
+            );
+            set_key(
+                &mut config,
+                "master",
+                "ssl_key",
+                &toml_string(&path(&files.key)),
+            );
         }
         for &(section, key, value) in edits {
             set_key(&mut config, section, key, value);
@@ -651,9 +666,7 @@ fn write_certificates(dir: &Path) -> Result<TlsFiles> {
     node_params
         .distinguished_name
         .push(DnType::CommonName, "gorse conformance node");
-    let node_cert = node_params
-        .signed_by(&node_key, &issuer)
-        .map_err(fail)?;
+    let node_cert = node_params.signed_by(&node_key, &issuer).map_err(fail)?;
 
     let files = TlsFiles {
         ca: dir.join("ca.pem"),

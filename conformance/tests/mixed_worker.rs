@@ -263,7 +263,8 @@ async fn assert_rust_worker_matches_go_worker(transport: Transport) {
     let failures: Vec<&str> = logs
         .lines()
         .filter(|line| {
-            line.contains("failed to sync with the master") || line.contains("failed to report update task")
+            line.contains("failed to sync with the master")
+                || line.contains("failed to report update task")
         })
         .collect();
     assert!(
