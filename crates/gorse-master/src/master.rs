@@ -36,8 +36,8 @@ use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 use tracing::{error, info};
 
-use crate::rpc;
 use crate::Error;
+use crate::rpc;
 
 /// How long a config change waits for the writes to settle before it is read
 /// (Go's `configReloadDebounce`).
@@ -231,7 +231,9 @@ impl Master {
         let Some(meta_str) = self.meta_store().get(meta::RECOMMEND_CONFIG).await? else {
             return Ok(());
         };
-        cfg.recommend.unmarshal_json(&meta_str).map_err(|err| Error::Config(err.to_string()))?;
+        cfg.recommend
+            .unmarshal_json(&meta_str)
+            .map_err(|err| Error::Config(err.to_string()))?;
         Ok(())
     }
 
@@ -239,7 +241,8 @@ impl Master {
     /// recommendation override, validates the result, and swaps it in. Then it
     /// asks the task loop to run.
     pub(crate) async fn reload_config_from_file(&self) -> Result<(), Error> {
-        let mut new_config = load_config(&self.config_path).map_err(|err| Error::Config(err.to_string()))?;
+        let mut new_config =
+            load_config(&self.config_path).map_err(|err| Error::Config(err.to_string()))?;
         self.apply_recommend_override(&mut new_config).await?;
         if let Err(err) = new_config.validate() {
             return Err(Error::Config(err.to_string()));
@@ -277,7 +280,9 @@ impl Master {
                 return;
             }
         };
-        let dir = abs_path.parent().map_or_else(|| PathBuf::from("."), PathBuf::from);
+        let dir = abs_path
+            .parent()
+            .map_or_else(|| PathBuf::from("."), PathBuf::from);
         if let Err(err) = watcher.watch(&dir, RecursiveMode::NonRecursive) {
             error!(path = %abs_path.display(), error = %err, "failed to watch config directory");
             return;
@@ -331,7 +336,9 @@ impl Master {
 
         // connect blob store
         let blob_server = if !cfg.blob.uri.contains("://") {
-            Some(Arc::new(blob::master::MasterStoreServer::new(&cfg.blob.uri)?))
+            Some(Arc::new(blob::master::MasterStoreServer::new(
+                &cfg.blob.uri,
+            )?))
         } else {
             None
         };
@@ -410,13 +417,14 @@ impl Master {
         let loop_task = tokio::spawn(async move {
             loop_master.run_tasks_loop().await;
         });
-        let mut tasks = self
-            .background_tasks
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        tasks.push(watch_task);
-        tasks.push(loop_task);
-        drop(tasks);
+        {
+            let mut tasks = self
+                .background_tasks
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            tasks.push(watch_task);
+            tasks.push(loop_task);
+        }
 
         // start rpc server
         info!(
@@ -526,11 +534,12 @@ impl Master {
         for task in tasks {
             let _ = task.await;
         }
-        if let Some(meta_store) = self
+        let meta_store = self
             .meta
             .read()
             .unwrap_or_else(PoisonError::into_inner)
-            .clone()
+            .clone();
+        if let Some(meta_store) = meta_store
             && let Err(err) = meta_store.close().await
         {
             error!(error = %err, "failed to close meta database");
@@ -598,10 +607,12 @@ impl Master {
         tls: Option<TlsConfig>,
         blob_server: Option<Arc<blob::master::MasterStoreServer>>,
     ) -> Result<(), Error> {
-        let listener = tokio::net::TcpListener::bind(address).await.map_err(|err| {
-            error!(error = %err, "failed to listen");
-            err
-        })?;
+        let listener = tokio::net::TcpListener::bind(address)
+            .await
+            .map_err(|err| {
+                error!(error = %err, "failed to listen");
+                err
+            })?;
         let acceptor = match &tls {
             Some(tls) => Some(tokio_rustls::TlsAcceptor::from(Arc::new(
                 new_server_config(tls)?,
@@ -619,7 +630,9 @@ impl Master {
             .add_service(CacheStoreServer::new(cache::proxy::ProxyServer::new(
                 self.cache(),
             )))
-            .add_service(DataStoreServer::new(data::proxy::ProxyServer::new(self.data())))
+            .add_service(DataStoreServer::new(data::proxy::ProxyServer::new(
+                self.data(),
+            )))
             .add_service(VectorStoreServer::new(vectors::proxy::ProxyServer::new(
                 self.vectors(),
             )));
@@ -662,6 +675,3 @@ async fn wait_until(deadline: Option<tokio::time::Instant>) {
         None => std::future::pending().await,
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -10,6 +10,8 @@ mod master;
 mod metrics;
 mod rpc;
 mod tasks;
+#[cfg(test)]
+mod test_support;
 
 pub use master::{ClickThroughRateState, CollaborativeFilteringState, Master};
 
@@ -52,9 +54,10 @@ pub enum Error {
     /// A hyperparameter search failed.
     #[error(transparent)]
     Tpe(#[from] gorse_model::tpe::Error),
-    /// The ranking pipeline failed.
+    /// The ranking pipeline failed. Boxed, since the worker's error is large
+    /// and would make every result of this crate large.
     #[error(transparent)]
-    Worker(#[from] gorse_worker::Error),
+    Worker(Box<gorse_worker::Error>),
     /// A task stopped with a message that Go reports as an error text.
     #[error("{0}")]
     Message(String),
@@ -64,4 +67,10 @@ pub enum Error {
     /// A JSON value could not be encoded or decoded.
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+}
+
+impl From<gorse_worker::Error> for Error {
+    fn from(err: gorse_worker::Error) -> Self {
+        Self::Worker(Box::new(err))
+    }
 }

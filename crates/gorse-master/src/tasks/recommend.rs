@@ -47,10 +47,12 @@ impl Master {
             return Ok(());
         };
         let total = dataset.get_items().len() * configs.len();
-        let (ctx, span) = self
-            .tracer
-            .start(parent, "Generate item-to-item recommendation", total as i64);
-        let result = self.update_item_to_item_in(&ctx, &span, dataset, &configs).await;
+        let (ctx, span) =
+            self.tracer
+                .start(parent, "Generate item-to-item recommendation", total as i64);
+        let result = self
+            .update_item_to_item_in(&ctx, &span, dataset, &configs)
+            .await;
         span.end();
         result
     }
@@ -121,10 +123,12 @@ impl Master {
             return Ok(());
         };
         let total = dataset.get_users().len() * configs.len();
-        let (ctx, span) = self
-            .tracer
-            .start(parent, "Generate user-to-user recommendation", total as i64);
-        let result = self.update_user_to_user_in(&ctx, &span, dataset, &configs).await;
+        let (ctx, span) =
+            self.tracer
+                .start(parent, "Generate user-to-user recommendation", total as i64);
+        let result = self
+            .update_user_to_user_in(&ctx, &span, dataset, &configs)
+            .await;
         span.end();
         result
     }
@@ -264,8 +268,7 @@ impl Master {
                 Some(Box::new(|completed, throughput| {
                     info!(
                         n_complete_users = completed,
-                        throughput,
-                        "ranking recommendation"
+                        throughput, "ranking recommendation"
                     );
                 })),
             )

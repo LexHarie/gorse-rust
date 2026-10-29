@@ -26,9 +26,7 @@ use gorse_storage::data::types::{Feedback, Item};
 use gorse_storage::data::{self, Database, ScanOption};
 use tracing::debug;
 
-use super::{
-    BATCH_SIZE, count_feedback, deep_size_of, item_size, plain_labels, user_size,
-};
+use super::{BATCH_SIZE, count_feedback, deep_size_of, item_size, plain_labels, user_size};
 use crate::Error;
 use crate::master::Master;
 use crate::metrics::{self, OnlineEvaluator};
@@ -245,8 +243,8 @@ async fn load(
 
     // setup time limit. Go takes these from time.Now(), not the config clock.
     let now = gotime::now();
-    let item_time_limit = (sources.item_ttl > 0)
-        .then(|| now.add_date(0, 0, -(sources.item_ttl as i64)));
+    let item_time_limit =
+        (sources.item_ttl > 0).then(|| now.add_date(0, 0, -(sources.item_ttl as i64)));
     let feedback_time_limit = (sources.positive_feedback_ttl > 0)
         .then(|| now.add_date(0, 0, -(sources.positive_feedback_ttl as i64)));
 
@@ -305,9 +303,9 @@ async fn load(
                 // Go replaces the item's embedding labels with their FP16 bits
                 // before it reads the embeddings. The dataset takes the stored
                 // labels, since `Labels` has no FP16 slice to hold them.
-                let embeddings = ctr_data::convert_embeddings(
-                    &ctr_data::convert_embedding_labels(plain_labels(&item.labels)),
-                );
+                let embeddings = ctr_data::convert_embeddings(&ctr_data::convert_embedding_labels(
+                    plain_labels(&item.labels),
+                ));
                 let item_id = item.item_id.clone();
                 dataset.add_item(item.clone());
                 let item_index = dataset.get_item_dict().id(&item_id);
@@ -419,11 +417,13 @@ async fn load(
                         let mut guard = shared.lock().unwrap_or_else(PoisonError::into_inner);
                         let state = &mut *guard;
                         for f in &feedback {
-                            let user_index = state.dataset.get_user_dict().id(&f.feedback_key.user_id);
+                            let user_index =
+                                state.dataset.get_user_dict().id(&f.feedback_key.user_id);
                             if user_index == NOT_ID {
                                 continue;
                             }
-                            let item_index = state.dataset.get_item_dict().id(&f.feedback_key.item_id);
+                            let item_index =
+                                state.dataset.get_item_dict().id(&f.feedback_key.item_id);
                             if item_index == NOT_ID {
                                 continue;
                             }
@@ -433,7 +433,11 @@ async fn load(
                                 .as_mut()
                                 .expect("the negative set exists when there are negative types");
                             negative_set[user].insert(item_index);
-                            keep_latest(&mut state.negative_timestamps[user], item_index, &f.timestamp);
+                            keep_latest(
+                                &mut state.negative_timestamps[user],
+                                item_index,
+                                &f.timestamp,
+                            );
                             state.explicit_negative_count += 1;
                             evaluator
                                 .lock()
@@ -535,9 +539,9 @@ async fn load(
                             );
 
                         // append item feedback
-                        let same_item = item_feedback
-                            .last()
-                            .is_some_and(|last| last.feedback_key.item_id == f.feedback_key.item_id);
+                        let same_item = item_feedback.last().is_some_and(|last| {
+                            last.feedback_key.item_id == f.feedback_key.item_id
+                        });
                         if item_feedback.is_empty() || same_item {
                             item_feedback.push(f.clone());
                         } else {
@@ -557,9 +561,11 @@ async fn load(
                             item_feedback.push(f.clone());
                         }
                         item_group_index = item_positions[item_index as usize];
-                        state
-                            .dataset
-                            .add_feedback(&f.feedback_key.user_id, &f.feedback_key.item_id, f.timestamp.clone());
+                        state.dataset.add_feedback(
+                            &f.feedback_key.user_id,
+                            &f.feedback_key.item_id,
+                            f.timestamp.clone(),
+                        );
                     }
                     span.add(feedback.len() as i64);
                 }
@@ -618,8 +624,6 @@ async fn load(
             let (begin, end) = &bounds[i];
             let (feedback_count, feedback_bytes) = (&feedback_count, &feedback_bytes);
             let shared = &shared;
-            let evaluator = evaluator;
-            let span = span;
             async move {
                 let options = feedback_options(
                     begin,
@@ -701,11 +705,13 @@ async fn load(
         read_timestamps,
         ..
     } = state;
-    let mut unified_index = UnifiedMapIndexBuilder::default();
-    unified_index.item_index = dataset.get_item_dict().to_index();
-    unified_index.user_index = dataset.get_user_dict().to_index();
-    unified_index.item_label_index = item_loader.index.clone();
-    unified_index.user_label_index = user_loader.index.clone();
+    let unified_index = UnifiedMapIndexBuilder {
+        item_index: dataset.get_item_dict().to_index(),
+        user_index: dataset.get_user_dict().to_index(),
+        item_label_index: item_loader.index.clone(),
+        user_label_index: user_loader.index.clone(),
+        ..Default::default()
+    };
     let mut click = ctr_data::Dataset {
         index: Some(unified_index.build()),
         user_labels,
@@ -756,9 +762,12 @@ async fn load(
                 click.users.push(user as i32);
                 click.items.push(item);
                 click.target.push(-1.0);
-                click
-                    .timestamps
-                    .push(negative_timestamps[user].get(&item).cloned().unwrap_or_default());
+                click.timestamps.push(
+                    negative_timestamps[user]
+                        .get(&item)
+                        .cloned()
+                        .unwrap_or_default(),
+                );
                 click.negative_count += 1;
             }
         }
@@ -782,9 +791,12 @@ async fn load(
             click.users.push(user as i32);
             click.items.push(item);
             click.target.push(-1.0);
-            click
-                .timestamps
-                .push(read_timestamps[user].get(&item).cloned().unwrap_or_default());
+            click.timestamps.push(
+                read_timestamps[user]
+                    .get(&item)
+                    .cloned()
+                    .unwrap_or_default(),
+            );
             click.negative_count += 1;
         }
     }

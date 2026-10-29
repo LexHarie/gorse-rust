@@ -18,7 +18,9 @@ use gorse_model::cf::model::{ALS, BPR, FitConfig as CfFitConfig, MatrixFactoriza
 use gorse_model::cf::optimize::{ModelCreator as CfModelCreator, ModelSearch as CfModelSearch};
 use gorse_model::ctr::data::Dataset as CtrDataset;
 use gorse_model::ctr::fm::Afm;
-use gorse_model::ctr::model::{FactorizationMachines as _, FitConfig as CtrFitConfig, marshal_model};
+use gorse_model::ctr::model::{
+    FactorizationMachines as _, FitConfig as CtrFitConfig, marshal_model,
+};
 use gorse_model::ctr::optimize::{ModelCreator as CtrModelCreator, ModelSearch as CtrModelSearch};
 use gorse_model::tpe::{Direction, Study, TpeSampler};
 use gorse_storage::cache::{self, TimeSeriesPoint};
@@ -72,7 +74,9 @@ impl Master {
         train_set: &Dataset,
         test_set: &Dataset,
     ) -> Result<(), Error> {
-        let (ctx, span) = self.tracer.start(parent, "Train Collaborative Filtering Model", 2);
+        let (ctx, span) = self
+            .tracer
+            .start(parent, "Train Collaborative Filtering Model", 2);
         let result = self
             .train_collaborative_filtering_in(&ctx, &span, train_set, test_set)
             .await;
@@ -126,7 +130,13 @@ impl Master {
         let mut model = new_collaborative_filtering_model(&model_type, model_params.clone());
         let config = CfFitConfig::new()
             .set_jobs(self.config().master.n_jobs.max(1) as usize)
-            .set_patience(self.config().recommend.collaborative.early_stopping.patience as usize);
+            .set_patience(
+                self.config()
+                    .recommend
+                    .collaborative
+                    .early_stopping
+                    .patience as usize,
+            );
         let mut val_set = test_set.clone();
         let score = model.fit(&fit_ctx, train_set, &mut val_set, &config);
         metrics::COLLABORATIVE_FILTERING_FIT_SECONDS.set(gotime::since(&start_fit).seconds());
@@ -147,7 +157,13 @@ impl Master {
         };
         let dimension = model.get_item_factor(0).len();
         if let Err(err) = vector_client
-            .add_collection(&index_ctx, &collection, dimension as i64, Distance::Dot, config)
+            .add_collection(
+                &index_ctx,
+                &collection,
+                dimension as i64,
+                Distance::Dot,
+                config,
+            )
             .await
         {
             index_span.fail(&err);
@@ -158,9 +174,8 @@ impl Master {
         for start in (0..item_count).step_by(BATCH_SIZE as usize) {
             let end = (start + BATCH_SIZE as usize).min(item_count);
             let mut item_vectors = Vec::with_capacity(end - start);
-            for i in start..end {
+            for (i, item) in items.iter().enumerate().take(end).skip(start) {
                 if model.is_item_predictable(i as i32) {
-                    let item = &items[i];
                     item_vectors.push(Vector {
                         id: item.item_id.clone(),
                         values: model.get_item_factor(i as i32).to_vec(),
@@ -194,10 +209,10 @@ impl Master {
 
         let mut matrix_factorization_users = MatrixFactorizationUsers::new();
         for i in 0..train_set.count_users() {
-            if let Some(user_id) = train_set.get_user_dict().string(i as i32) {
-                if model.is_user_predictable(i as i32) {
-                    matrix_factorization_users.add(user_id, model.get_user_factor(i as i32).to_vec());
-                }
+            if let Some(user_id) = train_set.get_user_dict().string(i as i32)
+                && model.is_user_predictable(i as i32)
+            {
+                matrix_factorization_users.add(user_id, model.get_user_factor(i as i32).to_vec());
             }
         }
 
@@ -238,7 +253,11 @@ impl Master {
             Ok(json) => json,
             Err(err) => return Err(err.into()),
         };
-        if let Err(err) = self.meta_store().put(meta::COLLABORATIVE_FILTERING_MODEL, &meta_json).await {
+        if let Err(err) = self
+            .meta_store()
+            .put(meta::COLLABORATIVE_FILTERING_MODEL, &meta_json)
+            .await
+        {
             error!(error = %err, "failed to write collaborative filtering model meta");
             return Err(err.into());
         }
@@ -292,7 +311,9 @@ impl Master {
         train_set: &CtrDataset,
         test_set: &CtrDataset,
     ) -> Result<(), Error> {
-        let (ctx, span) = self.tracer.start(parent, "Train Click-Through Rate Prediction Model", 1);
+        let (ctx, span) = self
+            .tracer
+            .start(parent, "Train Click-Through Rate Prediction Model", 1);
         let result = self
             .train_click_through_rate_prediction_in(&ctx, &span, train_set, test_set)
             .await;
@@ -342,7 +363,7 @@ impl Master {
         let mut click_model = Afm::new(model_params.clone());
         let config = CtrFitConfig::new()
             .set_jobs(self.config().master.n_jobs.max(1) as usize)
-            .set_patience(self.config().recommend.ranker.early_stopping.patience as i64)
+            .set_patience(self.config().recommend.ranker.early_stopping.patience)
             .clone();
 
         let start_fit = gotime::now();
@@ -390,7 +411,11 @@ impl Master {
             let mut state = self.click_through_rate_write();
             state.meta = meta_model;
         }
-        if let Err(err) = self.meta_store().put(meta::CLICK_THROUGH_RATE_MODEL, &meta_json).await {
+        if let Err(err) = self
+            .meta_store()
+            .put(meta::CLICK_THROUGH_RATE_MODEL, &meta_json)
+            .await
+        {
             error!(error = %err, "failed to write click-through rate model meta");
             return Err(err.into());
         }
@@ -442,9 +467,11 @@ impl Master {
     ) -> Result<(), Error> {
         let cfg = self.config();
         let trials = cfg.recommend.collaborative.optimize_trials as usize;
-        let (ctx, span) = self
-            .tracer
-            .start(parent, "Optimize Collaborative Filtering Model", trials as i64);
+        let (ctx, span) = self.tracer.start(
+            parent,
+            "Optimize Collaborative Filtering Model",
+            trials as i64,
+        );
         let result = self
             .optimize_collaborative_filtering_in(&ctx, &span, train_set, test_set)
             .await;
@@ -559,11 +586,14 @@ impl Master {
         let mut creators: BTreeMap<String, CtrModelCreator> = BTreeMap::new();
         creators.insert(
             "FM".to_owned(),
-            Box::new(|| Box::new(Afm::new(Default::default())) as Box<dyn gorse_model::ctr::model::FactorizationMachines>),
+            Box::new(|| {
+                Box::new(Afm::new(Default::default()))
+                    as Box<dyn gorse_model::ctr::model::FactorizationMachines>
+            }),
         );
         let config = CtrFitConfig::new()
             .set_jobs(cfg.master.n_jobs.max(1) as usize)
-            .set_patience(cfg.recommend.ranker.early_stopping.patience as i64)
+            .set_patience(cfg.recommend.ranker.early_stopping.patience)
             .clone();
         let mut search = CtrModelSearch::new(
             creators,

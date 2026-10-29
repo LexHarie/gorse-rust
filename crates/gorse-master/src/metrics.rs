@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 use gorse_common::expression::{FeedbackTypeExpression, match_feedback_type_expressions};
-use gorse_common::gotime::{HOUR, Duration, Time};
+use gorse_common::gotime::{Duration, HOUR, Time};
 use gorse_storage::cache::{self, TimeSeriesPoint};
 use prometheus::{Gauge, GaugeVec, Opts};
 
@@ -107,8 +107,7 @@ pub static RANKING_FIT_SECONDS: LazyLock<Gauge> = LazyLock::new(|| gauge("rankin
 pub static RANKING_SEARCH_SECONDS: LazyLock<Gauge> =
     LazyLock::new(|| gauge("ranking_search_seconds"));
 /// Go's `RankingPrecision`.
-pub static RANKING_PRECISION: LazyLock<Gauge> =
-    LazyLock::new(|| gauge("ranking_model_precision"));
+pub static RANKING_PRECISION: LazyLock<Gauge> = LazyLock::new(|| gauge("ranking_model_precision"));
 /// Go's `RankingRecall`.
 pub static RANKING_RECALL: LazyLock<Gauge> = LazyLock::new(|| gauge("ranking_model_recall"));
 /// Go's `RankingAUC`.
@@ -121,15 +120,13 @@ pub static USERS_TOTAL: LazyLock<Gauge> = LazyLock::new(|| gauge("users_total"))
 /// Go's `ActiveUsersTotal`.
 pub static ACTIVE_USERS_TOTAL: LazyLock<Gauge> = LazyLock::new(|| gauge("active_users_total"));
 /// Go's `InactiveUsersTotal`.
-pub static INACTIVE_USERS_TOTAL: LazyLock<Gauge> =
-    LazyLock::new(|| gauge("inactive_users_total"));
+pub static INACTIVE_USERS_TOTAL: LazyLock<Gauge> = LazyLock::new(|| gauge("inactive_users_total"));
 /// Go's `ItemsTotal`.
 pub static ITEMS_TOTAL: LazyLock<Gauge> = LazyLock::new(|| gauge("items_total"));
 /// Go's `ActiveItemsTotal`.
 pub static ACTIVE_ITEMS_TOTAL: LazyLock<Gauge> = LazyLock::new(|| gauge("active_items_total"));
 /// Go's `InactiveItemsTotal`.
-pub static INACTIVE_ITEMS_TOTAL: LazyLock<Gauge> =
-    LazyLock::new(|| gauge("inactive_items_total"));
+pub static INACTIVE_ITEMS_TOTAL: LazyLock<Gauge> = LazyLock::new(|| gauge("inactive_items_total"));
 /// Go's `UserLabelsTotal`.
 pub static USER_LABELS_TOTAL: LazyLock<Gauge> = LazyLock::new(|| gauge("user_labels_total"));
 /// Go's `ItemLabelsTotal`.
@@ -241,9 +238,7 @@ impl OnlineEvaluator {
     ) {
         if match_feedback_type_expressions(&self.read_types, feedback_type, value) {
             let truncated = timestamp.truncate(Duration(24 * HOUR.0));
-            let days = self.window_end.sub(&truncated).nanoseconds()
-                / HOUR.nanoseconds()
-                / 24;
+            let days = self.window_end.sub(&truncated).nanoseconds() / HOUR.nanoseconds() / 24;
             if days >= 0 && (days as usize) < self.window_size {
                 self.read_feedback[days as usize]
                     .entry(user_index)

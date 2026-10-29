@@ -9,9 +9,9 @@
 mod gc;
 mod load;
 mod recommend;
-mod train;
 #[cfg(test)]
 mod tests;
+mod train;
 
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -206,13 +206,36 @@ impl Master {
             "load dataset"
         );
         let evaluator = Mutex::new(metrics::new_online_evaluator(
-            cfg.recommend.data_source.positive_feedback_types.clone().unwrap_or_default(),
-            cfg.recommend.data_source.read_feedback_types.clone().unwrap_or_default(),
+            cfg.recommend
+                .data_source
+                .positive_feedback_types
+                .clone()
+                .unwrap_or_default(),
+            cfg.recommend
+                .data_source
+                .read_feedback_types
+                .clone()
+                .unwrap_or_default(),
         ));
         let sources = load::Sources {
-            positive: cfg.recommend.data_source.positive_feedback_types.as_deref().unwrap_or_default(),
-            negative: cfg.recommend.data_source.negative_feedback_types.as_deref().unwrap_or_default(),
-            read: cfg.recommend.data_source.read_feedback_types.as_deref().unwrap_or_default(),
+            positive: cfg
+                .recommend
+                .data_source
+                .positive_feedback_types
+                .as_deref()
+                .unwrap_or_default(),
+            negative: cfg
+                .recommend
+                .data_source
+                .negative_feedback_types
+                .as_deref()
+                .unwrap_or_default(),
+            read: cfg
+                .recommend
+                .data_source
+                .read_feedback_types
+                .as_deref()
+                .unwrap_or_default(),
             item_ttl: cfg.recommend.data_source.item_ttl,
             positive_feedback_ttl: cfg.recommend.data_source.positive_feedback_ttl,
         };
@@ -284,8 +307,14 @@ impl Master {
             (cache::NUM_USERS, ranking_dataset.count_users() as f64),
             (cache::NUM_ITEMS, ranking_dataset.count_items() as f64),
             (cache::NUM_FEEDBACK, click_dataset.target.len() as f64),
-            (cache::NUM_POS_FEEDBACKS, click_dataset.positive_count as f64),
-            (cache::NUM_NEG_FEEDBACKS, click_dataset.negative_count as f64),
+            (
+                cache::NUM_POS_FEEDBACKS,
+                click_dataset.positive_count as f64,
+            ),
+            (
+                cache::NUM_NEG_FEEDBACKS,
+                click_dataset.negative_count as f64,
+            ),
         ];
         let points: Vec<TimeSeriesPoint> = series
             .into_iter()
@@ -323,15 +352,31 @@ impl Master {
 
         // The global counters, each with the message Go logs when its write fails.
         let globals = [
-            (cache::NUM_USERS, num_users, "failed to write number of users"),
-            (cache::NUM_ITEMS, num_items, "failed to write number of items"),
+            (
+                cache::NUM_USERS,
+                num_users,
+                "failed to write number of users",
+            ),
+            (
+                cache::NUM_ITEMS,
+                num_items,
+                "failed to write number of items",
+            ),
             (
                 cache::NUM_TOTAL_POS_FEEDBACKS,
                 num_feedback,
                 "failed to write number of positive feedbacks",
             ),
-            (cache::NUM_USER_LABELS, user_labels, "failed to write number of user labels"),
-            (cache::NUM_ITEM_LABELS, item_labels, "failed to write number of item labels"),
+            (
+                cache::NUM_USER_LABELS,
+                user_labels,
+                "failed to write number of user labels",
+            ),
+            (
+                cache::NUM_ITEM_LABELS,
+                item_labels,
+                "failed to write number of item labels",
+            ),
             (
                 cache::NUM_VALID_POS_FEEDBACKS,
                 positive_count,
@@ -415,8 +460,11 @@ impl Master {
     pub(crate) async fn run_load_dataset_task(&self, parent: &Context) -> Result<(), Error> {
         let datasets = self.load_dataset(parent).await?;
         let cfg = self.config();
-        let use_collaborative_filtering_tasks =
-            !cfg.recommend.collaborative.kind.eq_ignore_ascii_case("none");
+        let use_collaborative_filtering_tasks = !cfg
+            .recommend
+            .collaborative
+            .kind
+            .eq_ignore_ascii_case("none");
         let use_click_through_rate_tasks = cfg.recommend.ranker.kind.eq_ignore_ascii_case("fm");
         if let Err(err) = self
             .update_user_to_user(parent, &datasets.ranking_dataset)
@@ -430,65 +478,62 @@ impl Master {
         {
             error!(error = %err, "failed to update item-to-item recommendation");
         }
-        if use_collaborative_filtering_tasks {
-            if let Err(err) = self
+        if use_collaborative_filtering_tasks
+            && let Err(err) = self
                 .train_collaborative_filtering(
                     parent,
                     &datasets.ranking_train_set,
                     &datasets.ranking_test_set,
                 )
                 .await
-            {
-                error!(error = %err, "failed to train collaborative filtering model");
-            }
+        {
+            error!(error = %err, "failed to train collaborative filtering model");
         }
-        if use_click_through_rate_tasks {
-            if let Err(err) = self
+        if use_click_through_rate_tasks
+            && let Err(err) = self
                 .train_click_through_rate_prediction(
                     parent,
                     &datasets.click_train_set,
                     &datasets.click_test_set,
                 )
                 .await
-            {
-                error!(error = %err, "failed to train click-through rate prediction model");
-            }
+        {
+            error!(error = %err, "failed to train click-through rate prediction model");
         }
-        if self.standalone {
-            if let Err(err) = self.update_recommend(parent).await {
-                error!(error = %err, "failed to update recommendation");
-            }
+        if self.standalone
+            && let Err(err) = self.update_recommend(parent).await
+        {
+            error!(error = %err, "failed to update recommendation");
         }
-        if let Err(err) = self.collect_garbage(parent, &datasets.ranking_dataset).await {
+        if let Err(err) = self
+            .collect_garbage(parent, &datasets.ranking_dataset)
+            .await
+        {
             error!(error = %err, "failed to collect garbage in cache");
         }
         if use_collaborative_filtering_tasks
             && cfg.recommend.collaborative.optimize_period > gotime::Duration::default()
-        {
-            if let Err(err) = self
+            && let Err(err) = self
                 .optimize_collaborative_filtering(
                     parent,
                     &datasets.ranking_train_set,
                     &datasets.ranking_test_set,
                 )
                 .await
-            {
-                error!(error = %err, "failed to optimize collaborative filtering model");
-            }
+        {
+            error!(error = %err, "failed to optimize collaborative filtering model");
         }
         if use_click_through_rate_tasks
             && cfg.recommend.ranker.optimize_period > gotime::Duration::default()
-        {
-            if let Err(err) = self
+            && let Err(err) = self
                 .optimize_click_through_rate_prediction(
                     parent,
                     &datasets.click_train_set,
                     &datasets.click_test_set,
                 )
                 .await
-            {
-                error!(error = %err, "failed to optimize click-through rate prediction model");
-            }
+        {
+            error!(error = %err, "failed to optimize click-through rate prediction model");
         }
         Ok(())
     }

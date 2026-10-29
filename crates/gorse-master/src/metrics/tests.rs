@@ -128,9 +128,9 @@ fn test_online_evaluator() {
     assert_eq!(expected.len(), result.len());
     for point in &expected {
         assert!(
-            result
-                .iter()
-                .any(|p| p.name == point.name && p.timestamp == point.timestamp && p.value == point.value),
+            result.iter().any(|p| p.name == point.name
+                && p.timestamp == point.timestamp
+                && p.value == point.value),
             "missing point {} {:?}",
             point.name,
             point.timestamp

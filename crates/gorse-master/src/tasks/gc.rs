@@ -91,21 +91,27 @@ impl Master {
             if keep.contains(id) {
                 continue;
             }
-            if let Some(file) = models.get(id).cloned() {
-                if *id != click_through_rate_id {
-                    if let Err(err) = store.remove(ctx, &file).await {
-                        error!(id, error = %err, "failed to delete collaborative filtering model from blob store");
-                        continue;
-                    }
-                    models.remove(id);
-                    info!(id, "deleted out-of-date collaborative filtering model from blob store");
+            if let Some(file) = models.get(id).cloned()
+                && *id != click_through_rate_id
+            {
+                if let Err(err) = store.remove(ctx, &file).await {
+                    error!(id, error = %err, "failed to delete collaborative filtering model from blob store");
+                    continue;
                 }
+                models.remove(id);
+                info!(
+                    id,
+                    "deleted out-of-date collaborative filtering model from blob store"
+                );
             }
             if let Err(err) = vector_client.delete_collection(ctx, collection).await {
                 error!(id, error = %err, "failed to delete collaborative filtering index from vector store");
                 continue;
             }
-            info!(id, "deleted out-of-date collaborative filtering index from vector store");
+            info!(
+                id,
+                "deleted out-of-date collaborative filtering index from vector store"
+            );
         }
 
         for (id, file) in &models {
@@ -133,11 +139,7 @@ impl Master {
         result
     }
 
-    async fn collect_garbage_in(
-        &self,
-        ctx: &Context,
-        dataset: &Dataset,
-    ) -> Result<(), Error> {
+    async fn collect_garbage_in(&self, ctx: &Context, dataset: &Dataset) -> Result<(), Error> {
         let cfg = self.config();
         let cache_client = self.cache();
         let configured: HashSet<String> = cfg
@@ -168,17 +170,15 @@ impl Master {
                         ));
                     }
                 }
-                cache::COLLABORATIVE_FILTERING => {
-                    if dataset.get_user_dict().id(subset) == NOT_ID {
-                        deletions.push((
-                            cache::COLLABORATIVE_FILTERING.to_owned(),
-                            ScoreCondition {
-                                subset: Some(subset.to_owned()),
-                                before: Some(dataset.get_timestamp()),
-                                ..Default::default()
-                            },
-                        ));
-                    }
+                cache::COLLABORATIVE_FILTERING if dataset.get_user_dict().id(subset) == NOT_ID => {
+                    deletions.push((
+                        cache::COLLABORATIVE_FILTERING.to_owned(),
+                        ScoreCondition {
+                            subset: Some(subset.to_owned()),
+                            before: Some(dataset.get_timestamp()),
+                            ..Default::default()
+                        },
+                    ));
                 }
                 _ => {}
             }
