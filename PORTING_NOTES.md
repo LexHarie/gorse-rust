@@ -3129,3 +3129,7 @@ sorted JSON lines (25 lines). Every database is `ANALYZE`d before the reads.
 
 Go's `Reconcile` on PostgreSQL, run twice, with statement logging (see Q-233)
 and the SQLite sentinel probe (see Q-234) were run against the Go oracle.
+
+- **X-250 The OIDC login sends no `state` and checks no nonce (upstream gap, kept for parity; security note; coordinator ruling 2026-10-29 10:27).** Go's `oauth2Config.AuthCodeURL("")` (`master/rest.go:357`) sends no `state` parameter, and `m.verifier.Verify` (`master/rest.go:2089`) takes no nonce. The port matches both (`crates/gorse-master/src/oidc.rs`, `auth_code_url`). A login callback that does not check `state` is open to login CSRF: an attacker can make a victim's browser finish a login as the attacker's account. The coordinator ruled: keep parity, do not block, and decide later whether to deviate. Revisit before the Phase 4 exit.
+
+- **X-251 The WP-4-4 interop does not run a Go server and a Go worker beside the Rust master (open; the brief's step 6).** `conformance/tests/mixed_master_rest.rs` runs the Go master and the Rust router on one seeded SQLite store, with one server and one worker as rows. It does not start a Go server or a Go worker process against the Rust master. Nothing here shows a Go node working with the Rust master. Owner: to be assigned by the coordinator. Needed for the Phase 4 exit.
