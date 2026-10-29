@@ -8,12 +8,14 @@
 use std::str::FromStr;
 
 use async_trait::async_trait;
+use gorse_common::gocontext::Context;
 use gorse_common::mysql_dsn::parse_dsn;
 use sqlx::{AssertSqlSafe, Connection as _};
 
 use super::super::Database;
 use super::super::Error;
 use super::super::database_test::{Backend, TimeStamps, run};
+use super::super::types::Item;
 use super::SqlDatabase;
 use super::open::{
     mysql_connect_options, open_mysql, open_postgres, open_sqlite, probe_isolation_variable_name,
@@ -148,5 +150,30 @@ async fn test_sqlite() {
         .expect("open SQLite");
     db.init().await.expect("create the schema");
     run(&db).await;
+    db.close().await.expect("close");
+}
+
+/// X-245: Go accepts a batch of 12,000 items in one call, because GORM writes
+/// it in statements of 1,000 rows. SQLite refuses one statement with more
+/// than 32,766 bind parameters, and 12,000 rows of 7 columns would bind 84,000.
+#[tokio::test]
+async fn test_sqlite_batch_insert_12000_items() {
+    let dir = tempfile::tempdir().expect("create a temporary directory");
+    let path = format!("sqlite://{}/sqlite.db", dir.path().display());
+    let db = open_sqlite(&path, "gorse_", &[])
+        .await
+        .expect("open SQLite");
+    db.init().await.expect("create the schema");
+    let ctx = Context::background();
+    let items: Vec<Item> = (0..12_000)
+        .map(|i| Item {
+            item_id: format!("item-{i}"),
+            ..Default::default()
+        })
+        .collect();
+    db.batch_insert_items(&ctx, &items)
+        .await
+        .expect("insert 12,000 items in one call");
+    assert_eq!(db.count_items(&ctx).await.expect("count the items"), 12_000);
     db.close().await.expect("close");
 }
