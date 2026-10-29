@@ -480,7 +480,8 @@ impl Worker {
         let mut shutdown = self.shutdown.subscribe();
         loop {
             tokio::select! {
-                _ = shutdown.wait_for(|stopped| *stopped) => break,
+                // The watch guard is dropped inside this block, so the serve future stays `Send`.
+                _ = async { let _ = shutdown.wait_for(|stopped| *stopped).await; } => break,
                 tick = ticker.tick() => {
                     // A tick that fired long ago is skipped, as Go's check does.
                     if tick.elapsed() <= interval {

@@ -1247,6 +1247,7 @@ dependencies = [
  "gorse-logics",
  "gorse-storage",
  "gorse-storage-core",
+ "gorse-worker",
  "indexmap",
  "mongodb",
  "redis",
