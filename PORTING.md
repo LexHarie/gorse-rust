@@ -31,7 +31,7 @@ Every Rust module names the Go files it ports with a
 | 0. Contracts | done | Exit gate decided under D-1; see "Phase 0 evidence" |
 | 1. Foundation | in progress | Done: WP-1-1, WP-1-2, WP-1-3, WP-1-4, WP-1-5, WP-1-6, WP-1-7, WP-1-8, WP-1-9, WP-1-10, WP-1-11, WP-1-12, WP-1-13, WP-1-14, WP-1-16, WP-1-17, WP-1-18, WP-1-19. WP-1-15: TOML, dotenv, config.go, YAML and the log swap merged (D-78, D-82 to D-95, X-48 closed); the frozen config.schema.json and config.keys.md match a fresh run of the Go generator byte for byte (X-49, closed 2026-10-28). WP-1-18 (dataset) is merged: Q-210 to Q-217, X-117 to X-129, O-51 and O-52 open, and the ml-1m test is ignored (O-1). Every Phase 1 WP is merged. All in `porting/work-packages.md` |
 | 2. Storage | exited (D-207) | Done: WP-2-1 (data core; its shared suite waits for the SQL and MongoDB stores, O-36), WP-2-4 (cache core; O-28), WP-2-7 (MongoDB cache store, feature `mongodb`; creator registered, D-157), WP-2-8 (vector core, async, exact search; O-30) and WP-2-10 (blob, async; O-31 closed by 3966bf6f with the in-process XML listener tests). WP-2-5 (Redis cache store, feature `redis`, Redis 8, cluster and Kvrocks; X-103 honoured per D-158). WP-2-3 (MongoDB data store, feature `mongodb`, MongoDB 6.0.28; O-53 open for 8.0; the `get_item_stream` doc is corrected, O-54). WP-2-11 (meta store, SQLite through rusqlite 0.39.0, D-160 to D-166; O-48 closed, O-49 and O-50 open for Phases 3 and 4). WP-2-2 (SQL data store, MySQL, Postgres and SQLite as one build; D-177 to D-181; O-36 closed by the SQL and MongoDB runs; O-57 and O-59 closed by the Go and Rust cross-reads on PostgreSQL, MySQL and SQLite, D-177 to D-181). WP-2-6 (SQL cache store: MySQL and Postgres on sqlx 0.9.0, SQLite on rusqlite 0.39.0; D-167 to D-175; Q-232 MySQL auth open). WP-2-9 (D-197 to D-200), WP-2-12 (D-202 to D-206) and WP-2-13 (D-186 to D-193) merged. The court audit of the env-gated backend tests is O-66 (D-201). Phase 2 exited (D-207): `test_gcs` stays ignored with its reason, and O-62 stays open for a real-GCS run before Phase 5. |
-| 3. Models and logics | in progress | Accepted: WP-3-1 (D-216), WP-3-4 (D-217), WP-3-2 (D-224), WP-3-3 (D-230, contract touches D-231) WP-3-5 (D-234, design D-233), and WP-3-6 (D-229; Q-254 closed by D-232, Q-255 open). WP-3-7 is unblocked, as WP-3-5 and WP-3-6 are accepted. WP-3-8 needs the datasets (O-1, O-70 to O-72). The master must pass processed items (O-75), and REST must confirm nil against empty results (O-76) |
+| 3. Models and logics | in progress | Accepted: WP-3-1 (D-216), WP-3-4 (D-217), WP-3-2 (D-224), WP-3-3 (D-230, contract touches D-231), WP-3-5 (D-234, design D-233), WP-3-6 (D-229; Q-254 closed by D-232, Q-255 open) and WP-3-7 (D-236, design D-235). WP-3-8 needs the datasets (O-1, O-70 to O-72). The master must pass processed items (O-75). REST must confirm nil against empty results (O-76). O-30 is extended by WP-3-7 and stays open |
 | 4. Nodes | not started | WP-4-1 to WP-4-7 |
 | 5. Conformance | not started | WP-5-1 to WP-5-3 |
 
@@ -2042,6 +2042,47 @@ or accepts a metric gap outside the Go tests' own tolerances.
     and Q-255 (`json.Number`, which the item and user label copies follow, X-204). Q-255 stays open until
     Phase 5.
   - Verdict: accepted.
+
+- **D-235 Design of the recommend pipeline (WP-3-7, the fold of D-WP37-1 to D-WP37-3).**
+  1. `Source` replaces Go's closures, and `run` takes `&mut self` (D-WP37-1). Go's `parse` returns a
+     `RecommenderFunc` closure. The port returns a `Source` enum and runs it in `Recommender::run`. Go's
+     `recommendItemToItem` sorts the user's feedback in place (`data.SortFeedbacks`), so the item-to-item run
+     takes `&mut self` and leaves the sorted feedback behind, as Go does.
+  2. The external script runs on a blocking thread (D-WP37-2). `External::new` and `pull` use
+     `reqwest::blocking` and `rquickjs`, which would block or panic on the async worker. The port builds and
+     runs the script inside `tokio::task::spawn_blocking`. Go's goroutine has no such limit.
+  3. `Recommend` returns a `Vec`, and nil is not kept (D-WP37-3). The port cannot tell nil from empty. O-76
+     records the consequence for the REST work.
+
+- **D-236 Court acceptance for WP-3-7 on the head `60fa669b` (integrator, 2026-10-29).** The branch
+  `claude/wp-3-7-logics` is merged as `f0467076` on the integration head `7c6986ea`. The merge was clean.
+  - The port is `logics/recommend.go` @ add21b5 in `gorse-logics`, with nine unit tests in
+    `recommend/tests.rs`: the Go suite's methods, the unknown-recommender and missing-config errors, and
+    `recommender_is_send_and_sync`. None is ignored. The thread's report counts 12 for
+    `cargo test -p gorse-logics recommend`, a substring filter; the gate lists nine in `recommend::tests`.
+  - The Go oracle. `conformance/tests/recommend_oracle.rs` runs `go run ./contracts/tools/recommendgolden`
+    itself, so no step is hand-run. The test asserts 40 cases and 120 compared runs (three per case), and
+    it requires zero differences. Its largest score gap is 4.77e-7, within the 1e-6 tolerance. In repeated
+    runs, 46 to 48 of the 120 runs give a nil result in Go (O-76).
+  - The court's mutation check. Reversing the `lo.Every` arguments in `recommend.rs` (the bug of X-210)
+    makes `recommend_matches_go` fail with 41 differences (exit 101). The file was restored byte for byte.
+    The thread's own run of that mutation gave 34 differences.
+  - The gate on the merged tree, with every URI set: fmt, clippy, rustdoc, the config and YAML goldens,
+    `go vet`, the cloud and Mongo clippy runs, the vector acceptance with `--include-ignored` (skipping
+    `vectors::weaviate::tests::sparse`, as D-224 records), the vector cross-read, the proxy conformance and
+    the proxy store tests all exit 0. `cargo test --workspace --no-fail-fast`: TEST section 1110 passed,
+    0 failed, 54 ignored. That is 10 more than D-234's 1100: the nine unit tests and the oracle. The Redis
+    TLS unset check exits 101, as O-66 expects. The thread's 23 failures were backend suites without
+    services, and none fails with the URIs set.
+  - Limits, all kept open. O-30 is extended: the oracle keeps only cases whose three Go builds agree, so it
+    never compares against an unstable reference, but it also leaves out the cases where Go's approximate
+    answer is what a user would see. The external recommender is covered only by the ported `TestExternal`,
+    since the oracle starts no script server. X-209: the ported suite misses the user-to-user digest for
+    type `items`, and the oracle covers it.
+  - Not touched: O-75 (`recommend` reads processed items from the stores, not from the master) and Q-255
+    (the pipeline evaluates no expressions).
+  - Verdict: accepted, with O-30 and O-76 open and extended. The bug X-210 was caught by the oracle and
+    fixed in the code.
 
 ## Open questions for Ritchie
 

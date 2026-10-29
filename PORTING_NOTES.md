@@ -1712,6 +1712,16 @@ said otherwise), so the Rust result is Go's.
   query. Phase 3 (metric parity) decides whether that gap is acceptable, and
   whether xvec's index must be ported.
 
+  Extended by WP-3-7 (D-236). Go's dense neighbour search varies between builds of the same
+  rows: `xvec` stores dense vectors as FP16 in an HNSW index whose graph is built with random levels, so
+  two builds can give different neighbour sets, and the Go recommender is not reproducible on dense
+  collections. Sparse collections use Go's flat index, which is exact. The recommend oracle keeps a case
+  only when three independent builds of its stores give the same outcomes (`stableCase` in
+  `contracts/tools/recommendgolden`), and a case that never settles fails the generator. So the comparison
+  never uses an unstable Go reference. It also leaves out the cases where Go's approximate answer is the
+  one a user would see. The Rust store is exact, so a stable Go answer that is approximate would show as a
+  difference. Open.
+
 - **O-31 (closed by 3966bf6f) GCS write cannot run on fake-gcs-server.** The XML `PUT` to the
   emulator answers 400 `invalid uploadType` on 1.54.0, 1.56.1 and in the latest
   run. `test_gcs` is `#[ignore]`d with that reason. `test_gcs_read_list_remove`
@@ -2767,7 +2777,42 @@ said otherwise), so the Rust result is Go's.
   items (D-WP35-2, D-233). That master code is not in WP-3-5. Open until the master WP merges.
 
 - **O-76 The REST work must confirm nil against empty results (WP-3-5, open).** X-201. Open until the REST
-  WP checks both encodings against Go's `server/rest.go` and `master/rest.go`.
+  WP checks both encodings against Go's `server/rest.go` and `master/rest.go`. Extended by WP-3-7 (D-236):
+  Go's `RecommendSequential` and `Recommend` can also return a nil list where the port returns an empty
+  `Vec`. The recommend oracle counts the nil results, 46 to 48 of its 120 runs in repeated runs, so this
+  is measured, not assumed. Open.
+
+- **Q-264 `recommendItemToItem` and `recommendUserToUser` walk a map (WP-3-7, quirk 1).** Go pushes the
+  candidates from a `map`, so ties in the heap come out in Go's random map order. The port pushes in ID
+  order (`BTreeMap`), so a tie always breaks the same way. Go has no fixed order to match.
+
+- **X-206 A negative cache size maps to 0 (WP-3-7, deviation 1).** Go's `make([]T, 0, n)` panics on a
+  negative `CacheSize`. The config validates `cache_size` with `gt=0`, so the loader never passes one. Only
+  a hand-built `RecommendConfig` can.
+
+- **X-207 The not-found errors wrap `StorageError::NotFound` (WP-3-7, deviation 2).** The texts are
+  `item-to-item recommender NAME not found` and `user-to-user recommender NAME not found`, as Go's `%w` with
+  `storage.ErrNotFound` gives them. The unknown-name text is `unknown recommender: NAME`, as Go's
+  `errors.Errorf`.
+
+- **X-208 Each Rust test opens its own stores (WP-3-7, deviation 3).** Go's suite shares one set of stores
+  between its methods. The expectations hold on fresh stores, since no method reads a row another writes,
+  so the Rust suite gives each test its own.
+
+- **X-209 The ported suite does not cover the user-to-user digest for type `items` (WP-3-7, deviation 4).**
+  The Go test's user-to-user config is type `embedding`, and the digest reads the feedback types only for
+  type `items`. A mutation that hashes with `None` survives the ported suite. The oracle covers every kind,
+  including `items`, and its digests match Go.
+
+- **X-210 `lo.Every` takes the collection first (WP-3-7, deviation 5, a bug found and fixed).** `lo.Every(
+  collection, subset)` is true when every element of `subset` is in `collection`, so Go's
+  `lo.Every(item.Categories, r.categories)` requires the item to carry every requested category. The first
+  draft of the port reversed the two. The unit suite did not catch it, since its user-to-user case requests
+  no category. The oracle did, with 34 differences in the thread's run. The fix is in the code, with a
+  comment at `recommend.rs` (around 570). The court's own reversal produced 41 differences (D-236).
+
+- **X-211 `Recommend` takes the limit as `i64` (WP-3-7, deviation 6).** Go's `int`. A limit of 0 or less
+  means all. A negative cache size is the same case as X-206.
 
 Services: MySQL 8.0.46 (`mysql:8.0`), PostgreSQL 10.0 (`postgres:10.0`, the
 version `.github/workflows/build_test.yml` pins, so CI tests 10.0 and so does
