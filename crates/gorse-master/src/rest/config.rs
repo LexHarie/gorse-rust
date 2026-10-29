@@ -78,7 +78,8 @@ impl ToConfigValue for Duration {
 impl<T: ToConfigValue> ToConfigValue for Option<T> {
     /// A nil Go slice, which the `None` stands for, is `null`.
     fn to_config_value(&self) -> Value {
-        self.as_ref().map_or(Value::Null, ToConfigValue::to_config_value)
+        self.as_ref()
+            .map_or(Value::Null, ToConfigValue::to_config_value)
     }
 }
 
@@ -107,7 +108,10 @@ fn format_duration(text: &str) -> String {
 impl ToConfigValue for FeedbackTypeExpression {
     fn to_config_value(&self) -> Value {
         let mut map = Map::new();
-        map.insert("FeedbackType".to_owned(), Value::String(self.feedback_type.clone()));
+        map.insert(
+            "FeedbackType".to_owned(),
+            Value::String(self.feedback_type.clone()),
+        );
         map.insert("ExprType".to_owned(), Value::from(self.expr_type as i64));
         map.insert("Value".to_owned(), self.value.to_config_value());
         Value::Object(map)
@@ -128,8 +132,12 @@ pub(crate) async fn get_config(State(master): State<Arc<Master>>) -> Result<Resp
 /// `POST /api/dashboard/config`: replaces the recommendation settings with the
 /// ones in the body, after checking the whole configuration still validates.
 /// Go's `mapstructure` decode keeps the names of [`config_map`].
-pub(crate) async fn post_config(State(master): State<Arc<Master>>, body: Bytes) -> Result<Response, ApiError> {
-    let posted: Value = serde_json::from_slice(&body).map_err(|err| ApiError::BadRequest(err.to_string()))?;
+pub(crate) async fn post_config(
+    State(master): State<Arc<Master>>,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let posted: Value =
+        serde_json::from_slice(&body).map_err(|err| ApiError::BadRequest(err.to_string()))?;
     let input = to_config_value(&posted);
     let mut new_config = Config::default();
     let mut errs = Vec::new();
@@ -176,14 +184,13 @@ fn to_config_value(value: &Value) -> ConfigValue {
         Value::Number(n) => ConfigValue::Float64(n.as_f64().unwrap_or(0.0)),
         Value::String(s) => ConfigValue::String(s.clone()),
         Value::Array(items) => ConfigValue::Slice(items.iter().map(to_config_value).collect()),
-        Value::Object(fields) => ConfigValue::Map(
-            fields
-                .iter()
-                .fold(gorse_config::value::Map::new(), |mut map, (key, value)| {
-                    map.insert(key.clone(), to_config_value(value));
-                    map
-                }),
-        ),
+        Value::Object(fields) => ConfigValue::Map(fields.iter().fold(
+            gorse_config::value::Map::new(),
+            |mut map, (key, value)| {
+                map.insert(key.clone(), to_config_value(value));
+                map
+            },
+        )),
     }
 }
 

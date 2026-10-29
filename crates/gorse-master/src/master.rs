@@ -748,3 +748,16 @@ async fn wait_until(deadline: Option<tokio::time::Instant>) {
         None => std::future::pending().await,
     }
 }
+
+#[cfg(test)]
+impl Master {
+    /// Whether a task run is waiting to start (Go's `len(m.scheduled) > 0`). The
+    /// receiver is taken when the task loop starts, so this is `false` once it has.
+    pub(crate) fn scheduled_pending(&self) -> bool {
+        self.scheduled_rx
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_mut()
+            .is_some_and(|receiver| receiver.try_recv().is_ok())
+    }
+}

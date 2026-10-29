@@ -12,17 +12,18 @@ use std::sync::Arc;
 
 use axum::extract::{Path, State};
 use axum::http::Uri;
-use axum::http::HeaderMap;
 use axum::response::Response;
 use gorse_common::gocontext::Context;
-use gorse_common::gotime::{self, Time};
+use gorse_common::gotime;
 use gorse_config::config::schema::ExternalConfig;
 use gorse_logics::external::External;
 use gorse_logics::item_to_item;
 use gorse_logics::recommend::Recommender;
 use gorse_logics::user_to_user;
 use gorse_server::rest::recommend::{last_modified, with_last_modified};
-use gorse_server::rest::response::{ApiError, PathParams, Query, ok, parse_int, path_param, read_categories};
+use gorse_server::rest::response::{
+    ApiError, PathParams, Query, ok, parse_int, path_param, read_categories,
+};
 use gorse_storage::cache;
 use gorse_storage::data;
 use gorse_storage::data::types;
@@ -39,15 +40,17 @@ fn categories_of(params: &PathParams, query: &Query, defaults: &[&str]) -> Vec<S
 
 /// `GET /api/dashboard/latest`: the newest items, sorted by timestamp, with
 /// the Unix time of each as its score.
-pub(crate) async fn latest(State(master): State<Arc<Master>>, uri: Uri) -> Result<Response, ApiError> {
+pub(crate) async fn latest(
+    State(master): State<Arc<Master>>,
+    uri: Uri,
+) -> Result<Response, ApiError> {
     let query = query_of(&uri);
     let categories = categories_of(&PathParams::new(), &query, &[]);
     let offset = parse_int(&query, "offset", 0)?;
     let n = parse_int(&query, "n", master.config().server.default_n)?;
     let cfg = master.config();
-    let after = (cfg.recommend.data_source.item_ttl > 0).then(|| {
-        gotime::now().add_date(0, 0, -(cfg.recommend.data_source.item_ttl as i64))
-    });
+    let after = (cfg.recommend.data_source.item_ttl > 0)
+        .then(|| gotime::now().add_date(0, 0, -(cfg.recommend.data_source.item_ttl as i64)));
     let mut items = master
         .data()
         .get_latest_items(&Context::background(), offset + n, &categories, after)
@@ -81,7 +84,8 @@ pub(crate) async fn non_personalized(
     let categories = categories_of(&params, &query, &[""]);
     let key = cache::key(&[cache::NON_PERSONALIZED_UPDATE_TIME, &name]);
     let header = last_modified(&master.rest, &key).await;
-    let response = search_documents(&master, cache::NON_PERSONALIZED, &name, &categories, &query).await?;
+    let response =
+        search_documents(&master, cache::NON_PERSONALIZED, &name, &categories, &query).await?;
     Ok(with_last_modified(response, header))
 }
 
@@ -129,9 +133,6 @@ async fn search_documents(
     for item in &items {
         let value = load_score(master, item).await?;
         results.get_or_insert_with(Vec::new).push(value);
-    }
-    if collection == cache::NON_PERSONALIZED {
-        return ok(&results);
     }
     ok(&results)
 }
@@ -230,7 +231,6 @@ pub(crate) async fn item_to_item(
     let query = query_of(&uri);
     let offset = parse_int(&query, "offset", 0)?;
     let n = parse_int(&query, "n", cfg.server.default_n)?;
-    let categories = query.get_all("category");
     let limit = (offset + n).max(cfg.recommend.cache_size);
     let scores = item_to_item::query_item_to_item(
         &ctx,
@@ -242,7 +242,6 @@ pub(crate) async fn item_to_item(
     )
     .await
     .map_err(ApiError::internal)?;
-    let _ = categories;
     let mut scores = gorse_server::rest::recommend::filter_visible_items_by_categories(
         &master.rest,
         scores,
@@ -259,7 +258,11 @@ pub(crate) async fn item_to_item(
 
 /// The `category` query values, as the item-to-item route filters with them.
 fn query_categories(query: &Query) -> Vec<String> {
-    query.get_all("category").into_iter().map(str::to_owned).collect()
+    query
+        .get_all("category")
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
 }
 
 /// Go's `scores[offset:]` then `scores[:n]`, with a result past the end
@@ -312,7 +315,10 @@ pub(crate) async fn user_to_user(
 }
 
 /// Go's `GetUser`: the user of a score with the score.
-async fn load_user_score(master: &Master, score: &cache::Score) -> Result<serde_json::Value, ApiError> {
+async fn load_user_score(
+    master: &Master,
+    score: &cache::Score,
+) -> Result<serde_json::Value, ApiError> {
     let user = master
         .data()
         .get_user(&Context::background(), &score.id)
@@ -330,9 +336,8 @@ pub(crate) async fn external(uri: Uri) -> Result<Response, ApiError> {
         return Err(ApiError::BadRequest("script is required".to_owned()));
     }
     let user_id = query.get("user-id").to_owned();
-    let script = base64_decode(&script_base64).map_err(|err| {
-        ApiError::BadRequest(format!("invalid script encoding: {err}"))
-    })?;
+    let script = base64_decode(&script_base64)
+        .map_err(|err| ApiError::BadRequest(format!("invalid script encoding: {err}")))?;
     let config = ExternalConfig {
         name: "preview".to_owned(),
         script: String::from_utf8_lossy(&script).into_owned(),
@@ -350,10 +355,6 @@ fn base64_decode(text: &str) -> Result<Vec<u8>, String> {
         .decode(text)
         .map_err(|err| err.to_string())
 }
-
-/// Keeps the imports used when a route is built from its parts.
-#[allow(dead_code)]
-fn _unused(_: &HeaderMap, _: Time, _: &dyn Fn()) {}
 
 /// Go's `ScoredItem`: an item with its score. The item's fields are flattened
 /// into the object, as Go's embedding does.

@@ -26,8 +26,8 @@ use prost_types::Timestamp;
 use serde::Serialize;
 
 use crate::Master;
-use crate::rest::{auth, method_not_allowed, write_error};
 use crate::rest::bulk::BATCH_SIZE;
+use crate::rest::{auth, method_not_allowed, write_error};
 
 /// The flag that ends the dump (Go's `EOF`).
 const EOF: i64 = 0;
@@ -92,7 +92,12 @@ impl Reader<'_> {
     /// `unexpected EOF` when the bytes run out inside the value.
     fn flag(&mut self) -> Result<i64, String> {
         if self.buf.len() < 8 {
-            return Err(if self.buf.is_empty() { "EOF" } else { "unexpected EOF" }.to_owned());
+            return Err(if self.buf.is_empty() {
+                "EOF"
+            } else {
+                "unexpected EOF"
+            }
+            .to_owned());
         }
         let (head, rest) = self.buf.split_at(8);
         self.buf = rest;
@@ -167,7 +172,8 @@ async fn write_dump(master: &Master) -> Result<(Vec<u8>, DumpStats), ApiError> {
 
     put_flag(&mut out, FEEDBACK_STREAM);
     let end_time = master.config().now();
-    let mut feedback = data.get_feedback_stream(&ctx, BATCH_SIZE as i64, &[with_end_time(end_time)]);
+    let mut feedback =
+        data.get_feedback_stream(&ctx, BATCH_SIZE as i64, &[with_end_time(end_time)]);
     while let Some(batch) = feedback.next().await {
         for record in batch.map_err(ApiError::internal)? {
             let labels = serde_json::to_vec(&record.labels).map_err(ApiError::internal)?;
@@ -251,12 +257,16 @@ pub(crate) async fn restore_dump(
                     });
                     stats.users += 1;
                     if batch.len() == BATCH_SIZE {
-                        data.batch_insert_users(&ctx, &batch).await.map_err(ApiError::internal)?;
+                        data.batch_insert_users(&ctx, &batch)
+                            .await
+                            .map_err(ApiError::internal)?;
                         batch.clear();
                     }
                 }
                 if !batch.is_empty() {
-                    data.batch_insert_users(&ctx, &batch).await.map_err(ApiError::internal)?;
+                    data.batch_insert_users(&ctx, &batch)
+                        .await
+                        .map_err(ApiError::internal)?;
                 }
             }
             ITEM_STREAM => {
@@ -283,18 +293,23 @@ pub(crate) async fn restore_dump(
                     });
                     stats.items += 1;
                     if batch.len() == BATCH_SIZE {
-                        data.batch_insert_items(&ctx, &batch).await.map_err(ApiError::internal)?;
+                        data.batch_insert_items(&ctx, &batch)
+                            .await
+                            .map_err(ApiError::internal)?;
                         batch.clear();
                     }
                 }
                 if !batch.is_empty() {
-                    data.batch_insert_items(&ctx, &batch).await.map_err(ApiError::internal)?;
+                    data.batch_insert_items(&ctx, &batch)
+                        .await
+                        .map_err(ApiError::internal)?;
                 }
             }
             FEEDBACK_STREAM => {
                 let mut batch: Vec<Feedback> = Vec::with_capacity(BATCH_SIZE);
                 loop {
-                    let (size, record) = reader.record::<PbFeedback>().map_err(ApiError::internal)?;
+                    let (size, record) =
+                        reader.record::<PbFeedback>().map_err(ApiError::internal)?;
                     flag = size;
                     if flag <= 0 {
                         break;

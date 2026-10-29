@@ -37,12 +37,30 @@ pub(crate) fn database_config_map(cfg: &DatabaseConfig) -> Map<String, Value> {
     let mut map = Map::new();
     map.insert("data_store".to_owned(), cfg.data_store.to_config_value());
     map.insert("cache_store".to_owned(), cfg.cache_store.to_config_value());
-    map.insert("vector_store".to_owned(), cfg.vector_store.to_config_value());
-    map.insert("table_prefix".to_owned(), cfg.table_prefix.to_config_value());
-    map.insert("data_table_prefix".to_owned(), cfg.data_table_prefix.to_config_value());
-    map.insert("cache_table_prefix".to_owned(), cfg.cache_table_prefix.to_config_value());
-    map.insert("cache_client_name".to_owned(), cfg.cache_client_name.to_config_value());
-    map.insert("vector_table_prefix".to_owned(), cfg.vector_table_prefix.to_config_value());
+    map.insert(
+        "vector_store".to_owned(),
+        cfg.vector_store.to_config_value(),
+    );
+    map.insert(
+        "table_prefix".to_owned(),
+        cfg.table_prefix.to_config_value(),
+    );
+    map.insert(
+        "data_table_prefix".to_owned(),
+        cfg.data_table_prefix.to_config_value(),
+    );
+    map.insert(
+        "cache_table_prefix".to_owned(),
+        cfg.cache_table_prefix.to_config_value(),
+    );
+    map.insert(
+        "cache_client_name".to_owned(),
+        cfg.cache_client_name.to_config_value(),
+    );
+    map.insert(
+        "vector_table_prefix".to_owned(),
+        cfg.vector_table_prefix.to_config_value(),
+    );
     map.insert("mysql".to_owned(), cfg.mysql.to_config_value());
     map.insert("postgres".to_owned(), cfg.postgres.to_config_value());
     map.insert("redis".to_owned(), cfg.redis.to_config_value());
@@ -59,10 +77,22 @@ impl ToConfigValue for DatabaseConfig {
 /// The `mapstructure` map of a [`MySQLConfig`].
 pub(crate) fn my_s_q_l_config_map(cfg: &MySQLConfig) -> Map<String, Value> {
     let mut map = Map::new();
-    map.insert("isolation_level".to_owned(), cfg.isolation_level.to_config_value());
-    map.insert("max_open_conns".to_owned(), cfg.max_open_conns.to_config_value());
-    map.insert("max_idle_conns".to_owned(), cfg.max_idle_conns.to_config_value());
-    map.insert("conn_max_lifetime".to_owned(), cfg.conn_max_lifetime.to_config_value());
+    map.insert(
+        "isolation_level".to_owned(),
+        cfg.isolation_level.to_config_value(),
+    );
+    map.insert(
+        "max_open_conns".to_owned(),
+        cfg.max_open_conns.to_config_value(),
+    );
+    map.insert(
+        "max_idle_conns".to_owned(),
+        cfg.max_idle_conns.to_config_value(),
+    );
+    map.insert(
+        "conn_max_lifetime".to_owned(),
+        cfg.conn_max_lifetime.to_config_value(),
+    );
     map
 }
 
@@ -75,9 +105,18 @@ impl ToConfigValue for MySQLConfig {
 /// The `mapstructure` map of a [`SQLConfig`].
 pub(crate) fn s_q_l_config_map(cfg: &SQLConfig) -> Map<String, Value> {
     let mut map = Map::new();
-    map.insert("max_open_conns".to_owned(), cfg.max_open_conns.to_config_value());
-    map.insert("max_idle_conns".to_owned(), cfg.max_idle_conns.to_config_value());
-    map.insert("conn_max_lifetime".to_owned(), cfg.conn_max_lifetime.to_config_value());
+    map.insert(
+        "max_open_conns".to_owned(),
+        cfg.max_open_conns.to_config_value(),
+    );
+    map.insert(
+        "max_idle_conns".to_owned(),
+        cfg.max_idle_conns.to_config_value(),
+    );
+    map.insert(
+        "conn_max_lifetime".to_owned(),
+        cfg.conn_max_lifetime.to_config_value(),
+    );
     map
 }
 
@@ -90,7 +129,10 @@ impl ToConfigValue for SQLConfig {
 /// The `mapstructure` map of a [`RedisConfig`].
 pub(crate) fn redis_config_map(cfg: &RedisConfig) -> Map<String, Value> {
     let mut map = Map::new();
-    map.insert("max_search_results".to_owned(), cfg.max_search_results.to_config_value());
+    map.insert(
+        "max_search_results".to_owned(),
+        cfg.max_search_results.to_config_value(),
+    );
     map
 }
 
@@ -103,8 +145,14 @@ impl ToConfigValue for RedisConfig {
 /// The `mapstructure` map of a [`VectorConfig`].
 pub(crate) fn vector_config_map(cfg: &VectorConfig) -> Map<String, Value> {
     let mut map = Map::new();
-    map.insert("quantization_type".to_owned(), cfg.quantization_type.to_config_value());
-    map.insert("quantization_bits".to_owned(), cfg.quantization_bits.to_config_value());
+    map.insert(
+        "quantization_type".to_owned(),
+        cfg.quantization_type.to_config_value(),
+    );
+    map.insert(
+        "quantization_bits".to_owned(),
+        cfg.quantization_bits.to_config_value(),
+    );
     map
 }
 
@@ -125,14 +173,35 @@ pub(crate) fn master_config_map(cfg: &MasterConfig) -> Map<String, Value> {
     map.insert("ssl_key".to_owned(), cfg.ssl_key.to_config_value());
     map.insert("http_port".to_owned(), cfg.http_port.to_config_value());
     map.insert("http_host".to_owned(), cfg.http_host.to_config_value());
-    map.insert("http_cors_domains".to_owned(), cfg.http_cors_domains.to_config_value());
-    map.insert("http_cors_methods".to_owned(), cfg.http_cors_methods.to_config_value());
+    map.insert(
+        "http_cors_domains".to_owned(),
+        cfg.http_cors_domains.to_config_value(),
+    );
+    map.insert(
+        "http_cors_methods".to_owned(),
+        cfg.http_cors_methods.to_config_value(),
+    );
     map.insert("n_jobs".to_owned(), cfg.n_jobs.to_config_value());
-    map.insert("meta_timeout".to_owned(), cfg.meta_timeout.to_config_value());
-    map.insert("dashboard_user_name".to_owned(), cfg.dashboard_user_name.to_config_value());
-    map.insert("dashboard_password".to_owned(), cfg.dashboard_password.to_config_value());
-    map.insert("dashboard_redacted".to_owned(), cfg.dashboard_redacted.to_config_value());
-    map.insert("admin_api_key".to_owned(), cfg.admin_api_key.to_config_value());
+    map.insert(
+        "meta_timeout".to_owned(),
+        cfg.meta_timeout.to_config_value(),
+    );
+    map.insert(
+        "dashboard_user_name".to_owned(),
+        cfg.dashboard_user_name.to_config_value(),
+    );
+    map.insert(
+        "dashboard_password".to_owned(),
+        cfg.dashboard_password.to_config_value(),
+    );
+    map.insert(
+        "dashboard_redacted".to_owned(),
+        cfg.dashboard_redacted.to_config_value(),
+    );
+    map.insert(
+        "admin_api_key".to_owned(),
+        cfg.admin_api_key.to_config_value(),
+    );
     map
 }
 
@@ -148,9 +217,18 @@ pub(crate) fn server_config_map(cfg: &ServerConfig) -> Map<String, Value> {
     map.insert("api_key".to_owned(), cfg.api_key.to_config_value());
     map.insert("default_n".to_owned(), cfg.default_n.to_config_value());
     map.insert("clock_error".to_owned(), cfg.clock_error.to_config_value());
-    map.insert("auto_insert_user".to_owned(), cfg.auto_insert_user.to_config_value());
-    map.insert("auto_insert_item".to_owned(), cfg.auto_insert_item.to_config_value());
-    map.insert("cache_expire".to_owned(), cfg.cache_expire.to_config_value());
+    map.insert(
+        "auto_insert_user".to_owned(),
+        cfg.auto_insert_user.to_config_value(),
+    );
+    map.insert(
+        "auto_insert_item".to_owned(),
+        cfg.auto_insert_item.to_config_value(),
+    );
+    map.insert(
+        "cache_expire".to_owned(),
+        cfg.cache_expire.to_config_value(),
+    );
     map
 }
 
@@ -164,15 +242,36 @@ impl ToConfigValue for ServerConfig {
 pub(crate) fn recommend_config_map(cfg: &RecommendConfig) -> Map<String, Value> {
     let mut map = Map::new();
     map.insert("cache_size".to_owned(), cfg.cache_size.to_config_value());
-    map.insert("cache_expire".to_owned(), cfg.cache_expire.to_config_value());
-    map.insert("context_size".to_owned(), cfg.context_size.to_config_value());
-    map.insert("active_user_ttl".to_owned(), cfg.active_user_ttl.to_config_value());
+    map.insert(
+        "cache_expire".to_owned(),
+        cfg.cache_expire.to_config_value(),
+    );
+    map.insert(
+        "context_size".to_owned(),
+        cfg.context_size.to_config_value(),
+    );
+    map.insert(
+        "active_user_ttl".to_owned(),
+        cfg.active_user_ttl.to_config_value(),
+    );
     map.insert("data_source".to_owned(), cfg.data_source.to_config_value());
     map.insert("search".to_owned(), cfg.search.to_config_value());
-    map.insert("non-personalized".to_owned(), cfg.non_personalized.to_config_value());
-    map.insert("item-to-item".to_owned(), cfg.item_to_item.to_config_value());
-    map.insert("user-to-user".to_owned(), cfg.user_to_user.to_config_value());
-    map.insert("collaborative".to_owned(), cfg.collaborative.to_config_value());
+    map.insert(
+        "non-personalized".to_owned(),
+        cfg.non_personalized.to_config_value(),
+    );
+    map.insert(
+        "item-to-item".to_owned(),
+        cfg.item_to_item.to_config_value(),
+    );
+    map.insert(
+        "user-to-user".to_owned(),
+        cfg.user_to_user.to_config_value(),
+    );
+    map.insert(
+        "collaborative".to_owned(),
+        cfg.collaborative.to_config_value(),
+    );
     map.insert("external".to_owned(), cfg.external.to_config_value());
     map.insert("replacement".to_owned(), cfg.replacement.to_config_value());
     map.insert("ranker".to_owned(), cfg.ranker.to_config_value());
@@ -189,7 +288,10 @@ impl ToConfigValue for RecommendConfig {
 /// The `mapstructure` map of a [`DataSourceConfig`].
 pub(crate) fn data_source_config_map(cfg: &DataSourceConfig) -> Map<String, Value> {
     let mut map = Map::new();
-    map.insert("read_feedback_types".to_owned(), cfg.read_feedback_types.to_config_value());
+    map.insert(
+        "read_feedback_types".to_owned(),
+        cfg.read_feedback_types.to_config_value(),
+    );
     map.insert("item_ttl".to_owned(), cfg.item_ttl.to_config_value());
     map
 }
@@ -264,9 +366,18 @@ pub(crate) fn collaborative_config_map(cfg: &CollaborativeConfig) -> Map<String,
     map.insert("type".to_owned(), cfg.kind.to_config_value());
     map.insert("fit_period".to_owned(), cfg.fit_period.to_config_value());
     map.insert("fit_epoch".to_owned(), cfg.fit_epoch.to_config_value());
-    map.insert("optimize_period".to_owned(), cfg.optimize_period.to_config_value());
-    map.insert("optimize_trials".to_owned(), cfg.optimize_trials.to_config_value());
-    map.insert("early_stopping".to_owned(), cfg.early_stopping.to_config_value());
+    map.insert(
+        "optimize_period".to_owned(),
+        cfg.optimize_period.to_config_value(),
+    );
+    map.insert(
+        "optimize_trials".to_owned(),
+        cfg.optimize_trials.to_config_value(),
+    );
+    map.insert(
+        "early_stopping".to_owned(),
+        cfg.early_stopping.to_config_value(),
+    );
     map
 }
 
@@ -306,7 +417,10 @@ impl ToConfigValue for ExternalConfig {
 /// The `mapstructure` map of a [`ReplacementConfig`].
 pub(crate) fn replacement_config_map(cfg: &ReplacementConfig) -> Map<String, Value> {
     let mut map = Map::new();
-    map.insert("enable_replacement".to_owned(), cfg.enable_replacement.to_config_value());
+    map.insert(
+        "enable_replacement".to_owned(),
+        cfg.enable_replacement.to_config_value(),
+    );
     map
 }
 
@@ -320,15 +434,36 @@ impl ToConfigValue for ReplacementConfig {
 pub(crate) fn ranker_config_map(cfg: &RankerConfig) -> Map<String, Value> {
     let mut map = Map::new();
     map.insert("type".to_owned(), cfg.kind.to_config_value());
-    map.insert("recommenders".to_owned(), cfg.recommenders.to_config_value());
-    map.insert("cache_expire".to_owned(), cfg.cache_expire.to_config_value());
+    map.insert(
+        "recommenders".to_owned(),
+        cfg.recommenders.to_config_value(),
+    );
+    map.insert(
+        "cache_expire".to_owned(),
+        cfg.cache_expire.to_config_value(),
+    );
     map.insert("fit_period".to_owned(), cfg.fit_period.to_config_value());
     map.insert("fit_epoch".to_owned(), cfg.fit_epoch.to_config_value());
-    map.insert("optimize_period".to_owned(), cfg.optimize_period.to_config_value());
-    map.insert("optimize_trials".to_owned(), cfg.optimize_trials.to_config_value());
-    map.insert("early_stopping".to_owned(), cfg.early_stopping.to_config_value());
-    map.insert("reranker_api".to_owned(), cfg.reranker_api.to_config_value());
-    map.insert("decision_api".to_owned(), cfg.decision_api.to_config_value());
+    map.insert(
+        "optimize_period".to_owned(),
+        cfg.optimize_period.to_config_value(),
+    );
+    map.insert(
+        "optimize_trials".to_owned(),
+        cfg.optimize_trials.to_config_value(),
+    );
+    map.insert(
+        "early_stopping".to_owned(),
+        cfg.early_stopping.to_config_value(),
+    );
+    map.insert(
+        "reranker_api".to_owned(),
+        cfg.reranker_api.to_config_value(),
+    );
+    map.insert(
+        "decision_api".to_owned(),
+        cfg.decision_api.to_config_value(),
+    );
     map
 }
 
@@ -341,7 +476,10 @@ impl ToConfigValue for RankerConfig {
 /// The `mapstructure` map of a [`FallbackConfig`].
 pub(crate) fn fallback_config_map(cfg: &FallbackConfig) -> Map<String, Value> {
     let mut map = Map::new();
-    map.insert("recommenders".to_owned(), cfg.recommenders.to_config_value());
+    map.insert(
+        "recommenders".to_owned(),
+        cfg.recommenders.to_config_value(),
+    );
     map
 }
 
@@ -354,9 +492,15 @@ impl ToConfigValue for FallbackConfig {
 /// The `mapstructure` map of a [`TracingConfig`].
 pub(crate) fn tracing_config_map(cfg: &TracingConfig) -> Map<String, Value> {
     let mut map = Map::new();
-    map.insert("enable_tracing".to_owned(), cfg.enable_tracing.to_config_value());
+    map.insert(
+        "enable_tracing".to_owned(),
+        cfg.enable_tracing.to_config_value(),
+    );
     map.insert("exporter".to_owned(), cfg.exporter.to_config_value());
-    map.insert("collector_endpoint".to_owned(), cfg.collector_endpoint.to_config_value());
+    map.insert(
+        "collector_endpoint".to_owned(),
+        cfg.collector_endpoint.to_config_value(),
+    );
     map.insert("sampler".to_owned(), cfg.sampler.to_config_value());
     map.insert("ratio".to_owned(), cfg.ratio.to_config_value());
     map
@@ -374,8 +518,14 @@ pub(crate) fn oidc_config_map(cfg: &OIDCConfig) -> Map<String, Value> {
     map.insert("enable".to_owned(), cfg.enable.to_config_value());
     map.insert("issuer".to_owned(), cfg.issuer.to_config_value());
     map.insert("client_id".to_owned(), cfg.client_id.to_config_value());
-    map.insert("client_secret".to_owned(), cfg.client_secret.to_config_value());
-    map.insert("redirect_url".to_owned(), cfg.redirect_url.to_config_value());
+    map.insert(
+        "client_secret".to_owned(),
+        cfg.client_secret.to_config_value(),
+    );
+    map.insert(
+        "redirect_url".to_owned(),
+        cfg.redirect_url.to_config_value(),
+    );
     map
 }
 
@@ -388,7 +538,10 @@ impl ToConfigValue for OIDCConfig {
 /// The `mapstructure` map of a [`DecisionAPIConfig`].
 pub(crate) fn decision_a_p_i_config_map(cfg: &DecisionAPIConfig) -> Map<String, Value> {
     let mut map = Map::new();
-    map.insert("state_template".to_owned(), cfg.state_template.to_config_value());
+    map.insert(
+        "state_template".to_owned(),
+        cfg.state_template.to_config_value(),
+    );
     map.insert("auth_token".to_owned(), cfg.auth_token.to_config_value());
     map.insert("model".to_owned(), cfg.model.to_config_value());
     map.insert("url".to_owned(), cfg.url.to_config_value());
@@ -404,8 +557,14 @@ impl ToConfigValue for DecisionAPIConfig {
 /// The `mapstructure` map of a [`RerankerAPIConfig`].
 pub(crate) fn reranker_a_p_i_config_map(cfg: &RerankerAPIConfig) -> Map<String, Value> {
     let mut map = Map::new();
-    map.insert("query_template".to_owned(), cfg.query_template.to_config_value());
-    map.insert("document_template".to_owned(), cfg.document_template.to_config_value());
+    map.insert(
+        "query_template".to_owned(),
+        cfg.query_template.to_config_value(),
+    );
+    map.insert(
+        "document_template".to_owned(),
+        cfg.document_template.to_config_value(),
+    );
     map.insert("auth_token".to_owned(), cfg.auth_token.to_config_value());
     map.insert("model".to_owned(), cfg.model.to_config_value());
     map.insert("url".to_owned(), cfg.url.to_config_value());
@@ -423,12 +582,30 @@ pub(crate) fn open_a_i_config_map(cfg: &OpenAIConfig) -> Map<String, Value> {
     let mut map = Map::new();
     map.insert("base_url".to_owned(), cfg.base_url.to_config_value());
     map.insert("auth_token".to_owned(), cfg.auth_token.to_config_value());
-    map.insert("chat_completion_rpm".to_owned(), cfg.chat_completion_rpm.to_config_value());
-    map.insert("chat_completion_tpm".to_owned(), cfg.chat_completion_tpm.to_config_value());
-    map.insert("embedding_model".to_owned(), cfg.embedding_model.to_config_value());
-    map.insert("embedding_dimensions".to_owned(), cfg.embedding_dimensions.to_config_value());
-    map.insert("embedding_rpm".to_owned(), cfg.embedding_rpm.to_config_value());
-    map.insert("embedding_tpm".to_owned(), cfg.embedding_tpm.to_config_value());
+    map.insert(
+        "chat_completion_rpm".to_owned(),
+        cfg.chat_completion_rpm.to_config_value(),
+    );
+    map.insert(
+        "chat_completion_tpm".to_owned(),
+        cfg.chat_completion_tpm.to_config_value(),
+    );
+    map.insert(
+        "embedding_model".to_owned(),
+        cfg.embedding_model.to_config_value(),
+    );
+    map.insert(
+        "embedding_dimensions".to_owned(),
+        cfg.embedding_dimensions.to_config_value(),
+    );
+    map.insert(
+        "embedding_rpm".to_owned(),
+        cfg.embedding_rpm.to_config_value(),
+    );
+    map.insert(
+        "embedding_tpm".to_owned(),
+        cfg.embedding_tpm.to_config_value(),
+    );
     map.insert("log_file".to_owned(), cfg.log_file.to_config_value());
     map
 }
@@ -459,8 +636,14 @@ impl ToConfigValue for BlobConfig {
 pub(crate) fn s3_config_map(cfg: &S3Config) -> Map<String, Value> {
     let mut map = Map::new();
     map.insert("endpoint".to_owned(), cfg.endpoint.to_config_value());
-    map.insert("access_key_id".to_owned(), cfg.access_key_id.to_config_value());
-    map.insert("secret_access_key".to_owned(), cfg.secret_access_key.to_config_value());
+    map.insert(
+        "access_key_id".to_owned(),
+        cfg.access_key_id.to_config_value(),
+    );
+    map.insert(
+        "secret_access_key".to_owned(),
+        cfg.secret_access_key.to_config_value(),
+    );
     map
 }
 
@@ -473,7 +656,10 @@ impl ToConfigValue for S3Config {
 /// The `mapstructure` map of a [`GCSConfig`].
 pub(crate) fn g_c_s_config_map(cfg: &GCSConfig) -> Map<String, Value> {
     let mut map = Map::new();
-    map.insert("credentials_file".to_owned(), cfg.credentials_file.to_config_value());
+    map.insert(
+        "credentials_file".to_owned(),
+        cfg.credentials_file.to_config_value(),
+    );
     map
 }
 
@@ -487,9 +673,15 @@ impl ToConfigValue for GCSConfig {
 pub(crate) fn azure_blob_config_map(cfg: &AzureBlobConfig) -> Map<String, Value> {
     let mut map = Map::new();
     map.insert("endpoint".to_owned(), cfg.endpoint.to_config_value());
-    map.insert("account_name".to_owned(), cfg.account_name.to_config_value());
+    map.insert(
+        "account_name".to_owned(),
+        cfg.account_name.to_config_value(),
+    );
     map.insert("account_key".to_owned(), cfg.account_key.to_config_value());
-    map.insert("connection_string".to_owned(), cfg.connection_string.to_config_value());
+    map.insert(
+        "connection_string".to_owned(),
+        cfg.connection_string.to_config_value(),
+    );
     map
 }
 
@@ -502,12 +694,30 @@ impl ToConfigValue for AzureBlobConfig {
 /// The `mapstructure` map of a [`QuotaConfig`].
 pub(crate) fn quota_config_map(cfg: &QuotaConfig) -> Map<String, Value> {
     let mut map = Map::new();
-    map.insert("max_users_count".to_owned(), cfg.max_users_count.to_config_value());
-    map.insert("max_items_count".to_owned(), cfg.max_items_count.to_config_value());
-    map.insert("max_labels_size".to_owned(), cfg.max_labels_size.to_config_value());
-    map.insert("max_comment_size".to_owned(), cfg.max_comment_size.to_config_value());
-    map.insert("max_categories_count".to_owned(), cfg.max_categories_count.to_config_value());
-    map.insert("max_categories_size".to_owned(), cfg.max_categories_size.to_config_value());
+    map.insert(
+        "max_users_count".to_owned(),
+        cfg.max_users_count.to_config_value(),
+    );
+    map.insert(
+        "max_items_count".to_owned(),
+        cfg.max_items_count.to_config_value(),
+    );
+    map.insert(
+        "max_labels_size".to_owned(),
+        cfg.max_labels_size.to_config_value(),
+    );
+    map.insert(
+        "max_comment_size".to_owned(),
+        cfg.max_comment_size.to_config_value(),
+    );
+    map.insert(
+        "max_categories_count".to_owned(),
+        cfg.max_categories_count.to_config_value(),
+    );
+    map.insert(
+        "max_categories_size".to_owned(),
+        cfg.max_categories_size.to_config_value(),
+    );
     map
 }
 

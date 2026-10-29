@@ -148,7 +148,8 @@ impl Oidc {
         let expires_at = claims.expiration().timestamp();
         let info = user_info_of(&raw_id_token)?;
         let ttl = Duration::from_secs(u64::try_from(expires_at - now_unix()).unwrap_or(0));
-        self.tokens.insert(raw_id_token.clone(), CachedUser { info, ttl });
+        self.tokens
+            .insert(raw_id_token.clone(), CachedUser { info, ttl });
         Ok(Login {
             raw_id_token,
             expires_at,
@@ -173,7 +174,9 @@ fn user_info_of(raw_id_token: &str) -> Result<UserInfo, String> {
 fn now_unix() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_or(0, |elapsed| i64::try_from(elapsed.as_secs()).unwrap_or(i64::MAX))
+        .map_or(0, |elapsed| {
+            i64::try_from(elapsed.as_secs()).unwrap_or(i64::MAX)
+        })
 }
 
 impl Master {

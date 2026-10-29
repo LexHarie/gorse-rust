@@ -20,13 +20,15 @@ pub(crate) mod dashboard_api;
 mod dump;
 mod ranker;
 mod recommend;
+#[cfg(test)]
+mod tests;
 
 use std::convert::Infallible;
 use std::sync::Arc;
 
 use axum::Router;
 use axum::extract::{Request, State};
-use axum::http::{HeaderValue, StatusCode, header};
+use axum::http::{HeaderValue, StatusCode, Uri, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get};
@@ -58,10 +60,12 @@ pub fn router(master: Arc<Master>) -> Router {
         .with_state(master.clone());
     let fallback = {
         let master = master.clone();
+        let api = api.clone();
         tower::service_fn(move |request: Request| {
             let master = master.clone();
+            let api = api.clone();
             let server = server.clone();
-            async move { Ok::<_, Infallible>(dispatch(master, server, request).await) }
+            async move { Ok::<_, Infallible>(dispatch(master, api, server, request).await) }
         })
     };
     Router::new()
@@ -70,19 +74,49 @@ pub fn router(master: Arc<Master>) -> Router {
         .fallback_service(fallback)
 }
 
-/// Routes a request that no explicit route matches. `/api/` paths go to the
-/// server routes, which are guarded by the login filter as go-restful's
-/// WebService guards them. Every other path is the dashboard page.
-async fn dispatch(master: Arc<Master>, server: Router, mut request: Request) -> Response {
+/// Routes a request that no explicit route matches. `/api/dashboard/` paths go
+/// to the dashboard routes, and the other `/api/` paths to the server routes;
+/// both are guarded as go-restful's WebService guards them. Every other path is
+/// the dashboard page.
+async fn dispatch(
+    master: Arc<Master>,
+    api: Router,
+    server: Router,
+    mut request: Request,
+) -> Response {
     if !request.uri().path().starts_with("/api/") {
         return dashboard_page(&master, request).await;
     }
-    if auth::check_login(&master, request.headers()) {
-        set_api_key(&master, &mut request);
-    }
-    match server.oneshot(request).await {
+    strip_trailing_slash(&mut request);
+    let response = if request.uri().path().starts_with("/api/dashboard/") {
+        api.oneshot(request).await
+    } else {
+        if auth::check_login(&master, request.headers()) {
+            set_api_key(&master, &mut request);
+        }
+        server.oneshot(request).await
+    };
+    match response {
         Ok(response) => response,
         Err(never) => match never {},
+    }
+}
+
+/// Drops the trailing slash of a request path, keeping its query. go-restful
+/// matches a route with or without the slash, so the routes here do not list
+/// both forms.
+fn strip_trailing_slash(request: &mut Request) {
+    let uri = request.uri();
+    if !uri.path().ends_with('/') {
+        return;
+    }
+    let trimmed = uri.path().trim_end_matches('/');
+    let text = match uri.query() {
+        Some(query) => format!("{trimmed}?{query}"),
+        None => trimmed.to_owned(),
+    };
+    if let Ok(stripped) = text.parse::<Uri>() {
+        *request.uri_mut() = stripped;
     }
 }
 

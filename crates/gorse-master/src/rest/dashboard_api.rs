@@ -29,12 +29,13 @@ use gorse_storage_core::errors::Error as StorageError;
 use serde::{Deserialize, Serialize};
 
 use crate::Master;
-use crate::rest::{login_filter, recommend};
 use crate::rest::config;
 use crate::rest::ranker;
+use crate::rest::{login_filter, recommend};
 
 /// Go's `version.Version`: the binary version the status reports.
-pub(crate) const BINARY_VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Go's `version.Version` when the binary is built without a version stamp.
+pub(crate) const BINARY_VERSION: &str = "unknown-version";
 
 /// The dashboard routes, behind the login filter (Go's `LoginFilter` on the
 /// WebService).
@@ -49,13 +50,15 @@ pub(crate) fn routes(master: Arc<Master>) -> Router {
                 .post(config::post_config)
                 .delete(config::delete_config),
         )
-        .route("/api/dashboard/config/schema", get(config::get_config_schema))
+        .route(
+            "/api/dashboard/config/schema",
+            get(config::get_config_schema),
+        )
         .route("/api/dashboard/stats", get(stats))
         .route("/api/dashboard/tasks", get(tasks))
         .route("/api/dashboard/timeseries/{name}", get(timeseries))
         .route("/api/dashboard/user/{user-id}", get(user))
         .route("/api/dashboard/user/{user-id}/feedback", get(user_feedback))
-        .route("/api/dashboard/user/{user-id}/feedback/", get(user_feedback))
         .route(
             "/api/dashboard/user/{user-id}/feedback/{feedback-type}",
             get(user_feedback),
@@ -66,7 +69,10 @@ pub(crate) fn routes(master: Arc<Master>) -> Router {
             "/api/dashboard/non-personalized/{name}",
             get(recommend::non_personalized),
         )
-        .route("/api/dashboard/recommend/{user-id}", get(recommend::recommend))
+        .route(
+            "/api/dashboard/recommend/{user-id}",
+            get(recommend::recommend),
+        )
         .route(
             "/api/dashboard/recommend/{user-id}/{recommender}",
             get(recommend::recommend),
@@ -201,7 +207,14 @@ impl From<&meta::Node> for NodeView {
 pub(crate) async fn categories(State(master): State<Arc<Master>>) -> Result<Response, ApiError> {
     let scores = master
         .cache()
-        .search_scores(&Context::background(), cache::ITEM_CATEGORIES, "", &[], 0, -1)
+        .search_scores(
+            &Context::background(),
+            cache::ITEM_CATEGORIES,
+            "",
+            &[],
+            0,
+            -1,
+        )
         .await
         .map_err(ApiError::internal)?;
     let categories: Vec<String> = scores.into_iter().map(|score| score.id).collect();
@@ -365,7 +378,6 @@ impl<'a> From<&'a Progress> for ProgressView<'a> {
     }
 }
 
-
 /// `GET /api/dashboard/timeseries/{name}`: the points of a series between
 /// `begin` and `end`, bucketed by `duration`.
 pub(crate) async fn timeseries(
@@ -375,16 +387,25 @@ pub(crate) async fn timeseries(
 ) -> Result<Response, ApiError> {
     let name = path_param(&params, "name").to_owned();
     let query = query_of(&uri);
-    let begin = query_time_or(&query, "begin", |now| now.add(gotime::Duration(-7 * 24 * 3600 * gotime::SECOND.0)))?;
+    let begin = query_time_or(&query, "begin", |now| {
+        now.add(gotime::Duration(-7 * 24 * 3600 * gotime::SECOND.0))
+    })?;
     let end = query_time_or(&query, "end", |now| now)?;
     let duration_text = match query.get("duration") {
         "" => "24h",
         text => text,
     };
-    let duration = gotime::parse_duration(duration_text).map_err(|err| ApiError::BadRequest(err.to_string()))?;
+    let duration = gotime::parse_duration(duration_text)
+        .map_err(|err| ApiError::BadRequest(err.to_string()))?;
     let points = master
         .cache()
-        .get_time_series_points(&Context::background(), &cache::key(&[&name]), begin, end, duration)
+        .get_time_series_points(
+            &Context::background(),
+            &cache::key(&[&name]),
+            begin,
+            end,
+            duration,
+        )
         .await
         .map_err(ApiError::internal)?;
     ok(&points.iter().map(TimeSeriesView::from).collect::<Vec<_>>())
@@ -423,7 +444,8 @@ fn query_time_or(
     if text.is_empty() {
         return Ok(default(gotime::now()));
     }
-    gorse_common::dateparse::parse_any(text, &[]).map_err(|err| ApiError::BadRequest(err.to_string()))
+    gorse_common::dateparse::parse_any(text, &[])
+        .map_err(|err| ApiError::BadRequest(err.to_string()))
 }
 
 /// `GET /api/dashboard/user/{user-id}`: a user, with the times the cache holds
@@ -456,8 +478,10 @@ pub(crate) struct User {
 /// The user with its times, as Go's `getUser` and `getUsers` build it.
 async fn user_detail(master: &Master, ctx: &Context, user: types::User) -> Result<User, ApiError> {
     let cache = master.cache();
-    let last_active_time = read_user_time(&cache, ctx, cache::LAST_MODIFY_USER_TIME, &user.user_id).await?;
-    let last_update_time = read_user_time(&cache, ctx, cache::RECOMMEND_UPDATE_TIME, &user.user_id).await?;
+    let last_active_time =
+        read_user_time(&cache, ctx, cache::LAST_MODIFY_USER_TIME, &user.user_id).await?;
+    let last_update_time =
+        read_user_time(&cache, ctx, cache::RECOMMEND_UPDATE_TIME, &user.user_id).await?;
     Ok(User {
         user,
         last_active_time,
@@ -491,7 +515,10 @@ pub(crate) fn not_found_or_internal(err: &data::Error) -> ApiError {
 }
 
 /// `GET /api/dashboard/users`: one page of users with their times.
-pub(crate) async fn users(State(master): State<Arc<Master>>, uri: Uri) -> Result<Response, ApiError> {
+pub(crate) async fn users(
+    State(master): State<Arc<Master>>,
+    uri: Uri,
+) -> Result<Response, ApiError> {
     let ctx = Context::background();
     let query = query_of(&uri);
     let cursor = query.get("cursor").to_owned();
@@ -532,12 +559,16 @@ pub(crate) async fn user_feedback(
     let query = query_of(&uri);
     let feedback_type = path_param(&params, "feedback-type");
     let feedback_types = if feedback_type.is_empty() {
-        cfg.recommend.data_source.positive_feedback_types.clone().unwrap_or_default()
+        cfg.recommend
+            .data_source
+            .positive_feedback_types
+            .clone()
+            .unwrap_or_default()
     } else {
         let mut expression = gorse_common::expression::FeedbackTypeExpression::default();
-        expression
-            .from_string(feedback_type)
-            .map_err(|err| ApiError::BadRequest(format!("invalid feedback type `{feedback_type}`: {err}")))?;
+        expression.from_string(feedback_type).map_err(|err| {
+            ApiError::BadRequest(format!("invalid feedback type `{feedback_type}`: {err}"))
+        })?;
         vec![expression]
     };
     let n = if query.get("n").is_empty() {
@@ -564,7 +595,10 @@ pub(crate) async fn user_feedback(
     if (n.max(0) as usize) < feedback.len() {
         feedback.truncate(n.max(0) as usize);
     }
-    let item_ids: Vec<String> = feedback.iter().map(|f| f.feedback_key.item_id.clone()).collect();
+    let item_ids: Vec<String> = feedback
+        .iter()
+        .map(|f| f.feedback_key.item_id.clone())
+        .collect();
     let items = master
         .data()
         .batch_get_items(&ctx, &item_ids, &data::GetOptions::default())
@@ -577,11 +611,14 @@ pub(crate) async fn user_feedback(
     let details: Vec<DetailedFeedback> = feedback
         .into_iter()
         .map(|f| {
-            let item = items.get(&f.feedback_key.item_id).cloned().unwrap_or_else(|| types::Item {
-                item_id: f.feedback_key.item_id.clone(),
-                comment: "** This item doesn't exist in Gorse **".to_owned(),
-                ..types::Item::default()
-            });
+            let item = items
+                .get(&f.feedback_key.item_id)
+                .cloned()
+                .unwrap_or_else(|| types::Item {
+                    item_id: f.feedback_key.item_id.clone(),
+                    comment: "** This item doesn't exist in Gorse **".to_owned(),
+                    ..types::Item::default()
+                });
             DetailedFeedback {
                 feedback_type: f.feedback_key.feedback_type,
                 user_id: f.feedback_key.user_id,

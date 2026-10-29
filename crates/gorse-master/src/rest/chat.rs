@@ -33,7 +33,10 @@ struct ChatRequest {
 }
 
 /// `ANY /api/chat/completions`: forwards a chat request with `POST`.
-pub(crate) async fn chat_completions(State(master): State<Arc<Master>>, request: Request) -> Response {
+pub(crate) async fn chat_completions(
+    State(master): State<Arc<Master>>,
+    request: Request,
+) -> Response {
     if *request.method() != Method::POST {
         return method_not_allowed();
     }

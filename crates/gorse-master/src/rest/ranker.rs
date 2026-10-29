@@ -13,7 +13,7 @@ use axum::response::Response;
 use base64::Engine as _;
 use gorse_common::gocontext::Context;
 use gorse_common::gotime;
-use gorse_server::rest::response::{ApiError, ok, Query};
+use gorse_server::rest::response::{ApiError, Query, ok};
 use gorse_storage::data;
 use gorse_storage::data::types;
 use minijinja::{Environment, Value, context};
@@ -53,7 +53,10 @@ fn decode_template(name: &str, text: &str) -> Result<String, ApiError> {
 
 /// `GET /api/dashboard/ranker/prompt`: renders the query for a user and one
 /// document for each of the 100 latest items.
-pub(crate) async fn prompt(State(master): State<Arc<Master>>, uri: Uri) -> Result<Response, ApiError> {
+pub(crate) async fn prompt(
+    State(master): State<Arc<Master>>,
+    uri: Uri,
+) -> Result<Response, ApiError> {
     let query: Query = query_of(&uri);
     let query_text = query.get("query-template").to_owned();
     let document_text = query.get("document-template").to_owned();
@@ -83,33 +86,49 @@ pub(crate) async fn prompt(State(master): State<Arc<Master>>, uri: Uri) -> Resul
         .map_err(|err| not_found_or_internal(&err))?;
     let mut feedback = master
         .data()
-        .get_user_feedback(&ctx, &user_id, Some(cfg.now()), cfg.recommend.data_source.positive_feedback_types.as_deref().unwrap_or_default())
+        .get_user_feedback(
+            &ctx,
+            &user_id,
+            Some(cfg.now()),
+            cfg.recommend
+                .data_source
+                .positive_feedback_types
+                .as_deref()
+                .unwrap_or_default(),
+        )
         .await
         .map_err(ApiError::internal)?;
     types::sort_feedbacks(&mut feedback);
     feedback.truncate(10);
     let mut items_by_id = std::collections::HashMap::new();
     if !feedback.is_empty() {
-        let ids: Vec<String> = feedback.iter().map(|f| f.feedback_key.item_id.clone()).collect();
+        let ids: Vec<String> = feedback
+            .iter()
+            .map(|f| f.feedback_key.item_id.clone())
+            .collect();
         let items = master
             .data()
             .batch_get_items(&ctx, &ids, &data::GetOptions::default())
             .await
             .map_err(ApiError::internal)?;
-        items_by_id = items.into_iter().map(|item| (item.item_id.clone(), item)).collect();
+        items_by_id = items
+            .into_iter()
+            .map(|item| (item.item_id.clone(), item))
+            .collect();
     }
     let feedback_items: Vec<FeedbackItem> = feedback
         .iter()
         .filter_map(|f| {
-            items_by_id.get(&f.feedback_key.item_id).map(|item| FeedbackItem {
-                feedback_type: f.feedback_key.feedback_type.clone(),
-                item: item.clone(),
-            })
+            items_by_id
+                .get(&f.feedback_key.item_id)
+                .map(|item| FeedbackItem {
+                    feedback_type: f.feedback_key.feedback_type.clone(),
+                    item: item.clone(),
+                })
         })
         .collect();
-    let latest_after = (cfg.recommend.data_source.item_ttl > 0).then(|| {
-        gotime::now().add_date(0, 0, -(cfg.recommend.data_source.item_ttl as i64))
-    });
+    let latest_after = (cfg.recommend.data_source.item_ttl > 0)
+        .then(|| gotime::now().add_date(0, 0, -(cfg.recommend.data_source.item_ttl as i64)));
     let latest = master
         .data()
         .get_latest_items(&ctx, 100, &[], latest_after)
@@ -120,7 +139,9 @@ pub(crate) async fn prompt(State(master): State<Arc<Master>>, uri: Uri) -> Resul
     let feedback_value = template_value(&feedback_items)?;
     let rendered_query = env
         .get_template("query")
-        .and_then(|template| template.render(context! { user => user_value, feedback => feedback_value }))
+        .and_then(|template| {
+            template.render(context! { user => user_value, feedback => feedback_value })
+        })
         .map_err(ApiError::internal)?;
     let mut documents = Vec::with_capacity(latest.len());
     for item in &latest {

@@ -20,8 +20,8 @@ use gorse_common::dateparse;
 use gorse_common::gocontext::Context;
 use gorse_common::gotime::Time;
 use gorse_common::util::validate_id;
-use gorse_server::rest::items::Item as ImportItem;
 use gorse_server::rest::feedback::Feedback as ImportFeedback;
+use gorse_server::rest::items::Item as ImportItem;
 use gorse_server::rest::response::{ApiError, Query, escape_html, ok, plain};
 use gorse_server::rest::users::Success;
 use gorse_storage::data::types::{Feedback, FeedbackKey, Item, User};
@@ -160,13 +160,17 @@ async fn import_users(master: &Master, request: Request) -> Result<Response, Api
         check_id("user id", &user.user_id, line_count)?;
         batch.push(user);
         if batch.len() == BATCH_SIZE {
-            data.batch_insert_users(&ctx, &batch).await.map_err(ApiError::internal)?;
+            data.batch_insert_users(&ctx, &batch)
+                .await
+                .map_err(ApiError::internal)?;
             batch.clear();
         }
         line_count += 1;
     }
     if !batch.is_empty() {
-        data.batch_insert_users(&ctx, &batch).await.map_err(ApiError::internal)?;
+        data.batch_insert_users(&ctx, &batch)
+            .await
+            .map_err(ApiError::internal)?;
     }
     finish_import(master);
     ok(&Success {
@@ -237,13 +241,17 @@ async fn import_items(master: &Master, request: Request) -> Result<Response, Api
             ..Default::default()
         });
         if batch.len() == BATCH_SIZE {
-            data.batch_insert_items(&ctx, &batch).await.map_err(ApiError::internal)?;
+            data.batch_insert_items(&ctx, &batch)
+                .await
+                .map_err(ApiError::internal)?;
             batch.clear();
         }
         line_count += 1;
     }
     if !batch.is_empty() {
-        data.batch_insert_items(&ctx, &batch).await.map_err(ApiError::internal)?;
+        data.batch_insert_items(&ctx, &batch)
+            .await
+            .map_err(ApiError::internal)?;
     }
     finish_import(master);
     ok(&Success {
@@ -277,11 +285,7 @@ async fn export_feedback(master: &Master) -> Result<Vec<u8>, ApiError> {
     let ctx = Context::background();
     let end_time = master.config().now();
     let data = master.data();
-    let mut stream = data.get_feedback_stream(
-        &ctx,
-        BATCH_SIZE as i64,
-        &[with_end_time(end_time)],
-    );
+    let mut stream = data.get_feedback_stream(&ctx, BATCH_SIZE as i64, &[with_end_time(end_time)]);
     let mut feedback: Vec<Feedback> = Vec::new();
     while let Some(batch) = stream.next().await {
         feedback.extend(batch.map_err(ApiError::internal)?);
@@ -345,7 +349,12 @@ async fn import_feedback(master: &Master, request: Request) -> Result<Response, 
 }
 
 /// The stores a purge must all be checked for (Go's `checkList`).
-const CHECK_LIST: [&str; 4] = ["delete_users", "delete_items", "delete_feedback", "delete_cache"];
+const CHECK_LIST: [&str; 4] = [
+    "delete_users",
+    "delete_items",
+    "delete_feedback",
+    "delete_cache",
+];
 
 /// `ANY /api/purge`: empties the data and cache stores. It takes a `POST` from a
 /// logged-in user, needs a dashboard password, and needs the `check_list` form

@@ -154,7 +154,9 @@ pub(crate) async fn login_get() -> Response {
 pub(crate) fn form_value(body: &Query, query: &Query, name: &str) -> String {
     let mut values = body.get_all(name);
     values.extend(query.get_all(name));
-    values.first().map_or_else(String::new, |value| (*value).to_owned())
+    values
+        .first()
+        .map_or_else(String::new, |value| (*value).to_owned())
 }
 
 /// `POST /login`: checks the credentials and sets the session cookie. Without
