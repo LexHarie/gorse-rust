@@ -97,3 +97,4 @@ unwrap_used = "warn"
 # changed and why.
 [patch.crates-io]
 rustls = { path = "third_party/rustls" }
+mongodb = { path = "third_party/mongodb-3.9.1" }

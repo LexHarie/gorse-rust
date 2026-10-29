@@ -34,7 +34,7 @@ use gorse_storage_core::scheme::{MONGO_PREFIX, MONGO_SRV_PREFIX, TablePrefix};
 use indexmap::{IndexMap, IndexSet};
 use mongodb::bson::raw::{RawBsonRef, RawDocumentBuf};
 use mongodb::bson::{self, Bson, DateTime, Document, doc};
-use mongodb::error::ErrorKind;
+use mongodb::error::{ErrorKind, WriteFailure};
 use mongodb::options::IndexOptions;
 use mongodb::{Client, Collection, Cursor, IndexModel};
 
@@ -105,17 +105,23 @@ impl MongoDB {
 
     /// Applies one update, whose update document `update` is raw BSON, to the
     /// documents `filter` matches in the collection named `collection`. The
-    /// update is sent as a raw `update` command; see [`update_command`].
+    /// driver sends the update as a document sequence, as Go's driver does, so
+    /// the labels go as the bytes they were written as; see
+    /// `third_party/mongodb-3.9.1/GORSE.md`.
     async fn update_raw(
         &self,
         collection: &str,
-        filter: &Document,
-        update: &RawDocumentBuf,
+        filter: Document,
+        update: RawDocumentBuf,
         upsert: bool,
     ) -> Result<(), Error> {
-        let command = update_command(collection, filter, update, upsert)?;
-        let reply = self.db().run_raw_command(command).await.map_err(refused)?;
-        write_refused(&reply)
+        let collection: Collection<RawDocumentBuf> = self.db().collection(collection);
+        collection
+            .update_one(filter, update)
+            .upsert(upsert)
+            .await
+            .map(|_| ())
+            .map_err(refused)
     }
 }
 
@@ -740,85 +746,31 @@ fn feedback_update(
     update.finish()
 }
 
-/// The `update` command for one update of the documents `filter` matches in
-/// `collection`. The driver takes an update as a `Document`, which can hold
-/// labels only as a BSON tree, so the command is built as raw BSON and the
-/// driver sends its bytes as they are.
-fn update_command(
-    collection: &str,
-    filter: &Document,
-    update: &RawDocumentBuf,
-    upsert: bool,
-) -> Result<RawDocumentBuf, Error> {
-    let mut statement = Writer::new();
-    statement.document("q", filter)?;
-    statement.raw_document("u", update)?;
-    statement.boolean("upsert", upsert)?;
-    statement.boolean("multi", false)?;
-    let statement = statement.finish()?;
-    let mut command = Writer::new();
-    command.string("update", collection)?;
-    command.open(0x04, "updates")?;
-    command.raw_document("0", &statement)?;
-    command.close()?;
-    command.finish()
-}
-
-/// The error for a command the server refused, with the code name in brackets
-/// as Go's driver gives it. Other errors keep the driver's own text.
-fn refused(err: mongodb::error::Error) -> Error {
-    match err.kind.as_ref() {
+/// The Go text for a write the server refused, or `None` for an error that is
+/// not a refusal. A command error has its code name in brackets, as Go's driver
+/// gives it. A write error is worded as Go's `WriteException` is: its message,
+/// in a list.
+fn refusal_text(kind: &ErrorKind) -> Option<String> {
+    match kind {
         ErrorKind::Command(command) if command.code_name.is_empty() => {
-            backend(Refused(statement_path(&command.message)))
+            Some(command.message.clone())
         }
-        ErrorKind::Command(command) => backend(Refused(format!(
-            "({}) {}",
-            command.code_name,
-            statement_path(&command.message)
-        ))),
-        _ => backend(err),
+        ErrorKind::Command(command) => Some(format!("({}) {}", command.code_name, command.message)),
+        ErrorKind::Write(WriteFailure::WriteError(error)) => Some(format!(
+            "write exception: write errors: [{}]",
+            error.message
+        )),
+        _ => None,
     }
 }
 
-/// The field path a server error gives for an element of an update, in Go's
-/// wording. The server names the element from the start of the command it
-/// received. Go's driver sends an update's statements as a document sequence,
-/// so the path starts at the statement, as `u.$set…`. This driver sends the
-/// statements in the command body, so the path starts at `updates.0.`. Only
-/// that exact leading prefix of the first field path is taken off. Any other
-/// message is returned unchanged, byte for byte. This is a deviation forced by
-/// the driver, and it is logged in `porting/notes/WP-4-2.md`.
-fn statement_path(message: &str) -> String {
-    const MARK: &str = "field name '";
-    const PREFIX: &str = "updates.0.";
-    let Some(at) = message.find(MARK) else {
-        return message.to_owned();
-    };
-    let path = at + MARK.len();
-    match message[path..].strip_prefix(PREFIX) {
-        Some(rest) => format!("{}{rest}", &message[..path]),
-        None => message.to_owned(),
+/// The error for a write the server refused. Other errors keep the driver's own
+/// text.
+fn refused(err: mongodb::error::Error) -> Error {
+    match refusal_text(&err.kind) {
+        Some(text) => backend(Refused(text)),
+        None => backend(err),
     }
-}
-
-/// The error for the write errors in the reply to an update, worded as Go's
-/// `WriteException` is: each error's message, in a list.
-fn write_refused(reply: &Document) -> Result<(), Error> {
-    let Ok(errors) = reply.get_array("writeErrors") else {
-        return Ok(());
-    };
-    if errors.is_empty() {
-        return Ok(());
-    }
-    let messages: Vec<String> = errors
-        .iter()
-        .filter_map(Bson::as_document)
-        .map(|error| statement_path(error.get_str("errmsg").unwrap_or_default()))
-        .collect();
-    Err(backend(Refused(format!(
-        "write exception: write errors: [{}]",
-        messages.join(", ")
-    ))))
 }
 
 /// Go's `FeedbackTypeExpressionToMongo`: the filter one feedback type
@@ -1097,8 +1049,8 @@ impl Database for MongoDB {
             let update = set_update(|set| write_item(set, item, &now))?;
             self.update_raw(
                 &self.items_table,
-                &doc! {"itemid": {"$eq": item.item_id.as_str()}},
-                &update,
+                doc! {"itemid": {"$eq": item.item_id.as_str()}},
+                update,
                 true,
             )
             .await?;
@@ -1223,8 +1175,8 @@ impl Database for MongoDB {
         })?;
         self.update_raw(
             &self.items_table,
-            &doc! {"itemid": {"$eq": item_id}},
-            &update,
+            doc! {"itemid": {"$eq": item_id}},
+            update,
             false,
         )
         .await
@@ -1328,8 +1280,8 @@ impl Database for MongoDB {
             let update = set_update(|set| write_user(set, user, &now))?;
             self.update_raw(
                 &self.users_table,
-                &doc! {"userid": {"$eq": user.user_id.as_str()}},
-                &update,
+                doc! {"userid": {"$eq": user.user_id.as_str()}},
+                update,
                 true,
             )
             .await?;
@@ -1384,8 +1336,8 @@ impl Database for MongoDB {
         })?;
         self.update_raw(
             &self.users_table,
-            &doc! {"userid": {"$eq": user_id}},
-            &update,
+            doc! {"userid": {"$eq": user_id}},
+            update,
             false,
         )
         .await
@@ -1518,8 +1470,8 @@ impl Database for MongoDB {
                 let update = operator_update("$setOnInsert", |set| write_user(set, &user, &now))?;
                 self.update_raw(
                     &self.users_table,
-                    &doc! {"userid": {"$eq": user_id.as_str()}},
-                    &update,
+                    doc! {"userid": {"$eq": user_id.as_str()}},
+                    update,
                     true,
                 )
                 .await?;
@@ -1544,8 +1496,8 @@ impl Database for MongoDB {
                 let update = operator_update("$setOnInsert", |set| write_item(set, &item, &now))?;
                 self.update_raw(
                     &self.items_table,
-                    &doc! {"itemid": {"$eq": item_id.as_str()}},
-                    &update,
+                    doc! {"itemid": {"$eq": item_id.as_str()}},
+                    update,
                     true,
                 )
                 .await?;
@@ -1569,7 +1521,7 @@ impl Database for MongoDB {
             // Go sets `updated` to the timestamp before it writes the record.
             let filter = doc! {"feedbackkey": feedback_key_document(&f.feedback_key)};
             let update = feedback_update(f, &f.timestamp, overwrite)?;
-            self.update_raw(&self.feedback_table, &filter, &update, true)
+            self.update_raw(&self.feedback_table, filter, update, true)
                 .await?;
         }
         Ok(())
@@ -2017,106 +1969,65 @@ mod tests {
         assert!(written.labels("a\0b", &Labels::Nil).is_err());
     }
 
-    /// The `update` command is the one the driver would send for the update, with
-    /// the update's document as its `u`.
+    /// The update is the document the driver sends as the statement's `u`: the
+    /// `$set` of the fields the writer sets.
     #[test]
-    fn update_command_is_the_update_the_driver_sends() {
+    fn set_update_is_the_update_document_the_driver_sends() {
         let labels = Labels::Object(
             [("k".to_owned(), Labels::Number("3".to_owned()))]
                 .into_iter()
                 .collect(),
         );
         let update = set_update(|set| set.labels("labels", &labels)).expect("update");
-        let command =
-            update_command("items", &doc! {"itemid": "a"}, &update, true).expect("command");
-        let expected = doc! {
-            "update": "items",
-            "updates": [{
-                "q": {"itemid": "a"},
-                "u": {"$set": {"labels": {"k": 3_i64}}},
-                "upsert": true,
-                "multi": false,
-            }],
-        };
+        let expected = doc! {"$set": {"labels": {"k": 3_i64}}};
         let expected = bson::to_raw_document_buf(&expected).expect("encode");
-        assert_eq!(command.as_bytes(), expected.as_bytes());
+        assert_eq!(update.as_bytes(), expected.as_bytes());
     }
 
-    /// Labels nested 100,000 levels travel in an update command, and come out of
-    /// its `$set` as they went in.
+    /// Labels nested 100,000 levels go into an update's `$set`, and come out of
+    /// it as they went in.
     #[test]
-    fn update_command_carries_labels_at_any_depth() {
+    fn set_update_carries_labels_at_any_depth() {
         let (labels, text) = nested_labels(100_000);
         let update = set_update(|set| set.labels("labels", &labels)).expect("update");
-        let command =
-            update_command("items", &doc! {"itemid": "a"}, &update, true).expect("command");
-        let statement = command
-            .get_array("updates")
-            .expect("updates")
-            .get_document(0)
-            .expect("a statement");
-        let set = statement
-            .get_document("u")
-            .expect("u")
-            .get_document("$set")
-            .expect("$set");
+        let set = update.get_document("$set").expect("$set");
         let read =
             labels_from_raw(set.get("labels").expect("a field").expect("a value")).expect("unpack");
         assert!(labels_json(&read).expect("write") == text);
     }
 
-    /// A write the server refuses is worded as Go's `WriteException` is.
+    /// A refused write is worded as Go's driver words it: a command error with
+    /// its code name in brackets, and a write error as a `WriteException` lists
+    /// it. A command error without a code name is its message alone.
     #[test]
-    fn refused_writes_are_worded_as_go_words_them() {
-        let reply = doc! {
-            "ok": 1,
-            "n": 0,
-            "writeErrors": [{"index": 0, "code": 2, "errmsg": "too deep"}],
-        };
-        let err = write_refused(&reply).expect_err("a write error");
-        assert_eq!(err.to_string(), "write exception: write errors: [too deep]");
-        assert!(write_refused(&doc! {"ok": 1, "n": 1}).is_ok());
-    }
-
-    /// The field path of an element in an update is named from the statement, as
-    /// Go's driver names it: the exact leading `updates.0.` is taken off.
-    #[test]
-    fn statement_paths_start_at_the_statement() {
-        let depth = "BSONObj exceeds maximum nested object depth in element with field name";
+    fn refusals_are_worded_as_go_words_them() {
+        let command: mongodb::error::CommandError = bson::from_document(doc! {
+            "code": 2,
+            "codeName": "Overflow",
+            "errmsg": "BSONObj exceeds maximum nested object depth",
+        })
+        .expect("a command error");
         assert_eq!(
-            statement_path(&format!("{depth} 'updates.0.u.$set.labels.a'")),
-            format!("{depth} 'u.$set.labels.a'")
+            refusal_text(&ErrorKind::Command(command)).as_deref(),
+            Some("(Overflow) BSONObj exceeds maximum nested object depth")
         );
+        let unnamed: mongodb::error::CommandError = bson::from_document(doc! {
+            "code": 2,
+            "errmsg": "too deep",
+        })
+        .expect("a command error");
         assert_eq!(
-            statement_path("écrit: in element with field name 'updates.0.u'"),
-            "écrit: in element with field name 'u'"
+            refusal_text(&ErrorKind::Command(unnamed)).as_deref(),
+            Some("too deep")
         );
-    }
-
-    /// Any other message is returned byte for byte: a path already in Go's form,
-    /// a prefix that is not leading or not exact, a second path, and text
-    /// without a field path.
-    #[test]
-    fn statement_paths_leave_other_messages_unchanged() {
-        let depth = "BSONObj exceeds maximum nested object depth in element with field name";
-        for message in [
-            format!("{depth} 'u.$set.labels.a'"),
-            format!("{depth} 'x.updates.0.u'"),
-            format!("{depth} 'updates.10.u'"),
-            format!("{depth} 'updates.0'"),
-            format!("{depth} 'updates.0u'"),
-            format!("{depth} 'updates.1.u'"),
-            format!("{depth} updates.0.u"),
-            "updates.0.u was refused".to_owned(),
-            "no path here".to_owned(),
-            String::new(),
-        ] {
-            assert_eq!(statement_path(&message), message);
-        }
-        // Only the first field path is named from the statement.
+        let write: mongodb::error::WriteError = bson::from_document(doc! {
+            "code": 2,
+            "errmsg": "too deep",
+        })
+        .expect("a write error");
         assert_eq!(
-            statement_path("field name 'updates.0.a' and field name 'updates.0.b'"),
-            "field name 'a' and field name 'updates.0.b'"
+            refusal_text(&ErrorKind::Write(WriteFailure::WriteError(write))).as_deref(),
+            Some("write exception: write errors: [too deep]")
         );
     }
 
