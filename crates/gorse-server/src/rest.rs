@@ -12,6 +12,7 @@ mod entity;
 mod feedback;
 mod gojson;
 mod items;
+mod printable;
 mod quota;
 mod recommend;
 mod response;

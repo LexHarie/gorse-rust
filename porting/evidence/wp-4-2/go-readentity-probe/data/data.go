@@ -4,9 +4,9 @@ package data
 import "time"
 
 type User struct {
-	UserId   string `gorm:"primaryKey" mapstructure:"user_id"`
-	Labels   any    `gorm:"serializer:json" mapstructure:"labels"`
-	Comment  string `mapstructure:"comment"`
+	UserId   string    `gorm:"primaryKey" mapstructure:"user_id"`
+	Labels   any       `gorm:"serializer:json" mapstructure:"labels"`
+	Comment  string    `mapstructure:"comment"`
 	UpdateAt time.Time `gorm:"column:update_at" mapstructure:"-" json:"-"`
 }
 
