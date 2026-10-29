@@ -3002,7 +3002,7 @@ said otherwise), so the Rust result is Go's.
   master's production code does not batch-insert, so WP-4-3 is not blocked. The server's import path may reach it. Fix before
   the Phase 4 exit (D-275). Assigned by the coordinator to the O-87 thread (cmsg_01GcMgHu57dPnfvQ5uEF8VZMQH1SmcMouxLPeDdCkeAWJ6).
 
-- **O-88 The master does not set the dataset gauges (WP-4-3 deviation 1, open, low).** Go sets `UsersTotal`, `ItemsTotal`,
+- **O-88 The master does not set the dataset gauges (WP-4-3 deviation 1; resolved, D-276).** Go sets `UsersTotal`, `ItemsTotal`,
   `ImplicitFeedbacksTotal`, the label, positive and negative totals, and the active and inactive counts in `master/tasks.go`
   159 to 214. The Rust master keeps the metric names and label sets, which the brief requires, but does not set these
   values. Owner not yet fixed: the court recommends WP-4-4, as a separate commit in `tasks/load.rs`. The coordinator decides, and
