@@ -101,7 +101,7 @@ impl FitConfig {
 
 /// Go's `Model` interface: a collaborative-filtering model that is fitted on a
 /// train split and evaluated on a validation split.
-pub trait Model: CoreModel + Sync {
+pub trait Model: CoreModel + Send + Sync {
     /// Go's `Fit`: trains on `train_set`, evaluates on `val_set` and returns the
     /// score of the last evaluation. Returns the zero score when `ctx` is done.
     fn fit(

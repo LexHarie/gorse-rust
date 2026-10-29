@@ -16,7 +16,9 @@ use prometheus::{Gauge, GaugeVec, Opts};
 
 /// The label that names a dataset step (Go `LabelStep`).
 pub const LABEL_STEP: &str = "step";
-/// The label that names a feedback type (Go `LabelFeedbackType`).
+/// The label that names a feedback type (Go `LabelFeedbackType`). Go declares
+/// it and no metric uses it, so it stays unused here too.
+#[allow(dead_code)]
 pub const LABEL_FEEDBACK_TYPE: &str = "feedback_type";
 /// The label that names a data set in the memory gauge (Go `LabelData`).
 pub const LABEL_DATA: &str = "data";

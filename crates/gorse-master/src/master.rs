@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, PoisonError, RwLock};
 use std::time::Duration as StdDuration;
 
@@ -37,7 +37,7 @@ use tokio::task::JoinHandle;
 use tracing::{error, info};
 
 use crate::rpc;
-use crate::{Error, metrics};
+use crate::Error;
 
 /// How long a config change waits for the writes to settle before it is read
 /// (Go's `configReloadDebounce`).
@@ -47,7 +47,7 @@ const CONFIG_RELOAD_DEBOUNCE: StdDuration = StdDuration::from_secs(1);
 /// size of the feedback it was trained on, and the best model the search found
 /// (Go's `collaborativeFilteringMeta`, `collaborativeFilteringTrainSetSize` and
 /// `collaborativeFilteringTarget`, under one lock).
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct CollaborativeFilteringState {
     /// The model in use (Go's `collaborativeFilteringMeta`).
     pub meta: meta::Model<cf::Score>,
@@ -59,7 +59,7 @@ pub struct CollaborativeFilteringState {
 
 /// The click-through rate model the master has, with the same three parts as
 /// [`CollaborativeFilteringState`] (Go's `clickThroughRateMeta` and friends).
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ClickThroughRateState {
     /// The model in use (Go's `clickThroughRateMeta`).
     pub meta: meta::Model<ctr::Score>,
@@ -124,6 +124,9 @@ impl Master {
     /// Go's `NewMaster`: a master over `cfg` that keeps its state in
     /// `cache_folder`. The stores are empty until [`Master::serve`] opens them.
     pub fn new(cfg: Config, cache_folder: &str, standalone: bool, config_path: &str) -> Arc<Self> {
+        // Go registers its metrics when the package starts. `register` forces
+        // each one once, so repeated masters in one process share them.
+        crate::metrics::register();
         let (background, background_cancel) = Context::background().with_cancel();
         let (scheduled, scheduled_rx) = mpsc::channel(1);
         let (shutdown, _) = watch::channel(false);

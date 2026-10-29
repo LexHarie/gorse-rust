@@ -140,7 +140,7 @@ pub trait CtrSplit {
 }
 
 /// Go's `Dataset`.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Dataset {
     timestamp: Time,
     users: Vec<DatasetUser>,
@@ -524,7 +524,7 @@ impl gosort::Interface for LatestFirst<'_> {
 }
 
 /// Go's `Labels`: the dictionary of label values, with the count of each value.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Labels {
     values: FreqDict,
 }

@@ -40,6 +40,24 @@ pub enum Error {
     /// A non-personalized recommender could not be built.
     #[error(transparent)]
     NonPersonalized(#[from] gorse_logics::non_personalized::Error),
+    /// An item-to-item or user-to-user recommender failed (the logics share one error type).
+    #[error(transparent)]
+    ItemToItem(#[from] gorse_logics::item_to_item::Error),
+    /// A collaborative filtering helper failed.
+    #[error(transparent)]
+    Cf(#[from] gorse_logics::cf::Error),
+    /// A click-through rate model failed.
+    #[error(transparent)]
+    Ctr(#[from] gorse_model::ctr::model::Error),
+    /// A hyperparameter search failed.
+    #[error(transparent)]
+    Tpe(#[from] gorse_model::tpe::Error),
+    /// The ranking pipeline failed.
+    #[error(transparent)]
+    Worker(#[from] gorse_worker::Error),
+    /// A task stopped with a message that Go reports as an error text.
+    #[error("{0}")]
+    Message(String),
     /// A file or socket operation failed.
     #[error(transparent)]
     Io(#[from] std::io::Error),

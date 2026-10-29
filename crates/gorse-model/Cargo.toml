@@ -9,6 +9,7 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+serde.workspace = true
 fixedbitset.workspace = true
 gorse-common = { workspace = true }
 gorse-protocol = { workspace = true }
@@ -20,7 +21,6 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-serde.workspace = true
 serde_json.workspace = true
 
 [lints]
