@@ -34,6 +34,7 @@ gorse-cmd = { path = "crates/gorse-cmd" }
 # External crates, chosen in porting/crate-selection.md. A crate is listed here
 # only once a work package uses it.
 async-trait = "0.1.92"
+axum = "0.8.9"
 base64 = "0.23.1"
 blake2 = "0.11.0"
 cc = "1.8.0"
@@ -46,6 +47,7 @@ indexmap = "2.14.2"
 md-5 = "0.11.0"
 minijinja = "3.0.4"
 mongodb = "3.9.1"
+prometheus = { version = "0.14.0", default-features = false }
 prost = "0.14.4"
 prost-types = "0.14.4"
 protox = "0.10.0"
@@ -65,6 +67,7 @@ sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio
 stacker = "0.1.25"
 thiserror = "2.0.21"
 tokio = "1.54.1"
+tokio-stream = "0.1.19"
 tonic = "0.14.6"
 tonic-prost = "0.14.6"
 tempfile = "3.27.0"
