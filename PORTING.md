@@ -2358,6 +2358,13 @@ or accepts a metric gap outside the Go tests' own tolerances.
   read raw BSON with an explicit stack. Scope is a question for the coordinator, because the change reaches the document
   types and the insert and find calls, not only the label-walk functions D-267 names.
 
+- **D-269 Coordinator ruling: the Mongo raw-BSON fix is in scope for X-244 (2026-10-29).** The integrator recommended it
+  and the coordinator agreed: the Mongo write and read paths for labels must build and read raw BSON with an explicit stack,
+  not a nested `Bson` tree. This reaches the document types and the insert and find calls, not only the label-walk
+  functions that D-267 named, and the server thread may make that change under this ruling. Done when: a live 10,000-level
+  debug test on the Mongo path matches Go's outcome, and the existing outputs are unchanged. WP-4-2 acceptance waits for
+  both, and the court runs the full gate on the merged head (D-268).
+
 - **Datasets.** The network policy of this environment blocks
   `https://cdn.gorse.io`, where the Go model tests and the SDK test setup download
   their datasets (`PORTING_NOTES.md` O-1). Phase 3 metric parity needs either
