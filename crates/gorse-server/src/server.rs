@@ -10,6 +10,7 @@ use std::time::Duration as StdDuration;
 
 use axum::Router;
 use axum::http::header;
+use axum::middleware;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use gorse_common::util::tls::TlsConfig;
@@ -21,7 +22,8 @@ use gorse_storage::vectors;
 use tokio::sync::watch;
 use tonic::transport::Channel;
 
-use crate::rest::{self, RestServer};
+use crate::rest::cors::{self, Cors};
+use crate::rest::{self, RestServer, apidocs, pprof};
 
 /// Compile-time check (Q-254): the server is shared between the HTTP task and
 /// the sync task, so it must be `Send` and `Sync`.
@@ -189,12 +191,18 @@ impl Server {
         let _ = self.shutdown.send(true);
     }
 
-    /// The application router: the REST API, the OpenAPI document and the
-    /// metrics, on one listener as in Go's `StartHttpServer`.
+    /// The application router: the REST API, the OpenAPI document, the Swagger UI
+    /// page, the pprof handlers and the metrics, on one listener as in Go's
+    /// `StartHttpServer`. The CORS filter covers the REST API and the document,
+    /// and reads the origins and methods of the live config on each request.
     pub fn app(&self) -> Router {
+        let cors = Arc::new(Cors::server(self.rest.clone()));
         rest::router(self.rest.clone())
-            .route("/apidocs.json", get(openapi_document))
+            .merge(apidocs::document_route(OPENAPI_DOCUMENT))
+            .merge(apidocs::routes())
+            .merge(pprof::routes())
             .route("/metrics", get(metrics))
+            .layer(middleware::from_fn_with_state(cors, cors::filter))
     }
 
     async fn connect_master(&self) -> Result<Channel, ServerError> {
@@ -346,13 +354,9 @@ impl Server {
     }
 }
 
-/// Go's `/apidocs.json`: the OpenAPI document.
-async fn openapi_document() -> impl IntoResponse {
-    (
-        [(header::CONTENT_TYPE, "application/json")],
-        OPENAPI_DOCUMENT,
-    )
-}
+/// The content type Go's `promhttp` writes for the exposition. The Rust encoder's
+/// `format_type` lacks the `escaping=underscores` parameter.
+const METRICS_CONTENT_TYPE: &str = "text/plain; version=0.0.4; charset=utf-8; escaping=underscores";
 
 /// Go's `/metrics`: the Prometheus exposition of the default registry.
 async fn metrics() -> impl IntoResponse {
@@ -361,10 +365,7 @@ async fn metrics() -> impl IntoResponse {
     let families = prometheus::gather();
     let encoder = prometheus::TextEncoder::new();
     let _ = encoder.encode(&families, &mut buffer);
-    (
-        [(header::CONTENT_TYPE, encoder.format_type().to_owned())],
-        buffer,
-    )
+    ([(header::CONTENT_TYPE, METRICS_CONTENT_TYPE)], buffer)
 }
 
 #[cfg(test)]

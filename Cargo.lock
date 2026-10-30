@@ -1864,6 +1864,7 @@ dependencies = [
  "md-5 0.11.0",
  "prometheus",
  "reqwest 0.13.5",
+ "rust-embed",
  "serde",
  "serde_json",
  "tempfile",

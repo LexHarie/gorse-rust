@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::io;
 
-use axum::http::{HeaderValue, StatusCode, header};
+use axum::http::{HeaderValue, Method, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use gorse_common::gotime;
 use gorse_common::gourl;
@@ -184,6 +184,26 @@ pub fn text(content: &str) -> Response {
         HeaderValue::from_static("*"),
     );
     response
+}
+
+/// Go's `http.Redirect` with the temporary status, as `ServeMux` sends it for a
+/// path that lacks the slash its pattern ends with. The body is the link Go
+/// writes for GET and HEAD, and empty for any other method.
+pub fn temporary_redirect(method: &Method, to: &str) -> Response {
+    let body = if *method == Method::GET || *method == Method::HEAD {
+        format!("<a href=\"{to}\">Temporary Redirect</a>.\n\n")
+    } else {
+        String::new()
+    };
+    (
+        StatusCode::TEMPORARY_REDIRECT,
+        [
+            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (header::LOCATION, to),
+        ],
+        body,
+    )
+        .into_response()
 }
 
 /// Encodes `value` as go-restful writes JSON: `json.MarshalIndent` with a
