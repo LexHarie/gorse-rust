@@ -82,7 +82,7 @@ pub struct Master {
     /// Whether the master also runs the recommendation itself (Go's `standalone`).
     pub(crate) standalone: bool,
     /// The task monitor (Go's `tracer`).
-    pub(crate) tracer: Monitor,
+    pub(crate) tracer: Arc<Monitor>,
     /// The progress each remote node last pushed, by tracer (Go's `remoteProgress`).
     pub(crate) remote_progress: Mutex<HashMap<String, Vec<Progress>>>,
     /// The data store the master reads and trains from (Go's `DataClient`).
@@ -155,7 +155,7 @@ impl Master {
             config_path: config_path.to_owned(),
             cache_path: cache_folder.to_owned(),
             standalone,
-            tracer: monitor::new_tracer("master"),
+            tracer: Arc::new(monitor::new_tracer("master")),
             remote_progress: Mutex::new(HashMap::new()),
             data: RwLock::new(Arc::new(data::no_database::NoDatabase)),
             cache: RwLock::new(Arc::new(cache::no_database::NoDatabase)),

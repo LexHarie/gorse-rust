@@ -127,7 +127,7 @@ impl Worker {
             Arc::new(cache::no_database::NoDatabase),
             Arc::new(data::no_database::NoDatabase),
             Arc::new(vectors::NoDatabase),
-            monitor::new_tracer(&worker_name),
+            Arc::new(monitor::new_tracer(&worker_name)),
             options.jobs,
         ));
         let (synced_tx, synced_rx) = mpsc::channel(1);

@@ -284,7 +284,7 @@ pub struct Pipeline {
     cache: RwLock<Arc<dyn cache::Database>>,
     data: RwLock<Arc<dyn data::Database>>,
     vectors: RwLock<Arc<dyn vectors::Database>>,
-    tracer: monitor::Monitor,
+    tracer: Arc<monitor::Monitor>,
     jobs: usize,
     matrix_factorization: RwLock<MatrixFactorization>,
     click_through_rate_model: RwLock<Option<Arc<dyn FactorizationMachines>>>,
@@ -300,7 +300,7 @@ impl Pipeline {
         cache: Arc<dyn cache::Database>,
         data: Arc<dyn data::Database>,
         vectors: Arc<dyn vectors::Database>,
-        tracer: monitor::Monitor,
+        tracer: Arc<monitor::Monitor>,
         jobs: usize,
     ) -> Self {
         Self {

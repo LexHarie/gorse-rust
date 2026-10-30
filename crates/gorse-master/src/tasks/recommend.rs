@@ -196,9 +196,8 @@ impl Master {
             self.cache(),
             self.data(),
             self.vectors(),
-            // Go shares the master's tracer. A Monitor cannot be cloned, so the
-            // pipeline reports its spans on a tracer of its own.
-            monitor::new_tracer("master"),
+            // Go shares the master's tracer, so the pipeline's spans show in `ps`.
+            Arc::clone(&self.tracer),
             cfg.master.n_jobs.max(1) as usize,
         ));
         let store = self.blob_store();

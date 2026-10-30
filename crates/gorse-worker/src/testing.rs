@@ -107,7 +107,7 @@ pub(crate) fn new_pipeline(fixture: &Fixture, config: Config) -> Pipeline {
         Arc::clone(&fixture.cache),
         Arc::clone(&fixture.data),
         Arc::clone(&fixture.vectors),
-        monitor::new_tracer("test"),
+        Arc::new(monitor::new_tracer("test")),
         1,
     );
     pipeline.dont_skip_cold_start_users = true;
@@ -124,7 +124,7 @@ pub(crate) fn no_database_pipeline() -> Arc<Pipeline> {
         Arc::new(cache::no_database::NoDatabase),
         Arc::new(data::no_database::NoDatabase),
         Arc::new(vectors::NoDatabase),
-        monitor::new_tracer("test"),
+        Arc::new(monitor::new_tracer("test")),
         1,
     ))
 }
