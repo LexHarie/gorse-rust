@@ -2579,6 +2579,23 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
   X-214 and X-215 stay open. The master `/metrics` content type from `9b7a80f` is the coordinator-approved fix, and `metrics_matches_go` passes on this head.
 
+- **D-286 WP-3-8 metric parity accepted on the merged head; the red stages are X-214's two known failures (court verdict, 2026-10-30).** `claude/wp-3-8-metrics` at `ba1a4fe` (fix `aaafadf`, which shares the built-in dictionaries as Go does, C-36; un-ignores the O-1 tests whose data is in the project folder) is merged into the integration branch as `a598d71`, on `60887bd`. Metric parity is the last Phase 3 node, so Phase 3 is accepted on this verdict.
+
+  Gate on `a598d71`, every backend URI set (MIXEDMONGO with `?authSource=admin`). Logs are in `/mnt/project-files/reports/wp-3-8/`.
+
+  - Exit 0: FMT, CLIPPY, CONFIGGOLDEN, YAMLGOLDEN, VET, CLOUDCLIPPY, MONGOCLIPPY, VECTOR_ACCEPT, CROSSREAD, PROXY_CONFORMANCE, PROXY_STORE, and MIXEDMONGO (`mixed_mongo_deep_labels_match_go_server` ok, with `MONGO_URI`).
+  - METRICS, the release run of the full metrics suite (`cargo test --release -p gorse-conformance --test metrics`): 15 passed, 0 failed, finished in 1899.59 s. The debug run of the same suite was too slow for the gate, so the court ran it as its own release stage, as the coordinator ruled.
+  - REDIS_TLS_UNSET: exit 101, as required. The two failures are `tls_skip_verify_connects_to_a_self_signed_server` and `tls_verifies_the_server_by_default`.
+  - Red, attributed to X-214 (D-285), unchanged:
+    - DOC exits 101 with the same five rustdoc errors in `crates/gorse-server/src/rest/cors.rs` (`Cors::is_web_service`, `merge_origin`, `restful_errors`, `Source::Fixed`, `GoList`).
+    - TEST, the conformance targets only: `server_http_surface::default_cors_matches_go` fails in one run. The rest of TEST is green: the workspace without `gorse-conformance` (1274 passed, 0 failed, 45 ignored), and the conformance targets (64 passed, 1 failed, 2 ignored). The gate script's own TEST line also exited 101 on a wrong target name, `data`, which is a directory and not a test target. The conformance targets were rerun with the same environment (`gate-testb2.log`), and those counts are the ones above.
+
+  `default_cors_matches_go` is flaky on this head. It passed in one court run (`gate-testb.log`, which had no backend URIs and did not need them), failed in the next (`gate-testb2.log`), and failed in the D-285 run on `2bccfae`. That fits the start-order race the X-214 owner describes (Go's CORS copy against its first meta sync: `server/server.go:130-133` and `server/rest.go:129-146`). The harness-order change in `fbfd5ab` is not merged or ruled on yet, and X-214 stays open.
+
+  The metric evidence is the release run above: the 15 metrics tests pass against Go at the tolerances in D-195 and the X-253 band, which include the NumCPU BPR runs and the one-job replay. The court did not re-count the NumCPU runs by hand. Q-269 is Go's own parallel-BPR spread and X-253 is the Rust deviation; both are in `porting/notes/WP-3-8.md` and `PORTING_NOTES.md`. C-36 is the shared-dictionary fix, with count evidence in the commit.
+
+  Still open for the Phase 4 exit: X-214 and X-215 (the `fbfd5ab` review, then the gate on the integration head), WP-4-6 (`4ccd665`), WP-4-7 (blocked on `ml-100k.bin.gz`, O-1), WP-4-8 (`dc2e39b`), X-239, Q-265, and O-1.
+
 - **Datasets.** The network policy of this environment blocks
   `https://cdn.gorse.io`, where the Go model tests and the SDK test setup download
   their datasets (`PORTING_NOTES.md` O-1). Phase 3 metric parity needs either
