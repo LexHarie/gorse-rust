@@ -878,6 +878,16 @@ impl RustMaster {
         gorse_master::rest::router(Arc::clone(&self.master))
     }
 
+    /// Restores a dump into the master's data store through `Master::restore`,
+    /// the call that the `/api/restore` route makes.
+    ///
+    /// # Errors
+    ///
+    /// Fails with the error of the first record that cannot be read or written.
+    pub async fn restore(&self, dump: &[u8]) -> Result<()> {
+        self.master.restore(dump, None).await.map_err(fail)
+    }
+
     /// Shuts the master down and waits for its background tasks to end.
     pub async fn stop(self) {
         self.master.shutdown().await;
