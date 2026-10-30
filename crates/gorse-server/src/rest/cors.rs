@@ -8,25 +8,25 @@
 //! `/api/dashboard/`. The plain handlers the container also registers (the
 //! Swagger page, the pprof handlers, `/metrics`, and on the master the dashboard
 //! page, the login, the bulk import and export, dump and restore, and the chat
-//! proxy) never see it. [`Cors::is_web_service`] leaves them alone.
+//! proxy) never see it. `Cors::is_web_service` leaves them alone.
 //!
 //! The filter runs before the route. For an origin the config allows, it adds
 //! `Access-Control-Allow-Origin` with the origin, and the route's own headers
 //! follow it. Go's `Ok` then adds its `*` after the origin, so both are sent. Its
 //! error helpers and `Text` replace the origin with `*`, so only `*` is sent. The
-//! Rust helpers always set `*`, so [`merge_origin`] tells the two apart by the
+//! Rust helpers always set `*`, so `merge_origin` tells the two apart by the
 //! content type each Go helper writes: `Ok` writes JSON, the others write text.
 //!
 //! The preflight is answered without the route, as go-restful answers it. Go's
 //! own answers to a request no route takes, a 404 or a 405 with no body, are
-//! given their Go text by [`restful_errors`].
+//! given their Go text by `restful_errors`.
 //!
 //! Go copies `master.http_cors_domains` and `master.http_cors_methods` into the
 //! filter when the HTTP server starts. The master's copy is taken once from its
-//! config, [`Source::Fixed`]. The server's copy starts from Go's default lists,
+//! config, `Source::Fixed`. The server's copy starts from Go's default lists,
 //! because Go's `Sync` runs in a goroutine and the filter is set before the
 //! master's config arrives. Each `Sync` then writes into those lists the way Go's
-//! JSON decoder does ([`GoList`]), and the golden checks show the result.
+//! JSON decoder does (`GoList`), and the golden checks show the result.
 
 use std::sync::Arc;
 

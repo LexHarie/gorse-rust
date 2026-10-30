@@ -96,8 +96,27 @@ Deviations point to the decision in `PORTING.md` that approves them.
   type with Go's master (body not compared). The test failed before the fix with `text/plain; version=0.0.4`.
 - **X-214c The golden checks.** `server_http_surface` runs 5 cases against Go: the restricted CORS config, the default
   config, `/apidocs.json` with Swagger UI and its files, the pprof routes, and the server-only routes (a dashboard route
-  and a master plain handler, which the server does not have, and `/metrics` by status). `master_http_surface` (4 of 4)
-  uses the same shared checks in `conformance/tests/common/http_surface.rs`, with the same assertions.
+  and a master plain handler, which the server does not have, and `/metrics` by status). `master_http_surface` (5 of 5)
+  uses the same shared checks in `conformance/tests/common/http_surface.rs`, with the same assertions. The `/metrics`
+  case runs the `gorse-master` binary (X-214b).
+- **X-214d The start order of the Go server decides its default CORS lists (a Go race, found by the court, D-285).**
+  Go's `StartHttpServer` copies the start-time CORS lists after it starts its goroutine `Sync`. The first sync needs
+  the master. If the sync's first RPC wins the race, the filter holds the synced lists: `[]` for the domains and
+  computed methods, so it allows every origin and lists the matched routes' methods. Otherwise it holds the defaults,
+  `[.*]` and the five methods. The Rust server always models the defaults first, then applies the sync. The golden test
+  therefore starts the Go server before the master and waits for its HTTP port, which opens after the copy. Only then
+  does the test start the master and wait for `/api/health/ready`, which needs the sync. Under CPU load, the old order
+  failed 3 of 4 runs (`default_cors_matches_go` and `server_only_routes_match_go`). The new order passed 4 of 4 under
+  the same load, and 6 of 6 and 3 of 3 without it. Go's own answer in the other order is timing-dependent, so no Rust
+  behaviour can match both orders. The test pins the copy-first order, the one the port models. The restricted and
+  master cases do not depend on the order.
+- **X-214e The harness picked ports from the ephemeral range (a harness flake, D-285).** `free_port` bound port 0, which
+  takes a port from the kernel's ephemeral range (32768 to 60999). The nodes' outgoing connections use that range too, so
+  a node could be refused its port, or a test could reach another node's port. A metrics run failed with a connection
+  refused on the master's port after its readiness check passed. `free_port` now picks from 10000 to 31999, which is
+  below the range, binds to check the port is free, and keeps each picked port for the process, so two clusters in one
+  test binary do not pick the same port. The server and master golden tests passed 3 of 3 in parallel, 3 of 3 under
+  CPU load, and the mixed-cluster suites passed with the Mongo test skipped.
 
 ### gRPC proxies
 
