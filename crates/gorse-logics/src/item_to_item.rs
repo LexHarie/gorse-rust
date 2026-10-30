@@ -410,7 +410,7 @@ fn compile_item_column(column: &str) -> Result<Program, Error> {
 
 /// Compiles `column` with `name` as a variable of the Go type `ty`, as
 /// `expr.Compile(column, expr.Env(...))` does.
-pub(crate) fn compile_column(column: &str, name: &str, ty: &Ty) -> Result<Program, Error> {
+pub fn compile_column(column: &str, name: &str, ty: &Ty) -> Result<Program, Error> {
     let mut config = Config::create_new();
     config.with_env(nature::map_env_of([(
         name.to_owned(),
@@ -420,7 +420,7 @@ pub(crate) fn compile_column(column: &str, name: &str, ty: &Ty) -> Result<Progra
 }
 
 /// Go's `data.Item`, the type `item` has in the expressions.
-fn item_type() -> Ty {
+pub fn item_type() -> Ty {
     Ty::named_struct(
         "data.Item",
         vec![
@@ -448,7 +448,7 @@ pub(crate) fn field(name: &str, ty: Ty) -> Field {
 /// The item as the expressions see it: a `data.Item`. The dataset does not
 /// keep an item's `UpdateAt`, so it is the zero time, as Go's dataset items
 /// have it.
-pub(crate) fn item_value(item: &DatasetItem) -> Value {
+pub fn item_value(item: &DatasetItem) -> Value {
     Value::Struct(
         item_type(),
         Arc::new(vec![

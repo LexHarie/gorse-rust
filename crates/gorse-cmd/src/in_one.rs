@@ -10,6 +10,7 @@
 //! starts. The scheduled tasks of `Serve` may run once before the import; Go's
 //! order runs them after it (`porting/notes/WP-4-5.md`, deviation 6).
 
+use std::fmt::Display;
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
@@ -137,29 +138,11 @@ fn use_playground_stores(conf: &mut Config) {
     println!("Using {cores} CPU cores");
 }
 
-/// Go's `setup`, from the download on: fetches the dump, decompresses it,
-/// restores it into the data store, and prints where the dashboard is.
+/// Go's `setup`, from the download on: restores the dump into the data store,
+/// and prints where the dashboard is.
 async fn import_playground(master: &Master, name: &str) {
-    let file = if name == "ml-100k" {
-        "ml-100k.bin.gz"
-    } else {
-        "github.bin.gz"
-    };
-    let response = match reqwest::get(format!("{PLAYGROUND_URL}{file}")).await {
-        Ok(response) => response,
-        Err(err) => cli::fatal("failed to download playground data", err),
-    };
-    let body = match response.bytes().await {
-        Ok(body) => body,
-        Err(err) => cli::fatal("failed to download playground data", err),
-    };
-    let mut dump = Vec::new();
-    if let Err(err) = GzDecoder::new(&body[..]).read_to_end(&mut dump) {
-        cli::fatal("failed to decompress playground data", err);
-    }
-    let delta = (name == "ml-100k").then(playground_delta);
-    if let Err(err) = master.restore(&dump, delta).await {
-        cli::fatal("failed to import playground data", err);
+    if let Err(err) = restore_playground(master, PLAYGROUND_URL, name).await {
+        cli::fatal(err.message, err.cause);
     }
 
     let port = master.config().master.http_port;
@@ -169,6 +152,60 @@ async fn import_playground(master: &Master, name: &str) {
     println!("    RESTful APIs:  http://127.0.0.1:{port}/apidocs");
     println!("    Documentation: https://gorse.io");
     println!();
+}
+
+/// A failed playground import: the message Go logs for the step that failed,
+/// and the error the step failed with.
+#[derive(Debug)]
+pub struct ImportError {
+    message: &'static str,
+    cause: String,
+}
+
+impl ImportError {
+    fn new(message: &'static str, cause: impl Display) -> Self {
+        Self {
+            message,
+            cause: cause.to_string(),
+        }
+    }
+}
+
+/// Go's `setup` up to the restore: downloads the dump `name` from `base_url`,
+/// decompresses it, and restores it into the data store. `base_url` ends with a
+/// slash. `import_playground` passes [`PLAYGROUND_URL`]; a test passes the
+/// address of a local server, which serves the same files.
+///
+/// # Errors
+///
+/// Fails with the message of the step that failed: the download, the
+/// decompression or the restore.
+pub async fn restore_playground(
+    master: &Master,
+    base_url: &str,
+    name: &str,
+) -> Result<(), ImportError> {
+    let file = if name == "ml-100k" {
+        "ml-100k.bin.gz"
+    } else {
+        "github.bin.gz"
+    };
+    let response = reqwest::get(format!("{base_url}{file}"))
+        .await
+        .map_err(|err| ImportError::new("failed to download playground data", err))?;
+    let body = response
+        .bytes()
+        .await
+        .map_err(|err| ImportError::new("failed to download playground data", err))?;
+    let mut dump = Vec::new();
+    GzDecoder::new(&body[..])
+        .read_to_end(&mut dump)
+        .map_err(|err| ImportError::new("failed to decompress playground data", err))?;
+    let delta = (name == "ml-100k").then(playground_delta);
+    master
+        .restore(&dump, delta)
+        .await
+        .map_err(|err| ImportError::new("failed to import playground data", err))
 }
 
 /// How far the `ml-100k` feedback moves: from its recording to now.

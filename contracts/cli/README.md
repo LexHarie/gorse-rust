@@ -1,7 +1,9 @@
 # Command-line contract
 
-`*.help.txt` is the `--help` output of the four Go binaries built at the pinned
-commit (`go build ./cmd/gorse-*`). The only edit is that the build machine's home
+`*.help.txt` is the `--help` output of the five Go binaries built at the pinned
+commit (`go build ./cmd/gorse-*`). `gorse-bench` also has one file per
+subcommand that takes flags (`gorse-bench-<subcommand>.help.txt`), since its
+subcommands carry the benchmark flags. The only edit is that the build machine's home
 directory in the `--cache-path` default is written as `${HOME}`. The Rust
 binaries accept the same flag names, short forms, value types and defaults, so
 existing service files, container commands and Helm charts keep working.

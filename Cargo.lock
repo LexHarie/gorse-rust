@@ -1608,14 +1608,23 @@ dependencies = [
  "flate2",
  "gorse-common",
  "gorse-config",
+ "gorse-dataset",
+ "gorse-expr",
+ "gorse-logics",
  "gorse-master",
+ "gorse-model",
+ "gorse-model-core",
  "gorse-server",
+ "gorse-storage",
+ "gorse-storage-core",
  "gorse-worker",
  "prometheus",
  "reqwest 0.13.5",
+ "serde",
  "tempfile",
  "tokio",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
