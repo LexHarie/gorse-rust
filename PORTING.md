@@ -2554,6 +2554,16 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
   Open: X-254 (the master HTTP routes are not served, and CORS is `*`). Not blocking this node's acceptance, but it blocks the Phase 4 exit. Also noted, not blocking: the stale doc comment at `crates/gorse-worker/src/worker.rs:74` (WP-4-1, report only).
 
+- **D-284 X-254 accepted for the master: CORS, Swagger UI and pprof served (court verdict, 2026-10-30).** `claude/x-254-master-router` at `48bf5a1` (one commit on `8a773a7`) is merged into the integration branch as `fa7b2ab`. The master's go-restful CORS filter (the configured `http_cors_domains` and methods), `/apidocs.json`, `/apidocs/` (the vendored swgui v1.8.5 bundle), and the `/debug/pprof/` routes are now served.
+
+  Gate on `fa7b2ab`, every backend URI set (MIXEDMONGO with `?authSource=admin`): every stage exits 0 except REDIS_TLS_UNSET, which exits 101 as required. TEST: 1314 passed, 0 failed, 56 ignored. The new `master_http_surface` tests pass against the Go master: `restricted_cors_matches_go`, `default_cors_matches_go`, `apidocs_matches_go` and `pprof_routes_match_go`. `mixed_master_rest` (WP-4-4) still passes.
+
+  Reviewed by reading: no test is skipped or removed. The `Skip` names in the diff are the `BodyCheck::Skip` enum variant for the pprof bodies, which X-254a documents.
+
+  Deviations, logged in `PORTING_NOTES.md` as X-254a to X-254g: the pprof profile bodies are empty where Go's are sampled (X-254a); the Swagger files are decompressed (X-254b); the OpenAPI `required` arrays are sorted (X-254c, Q-8); the method table is generated, so a new Go route needs a new row (X-254d); the origin merge follows the content type (X-254e); and go-restful's 404 and 405 texts on WebService paths (X-254f).
+
+  Still open: `gorse-server` does not serve `/apidocs`, pprof, or the CORS filter. X-214 and X-215 stay open for it, and they block the Phase 4 exit. This branch changes only the master. The CORS wildcard that X-254 removes from the master also remains in `gorse-server` until X-214 closes.
+
 - **Datasets.** The network policy of this environment blocks
   `https://cdn.gorse.io`, where the Go model tests and the SDK test setup download
   their datasets (`PORTING_NOTES.md` O-1). Phase 3 metric parity needs either
