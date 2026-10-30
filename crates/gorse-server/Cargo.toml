@@ -21,6 +21,7 @@ indexmap = { workspace = true }
 md-5 = { workspace = true }
 prometheus = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
+rust-embed = { workspace = true, features = ["debug-embed", "include-exclude"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

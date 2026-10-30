@@ -7,12 +7,15 @@
 //! event), the auth filter (the API key), and the metrics filter (the request
 //! histogram). The handlers are in the submodules, one per group of routes.
 
+pub mod apidocs;
+pub mod cors;
 mod embedding;
 mod entity;
 pub mod feedback;
 mod gojson;
 mod inflate;
 pub mod items;
+pub mod pprof;
 mod printable;
 mod quota;
 pub mod recommend;

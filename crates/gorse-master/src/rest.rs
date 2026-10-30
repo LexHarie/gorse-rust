@@ -11,21 +11,19 @@
 //! not see. [`router`] builds both: the dashboard routes and the raw handlers
 //! are explicit routes, and every other path goes to `dispatch`.
 //!
-//! The WebService routes, and `/apidocs.json`, go through the CORS filter in
-//! `cors.rs`. The OpenAPI document and the Swagger UI page (`apidocs.rs`) and
-//! the pprof handlers (`pprof.rs`) are plain routes of their own, as Go
-//! registers them on the same container.
+//! The WebService routes, and `/apidocs.json`, go through the CORS filter, which
+//! lives in `gorse_server::rest::cors` with the other HTTP surface both nodes
+//! share: the OpenAPI document and the Swagger UI page (`apidocs`), and the pprof
+//! handlers (`pprof`). Go registers them on the same container, in
+//! `server/rest.go`.
 
-mod apidocs;
 pub(crate) mod auth;
 mod bulk;
 mod chat;
 mod config;
 mod config_map;
-mod cors;
 pub(crate) mod dashboard_api;
 mod dump;
-mod pprof;
 mod ranker;
 mod recommend;
 #[cfg(test)]
@@ -36,11 +34,12 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::extract::{Request, State};
-use axum::http::{HeaderValue, Method, StatusCode, Uri, header};
+use axum::http::{HeaderValue, StatusCode, Uri, header};
 use axum::middleware::{self, Next};
-use axum::response::{IntoResponse, Response};
+use axum::response::Response;
 use axum::routing::{any, get};
 use gorse_server::rest::response::plain;
+use gorse_server::rest::{apidocs, cors, pprof};
 use tower::util::ServiceExt;
 
 use crate::Master;
@@ -48,6 +47,9 @@ use crate::dashboard;
 
 /// The header the server routes read the API key from.
 const API_KEY_HEADER: &str = "x-api-key";
+
+/// The OpenAPI document the pinned Go master serves at `/apidocs.json`.
+const OPENAPI_DOCUMENT: &str = include_str!("../../../contracts/rest/master.openapi.json");
 
 /// Builds the master's HTTP routes. The result serves the dashboard, the raw
 /// handlers and every `/api/` route Go's master serves.
@@ -78,32 +80,13 @@ pub fn router(master: Arc<Master>) -> Router {
             async move { Ok::<_, Infallible>(dispatch(master, api, server, request).await) }
         })
     };
+    let cors = Arc::new(cors::Cors::master(master.config()));
     Router::new()
         .merge(api)
         .merge(raw)
-        .route("/apidocs.json", get(apidocs::document))
+        .merge(apidocs::document_route(OPENAPI_DOCUMENT))
         .fallback_service(fallback)
-        .layer(middleware::from_fn_with_state(master, cors::filter))
-}
-
-/// Go's `http.Redirect` with the temporary status, as `ServeMux` sends it for a
-/// path that lacks the slash its pattern ends with. The body is the link Go
-/// writes for GET and HEAD, and empty for any other method.
-pub(super) fn temporary_redirect(method: &Method, to: &str) -> axum::response::Response {
-    let body = if *method == Method::GET || *method == Method::HEAD {
-        format!("<a href=\"{to}\">Temporary Redirect</a>.\n\n")
-    } else {
-        String::new()
-    };
-    (
-        StatusCode::TEMPORARY_REDIRECT,
-        [
-            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
-            (header::LOCATION, to),
-        ],
-        body,
-    )
-        .into_response()
+        .layer(middleware::from_fn_with_state(cors, cors::filter))
 }
 
 /// Routes a request that no explicit route matches. `/api/dashboard/` paths go

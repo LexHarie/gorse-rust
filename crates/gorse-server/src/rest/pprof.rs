@@ -19,7 +19,7 @@ use axum::http::{Method, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get};
 
-use super::temporary_redirect;
+use super::response::temporary_redirect;
 
 /// The named profiles Go's `pprof.Handler` serves, as Go 1.27 lists them.
 const PROFILES: [&str; 7] = [
@@ -35,7 +35,7 @@ const PROFILES: [&str; 7] = [
 /// The routes of the pprof handlers. `/debug/pprof` redirects to its index, the
 /// index is at `/debug/pprof/`, and every other path under it is a named profile
 /// or an unknown one.
-pub(super) fn routes<S>() -> Router<S>
+pub fn routes<S>() -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
 {

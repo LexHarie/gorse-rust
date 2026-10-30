@@ -1,13 +1,13 @@
 // Ports: server/rest.go (`/apidocs.json` and `/apidocs/` through `swgui/v5emb`) @ add21b5, with swgui v1.8.5
 
-//! The OpenAPI document and the Swagger UI page (X-254).
+//! The OpenAPI document and the Swagger UI page (X-214, X-254).
 //!
-//! `/apidocs.json` is the master's OpenAPI document: the frozen
-//! `contracts/rest/master.openapi.json` that the pinned Go master serves. It is
-//! a WebService route, so it goes through the CORS filter in `cors.rs`.
-//! `/apidocs/` is Swagger UI, the page that loads the document from
-//! `/apidocs.json` and the files it names beside it. Those are plain handlers,
-//! outside the filter.
+//! `/apidocs.json` is the node's OpenAPI document, the frozen contract file that
+//! the pinned Go node serves: `contracts/rest/server.openapi.json` for the server
+//! and `contracts/rest/master.openapi.json` for the master. It is a WebService
+//! route, so it goes through the CORS filter in `cors.rs`. `/apidocs/` is Swagger
+//! UI, the page that loads the document from `/apidocs.json` and the files it
+//! names beside it. Those are plain handlers, outside the filter.
 //!
 //! The page and its files are the swgui v1.8.5 bundle that Go embeds. They are
 //! vendored in `swagger/`, decompressed, and `swagger/MANIFEST.sha256` checks
@@ -22,10 +22,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use rust_embed::RustEmbed;
 
-use super::temporary_redirect;
-
-/// The OpenAPI document the pinned Go master serves at `/apidocs.json`.
-const OPENAPI_DOCUMENT: &str = include_str!("../../../../contracts/rest/master.openapi.json");
+use super::response::temporary_redirect;
 
 /// The vendored Swagger UI bundle. The checksums are not served.
 #[derive(RustEmbed)]
@@ -49,7 +46,7 @@ const FILES: [&str; 7] = [
 
 /// The routes of the Swagger UI page: `/apidocs`, the page at `/apidocs/`, and
 /// its files.
-pub(super) fn routes<S>() -> Router<S>
+pub fn routes<S>() -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
 {
@@ -59,14 +56,16 @@ where
         .route("/apidocs/{*file}", get(file))
 }
 
-/// Go's `/apidocs.json`: the OpenAPI document. A WebService route, so the CORS
-/// filter sees it.
-pub(super) async fn document() -> Response {
-    (
-        [(header::CONTENT_TYPE, "application/json")],
-        OPENAPI_DOCUMENT,
+/// Go's `/apidocs.json`: the node's OpenAPI document, `document`. A WebService
+/// route, so the CORS filter sees it.
+pub fn document_route<S>(document: &'static str) -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    Router::new().route(
+        "/apidocs.json",
+        get(move || async move { ([(header::CONTENT_TYPE, "application/json")], document) }),
     )
-        .into_response()
 }
 
 /// Go's `ServeMux` redirect from `/apidocs` to `/apidocs/`.

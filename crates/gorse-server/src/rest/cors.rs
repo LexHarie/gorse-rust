@@ -1,13 +1,14 @@
-// Ports: go-restful v3.13.0 `CrossOriginResourceSharing` (the container filter that `server/rest.go` installs on the master's container) and the `Ok`, `Text` and error helpers of `server/rest.go` @ add21b5
+// Ports: go-restful v3.13.0 `CrossOriginResourceSharing` (the container filter that `server/rest.go` installs on the containers of both nodes) and the `Ok`, `Text` and error helpers of `server/rest.go` @ add21b5
 
-//! The CORS filter of the master's WebServices (X-254).
+//! The CORS filter of the WebService routes (X-214, X-254).
 //!
-//! Go installs go-restful's CORS filter on the master's container, and a
-//! container filter runs only for the WebService routes: the server routes and
-//! the dashboard routes under `/api/`, and `/apidocs.json`. The plain handlers
-//! the container also registers (the dashboard page, the login, the bulk import
-//! and export, dump and restore, the chat proxy, the Swagger page and the pprof
-//! handlers) never see it, so [`is_web_service`] leaves them alone.
+//! Go installs go-restful's CORS filter on the container of each node. A
+//! container filter runs only for the WebService routes: the server routes under
+//! `/api/` and `/apidocs.json`, and on the master also the dashboard routes under
+//! `/api/dashboard/`. The plain handlers the container also registers (the
+//! Swagger page, the pprof handlers, `/metrics`, and on the master the dashboard
+//! page, the login, the bulk import and export, dump and restore, and the chat
+//! proxy) never see it. [`Cors::is_web_service`] leaves them alone.
 //!
 //! The filter runs before the route. For an origin the config allows, it adds
 //! `Access-Control-Allow-Origin` with the origin, and the route's own headers
@@ -19,6 +20,12 @@
 //! The preflight is answered without the route, as go-restful answers it. Go's
 //! own answers to a request no route takes, a 404 or a 405 with no body, are
 //! given their Go text by [`restful_errors`].
+//!
+//! Go copies `master.http_cors_domains` and `master.http_cors_methods` into the
+//! filter when the HTTP server starts. The master keeps that copy, [`Source::Fixed`].
+//! The server reads its live config on each request, [`Source::Live`]: Go's `Sync`
+//! loads the master's config in a goroutine, and the golden run shows the synced
+//! list in the server's answers.
 
 use std::sync::Arc;
 
@@ -27,15 +34,16 @@ use axum::extract::{Request, State};
 use axum::http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
+use gorse_config::config::schema::Config;
 
-use crate::Master;
+use super::RestServer;
 
 /// The request headers a preflight may name, as go-restful's filter allows them.
 const ALLOWED_HEADERS: [&str; 3] = ["Content-Type", "Accept", "X-API-Key"];
 
-/// The `/api/` paths the plain handlers take. Go registers each with `ServeMux`
-/// as an exact pattern, so they are not WebService routes.
-const PLAIN_API_PATHS: [&str; 7] = [
+/// The `/api/` paths the master's plain handlers take. Go registers each with
+/// `ServeMux` as an exact pattern, so they are not WebService routes.
+const MASTER_PLAIN_PATHS: [&str; 7] = [
     "/api/purge",
     "/api/bulk/users",
     "/api/bulk/items",
@@ -45,14 +53,17 @@ const PLAIN_API_PATHS: [&str; 7] = [
     "/api/chat/completions",
 ];
 
-/// The routes of the WebServices, with their methods, in the order Go declares
-/// them: the server routes, then the dashboard routes, then the OpenAPI document.
-/// A `{name}` segment matches one path segment. Go's `computeAllowedMethods`
-/// lists the methods of the routes a path matches, in this order (`cors.rs`
-/// [`route_methods`]). Generated from the `ws.GET`, `ws.POST`, `ws.PUT`,
-/// `ws.PATCH` and `ws.DELETE` declarations of `server/rest.go` and `master/rest.go`
-/// @ add21b5, in file order.
-const ROUTES: [(&str, &str); 66] = [
+/// The OpenAPI document's route. Both nodes register it as a WebService, so the
+/// filter covers it.
+const OPENAPI_ROUTE: (&str, &str) = ("GET", "/apidocs.json");
+
+/// The WebService routes of the server node, with their methods, in the order
+/// Go declares them in `server/rest.go`. A `{name}` segment matches one path
+/// segment. Go's `computeAllowedMethods` lists the methods of the routes a path
+/// matches, in this order ([`route_methods`]). Generated from the `ws.GET`,
+/// `ws.POST`, `ws.PUT`, `ws.PATCH` and `ws.DELETE` declarations @ add21b5, in
+/// file order.
+const SERVER_ROUTES: [(&str, &str); 42] = [
     ("GET", "/api/health/live"),
     ("GET", "/api/health/ready"),
     ("POST", "/api/user"),
@@ -98,6 +109,9 @@ const ROUTES: [(&str, &str); 66] = [
     ("GET", "/api/recommend/{user-id}/{category}"),
     ("POST", "/api/session/recommend"),
     ("POST", "/api/session/recommend/{category}"),
+];
+
+const DASHBOARD_ROUTES: [(&str, &str); 23] = [
     ("GET", "/api/dashboard/userinfo"),
     ("GET", "/api/dashboard/cluster"),
     ("GET", "/api/dashboard/categories"),
@@ -127,23 +141,88 @@ const ROUTES: [(&str, &str); 66] = [
     ("GET", "/api/dashboard/user-to-user/{name}/{user-id}"),
     ("GET", "/api/dashboard/external"),
     ("GET", "/api/dashboard/ranker/prompt"),
-    ("GET", "/apidocs.json"),
 ];
 
 const ACCESS_CONTROL_REQUEST_METHOD: HeaderName = header::ACCESS_CONTROL_REQUEST_METHOD;
 const ACCESS_CONTROL_REQUEST_HEADERS: HeaderName = header::ACCESS_CONTROL_REQUEST_HEADERS;
 
-/// Runs go-restful's CORS filter for the WebService routes, and go-restful's
-/// own not-found and not-allowed answers for them.
-pub(super) async fn filter(
-    State(master): State<Arc<Master>>,
-    request: Request,
-    next: Next,
-) -> Response {
-    if !is_web_service(request.uri().path()) {
+/// go-restful's CORS filter, with the config its origins and methods come from.
+pub struct Cors {
+    /// Where the allowed origins and the configured methods are read from.
+    source: Source,
+    /// The WebService routes, with their methods, in Go's declaration order.
+    routes: Vec<(&'static str, &'static str)>,
+    /// The `/api/` paths of plain handlers, which are not WebService routes.
+    plain_paths: &'static [&'static str],
+}
+
+/// The config the filter reads its origins and methods from.
+enum Source {
+    /// The config the node held when its router was built, as Go copies it when
+    /// the HTTP server starts. The master.
+    Fixed(Arc<Config>),
+    /// The node's live config, read on each request. The server.
+    Live(Arc<RestServer>),
+}
+
+impl Cors {
+    /// The filter of the server node: the server routes and the OpenAPI document.
+    /// It reads the live config of `rest` on each request.
+    pub fn server(rest: Arc<RestServer>) -> Cors {
+        let routes = SERVER_ROUTES
+            .iter()
+            .copied()
+            .chain([OPENAPI_ROUTE])
+            .collect();
+        Cors::new(Source::Live(rest), routes, &[])
+    }
+
+    /// The filter of the master node: the server routes, the dashboard routes and
+    /// the OpenAPI document, and the paths of the master's plain handlers.
+    pub fn master(config: Arc<Config>) -> Cors {
+        let routes = SERVER_ROUTES
+            .iter()
+            .chain(&DASHBOARD_ROUTES)
+            .copied()
+            .chain([OPENAPI_ROUTE])
+            .collect();
+        Cors::new(Source::Fixed(config), routes, &MASTER_PLAIN_PATHS)
+    }
+
+    fn new(
+        source: Source,
+        routes: Vec<(&'static str, &'static str)>,
+        plain_paths: &'static [&'static str],
+    ) -> Cors {
+        Cors {
+            source,
+            routes,
+            plain_paths,
+        }
+    }
+
+    /// The config the filter reads on this request.
+    fn config(&self) -> Arc<Config> {
+        match &self.source {
+            Source::Fixed(config) => Arc::clone(config),
+            Source::Live(rest) => rest.config(),
+        }
+    }
+
+    /// Whether the container filter sees `path`: a WebService route, which is an
+    /// `/api/` path no plain handler takes, or the OpenAPI document.
+    fn is_web_service(&self, path: &str) -> bool {
+        path == OPENAPI_ROUTE.1 || (path.starts_with("/api/") && !self.plain_paths.contains(&path))
+    }
+}
+
+/// Runs go-restful's CORS filter on a WebService route, and go-restful's own
+/// not-found and not-allowed answers for it.
+pub async fn filter(State(cors): State<Arc<Cors>>, request: Request, next: Next) -> Response {
+    if !cors.is_web_service(request.uri().path()) {
         return next.run(request).await;
     }
-    let config = master.config();
+    let config = cors.config();
     let domains = config
         .master
         .http_cors_domains
@@ -161,7 +240,7 @@ pub(super) async fn filter(
             .http_cors_methods
             .as_deref()
             .unwrap_or_default();
-        let methods = allowed_methods(configured, request.uri().path());
+        let methods = allowed_methods(configured, &cors.routes, request.uri().path());
         return preflight(&methods, &origin, request.headers());
     }
     merge_origin(restful_errors(next.run(request).await), &origin)
@@ -170,17 +249,24 @@ pub(super) async fn filter(
 /// The methods a preflight lists: the configured ones, or, when the config lists
 /// none, the methods of the routes the path matches (Go's `computeAllowedMethods`,
 /// which the shipped config relies on).
-fn allowed_methods(configured: &[String], path: &str) -> Vec<String> {
+fn allowed_methods(
+    configured: &[String],
+    routes: &[(&'static str, &'static str)],
+    path: &str,
+) -> Vec<String> {
     if !configured.is_empty() {
         return configured.to_vec();
     }
-    route_methods(path).into_iter().map(str::to_owned).collect()
+    route_methods(routes, path)
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
 }
 
 /// Go's `computeAllowedMethods`: the methods of the WebService routes that
 /// `path` matches, in declaration order, duplicates kept.
-fn route_methods(path: &str) -> Vec<&'static str> {
-    ROUTES
+fn route_methods(routes: &[(&'static str, &'static str)], path: &str) -> Vec<&'static str> {
+    routes
         .iter()
         .filter(|(_, template)| matches_template(template, path))
         .map(|(method, _)| *method)
@@ -188,9 +274,10 @@ fn route_methods(path: &str) -> Vec<&'static str> {
 }
 
 /// Whether a route template matches a request path. The segments must agree,
-/// with a `{name}` segment matching any non-empty one, and one trailing slash is
-/// allowed, as go-restful's matching allows it.
+/// with a `{name}` segment matching any non-empty one. One trailing slash is
+/// allowed on either side: go-restful drops the empty segment a slash leaves.
 fn matches_template(template: &str, path: &str) -> bool {
+    let template = template.strip_suffix('/').unwrap_or(template);
     let path = path.strip_suffix('/').unwrap_or(path);
     let template: Vec<&str> = template.split('/').collect();
     let segments: Vec<&str> = path.split('/').collect();
@@ -202,13 +289,6 @@ fn matches_template(template: &str, path: &str) -> bool {
                 part == segment
             }
         })
-}
-
-/// Whether go-restful's container filter sees `path`: the WebService routes,
-/// which are the `/api/` paths the plain handlers do not take, and
-/// `/apidocs.json`.
-pub(super) fn is_web_service(path: &str) -> bool {
-    path == "/apidocs.json" || (path.starts_with("/api/") && !PLAIN_API_PATHS.contains(&path))
 }
 
 /// The request's origin, when the configured domains allow it. An absent or an
@@ -353,6 +433,15 @@ mod tests {
         list.iter().map(|domain| (*domain).to_owned()).collect()
     }
 
+    /// The server node's routes, as [`Cors::server`] takes them.
+    fn server_routes() -> Vec<(&'static str, &'static str)> {
+        SERVER_ROUTES
+            .iter()
+            .copied()
+            .chain([OPENAPI_ROUTE])
+            .collect()
+    }
+
     /// A response with the given status and content type, and the `*` a Go
     /// helper sets when `acao` is given.
     fn response(status: StatusCode, content_type: &str, acao: Option<&str>) -> Response {
@@ -417,16 +506,44 @@ mod tests {
     }
 
     #[test]
+    fn a_template_with_a_trailing_slash_matches_without_it() {
+        assert!(matches_template(
+            "/api/item/{item-id}/feedback/",
+            "/api/item/x/feedback"
+        ));
+    }
+
+    #[test]
     fn route_methods_are_listed_in_declaration_order() {
-        assert_eq!(route_methods("/api/items"), ["GET", "POST"]);
-        assert!(route_methods("/api/nothing").is_empty());
+        assert_eq!(
+            route_methods(&server_routes(), "/api/items"),
+            ["GET", "POST"]
+        );
+        assert!(route_methods(&server_routes(), "/api/nothing").is_empty());
+    }
+
+    #[test]
+    fn the_server_node_takes_no_dashboard_route() {
+        assert!(route_methods(&server_routes(), "/api/dashboard/cluster").is_empty());
+        let master: Vec<_> = SERVER_ROUTES
+            .iter()
+            .chain(&DASHBOARD_ROUTES)
+            .copied()
+            .collect();
+        assert_eq!(route_methods(&master, "/api/dashboard/cluster"), ["GET"]);
     }
 
     #[test]
     fn a_configured_method_list_is_used_as_it_is() {
         let configured = domains(&["PUT"]);
-        assert_eq!(allowed_methods(&configured, "/api/items"), ["PUT"]);
-        assert_eq!(allowed_methods(&[], "/api/items"), ["GET", "POST"]);
+        assert_eq!(
+            allowed_methods(&configured, &server_routes(), "/api/items"),
+            ["PUT"]
+        );
+        assert_eq!(
+            allowed_methods(&[], &server_routes(), "/api/items"),
+            ["GET", "POST"]
+        );
     }
 
     #[test]
