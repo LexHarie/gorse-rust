@@ -118,6 +118,10 @@ fn app(master: Arc<Master>) -> Router {
     gorse_master::rest::router(master).route("/metrics", get(metrics))
 }
 
+/// The content type Go's `promhttp` writes for the exposition. The Rust encoder's
+/// `format_type` lacks the `escaping=underscores` parameter.
+const METRICS_CONTENT_TYPE: &str = "text/plain; version=0.0.4; charset=utf-8; escaping=underscores";
+
 /// Go's `/metrics`: the Prometheus exposition of the default registry.
 async fn metrics() -> impl IntoResponse {
     use prometheus::Encoder;
@@ -125,8 +129,5 @@ async fn metrics() -> impl IntoResponse {
     let families = prometheus::gather();
     let encoder = prometheus::TextEncoder::new();
     let _ = encoder.encode(&families, &mut buffer);
-    (
-        [(header::CONTENT_TYPE, encoder.format_type().to_owned())],
-        buffer,
-    )
+    ([(header::CONTENT_TYPE, METRICS_CONTENT_TYPE)], buffer)
 }

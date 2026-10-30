@@ -90,9 +90,10 @@ Deviations point to the decision in `PORTING.md` that approves them.
   register. The pprof answers are X-254a, with the same empty profile bodies and no sampler.
 - **X-214b `/metrics` has Go's promhttp content type.** The server answers
   `text/plain; version=0.0.4; charset=utf-8; escaping=underscores`. The Rust encoder's `format_type` lacks
-  `escaping=underscores`. The master's `/metrics` in `crates/gorse-cmd/src/master.rs` has the same gap, and X-214 does
-  not change it, because that file is outside the approved scope. The master golden test does not cover `/metrics`.
-  The fix is one line there and is open for the coordinator.
+  `escaping=underscores`. The master's `/metrics` in `crates/gorse-cmd/src/master.rs` had the same gap. The coordinator
+  approved the one-line fix as Go parity, and it is a separate commit on this branch. `master_http_surface::metrics_matches_go`
+  runs the `gorse-master` binary, because the library router has no `/metrics`, and compares the status and the content
+  type with Go's master (body not compared). The test failed before the fix with `text/plain; version=0.0.4`.
 - **X-214c The golden checks.** `server_http_surface` runs 5 cases against Go: the restricted CORS config, the default
   config, `/apidocs.json` with Swagger UI and its files, the pprof routes, and the server-only routes (a dashboard route
   and a master plain handler, which the server does not have, and `/metrics` by status). `master_http_surface` (4 of 4)
