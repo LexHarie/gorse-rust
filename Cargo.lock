@@ -1600,6 +1600,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "gorse-client"
+version = "0.0.0"
+dependencies = [
+ "axum",
+ "gorse-common",
+ "gorse-config",
+ "gorse-master",
+ "gorse-storage",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+]
+
+[[package]]
 name = "gorse-cmd"
 version = "0.0.0"
 dependencies = [

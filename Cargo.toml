@@ -31,6 +31,7 @@ gorse-worker = { path = "crates/gorse-worker" }
 gorse-server = { path = "crates/gorse-server" }
 gorse-master = { path = "crates/gorse-master" }
 gorse-cmd = { path = "crates/gorse-cmd" }
+gorse-client = { path = "crates/gorse-client" }
 
 # External crates, chosen in porting/crate-selection.md. A crate is listed here
 # only once a work package uses it.
