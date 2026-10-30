@@ -2564,6 +2564,21 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
   Still open: `gorse-server` does not serve `/apidocs`, pprof, or the CORS filter. X-214 and X-215 stay open for it, and they block the Phase 4 exit. This branch changes only the master. The CORS wildcard that X-254 removes from the master also remains in `gorse-server` until X-214 closes.
 
+- **D-285 X-214 and X-215 merged, not accepted: the gate fails in `gorse-server` (court verdict, 2026-10-30).** `claude/x-214-server-http` at `9b7a80f` (on `287872f` and `daa77e6`) is merged into the integration branch as `2bccfae`. The merge stays, and it is not accepted.
+
+  Gate on `2bccfae`, every backend URI set (MIXEDMONGO with `?authSource=admin`): REDIS_TLS_UNSET exits 101, as required. Two stages fail:
+
+  - DOC exits 101. Rustdoc with `-D warnings` reports five `public documentation for cors links to private item` errors in `crates/gorse-server/src/rest/cors.rs`: `Cors::is_web_service`, `merge_origin`, `restful_errors`, `Source::Fixed` and `GoList`. The file is new in `287872f`. The gate on `8306391`, before X-214, had DOC at 0.
+  - TEST exits 101. `server_http_surface::default_cors_matches_go` fails. The Rust node answers the default CORS preflights differently from Go: the allow-origin header echoes `https://allowed.example` where Go sends none; the allow-methods header is `GET,POST,PUT,DELETE,PATCH` where Go sends `PATCH,GET,DELETE` (a parameter path), `GET,POST` (a refused origin, and a preflight without requested headers) or nothing; the allow-headers header is `Content-Type, x-api-key` where Go sends nothing.
+
+  TEST: 1329 passed, 1 failed, 56 ignored. Elsewhere on this head: `master_http_surface` 5 of 5; `server_http_surface` 4 of 5 (`apidocs_matches_go`, `restricted_cors_matches_go`, `server_only_routes_match_go` and `pprof_routes_match_go` pass); `mixed_master_rest` 3; `mixed_server` 2; `metrics_matches_go` passes; `mixed_mongo_deep_labels_match_go_server` ran with `MONGO_URI` and passes. The two `gorse-storage --lib` TLS failures are in the REDIS_TLS_UNSET stage, where exit 101 is required.
+
+  The thread reported `server_http_surface` 5 of 5 on its own head. `daa77e6..2bccfae` touches only the master and its test, so the server CORS code that fails here is the thread's own. The court ran `default_cors_matches_go` once on the merged head. A second run could not be made, because the disk filled while the Go oracle rebuilt, so this record rests on one run. The X-214 thread must rerun the test on `9b7a80f` with the Go oracle and show the output.
+
+  Not accepted until the X-214 thread pushes a head on which `cargo doc` with `-D warnings` passes, and `default_cors_matches_go` passes against the Go node. The CORS table is the Go oracle. No test may be skipped, removed or weakened. The court then reruns the full gate on the merged head, with every backend URI set.
+
+  X-214 and X-215 stay open. The master `/metrics` content type from `9b7a80f` is the coordinator-approved fix, and `metrics_matches_go` passes on this head.
+
 - **Datasets.** The network policy of this environment blocks
   `https://cdn.gorse.io`, where the Go model tests and the SDK test setup download
   their datasets (`PORTING_NOTES.md` O-1). Phase 3 metric parity needs either
