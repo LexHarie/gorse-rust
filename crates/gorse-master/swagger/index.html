@@ -1,0 +1,121 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Gorse REST API - Swagger UI</title>
+    <link rel="stylesheet" type="text/css" href="/apidocs/swagger-ui.css">
+    <link rel="icon" type="image/png" href="/apidocs/favicon-32x32.png" sizes="32x32"/>
+    <link rel="icon" type="image/png" href="/apidocs/favicon-16x16.png" sizes="16x16"/>
+    <style>
+        html {
+            box-sizing: border-box;
+            overflow: -moz-scrollbars-vertical;
+            overflow-y: scroll;
+        }
+
+        *,
+        *:before,
+        *:after {
+            box-sizing: inherit;
+        }
+
+        body {
+            margin: 0;
+            background: #fafafa;
+        }
+    </style>
+
+	<script>
+	function proxyRequest(req) {
+		if (req.loadSpec) {
+			return req;
+		}
+		req.url = window.location.protocol+"//"+window.location.host + "/?proxy=" + encodeURIComponent(req.url);
+		return req
+	}
+	</script>
+
+
+</head>
+
+<body>
+
+
+<div id="swagger-ui"></div>
+
+<script src="/apidocs/swagger-ui-bundle.js"></script>
+<script src="/apidocs/swagger-ui-standalone-preset.js"></script>
+<script>
+    window.onload = function () {
+        var cfg = {"title":"Gorse REST API","swaggerJsonUrl":"/apidocs.json","basePath":"/apidocs/","showTopBar":false,"hideCurl":false,"jsonEditor":false,"preAuthorizeApiKey":null};
+        var url = cfg.swaggerJsonUrl;
+        if (!url.startsWith("https://") && !url.startsWith("http://")) {
+            if (url.startsWith(".")) {
+                var path = window.location.pathname;
+                path = path.endsWith("/") ? path : path + "/";
+                url = window.location.protocol + "//" + window.location.host + path + url;
+            } else {
+                url = window.location.protocol + "//" + window.location.host + url;
+            }
+        }
+
+        
+        var settings = {
+			deepLinking: true,
+			defaultModelsExpandDepth: -1,
+			dom_id: '#swagger-ui',
+			layout: "StandaloneLayout",
+			onComplete: function() {
+                if (cfg.preAuthorizeApiKey) {
+                    for (var name in cfg.preAuthorizeApiKey) {
+                        ui.preauthorizeApiKey(name, cfg.preAuthorizeApiKey[name]);
+                    }
+                }
+
+                var dom = document.querySelector('.scheme-container select');
+                for (var key in dom) {
+                    if (key.startsWith("__reactInternalInstance$")) {
+                        var compInternals = dom[key]._currentElement;
+                        var compWrapper = compInternals._owner;
+                        compWrapper._instance.setScheme(window.location.protocol.slice(0,-1));
+                    }
+                }
+            },
+			plugins: [
+				SwaggerUIBundle.plugins.DownloadUrl
+			],
+			presets: [
+				SwaggerUIBundle.presets.apis,
+				SwaggerUIStandalonePreset
+			],
+			showCommonExtensions: true,
+			showExtensions: true,
+			url: url,
+			validatorUrl: null
+        };
+
+        if (cfg.showTopBar == false) {
+            settings.plugins.push(function () {
+                return {
+                    components: {
+                        Topbar: function () {
+                            return null;
+                        }
+                    }
+                }
+            });
+        }
+
+        if (cfg.hideCurl) {
+            settings.plugins.push(() => {return {wrapComponents: {curl: () => () => null}}});
+        }
+
+        window.ui = SwaggerUIBundle(settings);
+    }
+</script>
+
+
+
+</body>
+</html>

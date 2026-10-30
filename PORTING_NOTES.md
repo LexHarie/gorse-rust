@@ -37,6 +37,37 @@ Deviations point to the decision in `PORTING.md` that approves them.
   keys, OIDC client secret) in plain JSON to every node that calls `GetMeta`
   (`master/rpc.go`).
 
+### Master HTTP surface (X-254)
+
+- **X-254a pprof profile bodies are empty.** `/debug/pprof/heap`, `goroutine`, `allocs`, `block`, `mutex`,
+  `threadcreate`, `goroutineleak`, `profile` and `trace` answer 200 with `application/octet-stream` and no body. Go
+  samples the profile when it is asked for, and the Rust master has no sampler. `profile` and `trace` answer at once,
+  not after `seconds`. Unknown names are 404 `Unknown profile` as in Go. The index lists the profiles and `cmdline`
+  gives the process arguments. `symbol` answers its GET as Go does, and a POST with an empty body, since there is no
+  symbol table. Routes, status codes and content types are compared against Go (`master_http_surface`).
+- **X-254b Swagger UI is the vendored swgui v1.8.5 bundle.** `/apidocs/` is the page, which Go's template renders,
+  and the files beside it are the decompressed copies of the bundle Go embeds (`crates/gorse-master/swagger/`, checked by
+  `MANIFEST.sha256`). `/apidocs` redirects with 307, as Go's `ServeMux` does. Go's file server may send the gzip bytes
+  with `Content-Encoding: gzip` to a client that accepts gzip. The Rust side sends the decompressed bytes. The golden
+  test does not send `Accept-Encoding`, so this is not compared.
+- **X-254c The OpenAPI document is compared with `required` sorted (Q-8).** The Rust master serves the frozen
+  `contracts/rest/master.openapi.json`. Go writes each `required` array in a random order, so the golden test compares
+  the document as JSON with those arrays sorted, and everything else byte for byte.
+- **X-254d An empty `http_cors_methods` lists the methods of the matched routes.** The shipped `config/config.toml`
+  sets `http_cors_methods = []`. Go's `computeAllowedMethods` then lists the methods of the WebService routes the path
+  matches, in declaration order. The Rust master does the same from `ROUTES` in `cors.rs`, a table generated from the
+  `ws.GET`, `ws.POST`, `ws.PUT`, `ws.PATCH` and `ws.DELETE` declarations of `server/rest.go` and `master/rest.go`. A new Go
+  route needs a new row.
+- **X-254e The origin header follows which Go helper wrote the answer.** A Go container filter adds the allowed origin
+  before the route runs. Go's `Ok` then adds `*` after it, so both are sent. Its error helpers and `Text` replace the
+  origin with `*`. The Rust helpers always set `*`, so the master's filter tells them apart by content type: `Ok` writes
+  JSON, the others write text. The golden tests cover `Ok`, an error, `Text` and an unknown route.
+- **X-254f go-restful's own 404 and 405 texts.** A WebService path that no route takes answers `404: Page Not Found`, and
+  a method no route takes answers `405: Method Not Allowed`, both as text, as go-restful writes them. Go's CORS filter
+  runs on these answers too.
+- **X-254g Scope.** The CORS filter, the OpenAPI document, Swagger UI and pprof are on the master's router. The server
+  binary (`gorse-server`) does not serve them (X-214, X-215).
+
 ### gRPC proxies
 
 - **Q-10 `ProxyClient.GetItemStream` never sends `time_limit`**, so a worker or
@@ -1070,8 +1101,9 @@ said otherwise), so the Rust result is Go's.
 - **X-3 `GetFeedbackStream` without `scan_options`** (`PORTING.md` D-13). The Go
   master dereferences the nil field and the process crashes. The Rust master
   answers `UNKNOWN` `scan_options is required`. Go clients always send it.
-- **X-4 `/debug/pprof/*`** (`PORTING.md` D-14). A Rust process cannot produce Go
-  runtime profiles; the Rust nodes answer these paths with `404: Page Not Found`.
+- **X-4 `/debug/pprof/*`** (`PORTING.md` D-14; the master part is X-254). A Rust process cannot produce Go
+  runtime profiles. The Rust master answers every Go pprof route with Go's status code and content type,
+  with an empty profile body. The Rust server still answers these paths with `404: Page Not Found`.
 - **X-5 No `go_*` Prometheus metrics.** The Go client registers Go runtime
   collectors (`go_goroutines`, `go_memstats_*`, ...); the Rust nodes export the
   same Gorse metrics plus `process_*` but no `go_*` series.
@@ -3140,4 +3172,4 @@ and the SQLite sentinel probe (see Q-234) were run against the Go oracle.
 
 - **X-253 Parallel BPR on Rust must sit inside Go's ±0.01 band in 12 of 12 automated runs, instead of being compared with one Go run (WP-3-8 deviation; approved by Ritchie, 2026-10-30 00:39Z, relayed by the coordinator; the approval is a question's answer, see below).** Go's BPR at NumCPU jobs is Hogwild-style and nondeterministic. The WP-3-8 thread saw Go miss its own mean by more than 0.01 in 2 of 12 shell runs (Q-269). The court's run of the per-run NumCPU test on `56eca0d` failed: Rust recall 0.7773065 against the reference 0.7613998, a difference of 1.59e-2 (`/mnt/project-files/reports/wp-3-8/court-run-56eca0d.log`). Ritchie chose to fix Rust's parallel BPR rather than mirror Go's spread. The gate is now: single-job runs identical to Go (the replay at 1e-5 and the one-job tests), and 12 of 12 automated NumCPU runs inside Go's ±0.01 band, with the band unchanged. The Welch and Fisher check of the provisional D-283 is withdrawn, and that note is discarded. The parallel BPR fix is a model change, which the brief's out-of-scope line otherwise forbids. The exact words of Ritchie's message, copied by the server, were: "would it be okay if we fix Rust, and not necessarily follow Go for BPR? like it doesn't miss in 12 runs". They are a question, not a yes. Ritchie then answered "yes" (cited by the server, 2026-10-30 00:42Z, relayed by the coordinator as his own words), which is his explicit confirmation before the model change is pushed to the WP-3-8 branch. The reference for the ml-100k band (no Go assertion exists) is Go's single-job ml-100k BPR recall at add21b5, measured automatically in the conformance crate on every run, with the band unchanged at ±0.01 (coordinator ruling, 2026-10-30 00:41Z). It is not a mean of parallel runs. The court checks the fix on the evidence of the pushed head.
 
-- **X-254 The master's HTTP listener serves no `/apidocs` page, no `/debug/pprof/` handlers, and no configured CORS; the server lacks `/apidocs` and pprof too (WP-4-5 open item 1, X-WP45-1; open, owner to be set by the coordinator; blocks the Phase 4 exit).** Go's `StartHttpServer` serves the Swagger UI page at `/apidocs`, the pprof handlers under `/debug/pprof/`, and a CORS filter that allows the configured `master.http_cors_domains` and `http_cors_methods`. The port serves none of the first two, and its CORS responses send `Access-Control-Allow-Origin: *` (WP-4-2, WP-4-4), which allows every origin where Go allows only the configured domains. The CORS wildcard is a security-relevant difference and should be fixed or recorded as a deviation with its reason. Owner: to be set by the coordinator. The WP-4-4 thread owns the master REST router.
+- **X-254 The master's HTTP listener serves no `/apidocs` page, no `/debug/pprof/` handlers, and no configured CORS; the server lacks `/apidocs` and pprof too (WP-4-5 open item 1, X-WP45-1; open, owner to be set by the coordinator; blocks the Phase 4 exit).** Go's `StartHttpServer` serves the Swagger UI page at `/apidocs`, the pprof handlers under `/debug/pprof/`, and a CORS filter that allows the configured `master.http_cors_domains` and `http_cors_methods`. The port serves none of the first two, and its CORS responses send `Access-Control-Allow-Origin: *` (WP-4-2, WP-4-4), which allows every origin where Go allows only the configured domains. The CORS wildcard is a security-relevant difference and should be fixed or recorded as a deviation with its reason. Owner: to be set by the coordinator. The WP-4-4 thread owns the master REST router. **Resolved for the master by X-254 (branch `claude/x-254-master-router`; see X-254a to X-254g above).** The master serves the configured CORS domains and methods, `/apidocs` and `/apidocs.json`, and the pprof routes. The server part is still open (X-214, X-215). Correction: Go's own helpers also send `Access-Control-Allow-Origin: *`, so the wildcard on success and error answers is Go's. The difference was the missing filter, which the master now has.

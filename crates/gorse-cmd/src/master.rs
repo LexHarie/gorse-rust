@@ -1,14 +1,12 @@
-// Ports: cmd/gorse-master/main.go @ add21b5; the HTTP listener of master/rest.go (`StartHttpServer`) and the /metrics and /apidocs.json routes of server/rest.go, which the master serves too
+// Ports: cmd/gorse-master/main.go @ add21b5; the HTTP listener of master/rest.go (`StartHttpServer`) and the /metrics route of server/rest.go, which the master serves too
 
 //! The `gorse-master` binary (`cmd/gorse-master/main.go`).
 //!
 //! Go's master ends `Serve` with `StartHttpServer`, which blocks until the
-//! process is interrupted. The router is in `gorse_master::rest`; this module
-//! binds the listener and adds the two routes that Go's `StartHttpServer` also
-//! registers at the root, `/metrics` and `/apidocs.json`. The rest of the HTTP
-//! surface Go registers (the Swagger UI page, the pprof handlers and the CORS
-//! filter with the configured domains) is not served here: see
-//! `porting/notes/WP-4-5.md`.
+//! process is interrupted. The router is in `gorse_master::rest`, which serves
+//! the REST API, the dashboard, the CORS filter, the OpenAPI document, the
+//! Swagger UI page and the pprof handlers. This module binds the listener and
+//! adds `/metrics`, which Go's `StartHttpServer` also registers at the root.
 
 use std::sync::Arc;
 
@@ -23,10 +21,6 @@ use tokio::net::TcpListener;
 
 use crate::cli;
 use crate::version;
-
-/// The master's OpenAPI document, served at `/apidocs.json`. It is the frozen
-/// copy of the document the pinned Go master serves.
-const OPENAPI_DOCUMENT: &str = include_str!("../../../contracts/rest/master.openapi.json");
 
 /// The command of `gorse-master`: the shared flags, `--config` and `--cache-path`.
 pub fn command() -> Command {
@@ -117,20 +111,11 @@ pub async fn serve_http(master: Arc<Master>, listener: TcpListener) {
     master.shutdown().await;
 }
 
-/// The master's application router: the REST routes and the dashboard, then
-/// the two root routes Go's `StartHttpServer` adds.
+/// The master's application router: the REST routes, the dashboard and the
+/// other HTTP routes of `gorse_master::rest`, then the root `/metrics` route
+/// Go's `StartHttpServer` adds.
 fn app(master: Arc<Master>) -> Router {
-    gorse_master::rest::router(master)
-        .route("/apidocs.json", get(apidocs))
-        .route("/metrics", get(metrics))
-}
-
-/// Go's `/apidocs.json`: the OpenAPI document.
-async fn apidocs() -> impl IntoResponse {
-    (
-        [(header::CONTENT_TYPE, "application/json")],
-        OPENAPI_DOCUMENT,
-    )
+    gorse_master::rest::router(master).route("/metrics", get(metrics))
 }
 
 /// Go's `/metrics`: the Prometheus exposition of the default registry.
