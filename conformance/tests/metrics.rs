@@ -310,10 +310,11 @@ fn afm_criteo() -> Afm {
 // Gate 1: the built-in datasets.
 // ---------------------------------------------------------------------------
 
-/// Go `TestBPR_MovieLens`: NDCG 0.36 within 0.01 of Go's assertion.
+/// Go `TestBPR_MovieLens`: NDCG 0.36 within 0.01 of Go's assertion, at the Go
+/// tests' number of jobs. The comparison with a Go run is made with one job, in
+/// `ml_1m_bpr_one_job`, because parallel BPR is not reproducible (Q-269).
 #[test]
 fn ml_1m_bpr() {
-    let go: GoCf = oracle("bpr-ml-1m");
     let score = fit_cf("ml-1m", bpr_movielens(30));
     eprintln!("ml-1m BPR");
     in_delta(
@@ -322,19 +323,12 @@ fn ml_1m_bpr() {
         0.36,
         BENCH_DELTA,
     );
-    in_delta("NDCG against the Go run", score.ndcg, go.ndcg, BENCH_DELTA);
-    in_delta(
-        "precision against the Go run",
-        score.precision,
-        go.precision,
-        BENCH_DELTA,
-    );
-    in_delta(
-        "recall against the Go run",
-        score.recall,
-        go.recall,
-        BENCH_DELTA,
-    );
+}
+
+/// ml-1m BPR with one job on both sides, as `ml_100k_bpr_one_job`.
+#[test]
+fn ml_1m_bpr_one_job() {
+    check_one_job_cf("ml-1m BPR", "bpr-ml-1m", "ml-1m", bpr_movielens(30));
 }
 
 /// Go `TestCCD_MovieLens`: NDCG 0.36 within 0.01 of Go's assertion.
@@ -367,27 +361,6 @@ fn ml_1m_als() {
 /// ml-100k: no Go model test uses it, so the reference is a Go run of the
 /// ml-1m configuration on the same file (D-195).
 #[test]
-fn ml_100k_bpr() {
-    let go: GoCf = oracle("bpr-ml-100k");
-    let score = fit_cf("ml-100k", bpr_movielens(30));
-    eprintln!("ml-100k BPR");
-    in_delta("NDCG against the Go run", score.ndcg, go.ndcg, BENCH_DELTA);
-    in_delta(
-        "precision against the Go run",
-        score.precision,
-        go.precision,
-        BENCH_DELTA,
-    );
-    in_delta(
-        "recall against the Go run",
-        score.recall,
-        go.recall,
-        BENCH_DELTA,
-    );
-}
-
-/// ml-100k: as `ml_100k_bpr`, for ALS.
-#[test]
 fn ml_100k_als() {
     let go: GoCf = oracle("als-ml-100k");
     let score = fit_cf("ml-100k", als_movielens());
@@ -407,23 +380,25 @@ fn ml_100k_als() {
     );
 }
 
+/// The parameters of the commented-out `TestBPR_Pinterest` (`model/cf/model_test.go`).
+fn pinterest_bpr() -> BPR {
+    BPR::new(params(&[
+        (N_FACTORS, ParamValue::Int(8)),
+        (REG, ParamValue::Float64(0.005)),
+        (LR, ParamValue::Float64(0.05)),
+        (N_EPOCHS, ParamValue::Int(50)),
+        (INIT_MEAN, ParamValue::Int(0)),
+        (INIT_STD_DEV, ParamValue::Float64(0.001)),
+    ]))
+}
+
 /// The commented-out `TestBPR_Pinterest` (`model/cf/model_test.go`): its NDCG
 /// assertion 0.53 within 0.01. Go does not run it, so the value is the one the
-/// commented code asserts, checked the same way.
+/// commented code asserts, checked the same way. The comparison with a Go run is
+/// made with one job, in `pinterest_20_bpr_one_job` (Q-269).
 #[test]
 fn pinterest_20_bpr() {
-    let go: GoCf = oracle("bpr-pinterest-20");
-    let score = fit_cf(
-        "pinterest-20",
-        BPR::new(params(&[
-            (N_FACTORS, ParamValue::Int(8)),
-            (REG, ParamValue::Float64(0.005)),
-            (LR, ParamValue::Float64(0.05)),
-            (N_EPOCHS, ParamValue::Int(50)),
-            (INIT_MEAN, ParamValue::Int(0)),
-            (INIT_STD_DEV, ParamValue::Float64(0.001)),
-        ])),
-    );
+    let score = fit_cf("pinterest-20", pinterest_bpr());
     eprintln!("pinterest-20 BPR");
     in_delta(
         "NDCG against the commented assertion 0.53",
@@ -431,18 +406,16 @@ fn pinterest_20_bpr() {
         0.53,
         BENCH_DELTA,
     );
-    in_delta("NDCG against the Go run", score.ndcg, go.ndcg, BENCH_DELTA);
-    in_delta(
-        "precision against the Go run",
-        score.precision,
-        go.precision,
-        BENCH_DELTA,
-    );
-    in_delta(
-        "recall against the Go run",
-        score.recall,
-        go.recall,
-        BENCH_DELTA,
+}
+
+/// pinterest-20 BPR with one job on both sides, as `ml_100k_bpr_one_job`.
+#[test]
+fn pinterest_20_bpr_one_job() {
+    check_one_job_cf(
+        "pinterest-20 BPR",
+        "bpr-pinterest-20",
+        "pinterest-20",
+        pinterest_bpr(),
     );
 }
 
@@ -543,14 +516,14 @@ fn criteo_afm() {
     against_go("clone", run.clone, &go.clone);
 }
 
-/// ml-100k BPR with one job on both sides. One job makes both fits deterministic,
-/// so they must agree to the replay tolerance. This separates the port from the
-/// run-to-run spread of the parallel tests above (D-195).
-#[test]
-fn ml_100k_bpr_one_job() {
-    let go: GoCf = oracle_with_jobs("bpr-ml-100k", 1);
-    let score = fit_cf_with_jobs("ml-100k", bpr_movielens(30), 1);
-    eprintln!("ml-100k BPR, one job");
+/// Fits a CF model with one job on both sides, and checks that its metrics agree
+/// with the Go run of `config` to the replay tolerance. One job makes both fits
+/// deterministic, so they must agree exactly. The parallel fits are checked by
+/// `ml_100k_bpr_parallel_runs_match_go` instead (Q-269).
+fn check_one_job_cf(label: &str, config: &str, dataset: &str, model: impl Model) {
+    let go: GoCf = oracle_with_jobs(config, 1);
+    let score = fit_cf_with_jobs(dataset, model, 1);
+    eprintln!("{label}, one job");
     in_delta(
         "NDCG against the Go run",
         score.ndcg,
@@ -569,6 +542,13 @@ fn ml_100k_bpr_one_job() {
         go.recall,
         REPLAY_TOLERANCE,
     );
+}
+
+/// ml-100k BPR with one job on both sides. This separates the port from the
+/// run-to-run spread of the parallel fits (D-195).
+#[test]
+fn ml_100k_bpr_one_job() {
+    check_one_job_cf("ml-100k BPR", "bpr-ml-100k", "ml-100k", bpr_movielens(30));
 }
 
 /// Criteo with one job on both sides, as `ml_100k_bpr_one_job`.
@@ -967,4 +947,53 @@ fn replay_ctr_afm_matches_go() {
         }
     }
     eprintln!("ctr: largest difference from Go {largest:e} (tolerance {REPLAY_TOLERANCE:e})");
+}
+
+/// The number of runs on each side of the parallel check (Q-269, X-253).
+const PARALLEL_RUNS: usize = 12;
+
+/// ml-100k BPR at the Go tests' number of jobs, run [`PARALLEL_RUNS`] times on
+/// each side (Q-269, X-253). The reference is a single-job Go run of the same
+/// configuration, measured here on every run, and each Rust run must lie within
+/// `BENCH_DELTA` of it for NDCG, precision and recall. The Go runs at the Go
+/// tests' jobs are printed as evidence of Go's own spread, and are not asserted.
+#[test]
+fn ml_100k_bpr_parallel_runs_match_go() {
+    let reference: GoCf = oracle_with_jobs("bpr-ml-100k", 1);
+    eprintln!(
+        "go single job: NDCG {} precision {} recall {}",
+        reference.ndcg, reference.precision, reference.recall
+    );
+    for run in 1..=PARALLEL_RUNS {
+        let go: GoCf = oracle("bpr-ml-100k");
+        eprintln!(
+            "go run {run:2}: NDCG {} precision {} recall {}",
+            go.ndcg, go.precision, go.recall
+        );
+    }
+    for run in 1..=PARALLEL_RUNS {
+        let score = fit_cf("ml-100k", bpr_movielens(30));
+        eprintln!(
+            "rust run {run:2}: NDCG {} precision {} recall {}",
+            score.ndcg, score.precision, score.recall
+        );
+        in_delta(
+            &format!("run {run}: NDCG against the Go single-job run"),
+            score.ndcg,
+            reference.ndcg,
+            BENCH_DELTA,
+        );
+        in_delta(
+            &format!("run {run}: precision against the Go single-job run"),
+            score.precision,
+            reference.precision,
+            BENCH_DELTA,
+        );
+        in_delta(
+            &format!("run {run}: recall against the Go single-job run"),
+            score.recall,
+            reference.recall,
+            BENCH_DELTA,
+        );
+    }
 }

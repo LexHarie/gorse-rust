@@ -1,0 +1,13 @@
+# Set 3: 12 Go runs in the final head run (same test, same session as rust-after-fix-runs.txt)
+run 1: NDCG 0.49784413 precision 0.077094525 recall 0.7709438
+run 2: NDCG 0.49215776 precision 0.07677639 recall 0.7677625
+run 3: NDCG 0.49508137 precision 0.07720057 recall 0.7720043
+run 4: NDCG 0.5001543 precision 0.07698847 recall 0.7698834
+run 5: NDCG 0.49914345 precision 0.077094525 recall 0.7709438
+run 6: NDCG 0.49918064 precision 0.07592803 recall 0.75927895
+run 7: NDCG 0.5004201 precision 0.07560989 recall 0.7560976
+run 8: NDCG 0.5016532 precision 0.07688243 recall 0.76882297
+run 9: NDCG 0.502588 precision 0.07614011 recall 0.7613998
+run 10: NDCG 0.49573123 precision 0.07698847 recall 0.7698834
+run 11: NDCG 0.49956167 precision 0.07751871 recall 0.77518564
+run 12: NDCG 0.49533075 precision 0.07624616 recall 0.7624603

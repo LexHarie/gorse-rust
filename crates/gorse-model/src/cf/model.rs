@@ -9,6 +9,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::io::{self, Read, Write};
 use std::sync::{Arc, Mutex, PoisonError};
+use std::thread;
 use std::time::Instant;
 
 use fixedbitset::FixedBitSet;
@@ -675,7 +676,8 @@ struct Interactions<'a> {
 /// not interacted with as the negative, then moves the three factors along the
 /// gradient of the pairwise loss.
 fn bpr_update(
-    fitted: &mut Fitted,
+    user_factor: &mut [Vec<f32>],
+    item_factor: &mut [Vec<f32>],
     rng: &mut RandomGenerator,
     data: &Interactions<'_>,
     reg: f32,
@@ -697,27 +699,27 @@ fn bpr_update(
             break temp as usize;
         }
     };
-    let diff = floats::dot(&fitted.user_factor[user], &fitted.item_factor[pos])
-        - floats::dot(&fitted.user_factor[user], &fitted.item_factor[neg]);
+    let diff = floats::dot(&user_factor[user], &item_factor[pos])
+        - floats::dot(&user_factor[user], &item_factor[neg]);
     let grad = math32::exp(-diff) / (1.0 + math32::exp(-diff));
     // Pairwise update
-    let user_copy = fitted.user_factor[user].clone();
-    let pos_copy = fitted.item_factor[pos].clone();
-    let neg_copy = fitted.item_factor[neg].clone();
+    let user_copy = user_factor[user].clone();
+    let pos_copy = item_factor[pos].clone();
+    let neg_copy = item_factor[neg].clone();
     let mut temp = vec![0f32; user_copy.len()];
     // Update positive item latent factor: +w_u
     floats::mul_const_to(&user_copy, grad, &mut temp);
     floats::mul_const_add(&pos_copy, -reg, &mut temp);
-    floats::mul_const_add(&temp, lr, &mut fitted.item_factor[pos]);
+    floats::mul_const_add(&temp, lr, &mut item_factor[pos]);
     // Update negative item latent factor: -w_u
     floats::mul_const_to(&user_copy, -grad, &mut temp);
     floats::mul_const_add(&neg_copy, -reg, &mut temp);
-    floats::mul_const_add(&temp, lr, &mut fitted.item_factor[neg]);
+    floats::mul_const_add(&temp, lr, &mut item_factor[neg]);
     // Update user latent factor: h_i-h_j
     floats::sub_to(&pos_copy, &neg_copy, &mut temp);
     floats::mul_const(&mut temp, grad);
     floats::mul_const_add(&user_copy, -reg, &mut temp);
-    floats::mul_const_add(&temp, lr, &mut fitted.user_factor[user]);
+    floats::mul_const_add(&temp, lr, &mut user_factor[user]);
 }
 
 /// Bayesian personalized ranking.
@@ -824,6 +826,86 @@ impl CoreModel for BPR {
     }
 }
 
+/// The updates each shard runs between two merges of the epoch's shards.
+const SHARD_ROUND_STEPS: usize = 256;
+
+/// One epoch of BPR on `rngs.len()` shards, for more than one job (Q-269, X-253).
+///
+/// The epoch's `steps` updates are cut into contiguous shards, the first
+/// `steps % jobs` of them one update longer. The shards run in rounds of
+/// [`SHARD_ROUND_STEPS`] updates. In each round every shard runs its updates on
+/// its own copy of the factors, with its own generator, starting from the merged
+/// factors of the round before. The copies' changes are then added to those
+/// factors in shard order. The shards share nothing during a round, so the result
+/// depends on the split, the round length and the generators, not on how the
+/// threads are scheduled.
+fn bpr_epoch_sharded(
+    ctx: &Context,
+    user_factor: &mut [Vec<f32>],
+    item_factor: &mut [Vec<f32>],
+    rngs: &[Mutex<RandomGenerator>],
+    data: &Interactions<'_>,
+    steps: usize,
+    (reg, lr): (f32, f32),
+) -> Result<(), ContextError> {
+    let jobs = rngs.len();
+    let shares: Vec<usize> = (0..jobs)
+        .map(|job| steps / jobs + usize::from(job < steps % jobs))
+        .collect();
+    let rounds = shares
+        .iter()
+        .map(|share| share.div_ceil(SHARD_ROUND_STEPS))
+        .max();
+    for round in 0..rounds.unwrap_or(0) {
+        let (start_users, start_items) = (user_factor.to_vec(), item_factor.to_vec());
+        let shards = thread::scope(|s| {
+            let handles: Vec<_> = shares
+                .iter()
+                .enumerate()
+                .map(|(job, &share)| {
+                    let from = (round * SHARD_ROUND_STEPS).min(share);
+                    let to = ((round + 1) * SHARD_ROUND_STEPS).min(share);
+                    let (mut users, mut items) = (start_users.clone(), start_items.clone());
+                    let rng = &rngs[job];
+                    s.spawn(move || {
+                        let mut rng = lock(rng);
+                        if let Some(err) = ctx.err() {
+                            return Err(err);
+                        }
+                        for _ in from..to {
+                            bpr_update(&mut users, &mut items, &mut rng, data, reg, lr);
+                        }
+                        Ok((users, items))
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|handle| {
+                    handle
+                        .join()
+                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+                })
+                .collect::<Result<Vec<_>, ContextError>>()
+        })?;
+        for (u, row) in user_factor.iter_mut().enumerate() {
+            for (k, value) in row.iter_mut().enumerate() {
+                *value = shards.iter().fold(start_users[u][k], |acc, (users, _)| {
+                    acc + (users[u][k] - start_users[u][k])
+                });
+            }
+        }
+        for (i, row) in item_factor.iter_mut().enumerate() {
+            for (k, value) in row.iter_mut().enumerate() {
+                *value = shards.iter().fold(start_items[i][k], |acc, (_, items)| {
+                    acc + (items[i][k] - start_items[i][k])
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 impl Model for BPR {
     /// Go's `BPR.Fit`. Its task complexity is O(bpr.nEpochs).
     fn fit(
@@ -877,20 +959,39 @@ impl Model for BPR {
         let span = SpanGuard(span);
         for epoch in 1..=self.n_epochs {
             let fit_start = Instant::now();
-            // Go's jobs update the factors without a lock. Here the epoch's jobs
-            // share one lock, so each update runs whole, one at a time.
+            // Go's jobs update the factors without a lock, so their order follows the
+            // scheduler. One job runs the updates in order, as Go's one job does, and
+            // more jobs run deterministic shards instead (Q-269, X-253).
             let state = Mutex::new(self.base.take_fitted());
-            let result = parallel::parallel::<ContextError, _>(
-                ctx,
-                train_set.count_feedback(),
-                config.jobs,
-                |worker_id, _| {
+            let result = if config.jobs <= 1 {
+                parallel::parallel::<ContextError, _>(ctx, train_set.count_feedback(), 1, |_, _| {
                     let mut fitted = lock(&state);
-                    let mut rng = lock(&rngs[worker_id]);
-                    bpr_update(&mut fitted, &mut rng, &data, reg, lr);
+                    let Fitted {
+                        user_factor,
+                        item_factor,
+                        ..
+                    } = &mut *fitted;
+                    let mut rng = lock(&rngs[0]);
+                    bpr_update(user_factor, item_factor, &mut rng, &data, reg, lr);
                     Ok(())
-                },
-            );
+                })
+            } else {
+                let mut fitted = lock(&state);
+                let Fitted {
+                    user_factor,
+                    item_factor,
+                    ..
+                } = &mut *fitted;
+                bpr_epoch_sharded(
+                    ctx,
+                    user_factor,
+                    item_factor,
+                    &rngs,
+                    &data,
+                    train_set.count_feedback(),
+                    (reg, lr),
+                )
+            };
             self.base
                 .restore_fitted(state.into_inner().unwrap_or_else(PoisonError::into_inner));
             let fit_time = fit_start.elapsed();

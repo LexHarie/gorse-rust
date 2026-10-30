@@ -1,0 +1,184 @@
+   Compiling rustls v0.23.46 (/home/user/gorse-rust/third_party/rustls)
+   Compiling gorse-protocol v0.0.0 (/home/user/gorse-rust/crates/gorse-protocol)
+   Compiling tokio-rustls v0.26.6
+   Compiling rustls-platform-verifier v0.7.1
+   Compiling sqlx-core v0.9.0
+   Compiling hyper-rustls v0.27.10
+   Compiling tonic v0.14.6
+   Compiling reqwest v0.13.5
+   Compiling tonic-prost v0.14.6
+   Compiling gorse-common v0.0.0 (/home/user/gorse-rust/crates/gorse-common)
+   Compiling gorse-storage-core v0.0.0 (/home/user/gorse-rust/crates/gorse-storage-core)
+   Compiling gorse-expr v0.0.0 (/home/user/gorse-rust/crates/gorse-expr)
+   Compiling sqlx-sqlite v0.9.0
+   Compiling sqlx-mysql v0.9.0
+   Compiling sqlx-postgres v0.9.0
+   Compiling gorse-config v0.0.0 (/home/user/gorse-rust/crates/gorse-config)
+   Compiling sqlx v0.9.0
+   Compiling gorse-model-core v0.0.0 (/home/user/gorse-rust/crates/gorse-model-core)
+   Compiling qdrant-client v1.20.0
+   Compiling object_store v0.14.2
+   Compiling mongodb v3.9.1 (/home/user/gorse-rust/third_party/mongodb-3.9.1)
+   Compiling redis v1.8.0
+   Compiling reqwest v0.12.28
+   Compiling gorse-storage v0.0.0 (/home/user/gorse-rust/crates/gorse-storage)
+   Compiling oauth2 v5.0.0
+   Compiling openidconnect v4.0.1
+   Compiling gorse-dataset v0.0.0 (/home/user/gorse-rust/crates/gorse-dataset)
+   Compiling gorse-logics v0.0.0 (/home/user/gorse-rust/crates/gorse-logics)
+   Compiling gorse-model v0.0.0 (/home/user/gorse-rust/crates/gorse-model)
+   Compiling gorse-worker v0.0.0 (/home/user/gorse-rust/crates/gorse-worker)
+   Compiling gorse-server v0.0.0 (/home/user/gorse-rust/crates/gorse-server)
+   Compiling gorse-master v0.0.0 (/home/user/gorse-rust/crates/gorse-master)
+   Compiling gorse-conformance v0.0.0 (/home/user/gorse-rust/conformance)
+    Finished `release` profile [optimized] target(s) in 3m 03s
+     Running tests/metrics.rs (target/release/deps/metrics-27b9553714dc44ac)
+
+running 15 tests
+test criteo_afm ... criteo AFM
+  accuracy against the Go test's 0.77: Rust 0.76, reference 0.77, difference 9.99999e-3 (band 0.025)
+  clone accuracy against the Go test's 0.77: Rust 0.76, reference 0.77, difference 9.99999e-3 (band 0.02)
+  fit accuracy of the Go run: 0.76
+  fit precision against the Go run: Rust 0.375, reference 0.375, difference 0e0 (band 0.01)
+  fit recall against the Go run: Rust 0.06521739, reference 0.06521739, difference 0e0 (band 0.01)
+  fit AUC against the Go run: Rust 0.50663465, reference 0.50663465, difference 0e0 (band 0.01)
+  clone accuracy of the Go run: 0.76
+  clone precision against the Go run: Rust 0.375, reference 0.375, difference 0e0 (band 0.01)
+  clone recall against the Go run: Rust 0.06521739, reference 0.06521739, difference 0e0 (band 0.01)
+  clone AUC against the Go run: Rust 0.50663465, reference 0.50663465, difference 0e0 (band 0.01)
+ok
+test criteo_afm_one_job ... criteo AFM, one job
+  accuracy against the Go run: Rust 0.76, reference 0.76, difference 0e0 (band 0.00001)
+  precision against the Go run: Rust 0.375, reference 0.375, difference 0e0 (band 0.00001)
+  recall against the Go run: Rust 0.06521739, reference 0.06521739, difference 0e0 (band 0.00001)
+  AUC against the Go run: Rust 0.50663465, reference 0.50663465, difference 0e0 (band 0.00001)
+  clone accuracy against the Go run: Rust 0.76, reference 0.76, difference 0e0 (band 0.00001)
+ok
+test frappe_afm ... frappe AFM
+  accuracy against the Go test: Rust 0.9190922, must be at least 0.90900004
+  clone accuracy against the Go test: Rust 0.9190922, must be at least 0.90900004
+  fit accuracy of the Go run: 0.9190922
+  fit precision against the Go run: Rust 0.8993899, reference 0.8993899, difference 0e0 (band 0.01)
+  fit recall against the Go run: Rust 0.8502517, reference 0.8502517, difference 0e0 (band 0.01)
+  fit AUC against the Go run: Rust 0.95953983, reference 0.95953983, difference 0e0 (band 0.01)
+  clone accuracy of the Go run: 0.9190922
+  clone precision against the Go run: Rust 0.8993899, reference 0.8993899, difference 0e0 (band 0.01)
+  clone recall against the Go run: Rust 0.8502517, reference 0.8502517, difference 0e0 (band 0.01)
+  clone AUC against the Go run: Rust 0.95953983, reference 0.95953983, difference 0e0 (band 0.01)
+ok
+test ml_100k_als ... ml-100k ALS
+  NDCG against the Go run: Rust 0.50142753, reference 0.50142753, difference 0e0 (band 0.01)
+  precision against the Go run: Rust 0.07857916, reference 0.07857915, difference 7.450581e-9 (band 0.01)
+  recall against the Go run: Rust 0.7857901, reference 0.7857901, difference 0e0 (band 0.01)
+ok
+test ml_100k_bpr_one_job ... ml-100k BPR, one job
+  NDCG against the Go run: Rust 0.50139594, reference 0.50139594, difference 0e0 (band 0.00001)
+  precision against the Go run: Rust 0.076775685, reference 0.076775685, difference 0e0 (band 0.00001)
+  recall against the Go run: Rust 0.7677625, reference 0.7677625, difference 0e0 (band 0.00001)
+ok
+test ml_100k_bpr_parallel_runs_match_go ... go single job: NDCG 0.50139594 precision 0.076775685 recall 0.7677625
+go run  1: NDCG 0.49784413 precision 0.077094525 recall 0.7709438
+go run  2: NDCG 0.49215776 precision 0.07677639 recall 0.7677625
+go run  3: NDCG 0.49508137 precision 0.07720057 recall 0.7720043
+go run  4: NDCG 0.5001543 precision 0.07698847 recall 0.7698834
+go run  5: NDCG 0.49914345 precision 0.077094525 recall 0.7709438
+go run  6: NDCG 0.49918064 precision 0.07592803 recall 0.75927895
+go run  7: NDCG 0.5004201 precision 0.07560989 recall 0.7560976
+go run  8: NDCG 0.5016532 precision 0.07688243 recall 0.76882297
+go run  9: NDCG 0.502588 precision 0.07614011 recall 0.7613998
+go run 10: NDCG 0.49573123 precision 0.07698847 recall 0.7698834
+go run 11: NDCG 0.49956167 precision 0.07751871 recall 0.77518564
+go run 12: NDCG 0.49533075 precision 0.07624616 recall 0.7624603
+rust run  1: NDCG 0.49919277 precision 0.077094525 recall 0.7709438
+  run 1: NDCG against the Go single-job run: Rust 0.49919277, reference 0.50139594, difference 2.2031665e-3 (band 0.01)
+  run 1: precision against the Go single-job run: Rust 0.077094525, reference 0.076775685, difference 3.1884015e-4 (band 0.01)
+  run 1: recall against the Go single-job run: Rust 0.7709438, reference 0.7677625, difference 3.1813383e-3 (band 0.01)
+rust run  2: NDCG 0.49919277 precision 0.077094525 recall 0.7709438
+  run 2: NDCG against the Go single-job run: Rust 0.49919277, reference 0.50139594, difference 2.2031665e-3 (band 0.01)
+  run 2: precision against the Go single-job run: Rust 0.077094525, reference 0.076775685, difference 3.1884015e-4 (band 0.01)
+  run 2: recall against the Go single-job run: Rust 0.7709438, reference 0.7677625, difference 3.1813383e-3 (band 0.01)
+rust run  3: NDCG 0.49919292 precision 0.077094555 recall 0.7709438
+  run 3: NDCG against the Go single-job run: Rust 0.49919292, reference 0.50139594, difference 2.2030175e-3 (band 0.01)
+  run 3: precision against the Go single-job run: Rust 0.077094555, reference 0.076775685, difference 3.1886995e-4 (band 0.01)
+  run 3: recall against the Go single-job run: Rust 0.7709438, reference 0.7677625, difference 3.1813383e-3 (band 0.01)
+rust run  4: NDCG 0.49919283 precision 0.077094525 recall 0.7709438
+  run 4: NDCG against the Go single-job run: Rust 0.49919283, reference 0.50139594, difference 2.2031069e-3 (band 0.01)
+  run 4: precision against the Go single-job run: Rust 0.077094525, reference 0.076775685, difference 3.1884015e-4 (band 0.01)
+  run 4: recall against the Go single-job run: Rust 0.7709438, reference 0.7677625, difference 3.1813383e-3 (band 0.01)
+rust run  5: NDCG 0.49919292 precision 0.077094555 recall 0.7709438
+  run 5: NDCG against the Go single-job run: Rust 0.49919292, reference 0.50139594, difference 2.2030175e-3 (band 0.01)
+  run 5: precision against the Go single-job run: Rust 0.077094555, reference 0.076775685, difference 3.1886995e-4 (band 0.01)
+  run 5: recall against the Go single-job run: Rust 0.7709438, reference 0.7677625, difference 3.1813383e-3 (band 0.01)
+rust run  6: NDCG 0.49919274 precision 0.077094525 recall 0.7709438
+  run 6: NDCG against the Go single-job run: Rust 0.49919274, reference 0.50139594, difference 2.2031963e-3 (band 0.01)
+  run 6: precision against the Go single-job run: Rust 0.077094525, reference 0.076775685, difference 3.1884015e-4 (band 0.01)
+  run 6: recall against the Go single-job run: Rust 0.7709438, reference 0.7677625, difference 3.1813383e-3 (band 0.01)
+rust run  7: NDCG 0.49919277 precision 0.077094525 recall 0.7709438
+  run 7: NDCG against the Go single-job run: Rust 0.49919277, reference 0.50139594, difference 2.2031665e-3 (band 0.01)
+  run 7: precision against the Go single-job run: Rust 0.077094525, reference 0.076775685, difference 3.1884015e-4 (band 0.01)
+  run 7: recall against the Go single-job run: Rust 0.7709438, reference 0.7677625, difference 3.1813383e-3 (band 0.01)
+rust run  8: NDCG 0.49919277 precision 0.077094525 recall 0.7709438
+  run 8: NDCG against the Go single-job run: Rust 0.49919277, reference 0.50139594, difference 2.2031665e-3 (band 0.01)
+  run 8: precision against the Go single-job run: Rust 0.077094525, reference 0.076775685, difference 3.1884015e-4 (band 0.01)
+  run 8: recall against the Go single-job run: Rust 0.7709438, reference 0.7677625, difference 3.1813383e-3 (band 0.01)
+rust run  9: NDCG 0.49919277 precision 0.077094525 recall 0.7709438
+  run 9: NDCG against the Go single-job run: Rust 0.49919277, reference 0.50139594, difference 2.2031665e-3 (band 0.01)
+  run 9: precision against the Go single-job run: Rust 0.077094525, reference 0.076775685, difference 3.1884015e-4 (band 0.01)
+  run 9: recall against the Go single-job run: Rust 0.7709438, reference 0.7677625, difference 3.1813383e-3 (band 0.01)
+rust run 10: NDCG 0.49919277 precision 0.077094525 recall 0.7709438
+  run 10: NDCG against the Go single-job run: Rust 0.49919277, reference 0.50139594, difference 2.2031665e-3 (band 0.01)
+  run 10: precision against the Go single-job run: Rust 0.077094525, reference 0.076775685, difference 3.1884015e-4 (band 0.01)
+  run 10: recall against the Go single-job run: Rust 0.7709438, reference 0.7677625, difference 3.1813383e-3 (band 0.01)
+rust run 11: NDCG 0.49919277 precision 0.077094525 recall 0.7709438
+  run 11: NDCG against the Go single-job run: Rust 0.49919277, reference 0.50139594, difference 2.2031665e-3 (band 0.01)
+  run 11: precision against the Go single-job run: Rust 0.077094525, reference 0.076775685, difference 3.1884015e-4 (band 0.01)
+  run 11: recall against the Go single-job run: Rust 0.7709438, reference 0.7677625, difference 3.1813383e-3 (band 0.01)
+rust run 12: NDCG 0.49919274 precision 0.077094525 recall 0.7709438
+  run 12: NDCG against the Go single-job run: Rust 0.49919274, reference 0.50139594, difference 2.2031963e-3 (band 0.01)
+  run 12: precision against the Go single-job run: Rust 0.077094525, reference 0.076775685, difference 3.1884015e-4 (band 0.01)
+  run 12: recall against the Go single-job run: Rust 0.7709438, reference 0.7677625, difference 3.1813383e-3 (band 0.01)
+ok
+test ml_1m_als ... ml-1m ALS
+  NDCG against the Go test's 0.36: Rust 0.3540654, reference 0.36, difference 5.934626e-3 (band 0.01)
+  NDCG against the Go run: Rust 0.3540654, reference 0.3540654, difference 0e0 (band 0.01)
+  precision against the Go run: Rust 0.062217988, reference 0.062217988, difference 0e0 (band 0.01)
+  recall against the Go run: Rust 0.62218547, reference 0.62218547, difference 0e0 (band 0.01)
+ok
+test ml_1m_bpr ... ml-1m BPR
+  NDCG against the Go test's 0.36: Rust 0.36072415, reference 0.36, difference 7.2413683e-4 (band 0.01)
+ok
+test ml_1m_bpr_one_job ... ml-1m BPR, one job
+  NDCG against the Go run: Rust 0.36254472, reference 0.36254472, difference 0e0 (band 0.00001)
+  precision against the Go run: Rust 0.0633301, reference 0.0633301, difference 0e0 (band 0.00001)
+  recall against the Go run: Rust 0.63327813, reference 0.63327813, difference 0e0 (band 0.00001)
+ok
+test ml_tag_afm ... ml-tag AFM
+  accuracy against the Go test's 0.815: Rust 0.8179943, reference 0.815, difference 2.994299e-3 (band 0.01)
+  fit accuracy of the Go run: 0.8179943
+  fit precision against the Go run: Rust 0.97166055, reference 0.97166055, difference 0e0 (band 0.01)
+  fit recall against the Go run: Rust 0.4672401, reference 0.4672401, difference 0e0 (band 0.01)
+  fit AUC against the Go run: Rust 0.9054672, reference 0.9054672, difference 0e0 (band 0.01)
+ok
+test pinterest_20_als ... pinterest-20 ALS
+  NDCG against the commented assertion 0.52: Rust 0.5173948, reference 0.52, difference 2.6051998e-3 (band 0.01)
+  NDCG against the Go run: Rust 0.5173948, reference 0.51739466, difference 1.1920929e-7 (band 0.01)
+  precision against the Go run: Rust 0.08657353, reference 0.08657353, difference 0e0 (band 0.01)
+  recall against the Go run: Rust 0.865838, reference 0.865838, difference 0e0 (band 0.01)
+ok
+test pinterest_20_bpr ... pinterest-20 BPR
+  NDCG against the commented assertion 0.53: Rust 0.5229662, reference 0.53, difference 7.0337653e-3 (band 0.01)
+ok
+test pinterest_20_bpr_one_job ... pinterest-20 BPR, one job
+  NDCG against the Go run: Rust 0.5242505, reference 0.5242505, difference 0e0 (band 0.00001)
+  precision against the Go run: Rust 0.0864235, reference 0.0864235, difference 0e0 (band 0.00001)
+  recall against the Go run: Rust 0.8638267, reference 0.8638267, difference 0e0 (band 0.00001)
+ok
+test replay_cf_bpr_and_als_match_go ... bpr: largest difference from Go 0e0 (tolerance 1e-5)
+als: largest difference from Go 0e0 (tolerance 1e-5)
+ok
+test replay_ctr_afm_matches_go ... ctr: largest difference from Go 0e0 (tolerance 1e-5)
+ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1927.35s
+
+EXIT=0
