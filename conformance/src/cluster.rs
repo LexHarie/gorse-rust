@@ -231,7 +231,24 @@ impl Cluster {
     ///
     /// Fails when the config or the run's directories cannot be written.
     pub fn new(build: &'static GoBuild, edits: &[Edit<'_>]) -> Result<Cluster> {
-        Self::create(build, edits, false, None)
+        Self::create(build, &contract_config(), edits, false, None)
+    }
+
+    /// Starts a run like [`Cluster::new`], from the config at `base` instead of
+    /// `contracts/config/config.toml`. The WP-4-7 SDK suite runs on the config of
+    /// its setup (`client/config.toml`), which has its own recommenders and
+    /// rankers; the run's stores, ports and blob directory still replace its
+    /// values.
+    ///
+    /// # Errors
+    ///
+    /// Fails when `base` or the run's directories cannot be read or written.
+    pub fn new_from_config(
+        build: &'static GoBuild,
+        base: &Path,
+        edits: &[Edit<'_>],
+    ) -> Result<Cluster> {
+        Self::create(build, base, edits, false, None)
     }
 
     /// Starts a run like [`Cluster::new`], with the data store at `data_uri`
@@ -247,7 +264,7 @@ impl Cluster {
         edits: &[Edit<'_>],
         data_uri: Option<&str>,
     ) -> Result<Cluster> {
-        Self::create(build, edits, false, data_uri)
+        Self::create(build, &contract_config(), edits, false, data_uri)
     }
 
     /// Starts a run like [`Cluster::new`], with mutual TLS between the nodes. The
@@ -258,13 +275,14 @@ impl Cluster {
     ///
     /// Fails when the certificates or the config cannot be written.
     pub fn new_tls(build: &'static GoBuild, edits: &[Edit<'_>]) -> Result<Cluster> {
-        Self::create(build, edits, true, None)
+        Self::create(build, &contract_config(), edits, true, None)
     }
 
-    /// Writes the run's directories, certificates and config. `secure` turns on
-    /// mutual TLS in the master.
+    /// Writes the run's directories, certificates and config. The config starts
+    /// from `base`. `secure` turns on mutual TLS in the master.
     fn create(
         build: &'static GoBuild,
+        base: &Path,
         edits: &[Edit<'_>],
         secure: bool,
         data_uri: Option<&str>,
@@ -287,8 +305,7 @@ impl Cluster {
         fs::create_dir_all(&blob_dir).map_err(fail)?;
         fs::create_dir_all(root.join("master-cache")).map_err(fail)?;
 
-        let mut config =
-            fs::read_to_string(repo_root().join("contracts/config/config.toml")).map_err(fail)?;
+        let mut config = fs::read_to_string(base).map_err(fail)?;
         set_key(
             &mut config,
             "database",
@@ -743,6 +760,21 @@ impl Cluster {
         self.processes.clear();
     }
 
+    /// Stops the master process, a Go `gorse-master` or the Rust one, and waits for
+    /// it to exit. Its log is kept. The SDK setup restarts the master after the
+    /// restore (`docker compose restart master`), so the SDK suite does the same
+    /// by calling this and then the start function of its master again.
+    pub fn stop_master(&mut self) {
+        self.processes.retain_mut(|(name, child)| {
+            if *name != "gorse-master" {
+                return true;
+            }
+            let _ = child.kill();
+            let _ = child.wait();
+            false
+        });
+    }
+
     /// The `--ssl-*` flags of a Go node, when the run uses TLS.
     fn tls_flags(&self) -> Vec<String> {
         self.tls.as_ref().map_or_else(Vec::new, |files| {
@@ -974,6 +1006,12 @@ async fn request_status(port: u16, path: &str) -> Option<u16> {
     let mut response = String::new();
     stream.read_to_string(&mut response).await.ok()?;
     response.split_whitespace().nth(1)?.parse().ok()
+}
+
+/// The config every run starts from, unless a test names another: the contract
+/// config in `contracts/config/config.toml`.
+fn contract_config() -> PathBuf {
+    repo_root().join("contracts/config/config.toml")
 }
 
 /// The command-line flags `--name value` of `pairs`, in order.
