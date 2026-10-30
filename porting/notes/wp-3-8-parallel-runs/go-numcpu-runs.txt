@@ -1,0 +1,29 @@
+# Go, ml-100k BPR, NumCPU (4 jobs) runs on this container, add21b5 oracle (conformance/oracle/metrics -config bpr-ml-100k -jobs 4)
+# Set 1: 12 runs of the oracle binary, shell loop, GODEBUG=randautoseed=0
+run  1 NDCG 0.49141914 precision 0.07677639 recall 0.7677625
+run  2 NDCG 0.4986593 precision 0.07582199 recall 0.75821847
+run  3 NDCG 0.5056639 precision 0.07720057 recall 0.7720043
+run  4 NDCG 0.5006656 precision 0.0775187 recall 0.77518564
+run  5 NDCG 0.5002275 precision 0.077094525 recall 0.7709438
+run  6 NDCG 0.5036536 precision 0.07730661 recall 0.77306473
+run  7 NDCG 0.5050084 precision 0.077836834 recall 0.778367
+run  8 NDCG 0.5011261 precision 0.077094525 recall 0.7709438
+run  9 NDCG 0.5061337 precision 0.07804892 recall 0.78048784
+run 10 NDCG 0.49510926 precision 0.07614012 recall 0.7613998
+run 11 NDCG 0.497724 precision 0.0763522 recall 0.7635207
+run 12 NDCG 0.49528092 precision 0.07645825 recall 0.76458114
+# Set 2: 12 runs inside the D-283 check (bpr-tests-d283.log, before the parallel fix)
+run 1: NDCG 0.49673012 precision 0.07635221 recall 0.7635207
+run 2: NDCG 0.504499 precision 0.077836834 recall 0.778367
+run 3: NDCG 0.49810442 precision 0.0765643 recall 0.7656416
+run 4: NDCG 0.50242275 precision 0.07603407 recall 0.7603394
+run 5: NDCG 0.50155 precision 0.076564305 recall 0.7656416
+run 6: NDCG 0.49266034 precision 0.07688244 recall 0.76882297
+run 7: NDCG 0.50365335 precision 0.077094525 recall 0.7709438
+run 8: NDCG 0.4952751 precision 0.07635221 recall 0.7635207
+run 9: NDCG 0.5010248 precision 0.077836856 recall 0.778367
+run 10: NDCG 0.49367833 precision 0.076564305 recall 0.7656416
+run 11: NDCG 0.49455696 precision 0.07730661 recall 0.77306473
+run 12: NDCG 0.4938673 precision 0.077094525 recall 0.7709438
+# Single job, reference (Rust one-job test and Go oracle with -jobs 1 agree exactly)
+single-job NDCG 0.50139594 precision 0.076775685 recall 0.7677625

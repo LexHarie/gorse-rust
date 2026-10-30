@@ -1677,6 +1677,8 @@ dependencies = [
  "gorse-dataset",
  "gorse-logics",
  "gorse-master",
+ "gorse-model",
+ "gorse-model-core",
  "gorse-protocol",
  "gorse-server",
  "gorse-storage",

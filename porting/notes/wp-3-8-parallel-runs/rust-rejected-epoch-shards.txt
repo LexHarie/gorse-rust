@@ -1,0 +1,5 @@
+# Rust BPR, NumCPU (4 jobs), REJECTED variant: one shard per job per epoch, shard changes summed once per epoch.
+# Not kept on the branch. Source: scratchpad wt-bpr-run1.log (the test that failed first).
+ml-100k run 1: NDCG 0.46564966 precision 0.07560989 recall 0.7560976 (single-job reference NDCG 0.50139594, recall 0.7677625): outside the band 0.01
+ml-1m BPR: NDCG 0.0010570863 against the Go test's 0.36: outside the band 0.01 (the model diverged)
+pinterest-20 BPR: NDCG 0.4971341 against the commented 0.53: outside the band 0.01

@@ -181,7 +181,6 @@ fn convert_embeddings_test() {
 }
 
 #[test]
-#[ignore = "O-1: dataset from cdn.gorse.io"]
 fn load_data_from_built_in_frappe() {
     let (train, test) = load_data_from_built_in("frappe").expect("frappe");
     assert_eq!(train.count(), 202027);

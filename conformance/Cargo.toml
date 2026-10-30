@@ -40,6 +40,9 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 [dev-dependencies]
+# The metric parity test (tests/metrics.rs) fits the Rust models on the replay goldens and the datasets.
+gorse-model = { workspace = true }
+gorse-model-core = { workspace = true }
 # The mixed-master REST test sends the ranker prompt's templates in base64 (tests/mixed_master_rest.rs).
 base64.workspace = true
 serde = { workspace = true }
