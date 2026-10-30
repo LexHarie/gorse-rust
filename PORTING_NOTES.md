@@ -1645,6 +1645,8 @@ said otherwise), so the Rust result is Go's.
 - **O-1** The Go CI's model tests read the datasets from `https://cdn.gorse.io`,
   which this environment's network policy blocks. Phase 3 metric parity needs
   them (`PORTING.md` status board).
+  - **Resolved for `ml-100k.bin.gz` (court, 2026-10-30).** The file was uploaded by Ritchie to `/mnt/project-files/datasets/ml-100k.bin.gz`, unchanged (sha256 starts `a867552b`; 23,461,026 bytes). `gzip -t` passes. The first record is user `1` with `{"age": 24, "gender": "M", "occupation": "technician", "zip_code": "85711"}`, which is MovieLens 100k user 1. The restore walk (`master/rest.go:1920-1975`, read with `python3 -I`) gives 943 users, 1,682 items and 100,000 feedback, in the order users, items, feedback. These are the counts that `cmd/gorse-in-one` and `client/setup-test.sh` at `add21b5` expect, so the file is the one the Go SDK setup downloads. WP-4-7 is unblocked for it, and the ml-100k playground test can be un-ignored by its owner. The other O-1 datasets (`mnist`, `iris`, `yelp`) stay ignored and open.
+  - **Resolved for the default playground, `github.bin.gz` (court, 2026-10-30).** Copied unchanged to `datasets/github.bin.gz` (sha256 starts `29be90c7`). The walk gives 2,079 users, 22,320 items and 357,294 feedback. It is the default `gorse-in-one` playground data, not ML-100k. Its test is being added to the gorse-cmd playground tests on the worker's branch.
 - **O-2 prost leaves `-0.0` out of proto3 `double` and `float` fields;
   protobuf-go writes it** (its bits are not zero). A Rust sender therefore
   delivers `+0` where a Go sender delivers `-0`, for every such field in
