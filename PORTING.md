@@ -2542,6 +2542,18 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
   Evidence: `/mnt/project-files/o87-evidence/court-batch-probe/`.
 
+- **D-283 WP-4-5 binaries accepted, with X-254 open (court verdict, 2026-10-30).** `claude/wp-4-5-rebased` at `4ed8d65`, rebased onto `bf9f375`, is merged into the integration branch as `f93c613`, on top of the X-253 record. The binaries are ported: `gorse-master`, `gorse-server`, `gorse-worker` and `gorse-in-one`, with `cmd/version`. `cmd/goat` is not ported (D-238), and `gorse-bench` is WP-4-8.
+
+  Gate on `f93c613`, every backend URI set (MIXEDMONGO with `?authSource=admin`): every stage exits 0 except REDIS_TLS_UNSET, which exits 101 as required. TEST: 1299 passed, 0 failed, 56 ignored. The WP-4-5 tests pass: the five `mixed_cmd` scenarios, which run each Rust binary beside the Go nodes (the master, server, worker and in-one binaries, and the help check), `rust_binaries_help_matches_the_help_files`, and the `gorse-cmd` contract and binary tests. The one ignored playground test is `#[ignore = "O-1: dataset from cdn.gorse.io"]`, and its dataset is missing.
+
+  Reviewed by reading: the diff adds no skip. The ignore is the O-1 playground test, which is valid. No assertion is removed.
+
+  Deviations, logged in `porting/notes/WP-4-5.md` (1 to 11): Go's `--http-host` and `--http-port` help texts are swapped, and the port keeps Go's text; `--playground` takes no separate value; `-v` and `--help` create the default cache directory; usage errors exit 1; Go's `gorse-in-one` starts no server or worker, and the port says so. The court accepts them as faithful to Go.
+
+  Cross-crate: `Master::restore` in `crates/gorse-master/src/rest/dump.rs` (9b0beee, approved by the coordinator), and the helpers in `conformance/src/cluster.rs`.
+
+  Open: X-254 (the master HTTP routes are not served, and CORS is `*`). Not blocking this node's acceptance, but it blocks the Phase 4 exit. Also noted, not blocking: the stale doc comment at `crates/gorse-worker/src/worker.rs:74` (WP-4-1, report only).
+
 - **Datasets.** The network policy of this environment blocks
   `https://cdn.gorse.io`, where the Go model tests and the SDK test setup download
   their datasets (`PORTING_NOTES.md` O-1). Phase 3 metric parity needs either
