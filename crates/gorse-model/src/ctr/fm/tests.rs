@@ -55,7 +55,6 @@ fn input(
 }
 
 #[test]
-#[ignore = "O-1: dataset from cdn.gorse.io"]
 fn factorization_machines_classification_frappe() {
     // python .\model.py frappe -dim 8 -iter 10 -learn_rate 0.01 -regular 0.0001
     let (train, test) = load_data_from_built_in("frappe").expect("frappe");
@@ -78,7 +77,6 @@ fn factorization_machines_classification_frappe() {
 }
 
 #[test]
-#[ignore = "O-1: dataset from cdn.gorse.io (ml-tag). Go skips this test as time-consuming"]
 fn factorization_machines_classification_movie_lens() {
     // python .\model.py ml-tag -dim 8 -iter 10 -learn_rate 0.01 -regular 0.0001
     let (train, test) = load_data_from_built_in("ml-tag").expect("ml-tag");
@@ -96,7 +94,6 @@ fn factorization_machines_classification_movie_lens() {
 }
 
 #[test]
-#[ignore = "O-1: dataset from cdn.gorse.io (criteo)"]
 fn factorization_machines_classification_criteo() {
     // python .\model.py criteo -dim 8 -iter 10 -learn_rate 0.01 -regular 0.0001
     let (train, test) = load_data_from_built_in("criteo").expect("criteo");

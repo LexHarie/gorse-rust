@@ -1,8 +1,8 @@
 // Ports: dataset/dataset_test.go @ add21b5
 
-//! Go's `dataset_test.go`, case for case. The loader test downloads a dataset and
-//! is ignored here (PORTING_NOTES.md O-1). Two extra tests cover the file parsers
-//! on small local files, since only that ignored test reaches them otherwise.
+//! Go's `dataset_test.go`, case for case. The loader test reads the built-in
+//! dataset from the dataset folder. Two extra tests cover the file parsers on
+//! small local files.
 
 use gorse_common::floats;
 use gorse_common::gotime::{self, Month, Time};
@@ -354,7 +354,6 @@ fn dataset_split_latest() {
 }
 
 #[test]
-#[ignore = "needs cdn.gorse.io, which this container cannot reach (O-1)"]
 fn dataset_load_movie_lens_1m() {
     let (train, test) = load_data_from_built_in("ml-1m").expect("load ml-1m");
     assert_eq!(train.get_users().len(), 6040);

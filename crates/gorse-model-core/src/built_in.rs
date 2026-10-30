@@ -328,10 +328,8 @@ mod tests {
         assert_eq!(file_names.len(), 2, "Number of file doesn't match");
     }
 
-    /// Go's `TestLocateBuiltInDataset`. It downloads `ml-1m` from `cdn.gorse.io`,
-    /// which this container cannot reach, so it is ignored here (O-1).
+    /// Go's `TestLocateBuiltInDataset`. It finds `ml-1m` in the dataset folder.
     #[test]
-    #[ignore = "needs cdn.gorse.io, which this container cannot reach (O-1)"]
     fn locate_built_in_dataset_ml_1m() {
         let (train, test) =
             locate_built_in_dataset("ml-1m", DatasetFormat::Ncf).expect("locate dataset");

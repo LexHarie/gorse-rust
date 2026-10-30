@@ -714,7 +714,6 @@ fn movie_lens() -> Vec<Vec<i64>> {
 }
 
 #[test]
-#[ignore = "needs the ml-1m dataset from cdn.gorse.io (PORTING_NOTES.md O-1)"]
 fn test_movie_lens() {
     let movies = movie_lens();
     let mut bf = Bruteforce::new(jaccard);

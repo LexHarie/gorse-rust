@@ -1563,7 +1563,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "O-1: dataset from cdn.gorse.io"]
     fn test_bpr_movielens() {
         let (train_set, mut test_set) = load_data_from_built_in("ml-1m").expect("ml-1m");
         let mut m = BPR::new(params(&[
@@ -1613,7 +1612,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "O-1: dataset from cdn.gorse.io"]
     fn test_ccd_movielens() {
         let (train_set, mut test_set) = load_data_from_built_in("ml-1m").expect("ml-1m");
         let mut m = ALS::new(params(&[
