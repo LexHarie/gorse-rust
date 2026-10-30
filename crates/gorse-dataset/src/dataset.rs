@@ -602,7 +602,7 @@ fn strings_of(items: &[data::Labels]) -> Option<Vec<&str>> {
 pub fn load_data_from_built_in(data_set_name: &str) -> Result<(Dataset, Dataset), Error> {
     let (train_file_path, test_file_path) =
         built_in::locate_built_in_dataset(data_set_name, DatasetFormat::Ncf)?;
-    let train = load_train(&train_file_path)?;
+    let mut train = load_train(&train_file_path)?;
     let mut test = Dataset::new(train.get_timestamp(), 0, 0);
     test.users = train.users.clone();
     test.items = train.items.clone();
@@ -613,6 +613,11 @@ pub fn load_data_from_built_in(data_set_name: &str) -> Result<(Dataset, Dataset)
     test.timestamps = vec![Vec::new(); train.user_feedback.len()];
     test.negatives = vec![Vec::new(); train.user_feedback.len()];
     load_test(&mut test, &test_file_path)?;
+    // Go shares one frequency dictionary between the two sets, so the feedback and
+    // negatives of the test set also count in the train set. Copy the final state
+    // back, as Go does.
+    train.user_dict = test.user_dict.clone();
+    train.item_dict = test.item_dict.clone();
     Ok((train, test))
 }
 
