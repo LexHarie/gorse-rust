@@ -2596,6 +2596,23 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
   Still open for the Phase 4 exit: X-214 and X-215 (the `fbfd5ab` review, then the gate on the integration head), WP-4-6 (`4ccd665`), WP-4-7 (blocked on `ml-100k.bin.gz`, O-1), WP-4-8 (`dc2e39b`), X-239, Q-265, and O-1.
 
+- **D-287 X-214 and X-215 accepted on the merged head, with the CORS harness order pinned (court verdict, 2026-10-30).** `claude/x-214-server-http` at `fbfd5ab` (the D-285 fixes, on `9b7a80f`) is merged into the integration branch as `8c196fd`, on `6f2036a`. The coordinator approved the harness order on 2026-10-30 (07:33Z) on three conditions, and all three are met.
+
+  Gate on `8c196fd`, every backend URI set (MIXEDMONGO with `?authSource=admin`). Log: `/mnt/project-files/reports/x-214/court-gate-8c196fd.log`. Every stage exits 0 except REDIS_TLS_UNSET, which exits 101 as required. DOC exits 0, so the five `cors.rs` links are fixed. TEST: 1339 passed, 0 failed, 47 ignored, including `default_cors_matches_go` in `server_http_surface` and `master_http_surface`. METRICS (release): 15 passed, 0 failed. `mixed_mongo_deep_labels_match_go_server` passes with `MONGO_URI`.
+
+  Condition 1, both orders under load (`order-experiment.log`). The court put a temporary master-first variant into `go_answers`, ran `default_cors_matches_go` against the Go node, and restored the file from HEAD.
+  - Master first (the sync-first order): under load, 9 of 10 passed and 1 failed (run 6). Idle, 10 of 10 passed. The failure was captured on a second pass (`court-sync-first-failure.log`). The Go node answered with an empty allow-origin list, no allow-methods on allowed-origin preflights, and no allow-headers. Those are the answers in D-285.
+  - Start first (the pinned order): under load, 10 of 10 passed. Idle, 10 of 10 passed.
+  - The load was four busy loops on four cores. The X-214 owner reported 3 of 4 failures under its own load. The court's rate is lower, and the ruling does not depend on the rate.
+
+  Condition 2, the Go quirk, is logged as X-255 in `PORTING_NOTES.md`.
+
+  Condition 3, `default_cors_matches_go` in 10 consecutive runs on the merged head with DOC green: 20 consecutive passes in the start-first runs (10 under load, then 10 idle), on the restored file at `8c196fd`. The gate's TEST stage passed as well.
+
+  The fix pins Go's causal copy-first order, which Go takes in production. Rust's copy-first model, the test cases and the assertions are unchanged. The `free_port` change (10000 to 31999, reserved per process) removes an ephemeral-port flake.
+
+  X-214 and X-215 are closed for the server. The master `/metrics` content type (X-214b) is in this head. Still open for the Phase 4 exit: WP-4-6 (`4ccd665`), WP-4-7 (blocked on O-1), WP-4-8 (`dc2e39b`), X-239, Q-265 and O-1.
+
 - **Datasets.** The network policy of this environment blocks
   `https://cdn.gorse.io`, where the Go model tests and the SDK test setup download
   their datasets (`PORTING_NOTES.md` O-1). Phase 3 metric parity needs either
