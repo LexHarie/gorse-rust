@@ -42,6 +42,9 @@ tracing-subscriber.workspace = true
 [dev-dependencies]
 # The mixed-master REST test sends the ranker prompt's templates in base64 (tests/mixed_master_rest.rs).
 base64.workspace = true
+# The mixed-CLI test (tests/mixed_cli.rs) waits for the master's tasks through the admin client.
+gorse-client = { workspace = true }
+regex.workspace = true
 serde = { workspace = true }
 # The vector cross-read (tests/vector_cross_read.rs) drives the Rust vector stores
 # for all three backends.

@@ -44,11 +44,13 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// How long one readiness request may take.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// The Go packages a cluster needs, built into one directory.
-const GO_PACKAGES: [&str; 3] = [
+/// The Go packages a cluster needs, built into one directory. The CLI is among
+/// them, so the CLI tests can run the Go client against a Rust master.
+const GO_PACKAGES: [&str; 4] = [
     "./cmd/gorse-master",
     "./cmd/gorse-server",
     "./cmd/gorse-worker",
+    "./cmd/gorse-cli",
 ];
 
 /// The Go binaries of one build of the repository.
@@ -99,8 +101,8 @@ impl GoBuild {
             .map_err(Clone::clone)
     }
 
-    /// The path of one built node, such as `gorse-master`.
-    fn binary(&self, name: &str) -> PathBuf {
+    /// The path of one built node, such as `gorse-master` or `gorse-cli`.
+    pub fn binary(&self, name: &str) -> PathBuf {
         self.dir.join(name)
     }
 }
