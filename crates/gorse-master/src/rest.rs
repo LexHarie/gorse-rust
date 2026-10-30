@@ -10,14 +10,22 @@
 //! and export, dump and restore, the chat proxy), which the login filter does
 //! not see. [`router`] builds both: the dashboard routes and the raw handlers
 //! are explicit routes, and every other path goes to `dispatch`.
+//!
+//! The WebService routes, and `/apidocs.json`, go through the CORS filter in
+//! `cors.rs`. The OpenAPI document and the Swagger UI page (`apidocs.rs`) and
+//! the pprof handlers (`pprof.rs`) are plain routes of their own, as Go
+//! registers them on the same container.
 
+mod apidocs;
 pub(crate) mod auth;
 mod bulk;
 mod chat;
 mod config;
 mod config_map;
+mod cors;
 pub(crate) mod dashboard_api;
 mod dump;
+mod pprof;
 mod ranker;
 mod recommend;
 #[cfg(test)]
@@ -28,9 +36,9 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::extract::{Request, State};
-use axum::http::{HeaderValue, StatusCode, Uri, header};
-use axum::middleware::Next;
-use axum::response::Response;
+use axum::http::{HeaderValue, Method, StatusCode, Uri, header};
+use axum::middleware::{self, Next};
+use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get};
 use gorse_server::rest::response::plain;
 use tower::util::ServiceExt;
@@ -57,6 +65,8 @@ pub fn router(master: Arc<Master>) -> Router {
         .route("/api/dump", any(dump::dump))
         .route("/api/restore", any(dump::restore))
         .route("/api/chat/completions", any(chat::chat_completions))
+        .merge(apidocs::routes())
+        .merge(pprof::routes())
         .with_state(master.clone());
     let fallback = {
         let master = master.clone();
@@ -71,7 +81,29 @@ pub fn router(master: Arc<Master>) -> Router {
     Router::new()
         .merge(api)
         .merge(raw)
+        .route("/apidocs.json", get(apidocs::document))
         .fallback_service(fallback)
+        .layer(middleware::from_fn_with_state(master, cors::filter))
+}
+
+/// Go's `http.Redirect` with the temporary status, as `ServeMux` sends it for a
+/// path that lacks the slash its pattern ends with. The body is the link Go
+/// writes for GET and HEAD, and empty for any other method.
+pub(super) fn temporary_redirect(method: &Method, to: &str) -> axum::response::Response {
+    let body = if *method == Method::GET || *method == Method::HEAD {
+        format!("<a href=\"{to}\">Temporary Redirect</a>.\n\n")
+    } else {
+        String::new()
+    };
+    (
+        StatusCode::TEMPORARY_REDIRECT,
+        [
+            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (header::LOCATION, to),
+        ],
+        body,
+    )
+        .into_response()
 }
 
 /// Routes a request that no explicit route matches. `/api/dashboard/` paths go
