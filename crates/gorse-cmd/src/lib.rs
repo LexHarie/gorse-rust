@@ -11,6 +11,12 @@
 //! [`cli`].
 
 pub mod cli;
+pub mod cli_context;
+pub mod cli_json;
+pub mod cli_output;
+pub mod cli_time;
+pub mod cli_yaml;
+pub mod gorse_cli;
 pub mod in_one;
 pub mod master;
 pub mod server;

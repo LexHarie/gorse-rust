@@ -1,6 +1,6 @@
 [package]
 name = "gorse-cmd"
-description = "Rust port of the Gorse Go packages `cmd/gorse-master`, `cmd/gorse-server`, `cmd/gorse-worker`, `cmd/gorse-in-one` and `cmd/version`."
+description = "Rust port of the Gorse Go packages `cmd/gorse-master`, `cmd/gorse-server`, `cmd/gorse-worker`, `cmd/gorse-in-one`, `cmd/gorse-cli` and `cmd/version`."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -24,22 +24,37 @@ path = "src/bin/gorse-worker.rs"
 name = "gorse-in-one"
 path = "src/bin/gorse-in-one.rs"
 
+[[bin]]
+name = "gorse-cli"
+path = "src/bin/gorse-cli.rs"
+
 [dependencies]
 axum.workspace = true
 clap.workspace = true
 flate2.workspace = true
+gorse-client = { workspace = true }
 gorse-common = { workspace = true }
 gorse-config = { workspace = true }
+json-patch.workspace = true
+keyring.workspace = true
+rpassword.workspace = true
 gorse-master = { workspace = true }
 gorse-server = { workspace = true }
 gorse-worker = { workspace = true }
 prometheus = { workspace = true }
 reqwest = { workspace = true }
+serde.workspace = true
+serde_json.workspace = true
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync"] }
 tracing.workspace = true
 
 [dev-dependencies]
+gorse-protocol.workspace = true
+gorse-storage.workspace = true
+regex.workspace = true
 tempfile.workspace = true
+tonic.workspace = true
+yaml-rust2.workspace = true
 
 [lints]
 workspace = true
