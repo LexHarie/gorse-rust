@@ -1,0 +1,12 @@
+Benchmark decision models for ranking
+
+Usage:
+  gorse-bench decision [flags]
+
+Flags:
+  -h, --help       help for decision
+      --user-auc   Export user-level AUC scores to CSV file
+
+Global Flags:
+  -c, --config string   Path to configuration file
+  -j, --jobs int        Number of jobs to run in parallel (default 4)

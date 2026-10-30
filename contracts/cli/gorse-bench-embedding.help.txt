@@ -1,0 +1,17 @@
+Benchmark embedding models for item-to-item
+
+Usage:
+  gorse-bench embedding [flags]
+
+Flags:
+      --embedding-column string    Column name of embedding in item label
+      --embedding-dimensions int   Embedding dimensions
+      --embedding-model string     Embedding model
+  -h, --help                       help for embedding
+  -s, --shots int                  Number of shots for each user (default 9223372036854775807)
+      --text-column string         Column name of text in item label
+  -k, --top int                    Number of top items to evaluate for each user (default 10)
+
+Global Flags:
+  -c, --config string   Path to configuration file
+  -j, --jobs int        Number of jobs to run in parallel (default 4)

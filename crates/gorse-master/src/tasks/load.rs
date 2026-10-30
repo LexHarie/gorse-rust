@@ -164,6 +164,36 @@ fn split_owned<T>(mut items: Vec<T>, n: usize) -> Vec<Vec<T>> {
 }
 
 impl Master {
+    /// Go's `LoadDataFromDatabase` as `cmd/gorse-bench/main.go` calls it
+    /// (`runRankingBenchmark` and `benchEmbeddingCmd`). The feedback types and
+    /// the time limits come from `cfg.recommend.data_source`, and the online
+    /// evaluator is built from the same two feedback type lists as Go's
+    /// `NewOnlineEvaluator(PositiveFeedbackTypes, ReadFeedbackTypes)`. No
+    /// non-personalized recommender is fed. The metrics module stays private, so
+    /// the bench cannot build the evaluator itself. The master's load task calls
+    /// the `pub(crate)` loader directly.
+    pub async fn load_benchmark_dataset(
+        &self,
+        parent: &Context,
+        database: &dyn Database,
+        cfg: &Config,
+    ) -> Result<(ctr_data::Dataset, Dataset, Snapshot), Error> {
+        let source = &cfg.recommend.data_source;
+        let sources = Sources {
+            positive: source.positive_feedback_types.as_deref().unwrap_or(&[]),
+            negative: source.negative_feedback_types.as_deref().unwrap_or(&[]),
+            read: source.read_feedback_types.as_deref().unwrap_or(&[]),
+            item_ttl: source.item_ttl,
+            positive_feedback_ttl: source.positive_feedback_ttl,
+        };
+        let evaluator = Mutex::new(metrics::new_online_evaluator(
+            source.positive_feedback_types.clone().unwrap_or_default(),
+            source.read_feedback_types.clone().unwrap_or_default(),
+        ));
+        self.load_data_from_database(parent, database, cfg, &sources, &evaluator, &[])
+            .await
+    }
+
     /// Go's `LoadDataFromDatabase`. It reads the users, the items, the explicit
     /// negative feedback, the positive feedback and the read feedback, and
     /// builds the click-through rate dataset. Positive feedback is pushed to the

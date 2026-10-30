@@ -1,0 +1,19 @@
+Gorse command line tool
+
+Usage:
+  gorse-bench [flags]
+  gorse-bench [command]
+
+Available Commands:
+  completion  Generate the autocompletion script for the specified shell
+  decision    Benchmark decision models for ranking
+  embedding   Benchmark embedding models for item-to-item
+  help        Help about any command
+  reranker    Benchmark reranker models for ranking
+
+Flags:
+  -c, --config string   Path to configuration file
+  -h, --help            help for gorse-bench
+  -j, --jobs int        Number of jobs to run in parallel (default 4)
+
+Use "gorse-bench [command] --help" for more information about a command.

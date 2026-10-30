@@ -1,6 +1,6 @@
 [package]
 name = "gorse-cmd"
-description = "Rust port of the Gorse Go packages `cmd/gorse-master`, `cmd/gorse-server`, `cmd/gorse-worker`, `cmd/gorse-in-one` and `cmd/version`."
+description = "Rust port of the Gorse Go packages `cmd/gorse-master`, `cmd/gorse-server`, `cmd/gorse-worker`, `cmd/gorse-in-one`, `cmd/gorse-bench` and `cmd/version`."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -24,19 +24,32 @@ path = "src/bin/gorse-worker.rs"
 name = "gorse-in-one"
 path = "src/bin/gorse-in-one.rs"
 
+[[bin]]
+name = "gorse-bench"
+path = "src/bin/gorse-bench.rs"
+
 [dependencies]
 axum.workspace = true
 clap.workspace = true
 flate2.workspace = true
 gorse-common = { workspace = true }
 gorse-config = { workspace = true }
+gorse-dataset = { workspace = true }
+gorse-expr = { workspace = true }
+gorse-logics = { workspace = true }
 gorse-master = { workspace = true }
+gorse-model = { workspace = true }
+gorse-model-core = { workspace = true }
 gorse-server = { workspace = true }
+gorse-storage = { workspace = true }
+gorse-storage-core = { workspace = true }
 gorse-worker = { workspace = true }
 prometheus = { workspace = true }
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+serde.workspace = true
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync"] }
 tracing.workspace = true
+tracing-subscriber.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

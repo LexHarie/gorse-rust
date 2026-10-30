@@ -10,6 +10,10 @@
 //! (what Go's `main` does, in the same order) and the shared flag handling in
 //! [`cli`].
 
+pub mod bench;
+pub mod bench_embedding;
+pub mod bench_ranking;
+pub mod bench_table;
 pub mod cli;
 pub mod in_one;
 pub mod master;
