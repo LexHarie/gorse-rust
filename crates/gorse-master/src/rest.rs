@@ -80,7 +80,7 @@ pub fn router(master: Arc<Master>) -> Router {
             async move { Ok::<_, Infallible>(dispatch(master, api, server, request).await) }
         })
     };
-    let cors = Arc::new(cors::Cors::master(master.config()));
+    let cors = Arc::new(cors::Cors::master(&master.config()));
     Router::new()
         .merge(api)
         .merge(raw)

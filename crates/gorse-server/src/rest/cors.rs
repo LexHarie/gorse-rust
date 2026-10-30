@@ -22,10 +22,11 @@
 //! given their Go text by [`restful_errors`].
 //!
 //! Go copies `master.http_cors_domains` and `master.http_cors_methods` into the
-//! filter when the HTTP server starts. The master keeps that copy, [`Source::Fixed`].
-//! The server reads its live config on each request, [`Source::Live`]: Go's `Sync`
-//! loads the master's config in a goroutine, and the golden run shows the synced
-//! list in the server's answers.
+//! filter when the HTTP server starts. The master's copy is taken once from its
+//! config, [`Source::Fixed`]. The server's copy starts from Go's default lists,
+//! because Go's `Sync` runs in a goroutine and the filter is set before the
+//! master's config arrives. Each `Sync` then writes into those lists the way Go's
+//! JSON decoder does ([`GoList`]), and the golden checks show the result.
 
 use std::sync::Arc;
 
@@ -156,37 +157,167 @@ pub struct Cors {
     plain_paths: &'static [&'static str],
 }
 
-/// The config the filter reads its origins and methods from.
+/// Go's `GetDefaultConfig` lists (`config/config.go`), which the server's filter
+/// holds until its `Sync` writes into them.
+const DEFAULT_DOMAINS: [&str; 1] = [".*"];
+const DEFAULT_METHODS: [&str; 5] = ["GET", "POST", "PUT", "DELETE", "PATCH"];
+
+/// Where the filter reads its origins and methods from.
 enum Source {
-    /// The config the node held when its router was built, as Go copies it when
-    /// the HTTP server starts. The master.
-    Fixed(Arc<Config>),
-    /// The node's live config, read on each request. The server.
-    Live(Arc<RestServer>),
+    /// The master's lists, which Go copies once when its HTTP server starts.
+    Fixed(Arc<CorsCopy>),
+    /// The server's lists, which Go's `Sync` writes into ([`CorsCopy`]).
+    Synced(Arc<RestServer>),
+}
+
+/// go-restful's copy of one config list, and the writes Go's `Sync` makes into it.
+///
+/// `StartHttpServer` copies `s.Config.Master.HttpCorsDomains` into the filter, and
+/// the filter keeps that slice. `Sync` then decodes the master's JSON into
+/// `s.Config` with `json.Unmarshal`. The decoder writes each element into the
+/// array the config's list has room for, and grows the list into a new array when
+/// it has none left. So the filter sees the synced elements that land in its
+/// array, and the start-time elements that no write reached. An empty list makes
+/// the config a fresh slice that the filter does not share.
+#[derive(Clone)]
+struct GoList {
+    /// The array the filter reads. Its length is the start-time length.
+    array: Vec<String>,
+    /// Whether the config's list still shares `array`.
+    shared: bool,
+    /// The capacity of the config's list. While it shares `array`, this is
+    /// `array.len()`.
+    capacity: usize,
+}
+
+impl GoList {
+    /// The list `StartHttpServer` copies from the start config's values.
+    fn start(values: &[&str]) -> GoList {
+        GoList {
+            array: values.iter().map(|value| (*value).to_owned()).collect(),
+            shared: true,
+            capacity: values.len(),
+        }
+    }
+
+    /// The list of a config that is never synced: the master's copy.
+    fn fixed(values: &[String]) -> GoList {
+        GoList {
+            array: values.to_vec(),
+            shared: false,
+            capacity: values.len(),
+        }
+    }
+
+    /// Decodes `synced` into the config's list, as `json.Unmarshal` does.
+    fn sync(&mut self, synced: &[String]) {
+        if synced.is_empty() {
+            self.shared = false;
+            self.capacity = 0;
+            return;
+        }
+        for (index, value) in synced.iter().enumerate() {
+            if index >= self.capacity {
+                // The decoder grows the list into a new array, and writes the rest
+                // there, so the filter's array gets no more.
+                self.capacity = (self.capacity + self.capacity / 2).max(4);
+                self.shared = false;
+            }
+            if self.shared {
+                self.array[index] = value.clone();
+            }
+        }
+    }
+}
+
+/// The domains and methods of one node's CORS filter, as go-restful holds them.
+#[derive(Clone)]
+pub struct CorsCopy {
+    domains: GoList,
+    methods: GoList,
+}
+
+impl CorsCopy {
+    /// The lists `StartHttpServer` copies from the server's start config, which is
+    /// Go's `GetDefaultConfig` until `Sync` has loaded the master's.
+    pub fn start() -> CorsCopy {
+        CorsCopy {
+            domains: GoList::start(&DEFAULT_DOMAINS),
+            methods: GoList::start(&DEFAULT_METHODS),
+        }
+    }
+
+    /// The lists of the master's config, which it copies once and never syncs.
+    pub fn of(config: &Config) -> CorsCopy {
+        CorsCopy {
+            domains: GoList::fixed(
+                config
+                    .master
+                    .http_cors_domains
+                    .as_deref()
+                    .unwrap_or_default(),
+            ),
+            methods: GoList::fixed(
+                config
+                    .master
+                    .http_cors_methods
+                    .as_deref()
+                    .unwrap_or_default(),
+            ),
+        }
+    }
+
+    /// Applies the decode of the master's config that `Sync` makes.
+    pub fn sync(&mut self, config: &Config) {
+        self.domains.sync(
+            config
+                .master
+                .http_cors_domains
+                .as_deref()
+                .unwrap_or_default(),
+        );
+        self.methods.sync(
+            config
+                .master
+                .http_cors_methods
+                .as_deref()
+                .unwrap_or_default(),
+        );
+    }
+
+    /// The allowed origins, as the filter reads them.
+    fn domains(&self) -> &[String] {
+        &self.domains.array
+    }
+
+    /// The configured methods, as the filter reads them.
+    fn methods(&self) -> &[String] {
+        &self.methods.array
+    }
 }
 
 impl Cors {
     /// The filter of the server node: the server routes and the OpenAPI document.
-    /// It reads the live config of `rest` on each request.
     pub fn server(rest: Arc<RestServer>) -> Cors {
         let routes = SERVER_ROUTES
             .iter()
             .copied()
             .chain([OPENAPI_ROUTE])
             .collect();
-        Cors::new(Source::Live(rest), routes, &[])
+        Cors::new(Source::Synced(rest), routes, &[])
     }
 
     /// The filter of the master node: the server routes, the dashboard routes and
     /// the OpenAPI document, and the paths of the master's plain handlers.
-    pub fn master(config: Arc<Config>) -> Cors {
+    pub fn master(config: &Config) -> Cors {
         let routes = SERVER_ROUTES
             .iter()
             .chain(&DASHBOARD_ROUTES)
             .copied()
             .chain([OPENAPI_ROUTE])
             .collect();
-        Cors::new(Source::Fixed(config), routes, &MASTER_PLAIN_PATHS)
+        let copy = Arc::new(CorsCopy::of(config));
+        Cors::new(Source::Fixed(copy), routes, &MASTER_PLAIN_PATHS)
     }
 
     fn new(
@@ -201,11 +332,11 @@ impl Cors {
         }
     }
 
-    /// The config the filter reads on this request.
-    fn config(&self) -> Arc<Config> {
+    /// The lists the filter reads on this request.
+    fn copy(&self) -> Arc<CorsCopy> {
         match &self.source {
-            Source::Fixed(config) => Arc::clone(config),
-            Source::Live(rest) => rest.config(),
+            Source::Fixed(copy) => Arc::clone(copy),
+            Source::Synced(rest) => rest.cors_copy(),
         }
     }
 
@@ -222,25 +353,15 @@ pub async fn filter(State(cors): State<Arc<Cors>>, request: Request, next: Next)
     if !cors.is_web_service(request.uri().path()) {
         return next.run(request).await;
     }
-    let config = cors.config();
-    let domains = config
-        .master
-        .http_cors_domains
-        .as_deref()
-        .unwrap_or_default();
-    let Some(origin) = allowed_origin(domains, request.headers()) else {
+    let copy = cors.copy();
+    let Some(origin) = allowed_origin(copy.domains(), request.headers()) else {
         return restful_errors(next.run(request).await);
     };
     let is_preflight = request.method() == Method::OPTIONS
         && header_text(request.headers(), ACCESS_CONTROL_REQUEST_METHOD)
             .is_some_and(|method| !method.is_empty());
     if is_preflight {
-        let configured = config
-            .master
-            .http_cors_methods
-            .as_deref()
-            .unwrap_or_default();
-        let methods = allowed_methods(configured, &cors.routes, request.uri().path());
+        let methods = allowed_methods(copy.methods(), &cors.routes, request.uri().path());
         return preflight(&methods, &origin, request.headers());
     }
     merge_origin(restful_errors(next.run(request).await), &origin)
@@ -592,5 +713,76 @@ mod tests {
             answer.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/plain; charset=utf-8"
         );
+    }
+
+    #[test]
+    fn the_start_lists_are_go_s_defaults() {
+        let copy = CorsCopy::start();
+        assert_eq!(copy.domains(), [".*"]);
+        assert_eq!(copy.methods(), ["GET", "POST", "PUT", "DELETE", "PATCH"]);
+    }
+
+    #[test]
+    fn a_synced_list_that_fits_is_seen_by_the_filter() {
+        let mut copy = CorsCopy::start();
+        copy.domains.sync(&domains(&["https://allowed.example"]));
+        assert_eq!(copy.domains(), ["https://allowed.example"]);
+        assert_eq!(copy.methods(), ["GET", "POST", "PUT", "DELETE", "PATCH"]);
+    }
+
+    #[test]
+    fn an_empty_synced_list_leaves_the_start_lists_in_place() {
+        let mut copy = CorsCopy::start();
+        copy.domains.sync(&[]);
+        copy.methods.sync(&[]);
+        assert_eq!(copy.domains(), [".*"]);
+        assert_eq!(copy.methods(), ["GET", "POST", "PUT", "DELETE", "PATCH"]);
+    }
+
+    #[test]
+    fn a_shorter_synced_list_is_written_over_the_front_of_the_defaults() {
+        let mut copy = CorsCopy::start();
+        copy.methods.sync(&domains(&["HEAD", "OPTIONS"]));
+        assert_eq!(
+            copy.methods(),
+            ["HEAD", "OPTIONS", "PUT", "DELETE", "PATCH"]
+        );
+    }
+
+    #[test]
+    fn a_longer_synced_list_writes_what_fits_and_then_detaches() {
+        let mut copy = CorsCopy::start();
+        copy.domains.sync(&domains(&["a", "b"]));
+        assert_eq!(copy.domains(), ["a"]);
+        copy.methods.sync(&domains(&["A", "B", "C", "D", "E", "F"]));
+        assert_eq!(copy.methods(), ["A", "B", "C", "D", "E"]);
+    }
+
+    #[test]
+    fn a_list_detached_by_an_empty_sync_keeps_what_the_filter_saw() {
+        // Go's decoder, run on the same sequence: `[a] [] [b]` leaves `[a]`.
+        let mut copy = CorsCopy::start();
+        copy.domains.sync(&domains(&["a"]));
+        copy.domains.sync(&[]);
+        copy.domains.sync(&domains(&["b"]));
+        assert_eq!(copy.domains(), ["a"]);
+    }
+
+    #[test]
+    fn a_list_still_shared_follows_the_next_sync() {
+        // Go's decoder: `[a] [b]` leaves `[b]`.
+        let mut copy = CorsCopy::start();
+        copy.domains.sync(&domains(&["a"]));
+        copy.domains.sync(&domains(&["b"]));
+        assert_eq!(copy.domains(), ["b"]);
+    }
+
+    #[test]
+    fn an_empty_sync_before_a_list_leaves_the_defaults() {
+        // Go's decoder: `[] [a]` leaves `[.*]`, because the list grows into a new array.
+        let mut copy = CorsCopy::start();
+        copy.domains.sync(&[]);
+        copy.domains.sync(&domains(&["a"]));
+        assert_eq!(copy.domains(), [".*"]);
     }
 }

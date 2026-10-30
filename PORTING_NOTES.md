@@ -66,7 +66,37 @@ Deviations point to the decision in `PORTING.md` that approves them.
   a method no route takes answers `405: Method Not Allowed`, both as text, as go-restful writes them. Go's CORS filter
   runs on these answers too.
 - **X-254g Scope.** The CORS filter, the OpenAPI document, Swagger UI and pprof are on the master's router. The server
-  binary (`gorse-server`) does not serve them (X-214, X-215).
+  binary (`gorse-server`) did not serve them until X-214 and X-215 (see the server subsection below).
+
+### Server HTTP surface (X-214, X-215)
+
+- **X-215 The server's CORS filter uses Go's start-time lists, which its `Sync` writes into in place.** Go's
+  `StartHttpServer` copies `s.Config.Master.HttpCorsDomains` and `HttpCorsMethods` into go-restful's filter. The server's
+  config at that point is `GetDefaultConfig()` (`server/server.go` `NewServer`, `config/config.go`), so the filter holds
+  `[.*]` and `GET,POST,PUT,DELETE,PATCH`. `Sync` then runs `json.Unmarshal` of the master's JSON into `s.Config` on a
+  goroutine. The decoder writes each element into the array the config's list has room for. It grows the list into a
+  new array when there is no room, and it gives `[]` or `null` a fresh empty slice. The filter keeps its own slice
+  headers, so it sees the synced elements that land in its array and the defaults that no write reached. A standalone
+  Go run of the decoder gives: `[a] [] [b]` leaves `[a]`; `[a] [b]` leaves `[b]`; `[a b] [c]` leaves `[a]`; `[] [a]`
+  leaves `[.*]`; a six-element methods list leaves its first five. The golden checks match this: the default config
+  answers with `[.*]` and the five methods, and the restricted config answers with the configured domain. In Rust,
+  `GoList` and `CorsCopy` (`cors.rs`) model this, and `RestServer::set_config` applies each sync. The master keeps a
+  plain copy of its own config (`Source::Fixed`), as Go's master does.
+- **X-214a The server serves `/apidocs.json`, Swagger UI and the pprof routes, behind the master's CORS filter.** The
+  shared modules moved from `gorse-master` to `gorse-server`: `cors.rs`, `apidocs.rs`, `pprof.rs`, and `swagger/` (now
+  `crates/gorse-server/swagger/`, checked by `MANIFEST.sha256`, as X-254b). `gorse-master` imports them and keeps no
+  copy. The server's document is `contracts/rest/server.openapi.json`. Its filter covers the server routes and the
+  OpenAPI route. It does not cover the dashboard routes or the master's plain handlers, which the server does not
+  register. The pprof answers are X-254a, with the same empty profile bodies and no sampler.
+- **X-214b `/metrics` has Go's promhttp content type.** The server answers
+  `text/plain; version=0.0.4; charset=utf-8; escaping=underscores`. The Rust encoder's `format_type` lacks
+  `escaping=underscores`. The master's `/metrics` in `crates/gorse-cmd/src/master.rs` has the same gap, and X-214 does
+  not change it, because that file is outside the approved scope. The master golden test does not cover `/metrics`.
+  The fix is one line there and is open for the coordinator.
+- **X-214c The golden checks.** `server_http_surface` runs 5 cases against Go: the restricted CORS config, the default
+  config, `/apidocs.json` with Swagger UI and its files, the pprof routes, and the server-only routes (a dashboard route
+  and a master plain handler, which the server does not have, and `/metrics` by status). `master_http_surface` (4 of 4)
+  uses the same shared checks in `conformance/tests/common/http_surface.rs`, with the same assertions.
 
 ### gRPC proxies
 
@@ -2828,10 +2858,11 @@ said otherwise), so the Rust result is Go's.
   the master's config. The Rust `Sync` does not yet.
 
 - **X-214 `/debug/pprof` and the Swagger UI are not served (WP-4-2, deviation 3).** `/apidocs.json` is served from the
-  frozen contract file.
+  frozen contract file. Resolved for the server by X-214a (the server serves them, from the shared modules).
 
 - **X-215 go-restful's CORS container filter is not implemented (WP-4-2, deviation 4).** Success responses still carry
-  `Access-Control-Allow-Origin: *`, as Go's do.
+  `Access-Control-Allow-Origin: *`, as Go's do. Resolved for the server by X-215 (the filter runs on the server's
+  WebService routes, with Go's start-time lists; see the server subsection).
 
 - **X-216 `RemoteAddr` is always empty in request events (WP-4-2, deviation 5).** The router is served without
   connection info. Go's test expects it empty under `apitest` too.

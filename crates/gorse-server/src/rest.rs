@@ -96,6 +96,7 @@ impl Serialize for ErrorText {
 /// meta changes, as Go's `Sync` does.
 pub struct RestServer {
     config: RwLock<Arc<Config>>,
+    cors: RwLock<Arc<cors::CorsCopy>>,
     cache: RwLock<Arc<dyn cache::Database>>,
     data: RwLock<Arc<dyn data::Database>>,
     vectors: RwLock<Arc<dyn vectors::Database>>,
@@ -112,6 +113,7 @@ impl RestServer {
     ) -> Self {
         Self {
             config: RwLock::new(Arc::new(config)),
+            cors: RwLock::new(Arc::new(cors::CorsCopy::start())),
             cache: RwLock::new(cache),
             data: RwLock::new(data),
             vectors: RwLock::new(vectors),
@@ -134,8 +136,21 @@ impl RestServer {
             .clone()
     }
 
-    /// Replaces the configuration.
+    /// The CORS lists the server's filter reads, as go-restful holds them.
+    pub fn cors_copy(&self) -> Arc<cors::CorsCopy> {
+        self.cors
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Replaces the configuration, and applies the sync's decode to the CORS lists
+    /// the filter holds, as Go's `Sync` writes into the lists `StartHttpServer`
+    /// copied.
     pub fn set_config(&self, config: Config) {
+        let mut copy = (*self.cors_copy()).clone();
+        copy.sync(&config);
+        *self.cors.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(copy);
         *self.config.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(config);
     }
 
