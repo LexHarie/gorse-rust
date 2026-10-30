@@ -32,11 +32,21 @@ fn free_port() -> u16 {
     listener.local_addr().expect("the local address").port()
 }
 
+/// Serializes master start-up. A master picks its ports and binds them
+/// afterwards, so two masters started at once could pick the same port.
+static START: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// Starts a master over sqlite stores in a temporary directory, serves its
 /// router, and waits until `/api/health/live` answers 200.
 async fn start_master() -> TestMaster {
+    let _start = START.lock().await;
     let dir = tempfile::tempdir().expect("a temporary directory");
     let path = dir.path().display().to_string();
+    // Bound now and kept, so no other port pick can return this port.
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("bind the HTTP port");
+    let http_port = listener.local_addr().expect("the local address").port();
     let mut cfg = get_default_config();
     cfg.database.data_store = format!("sqlite://{path}/data.db");
     cfg.database.cache_store = format!("sqlite://{path}/cache.db");
@@ -45,16 +55,12 @@ async fn start_master() -> TestMaster {
     cfg.master.host = "127.0.0.1".to_owned();
     cfg.master.port = i64::from(free_port());
     cfg.master.http_host = "127.0.0.1".to_owned();
-    cfg.master.http_port = i64::from(free_port());
+    cfg.master.http_port = i64::from(http_port);
     cfg.master.admin_api_key = ADMIN_API_KEY.to_owned();
     cfg.openai.auth_token = "test".to_owned();
-    let http_port = cfg.master.http_port;
 
     let master = Master::new(cfg, &path, true, "");
     master.serve().await.expect("the master starts");
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", http_port as u16))
-        .await
-        .expect("bind the HTTP port");
     let router = gorse_master::rest::router(Arc::clone(&master));
     tokio::spawn(async move {
         let _ = axum::serve(listener, router).await;
@@ -78,10 +84,10 @@ async fn wait_for_master(endpoint: &str) {
         .expect("an HTTP client");
     let deadline = Instant::now() + Duration::from_secs(10);
     while Instant::now() < deadline {
-        if let Ok(response) = http.get(format!("{endpoint}/api/health/live")).send().await {
-            if response.status() == reqwest::StatusCode::OK {
-                return;
-            }
+        if let Ok(response) = http.get(format!("{endpoint}/api/health/live")).send().await
+            && response.status() == reqwest::StatusCode::OK
+        {
+            return;
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
