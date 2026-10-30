@@ -10,6 +10,7 @@
 //! Nothing here skips a run. A missing Go toolchain, a failed build, or a node
 //! that does not become ready is an error, and the caller fails.
 
+use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs::{self, File};
 use std::future::Future;
@@ -437,6 +438,42 @@ impl Cluster {
     ///
     /// Fails when the server exits or is not ready within the timeout.
     pub async fn start_go_server(&mut self) -> Result<()> {
+        self.spawn_go_server()?;
+        self.wait_go_server_ready().await
+    }
+
+    /// Starts the Go `gorse-server` before the Go master, and waits until its HTTP
+    /// port accepts connections. Go's server copies the CORS lists of its start
+    /// config while it starts its HTTP server, and its first meta sync needs the
+    /// master. So a server started first has copied its start-time lists before
+    /// any sync can change them. Start the master next, then call
+    /// [`Cluster::wait_go_server_ready`].
+    ///
+    /// # Errors
+    ///
+    /// Fails when the server exits or its port does not open within the timeout.
+    pub async fn spawn_go_server_first(&mut self) -> Result<()> {
+        self.spawn_go_server()?;
+        let port = self.ports.server_http;
+        self.wait_for("the Go server's HTTP port", move || port_open(port))
+            .await
+    }
+
+    /// Waits until the Go `gorse-server` answers `/api/health/ready` with 200. That
+    /// needs its data and cache stores, which its first meta sync with the master
+    /// opens.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the server is not ready within the timeout.
+    pub async fn wait_go_server_ready(&mut self) -> Result<()> {
+        let port = self.ports.server_http;
+        self.wait_for("the Go server to be ready", move || http_ready(port))
+            .await
+    }
+
+    /// Spawns the Go `gorse-server` with the cluster's flags, without waiting.
+    fn spawn_go_server(&mut self) -> Result<()> {
         let args = flags(&[
             ("master-host", "127.0.0.1".to_owned()),
             ("master-port", self.ports.master_grpc.to_string()),
@@ -447,10 +484,7 @@ impl Cluster {
                 path(&self.dir.path().join("server_cache.data")),
             ),
         ]);
-        self.spawn("gorse-server", [args, self.tls_flags()].concat())?;
-        let port = self.ports.server_http;
-        self.wait_for("the Go server to be ready", move || http_ready(port))
-            .await
+        self.spawn("gorse-server", [args, self.tls_flags()].concat())
     }
 
     /// Starts the Go `gorse-worker` against the master, with the tick interval
@@ -884,11 +918,33 @@ impl RustMaster {
     }
 }
 
-/// Picks a TCP port that is free now. Another process can take it before a node
-/// binds it; a run that loses that race fails when the node does not start.
+/// The first port the harness picks, and the port after the last one it picks.
+/// Both are below the kernel's ephemeral range, which the nodes' outgoing
+/// connections take their local ports from.
+const FIRST_PORT: u16 = 10_000;
+const PORT_END: u16 = 32_000;
+
+/// Picks a TCP port that is free now and that this process has not picked. The
+/// port comes from below the ephemeral range. A port from `bind` to port 0 can be
+/// the local port of another node's outgoing connection, and two tests in one
+/// process could pick the same port. Another process can still take a port before
+/// a node binds it; a run that loses that race fails when the node does not start.
 fn free_port() -> Result<u16> {
-    let listener = TcpListener::bind(("127.0.0.1", 0)).map_err(fail)?;
-    Ok(listener.local_addr().map_err(fail)?.port())
+    static PICKED: Mutex<BTreeSet<u16>> = Mutex::new(BTreeSet::new());
+    let mut picked = PICKED.lock().unwrap_or_else(PoisonError::into_inner);
+    let span = u32::from(PORT_END - FIRST_PORT);
+    let start = std::process::id() % span;
+    for step in 0..span {
+        let port = FIRST_PORT + ((start + step) % span) as u16;
+        if picked.contains(&port) {
+            continue;
+        }
+        if TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            picked.insert(port);
+            return Ok(port);
+        }
+    }
+    Err(fail("no free port below the ephemeral range"))
 }
 
 /// Whether something accepts connections on `port`.

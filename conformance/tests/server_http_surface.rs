@@ -47,14 +47,21 @@ fn server_cases() -> Vec<Case> {
 }
 
 /// The answers of the Go server node to `cases`, under `edits`, with the Go
-/// master it joins.
+/// master it joins. The server starts before the master, so that its CORS lists
+/// are the start-time copy in every run. Its first sync, which needs the master,
+/// comes after that copy. Started the other way round, Go's copy races the sync,
+/// and the default lists can come out empty.
 async fn go_answers(build: &'static GoBuild, edits: &[Edit<'_>], cases: &[Case]) -> Vec<Answer> {
     let mut cluster = Cluster::new(build, edits).expect("a Go run");
-    cluster.start_master().await.expect("the Go master starts");
     cluster
-        .start_go_server()
+        .spawn_go_server_first()
         .await
         .expect("the Go server starts");
+    cluster.start_master().await.expect("the Go master starts");
+    cluster
+        .wait_go_server_ready()
+        .await
+        .expect("the Go server is ready");
     let base = format!("http://127.0.0.1:{}", cluster.ports.server_http);
     let answers = ask_all(&base, cases).await;
     cluster.stop();
