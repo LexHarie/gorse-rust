@@ -17,6 +17,7 @@ use common::http_surface::{
     serve,
 };
 use gorse_conformance::cluster::{Cluster, Edit, GoBuild};
+use reqwest::Method;
 
 /// The answers of the Go master to `cases`, under `edits`.
 async fn go_answers(build: &'static GoBuild, edits: &[Edit<'_>], cases: &[Case]) -> Vec<Answer> {
@@ -25,6 +26,23 @@ async fn go_answers(build: &'static GoBuild, edits: &[Edit<'_>], cases: &[Case])
     let base = format!("http://127.0.0.1:{}", go.ports.master_http);
     let answers = ask_all(&base, cases).await;
     go.stop();
+    answers
+}
+
+/// The answers of the `gorse-master` binary to `cases`, under `edits`. The binary
+/// serves the root `/metrics` route, which the library router does not.
+async fn rust_binary_answers(
+    build: &'static GoBuild,
+    edits: &[Edit<'_>],
+    cases: &[Case],
+) -> Vec<Answer> {
+    let mut rust = Cluster::new(build, edits).expect("a Rust run");
+    rust.start_rust_master_binary()
+        .await
+        .expect("the Rust master binary starts");
+    let base = format!("http://127.0.0.1:{}", rust.ports.master_http);
+    let answers = ask_all(&base, cases).await;
+    rust.stop();
     answers
 }
 
@@ -86,4 +104,16 @@ async fn apidocs_matches_go() {
 async fn pprof_routes_match_go() {
     let build = GoBuild::shared().expect("the Go nodes build");
     assert_matches(build, "pprof", &DEFAULT, pprof_cases()).await;
+}
+
+/// The root `/metrics` route answers the status and the content type of Go's
+/// promhttp exposition. The body is not compared, since the counters differ by
+/// process.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn metrics_matches_go() {
+    let build = GoBuild::shared().expect("the Go nodes build");
+    let cases = vec![Case::new("metrics", Method::GET, "/metrics").status_only()];
+    let go = go_answers(build, &DEFAULT, &cases).await;
+    let rust = rust_binary_answers(build, &DEFAULT, &cases).await;
+    compare("metrics", &cases, &go, &rust);
 }
