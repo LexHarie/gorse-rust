@@ -21,7 +21,13 @@
 // compares the Go metrics with the Rust fit on the same files.
 //
 // The datasets are read from ~/.gorse/dataset, where the Go loader expects them
-// (model/built_in.go), so the archives must be unpacked there first.
+// (model/built_in.go), so the archives must be unpacked there first. The Rust
+// test runs this with GODEBUG=randautoseed=0, which fixes the factorization
+// machines' initial weights to seed 1 (see INIT_SEED in conformance/tests/metrics.rs).
+//
+// The fit runs with -jobs goroutines, which defaults to runtime.NumCPU(), as the
+// Go tests do. With one job the fit is deterministic, and the one-job checks
+// compare the two builds on the same schedule.
 //
 // Usage, from the repository root:
 //
@@ -175,15 +181,16 @@ type fitter interface {
 func main() {
 	name := flag.String("config", "", "the configuration to run, for example bpr-ml-1m or afm-frappe")
 	out := flag.String("out", "", "the JSON file to write the metrics to")
+	jobs := flag.Int("jobs", runtime.NumCPU(), "the number of parallel jobs of the fit")
 	flag.Parse()
 	if *name == "" || *out == "" {
 		log.Fatal("-config and -out are required")
 	}
 	var result any
 	if c, ok := cfConfigs[*name]; ok {
-		result = runCF(*name, c.dataset, c.newModel())
+		result = runCF(*name, c.dataset, c.newModel(), *jobs)
 	} else if c, ok := ctrConfigs[*name]; ok {
-		result = runCTR(*name, c.dataset, c.params)
+		result = runCTR(*name, c.dataset, c.params, *jobs)
 	} else {
 		log.Fatalf("unknown configuration %q", *name)
 	}
@@ -198,12 +205,12 @@ func main() {
 
 // runCF fits a collaborative-filtering model on a built-in dataset, as the Go
 // tests do: one evaluation per epoch set by the verbose setting, the last score.
-func runCF(name, dataSet string, m fitter) cfResult {
+func runCF(name, dataSet string, m fitter, jobs int) cfResult {
 	train, test, err := dataset.LoadDataFromBuiltIn(dataSet)
 	if err != nil {
 		log.Fatal(err)
 	}
-	score := m.Fit(context.Background(), train, test, cf.NewFitConfig().SetVerbose(1).SetJobs(runtime.NumCPU()))
+	score := m.Fit(context.Background(), train, test, cf.NewFitConfig().SetVerbose(1).SetJobs(jobs))
 	return cfResult{
 		Config:    name,
 		Dataset:   dataSet,
@@ -215,13 +222,13 @@ func runCF(name, dataSet string, m fitter) cfResult {
 
 // runCTR fits an attention factorization machine on a built-in dataset, then
 // evaluates the model after a marshal round trip.
-func runCTR(name, dataSet string, params model.Params) ctrResult {
+func runCTR(name, dataSet string, params model.Params, jobs int) ctrResult {
 	train, test, err := ctr.LoadDataFromBuiltIn(dataSet)
 	if err != nil {
 		log.Fatal(err)
 	}
 	m := ctr.NewAFM(params)
-	cfg := ctr.NewFitConfig().SetVerbose(1).SetJobs(runtime.NumCPU())
+	cfg := ctr.NewFitConfig().SetVerbose(1).SetJobs(jobs)
 	score := m.Fit(context.Background(), train, test, cfg)
 	buf := bytes.NewBuffer(nil)
 	if err := ctr.MarshalModel(buf, m); err != nil {

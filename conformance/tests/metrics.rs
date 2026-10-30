@@ -63,6 +63,14 @@ const CRITEO_DELTA: f32 = 0.025;
 /// The Criteo band of the Go test after the marshal round trip (`0.02`).
 const CRITEO_CLONE_DELTA: f32 = 0.02;
 
+/// The seed of the factorization machines' initial weights, on both sides. Go
+/// draws them from its process-wide source, which Go seeds from the clock, so an
+/// unseeded run is not repeatable. `GODEBUG=randautoseed=0` makes Go use the
+/// fixed seed 1, as the replay does (`contracts/tools/modelreplay/ctr.go`), and
+/// the Rust fit uses the same seed. The Go tests draw their weights at random, so
+/// this pins a run that they also cover. It is not a tolerance.
+const INIT_SEED: i64 = 1;
+
 /// The number of threads that the Go tests use (`runtime.NumCPU()`).
 fn jobs() -> usize {
     std::thread::available_parallelism().map_or(1, |n| n.get())
@@ -95,22 +103,31 @@ fn go_run(envs: &[(&str, &str)], args: &[&str]) {
     );
 }
 
-/// Runs the Go dataset oracle for one configuration, and returns its metrics.
-fn oracle<T: DeserializeOwned>(config: &str) -> T {
+/// Runs the Go dataset oracle for one configuration, with `jobs` parallel jobs,
+/// and returns its metrics.
+fn oracle_with_jobs<T: DeserializeOwned>(config: &str, jobs: usize) -> T {
     let dir = tempfile::tempdir().expect("temporary directory");
     let out = dir.path().join("metrics.json");
+    let jobs = jobs.to_string();
     go_run(
-        &[],
+        &[("GODEBUG", "randautoseed=0")],
         &[
             "./conformance/oracle/metrics",
             "-config",
             config,
+            "-jobs",
+            &jobs,
             "-out",
             out.to_str().expect("UTF-8 path"),
         ],
     );
     let text = fs::read_to_string(&out).expect("the oracle writes its metrics");
     serde_json::from_str(&text).expect("the oracle writes valid JSON")
+}
+
+/// Runs the Go dataset oracle with its default, `runtime.NumCPU()` jobs.
+fn oracle<T: DeserializeOwned>(config: &str) -> T {
+    oracle_with_jobs(config, jobs())
 }
 
 /// The metrics of a Go CF run, as `conformance/oracle/metrics` writes them.
@@ -215,12 +232,17 @@ fn als_movielens() -> ALS {
     ]))
 }
 
-/// Fits a CF model on the train and test sets of a built-in dataset, with the
-/// Go tests' fit configuration, and returns the score of the last evaluation.
-fn fit_cf(dataset: &str, mut model: impl Model) -> CfScore {
+/// Fits a CF model on the train and test sets of a built-in dataset, with `jobs`
+/// parallel jobs, and returns the score of the last evaluation.
+fn fit_cf_with_jobs(dataset: &str, mut model: impl Model, jobs: usize) -> CfScore {
     let (train, mut test) = load_cf_data(dataset).expect("the dataset loads");
-    let config = CfFitConfig::new().set_verbose(1).set_jobs(jobs());
+    let config = CfFitConfig::new().set_verbose(1).set_jobs(jobs);
     model.fit(&Context::background(), &train, &mut test, &config)
+}
+
+/// Fits a CF model with the Go tests' number of jobs (`runtime.NumCPU()`).
+fn fit_cf(dataset: &str, model: impl Model) -> CfScore {
+    fit_cf_with_jobs(dataset, model, jobs())
 }
 
 /// The metrics of a CTR fit, and of the same model after a marshal round trip.
@@ -229,18 +251,24 @@ struct CtrRun {
     clone: CtrScore,
 }
 
-/// Fits an attention factorization machine on a built-in dataset, with the Go
-/// tests' fit configuration, then evaluates the model after a round trip.
-fn fit_ctr(dataset: &str, mut fm: Afm) -> CtrRun {
+/// Fits an attention factorization machine on a built-in dataset with `jobs`
+/// parallel jobs, then evaluates the model after a round trip.
+fn fit_ctr_with_jobs(dataset: &str, mut fm: Afm, jobs: usize) -> CtrRun {
     let (train, test) = load_ctr_data(dataset).expect("the dataset loads");
     let mut config = CtrFitConfig::new();
-    config.set_verbose(1).set_jobs(jobs());
+    config.set_verbose(1).set_jobs(jobs);
+    fm.set_init_seed(INIT_SEED);
     let fit = fm.fit(&Context::background(), &train, &test, &config);
     let mut buf = Vec::new();
     marshal_model(&mut buf, &fm).expect("the model marshals");
     let tmp = unmarshal_model(&mut Cursor::new(buf)).expect("the model unmarshals");
     let clone = evaluate_classification(&*tmp, &test, config.jobs);
     CtrRun { fit, clone }
+}
+
+/// Fits an attention factorization machine with the Go tests' number of jobs.
+fn fit_ctr(dataset: &str, fm: Afm) -> CtrRun {
+    fit_ctr_with_jobs(dataset, fm, jobs())
 }
 
 /// Go's `Afm` parameters for the Frappe test (`model/ctr/model_test.go`).
@@ -513,6 +541,72 @@ fn criteo_afm() {
     );
     against_go("fit", run.fit, &go.fit);
     against_go("clone", run.clone, &go.clone);
+}
+
+/// ml-100k BPR with one job on both sides. One job makes both fits deterministic,
+/// so they must agree to the replay tolerance. This separates the port from the
+/// run-to-run spread of the parallel tests above (D-195).
+#[test]
+fn ml_100k_bpr_one_job() {
+    let go: GoCf = oracle_with_jobs("bpr-ml-100k", 1);
+    let score = fit_cf_with_jobs("ml-100k", bpr_movielens(30), 1);
+    eprintln!("ml-100k BPR, one job");
+    in_delta(
+        "NDCG against the Go run",
+        score.ndcg,
+        go.ndcg,
+        REPLAY_TOLERANCE,
+    );
+    in_delta(
+        "precision against the Go run",
+        score.precision,
+        go.precision,
+        REPLAY_TOLERANCE,
+    );
+    in_delta(
+        "recall against the Go run",
+        score.recall,
+        go.recall,
+        REPLAY_TOLERANCE,
+    );
+}
+
+/// Criteo with one job on both sides, as `ml_100k_bpr_one_job`.
+#[test]
+fn criteo_afm_one_job() {
+    let go: GoCtr = oracle_with_jobs("afm-criteo", 1);
+    let run = fit_ctr_with_jobs("criteo", afm_criteo(), 1);
+    eprintln!("criteo AFM, one job");
+    in_delta(
+        "accuracy against the Go run",
+        run.fit.accuracy,
+        go.fit.accuracy,
+        REPLAY_TOLERANCE,
+    );
+    in_delta(
+        "precision against the Go run",
+        run.fit.precision,
+        go.fit.precision,
+        REPLAY_TOLERANCE,
+    );
+    in_delta(
+        "recall against the Go run",
+        run.fit.recall,
+        go.fit.recall,
+        REPLAY_TOLERANCE,
+    );
+    in_delta(
+        "AUC against the Go run",
+        run.fit.auc,
+        go.fit.auc,
+        REPLAY_TOLERANCE,
+    );
+    in_delta(
+        "clone accuracy against the Go run",
+        run.clone.accuracy,
+        go.clone.accuracy,
+        REPLAY_TOLERANCE,
+    );
 }
 
 // ---------------------------------------------------------------------------
