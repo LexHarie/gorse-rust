@@ -1,0 +1,19 @@
+name: rust test
+
+on:
+  push:
+    branches:
+      - claude/phase-0-contracts-lqc6fr
+      - claude/project-thread-dcqnp8
+  workflow_dispatch:
+
+jobs:
+  dataset-tests:
+    name: dataset-dependent tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up datasets
+      run: bash scripts/setup-datasets.sh
+    - name: Test the tests that read ~/.gorse/dataset
+      run: cargo test -p gorse-common --lib -- test_iris test_mnist test_multithread
