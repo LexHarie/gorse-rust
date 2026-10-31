@@ -173,7 +173,7 @@ impl ImportError {
 
 /// Go's `setup` up to the restore: downloads the dump `name` from `base_url`,
 /// decompresses it, and restores it into the data store. `base_url` ends with a
-/// slash. `import_playground` passes [`PLAYGROUND_URL`]; a test passes the
+/// slash. `import_playground` passes `PLAYGROUND_URL`; a test passes the
 /// address of a local server, which serves the same files.
 ///
 /// # Errors
