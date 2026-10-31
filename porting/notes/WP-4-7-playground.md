@@ -1,31 +1,33 @@
-# WP-4-7 playground notes: the ml-100k playground test
+# WP-4-7 playground notes: the playground tests (`crates/gorse-cmd/tests/playground.rs`)
 
 Provisional ids, folded into `PORTING.md` and `PORTING_NOTES.md` by the integrator.
 Base: integration head `e9ede16`. Branch `claude/wp-4-7-playground`.
 
+## Tests
+
+| Test | State | Covers |
+|---|---|---|
+| `playground_ml_100k_restores_from_a_local_dump_and_serves` | runs | The import through `restore_playground`, served from a loopback server: 943 users, 1,682 items, 100,000 feedback, and `/api/users?n=3` gives `1`, `10`, `100`. |
+| `playground_ml_100k_binary_writes_its_config` | runs | The real binary's config file and the two lines it prints before its download: `Generated config file:` and `Using cache directory:`. The child is stopped before the download, so no network is needed. |
+| `playground_ml_100k_imports_the_dataset_and_serves` | ignored, `O-1: dataset from cdn.gorse.io` | The original binary test, body unchanged: the welcome line after the download. |
+| `playground_github_restores_the_dump_and_serves` | runs, unchanged | The GitHub import (from the WP-4-8 thread). |
+
 ## Deviations (D-WP47P-n)
 
-1. **The ml-100k playground test runs in process, not as a child binary (`crates/gorse-cmd/tests/playground.rs`).**
-   The old test ran `gorse-in-one --playground=ml-100k`, which fetches `PLAYGROUND_URL` (the CDN, blocked by O-1).
-   The binary takes no base URL, so it cannot read a local server. The test now follows the GitHub test: it
-   serves `/mnt/project-files/datasets/ml-100k.bin.gz` at `/ml-100k.bin.gz` from a loopback server and imports
-   it through `restore_playground`, the function the playground uses.
-2. **The binary-level checks are no longer run by any test.** The old test asserted the `Welcome to Gorse
-   Playground` line and the written `~/.gorse/etc/config.toml`. Those come from `import_playground` and
-   `write_playground_config`, which need the CDN. They are not covered here. The integrator should decide whether
-   to keep a test for them.
-3. **The ml-100k test binds ephemeral gRPC and HTTP ports.** `Master::serve` binds `master.port`, which defaults to
-   8086. The GitHub test binds that port too, and both run in one process, so the first run failed with
-   `AddrInUse`. The ml-100k test sets `master.port = 0` and `master.host = 127.0.0.1`. The GitHub test is unchanged.
-4. **The `serve_dump` helper is generalised.** `serve_file(route, body)` serves any route; `serve_dump` calls it
-   with `/github.bin.gz`, so the GitHub test's call site is unchanged.
-5. **Expectations.** The ml-100k test checks 943 users, 1,682 items and 100,000 feedback, the counts that
-   `client/setup-test.sh` restores, and the first three users from `GET /api/users?n=3` are `1`, `10`, `100`,
-   the order that `TestUsers` in `client/client_test.go` expects. These are not changed to match the output.
+1. **The welcome test stays ignored.** The welcome line is printed only after the download, and the binary
+   cannot be pointed at a local server. `cmd/gorse-in-one/main.go:151-152` and `crates/gorse-cmd/src/in_one.rs:33`
+   hard-code `https://cdn.gorse.io/example/`. Neither reads an override, and no production change was made.
+2. **The config check runs the real binary, not the function.** `write_playground_config` is private, and a
+   test cannot call it without a production change. The test runs the binary and stops it once it has printed the
+   cache directory. It checks the same file and lines without touching the network.
+3. **The seam test binds ephemeral master ports.** `Master::serve` binds `master.port`, which defaults to 8086. The
+   GitHub test also binds it, and both ran in one process, so the first run failed with `AddrInUse`. The seam test
+   sets `master.port = 0` and `master.host = 127.0.0.1`. The GitHub test is unchanged.
+4. **`serve_dump` is generalised.** `serve_file(route, body)` serves any route, and `serve_dump` calls it with
+   `/github.bin.gz`, so the GitHub test's call site is unchanged.
 
 ## Evidence
 
 `cargo test -p gorse-cmd --test playground -- --nocapture` (log `/mnt/project-files/reports/wp-4-7/playground-all.log`):
-`playground_ml_100k_imports_the_dataset_and_serves ... ok` and `playground_github_restores_the_dump_and_serves ... ok`,
-`test result: ok. 2 passed; 0 failed; 0 ignored`.
+`test result: ok. 3 passed; 0 failed; 1 ignored`. The ignored test is the welcome test in deviation 1.
 `cargo clippy -p gorse-cmd --all-targets -- -D warnings` exits 0; `cargo fmt --all --check` passes.

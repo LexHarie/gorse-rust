@@ -1,12 +1,25 @@
 // Ports: cmd/gorse-in-one/main.go (`setup`, the playground branch) @ add21b5
 
-//! The playground import: `gorse-in-one --playground` downloads a dump, restores
-//! it, and serves it. The CDN is blocked in this environment (O-1), so both
-//! tests serve the dumps from a local server, from the project's dataset folder.
-//! They import through `restore_playground`, the function the playground uses,
-//! and check the counts and that the node serves the imported data.
+//! The playground import: `gorse-in-one --playground` writes its config, downloads
+//! a dump, restores it, and prints the welcome text. The download host is
+//! `cdn.gorse.io`, which this environment blocks (O-1). The binary has no way to
+//! point that download elsewhere: `cmd/gorse-in-one/main.go:151-152` and
+//! `crates/gorse-cmd/src/in_one.rs:33` hard-code the URL.
+//!
+//! So the tests are split by what runs offline:
+//! - The in-process tests serve the dumps from a local server, from the project's
+//!   dataset folder, and import them through `restore_playground`, the function the
+//!   playground uses. They check the counts and that the node serves the data.
+//! - The binary config test runs the real `gorse-in-one` and checks the lines and
+//!   the config file it writes before it touches the network.
+//! - The binary import test runs the real binary through its download and checks
+//!   the welcome text. It is ignored here, because the download cannot be served
+//!   locally.
 
-use std::io::Read;
+use std::io::{BufRead, BufReader, Read};
+use std::process::{Command, Stdio};
+use std::sync::mpsc;
+use std::time::Duration;
 
 use axum::Router;
 use axum::body::Bytes;
@@ -27,7 +40,7 @@ const GITHUB_DUMP: &str = "/mnt/project-files/datasets/github.bin.gz";
 const ML_100K_DUMP: &str = "/mnt/project-files/datasets/ml-100k.bin.gz";
 
 #[tokio::test(flavor = "multi_thread")]
-async fn playground_ml_100k_imports_the_dataset_and_serves() {
+async fn playground_ml_100k_restores_from_a_local_dump_and_serves() {
     // The CDN serves the archive as it is on disk, so the local server does too.
     let archive = std::fs::read(ML_100K_DUMP)
         .unwrap_or_else(|err| panic!("read the playground dataset {ML_100K_DUMP}: {err}"));
@@ -81,6 +94,84 @@ async fn playground_ml_100k_imports_the_dataset_and_serves() {
     assert_eq!(ids, ["1", "10", "100"]);
     server.abort();
     master.shutdown().await;
+}
+
+/// The real `gorse-in-one --playground=ml-100k` writes its config and prints where
+/// it wrote it, before its download. The test stops the binary once it has printed
+/// the cache directory, so the download is never reached and no network is needed.
+#[test]
+fn playground_ml_100k_binary_writes_its_config() {
+    let home = TempDir::new().expect("a temporary home");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_gorse-in-one"))
+        .arg("--playground=ml-100k")
+        .env("HOME", home.path())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("start gorse-in-one");
+    let stdout = child.stdout.take().expect("a piped stdout");
+    let (lines_tx, lines_rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+            if lines_tx.send(line).is_err() {
+                break;
+            }
+        }
+    });
+    let mut printed = Vec::new();
+    while let Ok(line) = lines_rx.recv_timeout(Duration::from_secs(60)) {
+        let done = line.starts_with("Using cache directory:");
+        printed.push(line);
+        if done {
+            break;
+        }
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+
+    let config = home.path().join(".gorse/etc/config.toml");
+    let generated = format!("Generated config file: {}", config.display());
+    assert!(
+        printed.contains(&generated),
+        "the playground did not write its config: {printed:?}"
+    );
+    assert!(
+        printed
+            .iter()
+            .any(|line| line.starts_with("Using cache directory:")),
+        "the playground did not print its cache directory: {printed:?}"
+    );
+    // The ml-100k playground writes the client config (Go's `client.ConfigTOML`).
+    let written = std::fs::read_to_string(&config).expect("read the playground config");
+    assert_eq!(written, include_str!("../../../client/config.toml"));
+}
+
+/// The real `gorse-in-one --playground=ml-100k`, through its download and the
+/// welcome text. It needs `cdn.gorse.io`, which this environment blocks (O-1), and
+/// the binary cannot be pointed at a local server: `cmd/gorse-in-one/main.go:151-152`
+/// and `crates/gorse-cmd/src/in_one.rs:33` hard-code the URL. It does not pass by
+/// being skipped: run it with `--ignored` where the CDN can be reached.
+#[test]
+#[ignore = "O-1: dataset from cdn.gorse.io"]
+fn playground_ml_100k_imports_the_dataset_and_serves() {
+    let home = TempDir::new().expect("a temporary home");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_gorse-in-one"))
+        .arg("--playground=ml-100k")
+        .env("HOME", home.path())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("start gorse-in-one");
+    let stdout = child.stdout.take().expect("a piped stdout");
+    // The welcome text comes after the import, and the node serves from then on.
+    let welcomed = BufReader::new(stdout)
+        .lines()
+        .map_while(Result::ok)
+        .any(|line| line.starts_with("Welcome to Gorse Playground"));
+    let _ = child.kill();
+    let _ = child.wait();
+    assert!(welcomed, "the playground did not finish its import");
+    assert!(home.path().join(".gorse/etc/config.toml").is_file());
 }
 
 /// The part of the master's users response that the ml-100k test reads.
