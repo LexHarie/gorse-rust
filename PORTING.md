@@ -2613,6 +2613,22 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
   X-214 and X-215 are closed for the server. The master `/metrics` content type (X-214b) is in this head. Still open for the Phase 4 exit: WP-4-6 (`4ccd665`), WP-4-7 (blocked on O-1), WP-4-8 (`dc2e39b`), X-239, Q-265 and O-1.
 
+- **D-288 WP-4-8 gorse-bench accepted, with the playground restore seam and the Go-run test (court verdict, 2026-10-31).** `claude/wp-4-8-bench` at `29a1478` is merged into the integration branch as `84ee168` and `29a1478`, on top of `fce6442`, with the WP-4-7 merge after it. The branch brings the gorse-bench binary (the reranker, decision and embedding subcommands; the help text matches Go's byte for byte), the `restore_playground` seam in `gorse-cmd::in_one` (a refactor with no change in behaviour, approved by the coordinator), the github playground test, and the Go-run test.
+
+  Gate on the final integration head `e9ede16`, every backend URI set. Every stage exits 0 except REDIS_TLS_UNSET, which exits 101 as required. DOC was red on `61554ae`: rustdoc reported a link to the private `PLAYGROUND_URL` in `in_one.rs:176`. `29a1478` writes it as code, and DOC exits 0 on `e9ede16`. TEST: 1358 passed, 0 failed, 47 ignored, with `playground_github_restores_the_dump_and_serves`, `github_playground_restore_counts_match_go` and the four mixed-cluster legs passing. METRICS (release): 15 passed, 0 failed, 1832 s. MIXEDMONGO passes.
+
+  The court ran `bench_golden_matches_go` separately, because the gate's `MYSQL_URI` names only the server and the test seeds the database it names. The court created the `gorse_bench_golden` database on `gorse-mysql` and ran the test with `MYSQL_URI=mysql://root:password@tcp(127.0.0.1:3306)/gorse_bench_golden`. It passes on `e9ede16` in 84.7 s (`bench-golden.log`). The gate's conformance list does not include `bench_golden`, so the next gate must run it with a database in the URI.
+
+  The github playground's stored feedback is 331,901, not the dump's 357,294 records. That is Go's count, and the test asserts it for both Go and Rust (X-256).
+
+  Deviations are the WP-4-8 notes' D-WP48-1 to D-WP48-10. Q-WP48-3 (the `--embedding-column` float32 path) is untested and stays open.
+
+- **D-289 WP-4-7 Go SDK suite accepted, with the ml-100k playground test still ignored (court verdict, 2026-10-31).** `claude/wp-4-7-sdk-suite` at `b3f5d37` (on `fce6442`) is merged into the integration branch as `61554ae`, on top of `84ee168`. The SDK suite runs in four legs, all of which pass on `e9ede16`: the all-Go baseline; a Go master with Rust workers and Go servers; a Go master with Rust workers and Rust servers; and a Rust master with Rust workers and Rust servers. Each leg runs the six suite tests and the SDK suite. The run took 145 s. Its acceptance log is `/mnt/project-files/reports/wp-4-7/mixed-cluster-acceptance.log`.
+
+  The dump is `/mnt/project-files/datasets/ml-100k.bin.gz`, the upload checked in the O-1 entry (943 users, 1,682 items and 100,000 feedback rows). `client/setup-test.sh` is unchanged. The deviations are the WP-4-7 notes' D-WP47-1 to D-WP47-6, as the thread logged them.
+
+  Still open: `playground_ml_100k_imports_the_dataset_and_serves` stays ignored. Its body needs `restore_playground` from WP-4-8 (merged now), so the coordinator assigns that change and the un-ignore. O-1 stays open for `mnist`, `iris` and `yelp`.
+
 - **Datasets.** The network policy of this environment blocks
   `https://cdn.gorse.io`, where the Go model tests and the SDK test setup download
   their datasets (`PORTING_NOTES.md` O-1). Phase 3 metric parity needs either
