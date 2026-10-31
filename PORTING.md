@@ -2629,6 +2629,16 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
   Still open: `playground_ml_100k_imports_the_dataset_and_serves` stays ignored. Its body needs `restore_playground` from WP-4-8 (merged now), so the coordinator assigns that change and the un-ignore. O-1 stays open for `mnist`, `iris` and `yelp`.
 
+- **D-290 WP-4-7 ml-100k playground accepted, with the welcome line not testable offline (court verdict, 2026-10-31).** `claude/wp-4-7-playground` at `601eb28` is merged into the integration branch as `c74d042`. It supersedes the open item in D-289. The file `gorse-cmd/tests/playground.rs` now has four tests:
+  - `playground_ml_100k_restores_from_a_local_dump_and_serves` runs without `#[ignore]`. It serves `/mnt/project-files/datasets/ml-100k.bin.gz` from a loopback server and imports it through `restore_playground`. It checks 943 users, 1,682 items, 100,000 feedback rows, and `GET /api/users?n=3`, which returns 1, 10 and 100. It passes.
+  - `playground_ml_100k_binary_writes_its_config` runs the real `gorse-in-one` binary and checks the `Generated config file:` and `Using cache directory:` lines and the written file, which equals `client/config.toml`. The child is stopped before its download. It passes.
+  - `playground_ml_100k_imports_the_dataset_and_serves` (the binary-level test) keeps its body and its `#[ignore = "O-1: dataset from cdn.gorse.io"]`. The court asked for the original test to stay unchanged, because a rewrite had dropped the welcome-line and config checks, which is a weakening.
+  - `playground_github_restores_the_dump_and_serves` (WP-4-8) is unchanged and passes.
+
+  Deviation (logged for the record): the welcome line `Welcome to Gorse Playground` cannot run offline. The binary hard-codes the CDN in `cmd/gorse-in-one/main.go:151-152` (the ml-100k path) and in `crates/gorse-cmd/src/in_one.rs` (`PLAYGROUND_URL`), and neither reads an override. The binary-level test that checks it stays ignored under O-1, and it is the record of that check until the CDN is reachable. The seam test and the config test cover the rest of the playground path. Ephemeral master ports in the seam test avoid a collision with the GitHub test in one process.
+
+  Gate on `c74d042`, every backend URI set: every stage exits 0 except REDIS_TLS_UNSET, which exits 101 as required. TEST: 1360 passed, 0 failed, 47 ignored. METRICS (release): 15 passed, 0 failed, 1709 s. MIXEDMONGO passes. `bench_golden_matches_go` passes on the same head (85.7 s) with the database named in `MYSQL_URI`, run separately as in D-288.
+
 - **Datasets.** The network policy of this environment blocks
   `https://cdn.gorse.io`, where the Go model tests and the SDK test setup download
   their datasets (`PORTING_NOTES.md` O-1). Phase 3 metric parity needs either
