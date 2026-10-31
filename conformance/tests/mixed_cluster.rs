@@ -312,21 +312,27 @@ async fn run_leg(mix: Mix) -> Result<SuiteRun> {
 
     cluster.stop_master();
     start_master(&mut cluster, mix.master).await?;
-    wait_for_training(cluster.ports.master_http).await?;
+    wait_for_training(cluster.ports.master_http, mix.label).await?;
 
     run_suite(cluster.ports.server_http, cluster.ports.master_http)
 }
 
 /// Waits until the master has trained its collaborative filtering model on the
-/// restored dump and no task is running. `TestItemToItem` reads the trained model
-/// when it asks for the neighbours, so the suite must not start before this. The
-/// setup does not wait for it: its last check only looks for the task's name
-/// (`client/setup-test.sh`), which Go's CI can pass before training runs. A
-/// training that fails is an error at once.
-async fn wait_for_training(master_http: u16) -> Result<()> {
+/// restored dump and none of the master's own tasks is running. `TestItemToItem`
+/// reads the trained model when it asks for the neighbours, so the suite must not
+/// start before this. The setup does not wait for it: its last check only looks
+/// for the task's name (`client/setup-test.sh`), which Go's CI can pass before
+/// training runs. A training that fails is an error at once.
+///
+/// Worker progress is not waited for. The master lists it with the worker's name as
+/// the tracer, and the worker's recommendation pass starts again with each model it
+/// pulls. The suite does not read that output, and under load the pass can run for
+/// minutes (O-89), so waiting on it timed out a leg whose training had finished.
+async fn wait_for_training(master_http: u16, label: &str) -> Result<()> {
     let url = format!("http://127.0.0.1:{master_http}/api/dashboard/tasks");
     let client = reqwest::Client::new();
-    let deadline = Instant::now() + TRAINING_TIMEOUT;
+    let started = Instant::now();
+    let deadline = started + TRAINING_TIMEOUT;
     loop {
         let tasks = match client.get(&url).send().await {
             Ok(response) => response.json::<Vec<Value>>().await.ok(),
@@ -341,18 +347,51 @@ async fn wait_for_training(master_http: u16) -> Result<()> {
             let trained = tasks.iter().any(|task| {
                 field(task, "Name") == TRAINING_TASK && field(task, "Status") == "Complete"
             });
-            let running = tasks.iter().any(|task| field(task, "Status") == "Running");
+            let running = tasks.iter().any(|task| {
+                field(task, "Tracer") == "master" && field(task, "Status") == "Running"
+            });
             if trained && !running {
+                eprintln!(
+                    "{label}: the master's tasks finished {:.1} s after the restart:\n{}",
+                    started.elapsed().as_secs_f64(),
+                    task_timings(&tasks)
+                );
                 return Ok(());
             }
         }
         if Instant::now() >= deadline {
+            let tasks = match client.get(&url).send().await {
+                Ok(response) => response.json::<Vec<Value>>().await.unwrap_or_default(),
+                Err(_) => Vec::new(),
+            };
             return Err(fail(format!(
-                "timed out waiting for {TRAINING_TASK} to complete at {url}"
+                "{label}: timed out after {:.1} s waiting for {TRAINING_TASK} to complete at {url}:\n{}",
+                started.elapsed().as_secs_f64(),
+                task_timings(&tasks)
             )));
         }
         tokio::time::sleep(TRAINING_POLL).await;
     }
+}
+
+/// One line per task of the master's `/api/dashboard/tasks` list: its tracer (the
+/// master, or a worker's name), its name, its status, and its start and finish
+/// times, as the master reports them.
+fn task_timings(tasks: &[Value]) -> String {
+    tasks
+        .iter()
+        .map(|task| {
+            format!(
+                "  [{}] {}: {} (start {}, finish {})",
+                field(task, "Tracer"),
+                field(task, "Name"),
+                field(task, "Status"),
+                field(task, "StartTime"),
+                field(task, "FinishTime"),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Runs one leg on a runtime of its own, under [`LEG_TURN`], and checks its suite.
