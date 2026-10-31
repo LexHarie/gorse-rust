@@ -620,7 +620,6 @@ fn mnist() -> Mnist {
 }
 
 #[test]
-#[ignore = "needs the mnist dataset from cdn.gorse.io (PORTING_NOTES.md O-1)"]
 fn test_mnist() {
     let dat = mnist();
     let mut bf = Bruteforce::new(euclidean);
@@ -653,7 +652,6 @@ fn test_mnist() {
 }
 
 #[test]
-#[ignore = "needs the mnist dataset from cdn.gorse.io (PORTING_NOTES.md O-1)"]
 fn test_multithread() {
     let dat = mnist();
     // Inserts take &mut self (X-21): the threads take turns, in whatever

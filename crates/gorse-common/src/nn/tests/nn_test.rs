@@ -109,7 +109,6 @@ fn test_neural_network() {
 }
 
 #[test]
-#[ignore = "needs the iris dataset from cdn.gorse.io (PORTING_NOTES.md O-1)"]
 fn test_iris() {
     let (x, y) = load_iris(&dataset("iris").join("iris.data"));
 
@@ -134,9 +133,28 @@ fn test_iris() {
     assert_in_delta(f64::from(l), 0.0, 0.1);
 }
 
+/// Go's `TestMNIST` guard: the test runs on Apple silicon or on an x86 CPU with
+/// AVX-512F, and skips elsewhere because it takes a long time.
+fn mnist_runs_here() -> bool {
+    if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        return true;
+    }
+    #[cfg(target_arch = "x86_64")]
+    {
+        std::arch::is_x86_feature_detected!("avx512f")
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        false
+    }
+}
+
 #[test]
-#[ignore = "needs the mnist dataset from cdn.gorse.io (PORTING_NOTES.md O-1); skips unless Apple silicon or AVX-512, as Go does"]
 fn test_mnist() {
+    if !mnist_runs_here() {
+        eprintln!("skipped: needs Apple silicon or AVX-512F, as Go's TestMNIST does");
+        return;
+    }
     let path = dataset("mnist");
     let (train_a, train_b) = open_mnist_file(&path.join("train.libfm"));
     let (test_a, test_b) = open_mnist_file(&path.join("test.libfm"));
