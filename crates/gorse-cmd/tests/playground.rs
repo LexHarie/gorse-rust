@@ -1,17 +1,12 @@
 // Ports: cmd/gorse-in-one/main.go (`setup`, the playground branch) @ add21b5
 
-//! The playground import: `gorse-in-one --playground=ml-100k` writes its config,
-//! downloads the dump from `cdn.gorse.io`, restores it, and prints the welcome
-//! text. The download host is blocked in this environment (O-1), so the ml-100k
-//! test is ignored. It does not pass by being skipped: run it with `--ignored`
-//! where the dataset can be reached.
-//!
-//! The GitHub playground test runs here. It serves the GitHub dump from a local
-//! server, imports it through the same function the playground uses, and checks
-//! the counts and that the node serves the imported data.
+//! The playground import: `gorse-in-one --playground` downloads a dump, restores
+//! it, and serves it. The CDN is blocked in this environment (O-1), so both
+//! tests serve the dumps from a local server, from the project's dataset folder.
+//! They import through `restore_playground`, the function the playground uses,
+//! and check the counts and that the node serves the imported data.
 
-use std::io::{BufRead, BufReader, Read};
-use std::process::{Command, Stdio};
+use std::io::Read;
 
 use axum::Router;
 use axum::body::Bytes;
@@ -28,27 +23,78 @@ use tokio::net::TcpListener;
 /// The GitHub playground dump, as published in the project's dataset folder.
 const GITHUB_DUMP: &str = "/mnt/project-files/datasets/github.bin.gz";
 
-#[test]
-#[ignore = "O-1: dataset from cdn.gorse.io"]
-fn playground_ml_100k_imports_the_dataset_and_serves() {
-    let home = TempDir::new().expect("a temporary home");
-    let mut child = Command::new(env!("CARGO_BIN_EXE_gorse-in-one"))
-        .arg("--playground=ml-100k")
-        .env("HOME", home.path())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("start gorse-in-one");
-    let stdout = child.stdout.take().expect("a piped stdout");
-    // The welcome text comes after the import, and the node serves from then on.
-    let welcomed = BufReader::new(stdout)
-        .lines()
-        .map_while(Result::ok)
-        .any(|line| line.starts_with("Welcome to Gorse Playground"));
-    let _ = child.kill();
-    let _ = child.wait();
-    assert!(welcomed, "the playground did not finish its import");
-    assert!(home.path().join(".gorse/etc/config.toml").is_file());
+/// The MovieLens 100k playground dump, as the project's dataset folder keeps it.
+const ML_100K_DUMP: &str = "/mnt/project-files/datasets/ml-100k.bin.gz";
+
+#[tokio::test(flavor = "multi_thread")]
+async fn playground_ml_100k_imports_the_dataset_and_serves() {
+    // The CDN serves the archive as it is on disk, so the local server does too.
+    let archive = std::fs::read(ML_100K_DUMP)
+        .unwrap_or_else(|err| panic!("read the playground dataset {ML_100K_DUMP}: {err}"));
+    let base_url = serve_file("/ml-100k.bin.gz", Bytes::from(archive)).await;
+
+    let data = TempDir::new().expect("a temporary data folder");
+    let mut conf = get_default_config();
+    conf.database.data_store = format!("sqlite://{}", data.path().join("data.sqlite").display());
+    conf.database.cache_store = format!("sqlite://{}", data.path().join("cache.sqlite").display());
+    // Ephemeral gRPC and HTTP ports, so this test never binds the default 8086
+    // that the GitHub test's master binds when both run in one process.
+    conf.master.host = "127.0.0.1".to_owned();
+    conf.master.port = 0;
+    conf.master.http_host = "127.0.0.1".to_owned();
+    conf.master.http_port = 0;
+    let cache_path = data.path().display().to_string();
+    let master = Master::new(conf, &cache_path, true, "");
+    master.serve().await.expect("start the master");
+
+    restore_playground(&master, &base_url, "ml-100k")
+        .await
+        .expect("import the ml-100k playground dump");
+
+    // The counts of the dump that client/setup-test.sh restores for the Go SDK suite.
+    let ctx = Context::background();
+    let store = master.data();
+    assert_eq!(store.count_users(&ctx).await.expect("count users"), 943);
+    assert_eq!(store.count_items(&ctx).await.expect("count items"), 1_682);
+    assert_eq!(
+        store.count_feedback(&ctx).await.expect("count feedback"),
+        100_000
+    );
+
+    let listener = master::bind_http(&master).await;
+    let address = listener.local_addr().expect("a bound address");
+    let server = tokio::spawn(master::serve_http(master.clone(), listener));
+    // The first three users, in the order the Go SDK suite expects (client/client_test.go, TestUsers).
+    let cursor: UserCursor = reqwest::get(format!("http://{address}/api/users?n=3"))
+        .await
+        .expect("query the node")
+        .error_for_status()
+        .expect("the users route answers 200")
+        .json()
+        .await
+        .expect("decode the users");
+    let ids: Vec<&str> = cursor
+        .users
+        .iter()
+        .map(|user| user.user_id.as_str())
+        .collect();
+    assert_eq!(ids, ["1", "10", "100"]);
+    server.abort();
+    master.shutdown().await;
+}
+
+/// The part of the master's users response that the ml-100k test reads.
+#[derive(serde::Deserialize)]
+struct UserCursor {
+    #[serde(rename = "Users")]
+    users: Vec<UserRow>,
+}
+
+/// One user of the master's users response, by its id.
+#[derive(serde::Deserialize)]
+struct UserRow {
+    #[serde(rename = "UserId")]
+    user_id: String,
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -133,11 +179,17 @@ fn feedback_records(dump: &[u8]) -> usize {
 /// Serves `dump` as the GitHub playground file on a local port, and returns the
 /// base URL the playground import takes, with its trailing slash.
 async fn serve_dump(dump: Bytes) -> String {
+    serve_file("/github.bin.gz", dump).await
+}
+
+/// Serves `body` at `route` on a local port, and returns the base URL the
+/// playground import takes, with its trailing slash.
+async fn serve_file(route: &'static str, body: Bytes) -> String {
     let app = Router::new().route(
-        "/github.bin.gz",
+        route,
         get(move || {
-            let dump = dump.clone();
-            async move { dump }
+            let body = body.clone();
+            async move { body }
         }),
     );
     let listener = TcpListener::bind("127.0.0.1:0")
