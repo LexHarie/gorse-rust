@@ -1,0 +1,7 @@
+round	master	task_seconds	observed_seconds
+1	Go	1.938	6.339
+1	Rust	1.063	5.563
+2	Rust	1.303	5.827
+2	Go	1.479	5.568
+3	Go	1.608	5.815
+3	Rust	1.150	5.557
