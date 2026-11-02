@@ -161,6 +161,20 @@ const EXPLAINED: &[Explained] = &[
         tolerance: Some(1e-6),
         id: "X-WP51-1",
     },
+    // The collaborative list of the master's dashboard. Only its scores are covered
+    // here. The items and their order are not: a difference in them is not covered
+    // and fails the test. Four scores differ by 2.4e-7 to 4.8e-7 absolute in the
+    // run that followed the seed-order fix, the same cc-kernel float class as above
+    // (D-303, X-WP51-1).
+    Explained {
+        node: "master",
+        method: "GET",
+        path: "/api/dashboard/recommend/{user-id}/{recommender}",
+        field: "body",
+        json_path: "$[*].Score",
+        tolerance: Some(1e-6),
+        id: "X-WP51-1",
+    },
     // The node's version is the build's own string: Go's build here has no version
     // set and says `unknown-version`, and the Rust crate says its package version
     // (X-WP51-2). Any value of the field is covered.
@@ -766,13 +780,24 @@ fn node_logs(run_dir: &str) -> String {
     out
 }
 
-/// Seeds one cluster the way `client/setup-test.sh` does: the master, the server
-/// and the worker start, the dump is restored, the master restarts, and the
-/// master's training and the worker's recommendations are waited for.
+/// Seeds one cluster the way `client/setup-test.sh` does: the master starts, the
+/// dump is restored, the master restarts and trains, and only then the server and
+/// the worker start (D-304). The worker's recommendations are waited for.
 async fn seed(build: &'static GoBuild, side: Impl) -> Result<Cluster> {
     let config = repo_root().join("client/config.toml");
     let mut cluster = Cluster::new_from_config(build, &config, &[])?;
     start_master(&mut cluster, side).await?;
+    restore(cluster.ports.master_http, dump()?).await?;
+    cluster.stop_master();
+    start_master(&mut cluster, side).await?;
+    wait_for_training(cluster.ports.master_http).await?;
+
+    // The server and the worker start only after the collaborative model is
+    // trained (D-304). A worker's first ranking pass that runs before the model is
+    // pulled writes a fresh recommendation with no collaborative rows, and the
+    // pass does not come back to that user. Go's worker takes the same branch
+    // (`worker/pipeline.go`, the nil `GetMatrixFactorization`), and the probe of
+    // D-304 gave Go an empty collaborative list under the other order.
     match side {
         Impl::Go => cluster.start_go_server().await?,
         Impl::Rust => cluster.start_rust_server_binary().await?,
@@ -789,10 +814,6 @@ async fn seed(build: &'static GoBuild, side: Impl) -> Result<Cluster> {
                 .await?
         }
     }
-    restore(cluster.ports.master_http, dump()?).await?;
-    cluster.stop_master();
-    start_master(&mut cluster, side).await?;
-    wait_for_training(cluster.ports.master_http).await?;
 
     // The worker needs about two minutes for the 943 users of the dump (the Go
     // worker does about seven users a second). It writes no update time for a user

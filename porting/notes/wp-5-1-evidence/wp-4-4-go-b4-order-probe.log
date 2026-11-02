@@ -1,0 +1,30 @@
+=== RUN   TestWorker_Sync
+{"level":"info","ts":1793614032.3964682,"caller":"ctr/fm.go:305","msg":"fit AFM","train_set_size":0,"test_set_size":0,"params":{"NEpochs":0},"config":{"Jobs":0,"Verbose":0,"Patience":0}}
+{"level":"info","ts":1793614032.3965912,"caller":"ctr/fm.go:323","msg":"fit AFM 0/0","eval_time":"5.95µs","Accuracy":0,"Precision":0,"Recall":0,"AUC":0}
+{"level":"info","ts":1793614032.3967648,"caller":"cf/model.go:409","msg":"fit bpr","train_set_size":0,"test_set_size":0,"params":{"NEpochs":0},"config":{"Jobs":1,"Verbose":10,"Candidates":100,"TopK":10,"Patience":0}}
+{"level":"info","ts":1793614032.396829,"caller":"cf/model.go:521","msg":"fit bpr complete","NDCG@10":"NaN","Precision@10":"NaN","Recall@10":"NaN"}
+{"level":"info","ts":1793614032.3979635,"caller":"worker/worker.go:145","msg":"start meta sync","meta_timeout":10}
+{"level":"info","ts":1793614032.3992724,"caller":"worker/worker.go:170","msg":"connect data store via master"}
+{"level":"info","ts":1793614032.3993144,"caller":"worker/worker.go:188","msg":"connect cache store via master"}
+{"level":"info","ts":1793614032.3993213,"caller":"worker/worker.go:217","msg":"connect vector store via master"}
+{"level":"info","ts":1793614032.3993332,"caller":"worker/worker.go:233","msg":"new ranking model found","old_version":0,"new_version":2}
+{"level":"info","ts":1793614032.3993444,"caller":"worker/worker.go:246","msg":"new click model found","old_version":0,"new_version":1}
+--- PASS: TestWorker_Sync (0.00s)
+=== RUN   TestWorker
+=== RUN   TestWorker/TestB4OrderControl
+    logger.go:146: 2026-11-02T10:07:12.445Z	INFO	ranking recommendation	{"n_working_users": 1, "n_jobs": 1, "cache_size": 100}
+    logger.go:146: 2026-11-02T10:07:12.449Z	INFO	complete ranking recommendation	{"used_time": "4.839025ms"}
+    zz_b4_order_probe_test.go:87: PROBE control (model present on pass 1): collaborative rows 4
+=== RUN   TestWorker/TestB4OrderProbe
+    logger.go:146: 2026-11-02T10:07:12.481Z	INFO	ranking recommendation	{"n_working_users": 1, "n_jobs": 1, "cache_size": 100}
+    logger.go:146: 2026-11-02T10:07:12.483Z	INFO	complete ranking recommendation	{"used_time": "2.201179ms"}
+    zz_b4_order_probe_test.go:44: PROBE pass 1 (no model): collaborative rows 0, recommend rows 4, cf digest ""
+    zz_b4_order_probe_test.go:55: PROBE checkRecommendCacheOutOfDate after the model is pulled: false
+    logger.go:146: 2026-11-02T10:07:12.484Z	INFO	ranking recommendation	{"n_working_users": 1, "n_jobs": 1, "cache_size": 100}
+    logger.go:146: 2026-11-02T10:07:12.484Z	INFO	complete ranking recommendation	{"used_time": "520.199µs"}
+    zz_b4_order_probe_test.go:44: PROBE pass 2 (model pulled): collaborative rows 0, recommend rows 4, cf digest ""
+--- PASS: TestWorker (0.09s)
+    --- PASS: TestWorker/TestB4OrderControl (0.03s)
+    --- PASS: TestWorker/TestB4OrderProbe (0.03s)
+PASS
+ok  	github.com/gorse-io/gorse/worker	0.140s
