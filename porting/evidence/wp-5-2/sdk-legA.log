@@ -1,0 +1,52 @@
+     Running tests/sdk.rs (target/debug/deps/sdk-8d2cf7cfeeba536b)
+
+running 3 tests
+test sdk_all_rust ... Rust master, Rust workers, Rust servers: master Rust, server Rust, worker Rust
+Rust master, Rust workers, Rust servers: the master's tasks finished 11.9 s after the restart:
+  [master] Load Dataset: Complete (start 2026-11-02T01:25:27.401992586Z, finish 2026-11-02T01:25:34.302922228Z)
+  [master] Generate user-to-user recommendation: Complete (start 2026-11-02T01:25:34.302946851Z, finish 2026-11-02T01:25:34.354256187Z)
+  [master] Generate item-to-item recommendation: Complete (start 2026-11-02T01:25:34.354276943Z, finish 2026-11-02T01:25:35.159780317Z)
+  [master] Train Collaborative Filtering Model: Complete (start 2026-11-02T01:25:35.159798397Z, finish 2026-11-02T01:25:39.333303716Z)
+  [master] Collect Garbage in Cache: Complete (start 2026-11-02T01:25:39.333311882Z, finish 2026-11-02T01:25:39.338955312Z)
+Rust master, Rust workers, Rust servers: the SDK suite ran 6 tests and all passed
+ok
+test sdk_go_master_rust_workers_go_servers ... Go master, Rust workers, Go servers: master Go, server Go, worker Rust
+Go master, Rust workers, Go servers: the master's tasks finished 4.1 s after the restart:
+  [master] Load Dataset: Complete (start 2026-11-02T01:26:09.394514334Z, finish 2026-11-02T01:26:11.17508456Z)
+  [master] Generate user-to-user recommendation: Complete (start 2026-11-02T01:26:11.175085801Z, finish 2026-11-02T01:26:11.302955585Z)
+  [master] Generate item-to-item recommendation: Complete (start 2026-11-02T01:26:11.302956652Z, finish 2026-11-02T01:26:12.256303857Z)
+  [master] Train Collaborative Filtering Model: Complete (start 2026-11-02T01:26:12.256305115Z, finish 2026-11-02T01:26:13.371173168Z)
+  [master] Collect Garbage in Cache: Complete (start 2026-11-02T01:26:13.37117409Z, finish 2026-11-02T01:26:13.372141728Z)
+Go master, Rust workers, Go servers: the SDK suite ran 6 tests and all passed
+ok
+test sdk_go_master_rust_workers_rust_servers ... Go master, Rust workers, Rust servers: master Go, server Rust, worker Rust
+Go master, Rust workers, Rust servers: the master's tasks finished 4.1 s after the restart:
+  [master] Load Dataset: Complete (start 2026-11-02T01:26:26.717850581Z, finish 2026-11-02T01:26:28.489099218Z)
+  [master] Generate user-to-user recommendation: Complete (start 2026-11-02T01:26:28.489100789Z, finish 2026-11-02T01:26:28.598677919Z)
+  [master] Generate item-to-item recommendation: Complete (start 2026-11-02T01:26:28.598678727Z, finish 2026-11-02T01:26:29.555550223Z)
+  [master] Train Collaborative Filtering Model: Complete (start 2026-11-02T01:26:29.555551955Z, finish 2026-11-02T01:26:30.679749068Z)
+  [master] Collect Garbage in Cache: Complete (start 2026-11-02T01:26:30.679749969Z, finish 2026-11-02T01:26:30.680777305Z)
+Go master, Rust workers, Rust servers: the SDK suite ran 6 tests and all passed
+ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 240.42s
+
+     Running tests/server_http_surface.rs (target/debug/deps/server_http_surface-8e8786329da0c8fa)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/sparse_oracle.rs (target/debug/deps/sparse_oracle-2c0a146c9546bd8a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/vector_cross_read.rs (target/debug/deps/vector_cross_read-4511ff972e1c0647)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+SDK_EXIT=0
