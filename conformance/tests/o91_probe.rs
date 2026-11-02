@@ -1,3 +1,4 @@
+//! O-91 probe: captures the master's raw gRPC replies for the golden's two requests.
 // Ports: none. An O-91 probe (WP-4-3 follow-up): the master's gRPC replies for the golden's
 // item-to-item and latest-item requests, captured as raw bytes from a Go cluster and a Rust
 // cluster seeded the way the WP-5-1 golden seeds them.
@@ -40,8 +41,10 @@ const RESTORED_FEEDBACK: u64 = 100_000;
 const TRAINING_TASK: &str = "Train Collaborative Filtering Model";
 
 /// How long the seeding of one cluster may take: the restore, the training and
-/// every user's recommendation. Go's worker needs minutes for the 943 users.
-const SEED_TIMEOUT: Duration = Duration::from_secs(900);
+/// every user's recommendation. Go's worker needs minutes for the 943 users. The
+/// Rust worker took about fifteen minutes for them in the first probe run (942 of 943
+/// users were done when the former 900 s limit expired), so the limit is an hour.
+const SEED_TIMEOUT: Duration = Duration::from_secs(3600);
 
 /// How long the set of recommended users must stay the same before the requests
 /// are sent: two worker intervals, so the worker has passed over every user at
@@ -249,14 +252,12 @@ async fn seed(build: &'static GoBuild, side: Impl) -> Result<Cluster> {
     Ok(cluster)
 }
 
-
 fn run_dir(cluster: &Cluster) -> String {
     cluster
         .blob_dir()
         .parent()
         .map_or_else(String::new, |dir| dir.display().to_string())
 }
-
 
 /// A codec that encodes the request as protobuf and returns the reply's bytes as
 /// they came off the wire, so the reply's size and its fields can be read exactly.
@@ -301,10 +302,7 @@ impl Decoder for RawDecoder {
     type Item = Vec<u8>;
     type Error = Status;
 
-    fn decode(
-        &mut self,
-        buf: &mut DecodeBuf<'_>,
-    ) -> std::result::Result<Option<Vec<u8>>, Status> {
+    fn decode(&mut self, buf: &mut DecodeBuf<'_>) -> std::result::Result<Option<Vec<u8>>, Status> {
         let mut bytes = vec![0; buf.remaining()];
         buf.copy_to_slice(&mut bytes);
         Ok(Some(bytes))
@@ -335,7 +333,10 @@ async fn raw_call<E: Message + Send + 'static>(
 struct Replies {
     /// The `QueryVectors` reply behind `GET /api/item-to-item/neighbors/1` with n = 5.
     query: Vec<u8>,
-    /// The `GetLatestItems` reply behind `GET /api/latest` with n = 5.
+    /// The `BatchGetItems` reply that the item routes make for their neighbours
+    /// (`FilterVisibleItemsByCategories`, `server/rest.go`).
+    items: Vec<u8>,
+    /// The `GetLatestItems` reply behind `GET /api/latest` with n = 5 and user-id = 1.
     latest: Vec<u8>,
 }
 
@@ -365,6 +366,34 @@ async fn capture(cluster: &Cluster) -> Result<Replies> {
         .into_iter()
         .next()
         .ok_or_else(|| fail("the master has no vector for item 1".to_owned()))?;
+    // The golden sends `n = 5` and `user-id = 1`. The server counts the items that user 1
+    // has feedback on (`read`), asks for `max(offset + n + read, cache_size)` neighbours,
+    // and asks `QueryVectors` for one more (`logics/item_to_item.go`, `SearchItemToItem`).
+    const N: usize = 5;
+    const CACHE_SIZE: usize = 100; // client/config.toml, `[recommend] cache_size`
+    let feedback_reply = raw_call(
+        channel.clone(),
+        "/protocol.DataStore/GetUserFeedback",
+        gorse_protocol::GetUserFeedbackRequest {
+            user_id: "1".to_owned(),
+            // The server passes the current time. 2100-01-01 is after every feedback of the dump.
+            end_time: Some(prost_types::Timestamp {
+                seconds: 4_102_444_800,
+                nanos: 0,
+            }),
+            feedback_types: Vec::new(),
+        },
+    )
+    .await?;
+    let feedback = gorse_protocol::GetFeedbackResponse::decode(feedback_reply.as_slice())
+        .map_err(|err| fail(format!("decode the feedback of user 1: {err}")))?
+        .feedback;
+    let read = feedback
+        .iter()
+        .map(|f| f.item_id.as_str())
+        .collect::<BTreeSet<_>>()
+        .len();
+    let query_n = (N + read).max(CACHE_SIZE);
     let query = raw_call(
         channel.clone(),
         "/protocol.VectorStore/QueryVectors",
@@ -372,21 +401,45 @@ async fn capture(cluster: &Cluster) -> Result<Replies> {
             collection,
             query: Some(vector),
             categories: Vec::new(),
-            top_k: 6,
+            top_k: i32::try_from(query_n + 1).map_err(|err| fail(format!("top_k: {err}")))?,
         },
     )
     .await?;
+    // `logics.QueryItemToItem` skips the item itself and keeps the first `n` others.
+    let neighbours = gorse_protocol::QueryVectorsResponse::decode(query.as_slice())
+        .map_err(|err| fail(format!("decode the neighbours: {err}")))?
+        .vectors;
+    let ids: Vec<String> = neighbours
+        .iter()
+        .filter_map(|scored| scored.vector.as_ref().map(|v| v.id.clone()))
+        .filter(|id| id != "1")
+        .take(query_n)
+        .collect();
+    let items = raw_call(
+        channel.clone(),
+        "/protocol.DataStore/BatchGetItems",
+        gorse_protocol::BatchGetItemsRequest {
+            item_ids: ids,
+            get_options: None,
+        },
+    )
+    .await?;
+    // `/api/latest` asks for `offset + n + read` items (`server/rest.go`).
     let latest = raw_call(
         channel,
         "/protocol.DataStore/GetLatestItems",
         GetLatestItemsRequest {
-            n: 5,
+            n: i32::try_from(N + read).map_err(|err| fail(format!("limit: {err}")))?,
             categories: Vec::new(),
             after: None,
         },
     )
     .await?;
-    Ok(Replies { query, latest })
+    Ok(Replies {
+        query,
+        items,
+        latest,
+    })
 }
 
 /// One field of a protobuf message as it is on the wire: its number, its wire type
@@ -467,7 +520,11 @@ fn describe(message: &[u8]) -> String {
     fields(message)
         .iter()
         .map(|field| match field.wire {
-            0 => format!("#{}=varint({})", field.number, read_varint(&field.payload, &mut 0)),
+            0 => format!(
+                "#{}=varint({})",
+                field.number,
+                read_varint(&field.payload, &mut 0)
+            ),
             5 => format!("#{}=fixed32", field.number),
             _ => format!("#{}=len({})", field.number, field.payload.len()),
         })
@@ -484,10 +541,9 @@ fn first_difference(go: &[u8], rust: &[u8]) -> String {
             (g, r) => {
                 let show = |f: Option<&Field>| match f {
                     None => "absent".to_owned(),
-                    Some(f) if f.payload.len() <= 24 => format!(
-                        "#{} wire {} {:02x?}",
-                        f.number, f.wire, f.payload
-                    ),
+                    Some(f) if f.payload.len() <= 24 => {
+                        format!("#{} wire {} {:02x?}", f.number, f.wire, f.payload)
+                    }
                     Some(f) => format!("#{} wire {} len {}", f.number, f.wire, f.payload.len()),
                 };
                 return format!("field {index}: go {} | rust {}", show(g), show(r));
@@ -501,7 +557,11 @@ fn first_difference(go: &[u8], rust: &[u8]) -> String {
 /// first few differing elements, their fields. `nested` means each element wraps
 /// its message in field 1 (a ScoredVector wraps a Vector).
 fn compare(name: &str, go: &[Vec<u8>], rust: &[Vec<u8>], nested: bool) {
-    eprintln!("{name}: go has {} elements, rust has {}", go.len(), rust.len());
+    eprintln!(
+        "{name}: go has {} elements, rust has {}",
+        go.len(),
+        rust.len()
+    );
     let inner = |message: &[u8]| {
         if nested {
             elements(message, 1).into_iter().next().unwrap_or_default()
@@ -541,21 +601,27 @@ fn compare(name: &str, go: &[Vec<u8>], rust: &[Vec<u8>], nested: bool) {
 async fn o91_probe_master_replies() {
     let go_build = GoBuild::shared().expect("build the Go nodes");
     RustBuild::shared().expect("build the Rust nodes");
-    let out = PathBuf::from(
-        std::env::var("O91_OUT").unwrap_or_else(|_| "/tmp/claude/o91".to_owned()),
-    );
+    let out =
+        PathBuf::from(std::env::var("O91_OUT").unwrap_or_else(|_| "/tmp/claude/o91".to_owned()));
     fs::create_dir_all(&out).expect("create the output directory");
 
     let mut captured = Vec::new();
     for (name, side) in [("go", Impl::Go), ("rust", Impl::Rust)] {
         let mut cluster = seed(go_build, side).await.expect("seed the cluster");
-        let replies = capture(&cluster).await.expect("capture the master's replies");
+        let replies = capture(&cluster)
+            .await
+            .expect("capture the master's replies");
         cluster.stop();
-        fs::write(out.join(format!("{name}-query.bin")), &replies.query).expect("write the query reply");
-        fs::write(out.join(format!("{name}-latest.bin")), &replies.latest).expect("write the latest reply");
+        fs::write(out.join(format!("{name}-query.bin")), &replies.query)
+            .expect("write the query reply");
+        fs::write(out.join(format!("{name}-items.bin")), &replies.items)
+            .expect("write the items reply");
+        fs::write(out.join(format!("{name}-latest.bin")), &replies.latest)
+            .expect("write the latest reply");
         eprintln!(
-            "{name}: QueryVectors reply {} bytes, GetLatestItems reply {} bytes",
+            "{name}: QueryVectors {} bytes, BatchGetItems {} bytes, GetLatestItems {} bytes",
             replies.query.len(),
+            replies.items.len(),
             replies.latest.len()
         );
         captured.push((name, replies));
@@ -564,10 +630,27 @@ async fn o91_probe_master_replies() {
     let (_, go) = &captured[0];
     let (_, rust) = &captured[1];
     eprintln!(
-        "sizes: query rust-go = {}, latest rust-go = {}",
+        "sizes: query rust-go = {}, items rust-go = {}, latest rust-go = {}",
         rust.query.len() as i64 - go.query.len() as i64,
+        rust.items.len() as i64 - go.items.len() as i64,
         rust.latest.len() as i64 - go.latest.len() as i64
     );
-    compare("query", &elements(&go.query, 1), &elements(&rust.query, 1), true);
-    compare("latest", &elements(&go.latest, 1), &elements(&rust.latest, 1), false);
+    compare(
+        "query",
+        &elements(&go.query, 1),
+        &elements(&rust.query, 1),
+        true,
+    );
+    compare(
+        "items",
+        &elements(&go.items, 1),
+        &elements(&rust.items, 1),
+        false,
+    );
+    compare(
+        "latest",
+        &elements(&go.latest, 1),
+        &elements(&rust.latest, 1),
+        false,
+    );
 }

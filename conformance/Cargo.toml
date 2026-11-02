@@ -43,6 +43,7 @@ tracing-subscriber.workspace = true
 # The O-91 probe (tests/o91_probe.rs) reads the raw reply bytes of the master's gRPC services.
 bytes = "1"
 prost.workspace = true
+prost-types.workspace = true
 gorse-cmd = { workspace = true }
 # The Rust SDK whose suite the Leg B test ports (tests/sdk.rs). It is vendored at the
 # commit the suite is taken from; see third_party/gorse-rs/GORSE.md.
