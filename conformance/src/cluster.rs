@@ -46,12 +46,15 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The Go packages a cluster needs, built into one directory. The CLI is among
-/// them, so the CLI tests can run the Go client against a Rust master.
-const GO_PACKAGES: [&str; 4] = [
+/// them, so the CLI tests can run the Go client against a Rust master. The
+/// in-one binary is among them too, so the playground tests can run the Go
+/// playground (`tests/playground.rs`).
+const GO_PACKAGES: [&str; 5] = [
     "./cmd/gorse-master",
     "./cmd/gorse-server",
     "./cmd/gorse-worker",
     "./cmd/gorse-cli",
+    "./cmd/gorse-in-one",
 ];
 
 /// The Go binaries of one build of the repository.
