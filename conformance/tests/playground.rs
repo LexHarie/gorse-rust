@@ -15,9 +15,14 @@
 //! environment blocks that host (O-1), and neither binary can be pointed at another
 //! host. So each run gets a stand-in for the CDN. The binary reaches it through
 //! `HTTPS_PROXY`: the proxy answers `CONNECT cdn.gorse.io:443` with a TLS session,
-//! presents a certificate for that host, and serves the project's dataset file over
-//! it. The binary trusts the test CA through `SSL_CERT_FILE`. Both binaries run
-//! unchanged, and their own download code is what runs.
+//! presents a certificate for that host, and serves the dump over it. The dump is
+//! `~/.gorse/dataset/ml-100k.bin.gz`, which `scripts/setup-datasets.sh` places. The
+//! binary trusts the test CA through `SSL_CERT_FILE`. Both binaries run unchanged,
+//! and their own download code is what runs.
+//!
+//! `playground_cdn_stand_in_serves_the_dump_unchanged` checks the stand-in on its
+//! own: a client that trusts the test CA gets the dump's exact bytes, with a 200 and
+//! the file's length as its `Content-Length`, which is what Go's download reads.
 //!
 //! The two builds share one port set, so the runs happen one at a time, and each
 //! build runs once per test process.
@@ -42,9 +47,6 @@ use reqwest::redirect::Policy;
 use rustls::pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
 use rustls::{ServerConfig, ServerConnection, StreamOwned};
 use tempfile::TempDir;
-
-/// The ML-100k playground dump, as the project's dataset folder keeps it.
-const ML_100K_DUMP: &str = "/mnt/project-files/datasets/ml-100k.bin.gz";
 
 /// The host and path the playground downloads (`cmd/gorse-in-one/main.go`).
 const CDN_HOST: &str = "cdn.gorse.io";
@@ -120,6 +122,53 @@ fn playground_ml_100k_rust_matches_go() {
         go.user_ids, rust.user_ids,
         "the first users after the import"
     );
+}
+
+/// The stand-in on its own. A client that trusts the test CA and routes through the
+/// stand-in's proxy gets the dump's exact bytes, with status 200 and the file's
+/// length as `Content-Length`. Go's download reads those: `http.Get`, the progress
+/// bar's `ContentLength`, then `gzip.NewReader` over the body.
+#[test]
+fn playground_cdn_stand_in_serves_the_dump_unchanged() {
+    let cdn = Cdn::start();
+    let ca = reqwest::Certificate::from_pem(&fs::read(&cdn.ca).expect("read the test CA"))
+        .expect("the test CA is a PEM certificate");
+    let proxy = reqwest::Proxy::https(&cdn.proxy).expect("the stand-in's proxy URL");
+    let client = Client::builder()
+        .no_proxy()
+        .proxy(proxy)
+        .add_root_certificate(ca)
+        .build()
+        .expect("an HTTP client that trusts the stand-in");
+
+    let response = client
+        .get(format!("https://{CDN_HOST}{CDN_ARCHIVE}"))
+        .send()
+        .expect("download the dump through the stand-in");
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+    let length = response.content_length();
+    let body = response.bytes().expect("read the dump's body");
+
+    let expected = fs::read(ml_100k_dump()).expect("read the dump");
+    assert_eq!(
+        length,
+        Some(u64::try_from(expected.len()).expect("the dump's length fits in u64")),
+        "Content-Length is the dump's length"
+    );
+    assert!(
+        body.as_ref() == expected.as_slice(),
+        "the body is the dump's bytes ({} bytes served, {} expected)",
+        body.len(),
+        expected.len()
+    );
+    assert_eq!(cdn.served(), [(CDN_ARCHIVE.to_owned(), 200)]);
+}
+
+/// The ML-100k dump, as `scripts/setup-datasets.sh` places it under the home folder.
+/// The test does not fall back to another copy: a missing file fails the test.
+fn ml_100k_dump() -> PathBuf {
+    let home = std::env::var_os("HOME").expect("HOME is set");
+    PathBuf::from(home).join(".gorse/dataset/ml-100k.bin.gz")
 }
 
 /// The Go playground run, made once per test process.
@@ -417,8 +466,13 @@ impl Cdn {
         let (ca_pem, tls) = test_tls();
         let ca = dir.path().join("ca.pem");
         fs::write(&ca, ca_pem).expect("write the test CA");
-        let archive = fs::read(ML_100K_DUMP)
-            .unwrap_or_else(|err| panic!("read the playground dataset {ML_100K_DUMP}: {err}"));
+        let dump = ml_100k_dump();
+        let archive = fs::read(&dump).unwrap_or_else(|err| {
+            panic!(
+                "read the playground dump {}: {err}; run scripts/setup-datasets.sh first",
+                dump.display()
+            )
+        });
         let served = Arc::new(Mutex::new(Vec::new()));
         let stand_in = Arc::new(Stand {
             tls,
