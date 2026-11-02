@@ -199,6 +199,51 @@ Deviations point to the decision in `PORTING.md` that approves them.
   restart logs everyone out (`master/rest.go` `cookieHandler`). The Rust master
   does the same; no cross-implementation cookie compatibility is needed.
 
+### gorse-cli output layers (WP-4-6, D-294)
+
+The usage and parse errors, the json-patch errors, the order of tied items and
+the YAML of `pipeline get` match Go. Each is checked against the Go oracle in
+`conformance/tests/cli_oracle.rs` (`contracts/tools/cligolden`) and against the
+recorded outputs in `crates/gorse-cmd/tests/golden/`. What differs, and why:
+
+- **Q-cli-1 The usage block is clap's help text.** Cobra prints `Usage:`, the
+  flags and the help text after an `Error:` line. The Rust CLI prints clap's
+  wording there. The `Error:` lines, the exit status and the texts before them
+  match Go, and the oracle compares those. The `--help` output is clap's too.
+- **Q-cli-2 `help` and `completion` are not ported.** Go's cobra adds both to the
+  root. `gorse-cli help` exits 0 in Go and 1 in Rust. `completion` is listed in
+  the suggestions for a mistyped command, so that the suggestion text matches, but
+  it does not run. The oracle table leaves out `help` for this reason.
+- **Q-cli-3 The keyring error text is the platform library's.** Go's keyring on
+  Linux runs `dbus-launch`, and the Rust `keyring` crate reports `No default
+  store` when there is no secret service. Both fail, with different text. It is
+  not a usage error, so the oracle does not compare it.
+- **Q-cli-4 yaml.v3 layout, as reproduced.** Literal blocks (`|`, `|-`, `|+`, with
+  the `4` indentation hint for a text that starts with a space or a break) are
+  written where yaml.v3 allows them. Otherwise the string is double quoted. A
+  mapping or sequence under a key is indented to the next multiple of four past
+  the key, and a mapping under a dash to the dash plus two. A key with a newline is
+  a `?` complex key. A tab, or a character yaml.v3 does not treat as printable
+  (for example a 4-byte emoji, which is written as `\U0001F600`), forces double
+  quotes. yaml.v3 does not fold long lines, and the port does not either.
+- **Q-cli-5 Open: U+2028 and U+2029 without a newline.** yaml.v3 treats these as
+  line breaks, so a string holding one is written single quoted or in a block. The
+  port writes such a string plain. No config value has been seen with one, and the
+  oracle does not cover it.
+- **Q-cli-6 Open: json-patch errors that print a nested object.** The 52 recorded
+  cases match, including the apply and decode texts. An error text that prints a
+  nested object's keys is not compared, because the recorded cases do not contain
+  one.
+- **Q-cli-7 Sorting uses Go's `sort.Slice` (pdqsort).** `gorse_common::gosort::slice`
+  is the port. Ties in the feedback listing come out in the order Go gives them. The
+  differential test covers 130 tie-heavy cases, from 0 to 1000 items, with both
+  directions. `sort.Stable` and the `slices` package are not ported; no output
+  path uses them.
+- **Q-cli-8 Leaf commands take extra words as Go does.** Cobra checks arguments
+  only where a command declares `Args`. `cluster-info`, `stats`, `ps`, `reset`,
+  `schema` and the other leaves Go declares without `Args` accept extra words, and
+  so do the Rust ones. `cluster-info extra` reaches the same keyring error in both.
+
 ### Numerics
 
 - **Q-32 `MM` adds the product into `c`, except `a·bᵀ`, which overwrites it**
