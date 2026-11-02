@@ -1962,6 +1962,7 @@ dependencies = [
  "gorse-storage",
  "gorse-storage-core",
  "gorse-worker",
+ "gorse_rs",
  "indexmap 2.14.2",
  "mongodb",
  "rcgen",
@@ -2234,6 +2235,16 @@ dependencies = [
  "tokio-stream",
  "tonic",
  "tracing",
+]
+
+[[package]]
+name = "gorse_rs"
+version = "0.5.0"
+dependencies = [
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

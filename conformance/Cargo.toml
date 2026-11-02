@@ -41,6 +41,9 @@ tracing-subscriber.workspace = true
 
 [dev-dependencies]
 gorse-cmd = { workspace = true }
+# The Rust SDK whose suite the Leg B test ports (tests/sdk.rs). It is vendored at the
+# commit the suite is taken from; see third_party/gorse-rs/GORSE.md.
+gorse_rs = { path = "../third_party/gorse-rs" }
 # The metric parity test (tests/metrics.rs) fits the Rust models on the replay goldens and the datasets.
 gorse-model = { workspace = true }
 gorse-model-core = { workspace = true }

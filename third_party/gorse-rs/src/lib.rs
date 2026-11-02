@@ -1,0 +1,833 @@
+use reqwest::Client;
+use reqwest::{Method, StatusCode};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use thiserror::Error;
+
+type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct User {
+    #[serde(rename = "UserId")]
+    pub user_id: String,
+    #[serde(rename = "Labels")]
+    pub labels: Value,
+    #[serde(rename = "Comment")]
+    pub comment: String,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct Item {
+    #[serde(rename = "ItemId")]
+    pub item_id: String,
+    #[serde(rename = "IsHidden")]
+    pub is_hidden: bool,
+    #[serde(rename = "Labels")]
+    pub labels: Value,
+    #[serde(rename = "Categories")]
+    pub categories: Vec<String>,
+    #[serde(rename = "Timestamp")]
+    pub timestamp: String,
+    #[serde(rename = "Comment")]
+    pub comment: String,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct ItemIterator {
+    #[serde(rename = "Cursor", default)]
+    pub cursor: String,
+    #[serde(rename = "Items")]
+    pub items: Vec<Item>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct Feedback {
+    #[serde(rename = "FeedbackType")]
+    pub feedback_type: String,
+    #[serde(rename = "UserId")]
+    pub user_id: String,
+    #[serde(rename = "ItemId")]
+    pub item_id: String,
+    #[serde(rename = "Value")]
+    pub value: f64,
+    #[serde(rename = "Timestamp")]
+    pub timestamp: String,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct RowAffected {
+    #[serde(rename = "RowAffected")]
+    pub row_affected: i32,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct Score {
+    #[serde(rename = "Id")]
+    pub id: String,
+    #[serde(rename = "Score")]
+    pub score: f64,
+}
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("API error: {status_code}: {message}")]
+    Api {
+        status_code: StatusCode,
+        message: String,
+    },
+    #[error(transparent)]
+    Reqwest(#[from] reqwest::Error),
+    #[error(transparent)]
+    Serde(#[from] serde_json::Error),
+    #[error("URL error: {0}")]
+    Url(String),
+}
+
+#[derive(Default)]
+pub struct RecommendOptions {
+    pub n: usize,
+    pub categories: Vec<String>,
+    pub write_back_type: Option<String>,
+    pub write_back_delay: Option<String>,
+    pub offset: usize,
+}
+
+fn recommend_url(entry_point: &str, user_id: &str, options: &RecommendOptions) -> Result<String> {
+    let mut url = reqwest::Url::parse(&format!("{}api/recommend/", entry_point))
+        .map_err(|error| Error::Url(error.to_string()))?;
+    url.path_segments_mut()
+        .map_err(|_| Error::Url("recommend endpoint cannot be a base URL".into()))?
+        .pop_if_empty()
+        .push(user_id);
+    let mut query = url.query_pairs_mut();
+    for category in &options.categories {
+        if !category.is_empty() {
+            query.append_pair("category", category);
+        }
+    }
+    if let Some(write_back_type) = &options.write_back_type {
+        query.append_pair("write-back-type", write_back_type);
+    }
+    if let Some(write_back_delay) = &options.write_back_delay {
+        query.append_pair("write-back-delay", write_back_delay);
+    }
+    if options.n > 0 {
+        query.append_pair("n", &options.n.to_string());
+    }
+    if options.offset > 0 {
+        query.append_pair("offset", &options.offset.to_string());
+    }
+    drop(query);
+    Ok(url.into())
+}
+
+#[derive(Debug, Clone)]
+pub struct Gorse {
+    entry_point: String,
+    api_key: String,
+    client: Client,
+}
+
+impl Gorse {
+    pub fn new(entry_point: impl Into<String>, api_key: impl Into<String>) -> Self {
+        let mut entry_point = entry_point.into();
+        if !entry_point.ends_with('/') {
+            entry_point.push('/');
+        }
+        Self {
+            entry_point,
+            api_key: api_key.into(),
+            client: Client::new(),
+        }
+    }
+
+    pub async fn insert_user(&self, user: &User) -> Result<RowAffected> {
+        self.request(Method::POST, format!("{}api/user", self.entry_point), user)
+            .await
+    }
+
+    pub async fn get_user(&self, user_id: &str) -> Result<User> {
+        self.request::<(), User>(
+            Method::GET,
+            format!("{}api/user/{}", self.entry_point, user_id),
+            &(),
+        )
+        .await
+    }
+
+    pub async fn delete_user(&self, user_id: &str) -> Result<RowAffected> {
+        self.request::<(), RowAffected>(
+            Method::DELETE,
+            format!("{}api/user/{}", self.entry_point, user_id),
+            &(),
+        )
+        .await
+    }
+
+    pub async fn insert_item(&self, item: &Item) -> Result<RowAffected> {
+        self.request(Method::POST, format!("{}api/item", self.entry_point), item)
+            .await
+    }
+
+    pub async fn get_item(&self, item_id: &str) -> Result<Item> {
+        self.request::<(), Item>(
+            Method::GET,
+            format!("{}api/item/{}", self.entry_point, item_id),
+            &(),
+        )
+        .await
+    }
+
+    pub async fn search_items(&self, query: &str, n: usize) -> Result<ItemIterator> {
+        let mut url = reqwest::Url::parse(&format!("{}api/items", self.entry_point))
+            .map_err(|error| Error::Url(error.to_string()))?;
+        url.query_pairs_mut()
+            .append_pair("q", query)
+            .append_pair("n", &n.to_string());
+        self.request::<(), ItemIterator>(Method::GET, url.to_string(), &())
+            .await
+    }
+
+    pub async fn delete_item(&self, item_id: &str) -> Result<RowAffected> {
+        self.request::<(), RowAffected>(
+            Method::DELETE,
+            format!("{}api/item/{}", self.entry_point, item_id),
+            &(),
+        )
+        .await
+    }
+
+    pub async fn insert_feedback(&self, feedback: &[Feedback]) -> Result<RowAffected> {
+        self.request(
+            Method::POST,
+            format!("{}api/feedback", self.entry_point),
+            feedback,
+        )
+        .await
+    }
+
+    pub async fn upsert_feedback(&self, feedback: &Vec<Feedback>) -> Result<RowAffected> {
+        self.request(
+            Method::PUT,
+            format!("{}api/feedback", self.entry_point),
+            feedback,
+        )
+        .await
+    }
+
+    pub async fn delete_feedback(&self, user_id: &str, item_id: &str) -> Result<RowAffected> {
+        self.request::<(), RowAffected>(
+            Method::DELETE,
+            format!("{}api/feedback/{}/{}", self.entry_point, user_id, item_id),
+            &(),
+        )
+        .await
+    }
+
+    pub async fn list_feedback(&self, user_id: &str, feedback_type: &str) -> Result<Vec<Feedback>> {
+        self.request::<(), Vec<Feedback>>(
+            Method::GET,
+            format!(
+                "{}api/user/{}/feedback/{}",
+                self.entry_point, user_id, feedback_type
+            ),
+            &(),
+        )
+        .await
+    }
+
+    pub async fn get_item_neighbors(&self, item_id: &str) -> Result<Vec<Score>> {
+        self.request::<(), Vec<Score>>(
+            Method::GET,
+            format!("{}api/item/{}/neighbors", self.entry_point, item_id),
+            &(),
+        )
+        .await
+    }
+
+    /// Get recommendation with scores for a user.
+    /// Uses X-API-Version: 2 header to return scores.
+    pub async fn get_recommend(
+        &self,
+        user_id: &str,
+        options: RecommendOptions,
+    ) -> Result<Vec<Score>> {
+        let url = recommend_url(&self.entry_point, user_id, &options)?;
+        self.request_with_headers::<(), Vec<Score>>(Method::GET, url, &(), Some("2"))
+            .await
+    }
+
+    async fn request<BodyType: Serialize + ?Sized, RetType: for<'a> Deserialize<'a>>(
+        &self,
+        method: Method,
+        url: String,
+        body: &BodyType,
+    ) -> Result<RetType> {
+        self.request_with_headers(method, url, body, None).await
+    }
+
+    async fn request_with_headers<
+        BodyType: Serialize + ?Sized,
+        RetType: for<'a> Deserialize<'a>,
+    >(
+        &self,
+        method: Method,
+        url: String,
+        body: &BodyType,
+        api_version: Option<&str>,
+    ) -> Result<RetType> {
+        let mut request = self
+            .client
+            .request(method, url)
+            .header("X-API-Key", self.api_key.as_str())
+            .header("Content-Type", "application/json")
+            .json(body);
+
+        if let Some(version) = api_version {
+            request = request.header("X-API-Version", version);
+        }
+
+        let response = request.send().await?;
+        if response.status() == StatusCode::OK {
+            let r: RetType = serde_json::from_str(response.text().await?.as_str())?;
+            Ok(r)
+        } else {
+            Err(Error::Api {
+                status_code: response.status(),
+                message: response.text().await?,
+            })
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use serial_test::serial;
+
+    const ENTRY_POINT: &str = "http://127.0.0.1:8088/";
+    const API_KEY: &str = "zhenghaoz";
+
+    #[tokio::test]
+    #[serial]
+    async fn test_users() -> Result<()> {
+        let client = Gorse::new(ENTRY_POINT, API_KEY);
+        let user = User {
+            user_id: "2000".into(),
+            labels: json!({
+                "gender": "M",
+                "occupation": "engineer"
+            }),
+            comment: "zhenghaoz".into(),
+        };
+        let r = client.insert_user(&user).await?;
+        assert_eq!(r.row_affected, 1);
+        let resp = client.get_user("2000").await?;
+        assert_eq!(user, resp);
+
+        let r = client.delete_user("2000").await?;
+        assert_eq!(r.row_affected, 1);
+        match client.get_user("2000").await {
+            Ok(_) => panic!("Expected error"),
+            Err(Error::Api { status_code, .. }) => {
+                assert_eq!(status_code, StatusCode::NOT_FOUND);
+            }
+            Err(e) => panic!("Expected API error, got {:?}", e),
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_items() -> Result<()> {
+        let client = Gorse::new(ENTRY_POINT, API_KEY);
+        let item = Item {
+            item_id: "2000".into(),
+            is_hidden: true,
+            labels: json!({
+                "embedding": [0.1, 0.2, 0.3]
+            }),
+            categories: vec!["Comedy".into(), "Animation".into()],
+            timestamp: "2022-11-20T13:55:27Z".into(),
+            comment: "Minions (2015)".into(),
+        };
+        let r = client.insert_item(&item).await?;
+        assert_eq!(r.row_affected, 1);
+        let resp = client.get_item("2000").await?;
+        assert_eq!(item, resp);
+
+        let result = client.search_items("Toy Story", 3).await?;
+        assert!(!result.items.is_empty());
+        assert_eq!(result.items[0].comment, "Toy Story (1995)");
+
+        let r = client.delete_item("2000").await?;
+        assert_eq!(r.row_affected, 1);
+        match client.get_item("2000").await {
+            Ok(_) => panic!("Expected error"),
+            Err(Error::Api { status_code, .. }) => {
+                assert_eq!(status_code, StatusCode::NOT_FOUND);
+            }
+            Err(e) => panic!("Expected API error, got {:?}", e),
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_feedback() -> Result<()> {
+        let client = Gorse::new(ENTRY_POINT, API_KEY);
+        client
+            .insert_user(&User {
+                user_id: "2000".into(),
+                labels: json!({}),
+                comment: "".into(),
+            })
+            .await?;
+
+        let feedbacks = vec![
+            Feedback {
+                feedback_type: "watch".into(),
+                user_id: "2000".into(),
+                item_id: "1".into(),
+                value: 1.0,
+                timestamp: "2022-11-20T13:55:27Z".into(),
+            },
+            Feedback {
+                feedback_type: "watch".into(),
+                user_id: "2000".into(),
+                item_id: "1060".into(),
+                value: 2.0,
+                timestamp: "2022-11-20T13:55:27Z".into(),
+            },
+            Feedback {
+                feedback_type: "watch".into(),
+                user_id: "2000".into(),
+                item_id: "11".into(),
+                value: 3.0,
+                timestamp: "2022-11-20T13:55:27Z".into(),
+            },
+        ];
+        for fb in &feedbacks {
+            client.delete_feedback(&fb.user_id, &fb.item_id).await?;
+        }
+        let r = client.insert_feedback(&feedbacks).await?;
+        assert_eq!(r.row_affected, 3);
+        let user_feedback = client.list_feedback("2000", "watch").await?;
+        assert_eq!(feedbacks, user_feedback);
+
+        let r = client.delete_feedback("2000", "1").await?;
+        assert_eq!(r.row_affected, 1);
+        let user_feedback = client.list_feedback("2000", "watch").await?;
+        assert_eq!(
+            vec![feedbacks[1].clone(), feedbacks[2].clone()],
+            user_feedback
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_item_to_item() -> Result<()> {
+        let client = Gorse::new(ENTRY_POINT, API_KEY);
+        let scores = client.get_item_neighbors("1").await?;
+        assert_eq!(scores[0].id, "1060".to_string());
+        assert_eq!(scores[1].id, "404".to_string());
+        assert_eq!(scores[2].id, "1219".to_string());
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_recommend() -> Result<()> {
+        let client = Gorse::new(ENTRY_POINT, API_KEY);
+        client
+            .insert_user(&User {
+                user_id: "3000".into(),
+                labels: json!({}),
+                comment: "".into(),
+            })
+            .await?;
+        let items = client
+            .get_recommend(
+                "3000",
+                RecommendOptions {
+                    n: 3,
+                    ..Default::default()
+                },
+            )
+            .await?;
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0].id, "315");
+        assert_eq!(items[1].id, "1432");
+        assert_eq!(items[2].id, "918");
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_recommend_with_multiple_categories() -> Result<()> {
+        let client = Gorse::new(ENTRY_POINT, API_KEY);
+        client
+            .insert_user(&User {
+                user_id: "4000".into(),
+                labels: json!({}),
+                comment: "".into(),
+            })
+            .await?;
+        let items = client
+            .get_recommend(
+                "4000",
+                RecommendOptions {
+                    n: 3,
+                    categories: vec!["Drama".into(), "Comedy".into()],
+                    write_back_type: Some("recommend".into()),
+                    write_back_delay: Some("1h".into()),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        assert_eq!(items.len(), 3);
+        for score in items {
+            let item = client.get_item(&score.id).await?;
+            assert!(
+                item.categories
+                    .iter()
+                    .any(|category| category == "Drama" || category == "Comedy")
+            );
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "blocking")]
+pub mod blocking {
+    use reqwest::blocking::Client;
+    use serde::{Deserialize, Serialize};
+
+    use crate::{
+        Error, Feedback, Item, ItemIterator, Method, RecommendOptions, Result, RowAffected, Score,
+        StatusCode, User, recommend_url,
+    };
+
+    #[derive(Debug, Clone)]
+    pub struct Gorse {
+        entry_point: String,
+        api_key: String,
+        client: Client,
+    }
+
+    impl Gorse {
+        pub fn new(entry_point: impl Into<String>, api_key: impl Into<String>) -> Self {
+            let mut entry_point = entry_point.into();
+            if !entry_point.ends_with('/') {
+                entry_point.push('/');
+            }
+            Self {
+                entry_point,
+                api_key: api_key.into(),
+                client: Client::new(),
+            }
+        }
+
+        pub fn insert_user(&self, user: &User) -> Result<RowAffected> {
+            self.request(Method::POST, format!("{}api/user", self.entry_point), user)
+        }
+
+        pub fn get_user(&self, user_id: &str) -> Result<User> {
+            self.request::<(), User>(
+                Method::GET,
+                format!("{}api/user/{}", self.entry_point, user_id),
+                &(),
+            )
+        }
+
+        pub fn delete_user(&self, user_id: &str) -> Result<RowAffected> {
+            self.request::<(), RowAffected>(
+                Method::DELETE,
+                format!("{}api/user/{}", self.entry_point, user_id),
+                &(),
+            )
+        }
+
+        pub fn insert_item(&self, item: &Item) -> Result<RowAffected> {
+            self.request(Method::POST, format!("{}api/item", self.entry_point), item)
+        }
+
+        pub fn get_item(&self, item_id: &str) -> Result<Item> {
+            self.request::<(), Item>(
+                Method::GET,
+                format!("{}api/item/{}", self.entry_point, item_id),
+                &(),
+            )
+        }
+
+        pub fn search_items(&self, query: &str, n: usize) -> Result<ItemIterator> {
+            let mut url = reqwest::Url::parse(&format!("{}api/items", self.entry_point))
+                .map_err(|error| Error::Url(error.to_string()))?;
+            url.query_pairs_mut()
+                .append_pair("q", query)
+                .append_pair("n", &n.to_string());
+            self.request::<(), ItemIterator>(Method::GET, url.to_string(), &())
+        }
+
+        pub fn delete_item(&self, item_id: &str) -> Result<RowAffected> {
+            self.request::<(), RowAffected>(
+                Method::DELETE,
+                format!("{}api/item/{}", self.entry_point, item_id),
+                &(),
+            )
+        }
+
+        pub fn insert_feedback(&self, feedback: &[Feedback]) -> Result<RowAffected> {
+            self.request(
+                Method::POST,
+                format!("{}api/feedback", self.entry_point),
+                feedback,
+            )
+        }
+
+        pub fn upsert_feedback(&self, feedback: &Vec<Feedback>) -> Result<RowAffected> {
+            self.request(
+                Method::PUT,
+                format!("{}api/feedback", self.entry_point),
+                feedback,
+            )
+        }
+
+        pub fn delete_feedback(&self, user_id: &str, item_id: &str) -> Result<RowAffected> {
+            self.request::<(), RowAffected>(
+                Method::DELETE,
+                format!("{}api/feedback/{}/{}", self.entry_point, user_id, item_id),
+                &(),
+            )
+        }
+
+        pub fn list_feedback(&self, user_id: &str, feedback_type: &str) -> Result<Vec<Feedback>> {
+            self.request::<(), Vec<Feedback>>(
+                Method::GET,
+                format!(
+                    "{}api/user/{}/feedback/{}",
+                    self.entry_point, user_id, feedback_type
+                ),
+                &(),
+            )
+        }
+
+        pub fn get_item_neighbors(&self, item_id: &str) -> Result<Vec<Score>> {
+            self.request::<(), Vec<Score>>(
+                Method::GET,
+                format!("{}api/item/{}/neighbors", self.entry_point, item_id),
+                &(),
+            )
+        }
+        /// Get recommendation with scores for a user.
+        /// Uses X-API-Version: 2 header to return scores.
+        pub fn get_recommend(
+            &self,
+            user_id: &str,
+            options: RecommendOptions,
+        ) -> Result<Vec<Score>> {
+            let url = recommend_url(&self.entry_point, user_id, &options)?;
+            self.request_with_headers::<(), Vec<Score>>(Method::GET, url, &(), Some("2"))
+        }
+
+        fn request<BodyType: Serialize + ?Sized, RetType: for<'a> Deserialize<'a>>(
+            &self,
+            method: Method,
+            url: String,
+            body: &BodyType,
+        ) -> Result<RetType> {
+            self.request_with_headers(method, url, body, None)
+        }
+
+        fn request_with_headers<BodyType: Serialize + ?Sized, RetType: for<'a> Deserialize<'a>>(
+            &self,
+            method: Method,
+            url: String,
+            body: &BodyType,
+            api_version: Option<&str>,
+        ) -> Result<RetType> {
+            let mut request = self
+                .client
+                .request(method, url)
+                .header("X-API-Key", self.api_key.as_str())
+                .header("Content-Type", "application/json")
+                .json(body);
+
+            if let Some(version) = api_version {
+                request = request.header("X-API-Version", version);
+            }
+
+            let response = request.send()?;
+            if response.status() == StatusCode::OK {
+                let r: RetType = serde_json::from_str(response.text()?.as_str())?;
+                Ok(r)
+            } else {
+                Err(Error::Api {
+                    status_code: response.status(),
+                    message: response.text()?,
+                })
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use serde_json::json;
+        use serial_test::serial;
+
+        const ENTRY_POINT: &str = "http://127.0.0.1:8088/";
+        const API_KEY: &str = "zhenghaoz";
+
+        #[test]
+        #[serial]
+        fn test_users() -> Result<()> {
+            let client = Gorse::new(ENTRY_POINT, API_KEY);
+            let user = User {
+                user_id: "2000".into(),
+                labels: json!({
+                    "gender": "M",
+                    "occupation": "engineer"
+                }),
+                comment: "zhenghaoz".into(),
+            };
+            let r = client.insert_user(&user)?;
+            assert_eq!(r.row_affected, 1);
+            let resp = client.get_user("2000")?;
+            assert_eq!(user, resp);
+
+            let r = client.delete_user("2000")?;
+            assert_eq!(r.row_affected, 1);
+            match client.get_user("2000") {
+                Ok(_) => panic!("Expected error"),
+                Err(Error::Api { status_code, .. }) => {
+                    assert_eq!(status_code, StatusCode::NOT_FOUND);
+                }
+                Err(e) => panic!("Expected API error, got {:?}", e),
+            }
+            Ok(())
+        }
+
+        #[test]
+        #[serial]
+        fn test_items() -> Result<()> {
+            let client = Gorse::new(ENTRY_POINT, API_KEY);
+            let item = Item {
+                item_id: "2000".into(),
+                is_hidden: true,
+                labels: json!({
+                    "embedding": [0.1, 0.2, 0.3]
+                }),
+                categories: vec!["Comedy".into(), "Animation".into()],
+                timestamp: "2022-11-20T13:55:27Z".into(),
+                comment: "Minions (2015)".into(),
+            };
+            let r = client.insert_item(&item)?;
+            assert_eq!(r.row_affected, 1);
+            let resp = client.get_item("2000")?;
+            assert_eq!(item, resp);
+
+            let result = client.search_items("Toy Story", 3)?;
+            assert!(!result.items.is_empty());
+            assert_eq!(result.items[0].comment, "Toy Story (1995)");
+
+            let r = client.delete_item("2000")?;
+            assert_eq!(r.row_affected, 1);
+            match client.get_item("2000") {
+                Ok(_) => panic!("Expected error"),
+                Err(Error::Api { status_code, .. }) => {
+                    assert_eq!(status_code, StatusCode::NOT_FOUND);
+                }
+                Err(e) => panic!("Expected API error, got {:?}", e),
+            }
+            Ok(())
+        }
+
+        #[test]
+        #[serial]
+        fn test_feedback() -> Result<()> {
+            let client = Gorse::new(ENTRY_POINT, API_KEY);
+            client.insert_user(&User {
+                user_id: "2000".into(),
+                labels: json!({}),
+                comment: "".into(),
+            })?;
+
+            let feedbacks = vec![
+                Feedback {
+                    feedback_type: "watch".into(),
+                    user_id: "2000".into(),
+                    item_id: "1".into(),
+                    value: 1.0,
+                    timestamp: "2022-11-20T13:55:27Z".into(),
+                },
+                Feedback {
+                    feedback_type: "watch".into(),
+                    user_id: "2000".into(),
+                    item_id: "1060".into(),
+                    value: 2.0,
+                    timestamp: "2022-11-20T13:55:27Z".into(),
+                },
+                Feedback {
+                    feedback_type: "watch".into(),
+                    user_id: "2000".into(),
+                    item_id: "11".into(),
+                    value: 3.0,
+                    timestamp: "2022-11-20T13:55:27Z".into(),
+                },
+            ];
+            for fb in &feedbacks {
+                client.delete_feedback(&fb.user_id, &fb.item_id)?;
+            }
+            let r = client.insert_feedback(&feedbacks)?;
+            assert_eq!(r.row_affected, 3);
+            let user_feedback = client.list_feedback("2000", "watch")?;
+            assert_eq!(feedbacks, user_feedback);
+
+            let r = client.delete_feedback("2000", "1")?;
+            assert_eq!(r.row_affected, 1);
+            let user_feedback = client.list_feedback("2000", "watch")?;
+            assert_eq!(
+                vec![feedbacks[1].clone(), feedbacks[2].clone()],
+                user_feedback
+            );
+            Ok(())
+        }
+
+        #[test]
+        #[serial]
+        fn test_item_to_item() -> Result<()> {
+            let client = Gorse::new(ENTRY_POINT, API_KEY);
+            let scores = client.get_item_neighbors("1")?;
+            assert_eq!(scores[0].id, "1060".to_string());
+            assert_eq!(scores[1].id, "404".to_string());
+            assert_eq!(scores[2].id, "1219".to_string());
+            Ok(())
+        }
+
+        #[test]
+        #[serial]
+        fn test_recommend() -> Result<()> {
+            let client = Gorse::new(ENTRY_POINT, API_KEY);
+            client.insert_user(&User {
+                user_id: "3000".into(),
+                labels: json!({}),
+                comment: "".into(),
+            })?;
+            let items = client.get_recommend(
+                "3000",
+                RecommendOptions {
+                    n: 3,
+                    ..Default::default()
+                },
+            )?;
+            assert_eq!(items.len(), 3);
+            assert_eq!(items[0].id, "315");
+            assert_eq!(items[1].id, "1432");
+            assert_eq!(items[2].id, "918");
+            Ok(())
+        }
+    }
+}
