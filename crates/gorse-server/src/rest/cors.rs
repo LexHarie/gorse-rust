@@ -155,6 +155,11 @@ pub struct Cors {
     routes: Vec<(&'static str, &'static str)>,
     /// The `/api/` paths of plain handlers, which are not WebService routes.
     plain_paths: &'static [&'static str],
+    /// Whether the WebService declares `Consumes(application/json)`, which go-restful
+    /// checks on each route before its handler runs. The master's does (its
+    /// `CreateWebService` sets it, and the server's routes join that WebService in
+    /// the master). The server node's declares none.
+    declares_consumes: bool,
 }
 
 /// Go's `GetDefaultConfig` lists (`config/config.go`), which the server's filter
@@ -304,7 +309,7 @@ impl Cors {
             .copied()
             .chain([OPENAPI_ROUTE])
             .collect();
-        Cors::new(Source::Synced(rest), routes, &[])
+        Cors::new(Source::Synced(rest), routes, &[], false)
     }
 
     /// The filter of the master node: the server routes, the dashboard routes and
@@ -317,19 +322,44 @@ impl Cors {
             .chain([OPENAPI_ROUTE])
             .collect();
         let copy = Arc::new(CorsCopy::of(config));
-        Cors::new(Source::Fixed(copy), routes, &MASTER_PLAIN_PATHS)
+        Cors::new(Source::Fixed(copy), routes, &MASTER_PLAIN_PATHS, true)
     }
 
     fn new(
         source: Source,
         routes: Vec<(&'static str, &'static str)>,
         plain_paths: &'static [&'static str],
+        declares_consumes: bool,
     ) -> Cors {
         Cors {
             source,
             routes,
             plain_paths,
+            declares_consumes,
         }
+    }
+
+    /// Whether go-restful refuses the request's Content-Type with a 415, before the
+    /// route's handler runs. go-restful selects the route by path and method first,
+    /// so a path with no route for the method is left to the 404 and 405 answers.
+    /// The OpenAPI document is served by a service that declares no Consumes.
+    fn refuses_content_type(&self, request: &Request) -> bool {
+        let path = request.uri().path();
+        let method = request.method();
+        if !self.declares_consumes || path == OPENAPI_ROUTE.1 {
+            return false;
+        }
+        let takes_route = self.routes.iter().any(|(route_method, template)| {
+            *route_method == method.as_str() && matches_template(template, path)
+        });
+        if !takes_route {
+            return false;
+        }
+        let content_type = request
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .map_or(&b""[..], HeaderValue::as_bytes);
+        !route_consumes(method, content_type)
     }
 
     /// The lists the filter reads on this request.
@@ -355,7 +385,7 @@ pub async fn filter(State(cors): State<Arc<Cors>>, request: Request, next: Next)
     }
     let copy = cors.copy();
     let Some(origin) = allowed_origin(copy.domains(), request.headers()) else {
-        return restful_errors(next.run(request).await);
+        return answer(&cors, request, next).await;
     };
     let is_preflight = request.method() == Method::OPTIONS
         && header_text(request.headers(), ACCESS_CONTROL_REQUEST_METHOD)
@@ -364,7 +394,61 @@ pub async fn filter(State(cors): State<Arc<Cors>>, request: Request, next: Next)
         let methods = allowed_methods(copy.methods(), &cors.routes, request.uri().path());
         return preflight(&methods, &origin, request.headers());
     }
-    merge_origin(restful_errors(next.run(request).await), &origin)
+    merge_origin(answer(&cors, request, next).await, &origin)
+}
+
+/// The route's answer to a request the filter runs for: go-restful's 415 when the
+/// route does not consume the request's Content-Type, which is decided before the
+/// handler runs; otherwise the handler's answer, with go-restful's not-found and
+/// not-allowed texts.
+async fn answer(cors: &Cors, request: Request, next: Next) -> Response {
+    if cors.refuses_content_type(&request) {
+        return (
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "415: Unsupported Media Type",
+        )
+            .into_response();
+    }
+    restful_errors(next.run(request).await)
+}
+
+/// go-restful's `matchesContentType` (v3.13.0, `route.go`) for a route that consumes
+/// `application/json` only. An empty Content-Type matches the methods that are
+/// idempotent with no content: GET, HEAD, OPTIONS, DELETE and TRACE. Any other
+/// method reads an empty type as `application/octet-stream`, which does not match.
+/// Each comma-separated type is cut at its first `;`, has its spaces trimmed (go-restful
+/// trims the space only, not a tab), and is compared as text with `application/json`.
+fn route_consumes(method: &Method, content_type: &[u8]) -> bool {
+    let types: &[u8] = if content_type.is_empty() {
+        if *method == Method::GET
+            || *method == Method::HEAD
+            || *method == Method::OPTIONS
+            || *method == Method::DELETE
+            || *method == Method::TRACE
+        {
+            return true;
+        }
+        b"application/octet-stream"
+    } else {
+        content_type
+    };
+    types.split(|&byte| byte == b',').any(|media| {
+        let media = media.split(|&byte| byte == b';').next().unwrap_or(&[]);
+        trim_spaces(media) == b"application/json"
+    })
+}
+
+/// Go's `strings.TrimFunc` with go-restful's cutset, which is the space only.
+fn trim_spaces(text: &[u8]) -> &[u8] {
+    let start = text
+        .iter()
+        .position(|&byte| byte != b' ')
+        .unwrap_or(text.len());
+    let end = text
+        .iter()
+        .rposition(|&byte| byte != b' ')
+        .map_or(start, |last| last + 1);
+    &text[start..end]
 }
 
 /// The methods a preflight lists: the configured ones, or, when the config lists
@@ -548,6 +632,12 @@ fn insert(headers: &mut HeaderMap, name: HeaderName, value: &str) {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use axum::middleware;
+    use axum::routing::{get, put};
+    use tower::ServiceExt as _;
+
     use super::*;
 
     fn domains(list: &[&str]) -> Vec<String> {
@@ -784,5 +874,284 @@ mod tests {
         copy.domains.sync(&[]);
         copy.domains.sync(&domains(&["a"]));
         assert_eq!(copy.domains(), [".*"]);
+    }
+
+    /// The master's filter over a router of three master routes: two that consume
+    /// JSON, one `GET` and the OpenAPI document. Each handler counts the requests it
+    /// answers, so a test can see that a refused request never reached it.
+    fn master_app(cors: Cors) -> (axum::Router, Arc<AtomicUsize>) {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let app = axum::Router::new()
+            .route("/api/dashboard/config", get(counted).post(counted))
+            .route("/api/item/{item-id}/category/{category}", put(counted))
+            .route("/apidocs.json", get(counted))
+            .with_state(calls.clone())
+            .layer(middleware::from_fn_with_state(Arc::new(cors), filter));
+        (app, calls)
+    }
+
+    async fn counted(State(calls): State<Arc<AtomicUsize>>) -> &'static str {
+        calls.fetch_add(1, Ordering::SeqCst);
+        "ok"
+    }
+
+    /// Sends one request to `app` and returns its status, its
+    /// `Access-Control-Allow-Origin` and its body text.
+    async fn exchange(
+        app: &axum::Router,
+        method: Method,
+        path: &str,
+        content_type: Option<&str>,
+        origin: Option<&str>,
+    ) -> (StatusCode, Option<String>, String) {
+        let mut builder = axum::http::Request::builder().method(method).uri(path);
+        if let Some(content_type) = content_type {
+            builder = builder.header(header::CONTENT_TYPE, content_type);
+        }
+        if let Some(origin) = origin {
+            builder = builder.header(header::ORIGIN, origin);
+        }
+        let request = builder.body(Body::empty()).unwrap();
+        let response = app.clone().oneshot(request).await.unwrap();
+        let status = response.status();
+        let allow_origin = response
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        (
+            status,
+            allow_origin,
+            String::from_utf8(body.to_vec()).unwrap(),
+        )
+    }
+
+    #[tokio::test]
+    async fn the_master_refuses_a_content_type_its_route_does_not_consume() {
+        let (app, calls) = master_app(Cors::master(&Config::default()));
+        // A POST or a PUT with no Content-Type is refused before the handler runs.
+        let (status, _, body) =
+            exchange(&app, Method::POST, "/api/dashboard/config", None, None).await;
+        assert_eq!(status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
+        assert_eq!(body, "415: Unsupported Media Type");
+        let (status, _, _) =
+            exchange(&app, Method::PUT, "/api/item/1/category/golden", None, None).await;
+        assert_eq!(status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            0,
+            "a refused request ran a handler"
+        );
+        // JSON, with parameters, reaches the handler.
+        let (status, _, _) = exchange(
+            &app,
+            Method::POST,
+            "/api/dashboard/config",
+            Some("application/json; charset=utf-8"),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn a_get_with_a_non_json_content_type_is_refused_and_a_bare_get_is_not() {
+        let (app, calls) = master_app(Cors::master(&Config::default()));
+        let (status, _, _) = exchange(
+            &app,
+            Method::GET,
+            "/api/dashboard/config",
+            Some("text/plain"),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
+        let (status, _, _) = exchange(&app, Method::GET, "/api/dashboard/config", None, None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn the_openapi_document_declares_no_consumes() {
+        let (app, _) = master_app(Cors::master(&Config::default()));
+        let (status, _, _) =
+            exchange(&app, Method::GET, "/apidocs.json", Some("text/plain"), None).await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn route_selection_answers_before_the_content_type_is_checked() {
+        let (app, calls) = master_app(Cors::master(&Config::default()));
+        // A path with no route for the method is a 405, and an unknown path a 404,
+        // with no Content-Type check (go-restful's route selection comes first).
+        let (status, _, body) =
+            exchange(&app, Method::PUT, "/api/dashboard/config", None, None).await;
+        assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
+        assert_eq!(body, "405: Method Not Allowed");
+        let (status, _, body) = exchange(&app, Method::POST, "/api/unknown", None, None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(body, "404: Page Not Found");
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn a_refusal_keeps_the_cors_header_of_an_allowed_origin() {
+        let (app, _) = master_app(Cors::master(&Config::default()));
+        let (status, allow_origin, _) = exchange(
+            &app,
+            Method::POST,
+            "/api/dashboard/config",
+            None,
+            Some("https://app.example"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
+        assert_eq!(allow_origin.as_deref(), Some("https://app.example"));
+    }
+
+    /// go-restful v3.13.0's answers for each method and Content-Type, from a
+    /// WebService whose routes consume `application/json` and that serves each
+    /// method on one path. Recorded by a Go program over `httptest` (the oracle);
+    /// `true` is 200 and `false` is go-restful's 415.
+    #[test]
+    fn route_consumes_matches_go_restful() {
+        // The oracle: go-restful v3.13.0 answers, from a WebService whose one route per
+        // method consumes application/json (see the module notes). `true` is 200.
+        let cases: &[(Method, &[u8], bool)] = &[
+            (Method::GET, b"", true),
+            (Method::GET, b"application/json", true),
+            (Method::GET, b"application/json; charset=utf-8", true),
+            (Method::GET, b" application/json ", true),
+            (Method::GET, b"application/json\t", false),
+            (Method::GET, b"Application/JSON", false),
+            (Method::GET, b"text/plain", false),
+            (Method::GET, b"*/*", false),
+            (Method::GET, b"application/octet-stream", false),
+            (Method::GET, b";application/json", false),
+            (Method::GET, b"application/json;", true),
+            (Method::GET, b"application/json,text/plain", true),
+            (Method::GET, b"text/plain,application/json", true),
+            (Method::GET, b",", false),
+            (Method::GET, b" ", false),
+            (Method::HEAD, b"", true),
+            (Method::HEAD, b"application/json", true),
+            (Method::HEAD, b"application/json; charset=utf-8", true),
+            (Method::HEAD, b" application/json ", true),
+            (Method::HEAD, b"application/json\t", false),
+            (Method::HEAD, b"Application/JSON", false),
+            (Method::HEAD, b"text/plain", false),
+            (Method::HEAD, b"*/*", false),
+            (Method::HEAD, b"application/octet-stream", false),
+            (Method::HEAD, b";application/json", false),
+            (Method::HEAD, b"application/json;", true),
+            (Method::HEAD, b"application/json,text/plain", true),
+            (Method::HEAD, b"text/plain,application/json", true),
+            (Method::HEAD, b",", false),
+            (Method::HEAD, b" ", false),
+            (Method::OPTIONS, b"", true),
+            (Method::OPTIONS, b"application/json", true),
+            (Method::OPTIONS, b"application/json; charset=utf-8", true),
+            (Method::OPTIONS, b" application/json ", true),
+            (Method::OPTIONS, b"application/json\t", false),
+            (Method::OPTIONS, b"Application/JSON", false),
+            (Method::OPTIONS, b"text/plain", false),
+            (Method::OPTIONS, b"*/*", false),
+            (Method::OPTIONS, b"application/octet-stream", false),
+            (Method::OPTIONS, b";application/json", false),
+            (Method::OPTIONS, b"application/json;", true),
+            (Method::OPTIONS, b"application/json,text/plain", true),
+            (Method::OPTIONS, b"text/plain,application/json", true),
+            (Method::OPTIONS, b",", false),
+            (Method::OPTIONS, b" ", false),
+            (Method::DELETE, b"", true),
+            (Method::DELETE, b"application/json", true),
+            (Method::DELETE, b"application/json; charset=utf-8", true),
+            (Method::DELETE, b" application/json ", true),
+            (Method::DELETE, b"application/json\t", false),
+            (Method::DELETE, b"Application/JSON", false),
+            (Method::DELETE, b"text/plain", false),
+            (Method::DELETE, b"*/*", false),
+            (Method::DELETE, b"application/octet-stream", false),
+            (Method::DELETE, b";application/json", false),
+            (Method::DELETE, b"application/json;", true),
+            (Method::DELETE, b"application/json,text/plain", true),
+            (Method::DELETE, b"text/plain,application/json", true),
+            (Method::DELETE, b",", false),
+            (Method::DELETE, b" ", false),
+            (Method::POST, b"", false),
+            (Method::POST, b"application/json", true),
+            (Method::POST, b"application/json; charset=utf-8", true),
+            (Method::POST, b" application/json ", true),
+            (Method::POST, b"application/json\t", false),
+            (Method::POST, b"Application/JSON", false),
+            (Method::POST, b"text/plain", false),
+            (Method::POST, b"*/*", false),
+            (Method::POST, b"application/octet-stream", false),
+            (Method::POST, b";application/json", false),
+            (Method::POST, b"application/json;", true),
+            (Method::POST, b"application/json,text/plain", true),
+            (Method::POST, b"text/plain,application/json", true),
+            (Method::POST, b",", false),
+            (Method::POST, b" ", false),
+            (Method::PUT, b"", false),
+            (Method::PUT, b"application/json", true),
+            (Method::PUT, b"application/json; charset=utf-8", true),
+            (Method::PUT, b" application/json ", true),
+            (Method::PUT, b"application/json\t", false),
+            (Method::PUT, b"Application/JSON", false),
+            (Method::PUT, b"text/plain", false),
+            (Method::PUT, b"*/*", false),
+            (Method::PUT, b"application/octet-stream", false),
+            (Method::PUT, b";application/json", false),
+            (Method::PUT, b"application/json;", true),
+            (Method::PUT, b"application/json,text/plain", true),
+            (Method::PUT, b"text/plain,application/json", true),
+            (Method::PUT, b",", false),
+            (Method::PUT, b" ", false),
+            (Method::PATCH, b"", false),
+            (Method::PATCH, b"application/json", true),
+            (Method::PATCH, b"application/json; charset=utf-8", true),
+            (Method::PATCH, b" application/json ", true),
+            (Method::PATCH, b"application/json\t", false),
+            (Method::PATCH, b"Application/JSON", false),
+            (Method::PATCH, b"text/plain", false),
+            (Method::PATCH, b"*/*", false),
+            (Method::PATCH, b"application/octet-stream", false),
+            (Method::PATCH, b";application/json", false),
+            (Method::PATCH, b"application/json;", true),
+            (Method::PATCH, b"application/json,text/plain", true),
+            (Method::PATCH, b"text/plain,application/json", true),
+            (Method::PATCH, b",", false),
+            (Method::PATCH, b" ", false),
+        ];
+        for (method, content_type, expected) in cases {
+            assert_eq!(
+                route_consumes(method, content_type),
+                *expected,
+                "{method} with Content-Type {:?}",
+                String::from_utf8_lossy(content_type)
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn the_server_node_refuses_no_content_type() {
+        // The server's WebService declares no Consumes, so a POST with no
+        // Content-Type reaches its handler.
+        let cors = Cors::new(
+            Source::Fixed(Arc::new(CorsCopy::of(&Config::default()))),
+            vec![("POST", "/api/dashboard/config")],
+            &[],
+            false,
+        );
+        let (app, calls) = master_app(cors);
+        let (status, _, _) =
+            exchange(&app, Method::POST, "/api/dashboard/config", None, None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 }
