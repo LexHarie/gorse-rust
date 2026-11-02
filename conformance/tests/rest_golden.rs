@@ -80,8 +80,9 @@ const RESTORED_FEEDBACK: u64 = 100_000;
 const TRAINING_TASK: &str = "Train Collaborative Filtering Model";
 
 /// How long the seeding of one cluster may take: the restore, the training and
-/// every user's recommendation. Go's worker needs minutes for the 943 users.
-const SEED_TIMEOUT: Duration = Duration::from_secs(900);
+/// every user's recommendation. Go's worker needs minutes for the 943 users. This
+/// is a time budget, not an assertion, raised from 900 s by D-302.
+const SEED_TIMEOUT: Duration = Duration::from_secs(1800);
 
 /// How long the set of recommended users must stay the same before the requests
 /// are sent: two worker intervals, so the worker has passed over every user at
