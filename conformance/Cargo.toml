@@ -61,6 +61,8 @@ gorse-storage-core = { workspace = true }
 gorse-server = { workspace = true }
 flate2 = { workspace = true }
 reqwest = { workspace = true }
+# The playground test serves the dump through a loopback TLS proxy (tests/playground.rs).
+rustls.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
