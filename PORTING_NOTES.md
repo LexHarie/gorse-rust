@@ -3310,4 +3310,8 @@ The WP-5 threads used provisional ids. The court gives each one a real id here. 
 
 O-WP52-1 (the `gorse_rs` suite was blocked on scope) is closed. Ritchie added `gorse-io/gorse-rs` to the scope at 2026-11-02 02:19Z.
 
-Next free ids: D-299, O-91, Q-271, X-265, C-38.
+- **O-91 WP-5-1 B3 residual, the reply size in the too-large text (closed by D-299).** The Go master's reply size varies between runs, because `update_at` carries nanoseconds. The golden's placeholder rule for N is in D-299.
+- **O-92 Label float digits differ from Go (open, owner WP-4-3).** On the item-batch and latest routes, 51 batch items and 41 latest items differ by one float64 digit inside labels, at an exact 17-digit tie, with equal length. Evidence: `porting/evidence/o91/README.md` on `claude/project-thread-4aex1f`. Must match Go exactly (D-299 (c)).
+- **O-93 Dropped -0.0 score on the query reply (open, owner WP-4-3).** prost skips 0.0 by value, so the query reply is 5 bytes smaller in Rust, while protobuf-go keeps -0.0 because its bits are non-zero. A real wire difference (D-299 (b)).
+
+Next free ids: D-300, O-94, Q-271, X-265, C-38.
