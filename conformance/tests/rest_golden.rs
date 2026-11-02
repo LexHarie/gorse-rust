@@ -143,18 +143,6 @@ const EXPLAINED: &[Explained] = &[
         tolerance: Some(1e-6),
         id: "X-WP51-1",
     },
-    // The collaborative recommend's scores: the Rust vector store scores with an exact
-    // scan in f32, and Go's HNSW store with an f16 query, so a score can differ by an
-    // ulp. The item order is the same. Within the D-234 rule (D-303 on B4).
-    Explained {
-        node: "master",
-        method: "GET",
-        path: "/api/dashboard/recommend/{user-id}/{recommender}",
-        field: "body",
-        json_path: "$[*].Score",
-        tolerance: Some(1e-6),
-        id: "X-WP51-1",
-    },
     Explained {
         node: "master",
         method: "POST",
@@ -785,18 +773,6 @@ async fn seed(build: &'static GoBuild, side: Impl) -> Result<Cluster> {
     let config = repo_root().join("client/config.toml");
     let mut cluster = Cluster::new_from_config(build, &config, &[])?;
     start_master(&mut cluster, side).await?;
-    restore(cluster.ports.master_http, dump()?).await?;
-    cluster.stop_master();
-    start_master(&mut cluster, side).await?;
-    wait_for_training(cluster.ports.master_http).await?;
-    // The server and the worker start only after the training, on both sides, so that
-    // the worker's first ranking pass runs with the collaborative filtering model in
-    // place. A pass that runs before the model is pulled leaves its users without
-    // collaborative rows, and their recommendation then stays fresh, because
-    // `checkRecommendCacheOutOfDate` does not look at the collaborative rows (the
-    // 2026-11-02 runs: 10 users, the ones passed in the seconds before the pull, had no
-    // rows and the list was empty). The order changes when the worker starts, not what
-    // is compared.
     match side {
         Impl::Go => cluster.start_go_server().await?,
         Impl::Rust => cluster.start_rust_server_binary().await?,
@@ -813,6 +789,10 @@ async fn seed(build: &'static GoBuild, side: Impl) -> Result<Cluster> {
                 .await?
         }
     }
+    restore(cluster.ports.master_http, dump()?).await?;
+    cluster.stop_master();
+    start_master(&mut cluster, side).await?;
+    wait_for_training(cluster.ports.master_http).await?;
 
     // The worker needs about two minutes for the 943 users of the dump (the Go
     // worker does about seven users a second). It writes no update time for a user
