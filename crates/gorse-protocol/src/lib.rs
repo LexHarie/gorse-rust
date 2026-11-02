@@ -14,3 +14,6 @@ mod generated {
 }
 
 pub use generated::*;
+
+/// The gRPC codec the generated services use (O-93, see the module documentation).
+mod wire;
