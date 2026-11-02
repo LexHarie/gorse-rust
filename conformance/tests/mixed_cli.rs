@@ -392,3 +392,99 @@ async fn rust_cli_runs_against_the_go_master() {
     let endpoint = format!("http://127.0.0.1:{}", cluster.ports.master_http);
     run_commands(&cluster, &rust.binary("gorse-cli"), &endpoint).await;
 }
+
+/// Feedback records in three groups of equal timestamps, interleaved. Both CLIs
+/// sort the listing by timestamp, so the order inside each group is decided by
+/// the CLI's sort, which must be Go's `sort.Slice`. Fifteen records is past the
+/// size where that sort switches from insertion sort, and the interleaving makes
+/// it reorder the groups. (With one shared timestamp, Go keeps the input order,
+/// so that case cannot tell the two sorts apart.)
+const TIED_FEEDBACK: usize = 15;
+
+async fn seed_tied_feedback(cluster: &Cluster) {
+    let ctx = Context::background();
+    let utc = gotime::utc();
+    let at = |hour| gotime::date(2026, Month::JANUARY, 1, hour, 0, 0, 0, &utc);
+    let stamps = [at(1), at(2), at(3)];
+    let data = cluster.data_store().await.expect("the data store opens");
+    let feedback: Vec<Feedback> = (0..TIED_FEEDBACK)
+        .map(|i| Feedback {
+            feedback_key: FeedbackKey {
+                feedback_type: "click".to_owned(),
+                user_id: format!("user-{i:02}"),
+                item_id: "item-1".to_owned(),
+            },
+            timestamp: stamps[i % 3].clone(),
+            ..Feedback::default()
+        })
+        .collect();
+    data.batch_insert_feedback(&ctx, &feedback, true, true, true)
+        .await
+        .expect("the tied feedback is stored");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn feedback_ties_list_the_same_under_both_clis() {
+    let go = GoBuild::shared().expect("the Go nodes build");
+    let rust = RustBuild::shared().expect("the Rust nodes build");
+    let mut cluster = Cluster::new(go, &ADMIN_KEY_EDIT).expect("a run");
+    cluster.start_master().await.expect("the Go master starts");
+    let endpoint = format!("http://127.0.0.1:{}", cluster.ports.master_http);
+    wait_for_http(&endpoint).await;
+    wait_for_initial_task(&endpoint).await;
+    seed_tied_feedback(&cluster).await;
+
+    let args = [
+        "get",
+        "feedback",
+        "-n",
+        "100",
+        "--endpoint",
+        endpoint.as_str(),
+        "--api-key",
+        API_KEY,
+    ];
+    let listing = |cli: &Path| {
+        let output = Command::new(cli)
+            .args(args)
+            .output()
+            .unwrap_or_else(|e| panic!("run {}: {e}", cli.display()));
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        assert!(
+            output.status.success(),
+            "{} get feedback failed ({}):\n{stdout}{}",
+            cli.display(),
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        stdout
+    };
+    let go_listing = listing(&go.binary("gorse-cli"));
+    let rust_listing = listing(&rust.binary("gorse-cli"));
+
+    let tied_rows = go_listing
+        .lines()
+        .filter(|line| line.starts_with("click ") && line.contains("item-1"))
+        .count();
+    assert_eq!(
+        tied_rows, TIED_FEEDBACK,
+        "every tied record is listed:\n{go_listing}"
+    );
+    // The Go CLI's order inside a group must differ from the seeding order, or
+    // this test could not tell a stable sort from Go's sort.Slice.
+    let mut groups: std::collections::BTreeMap<&str, Vec<&str>> = Default::default();
+    for line in go_listing.lines().filter(|line| line.starts_with("click ")) {
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        groups.entry(fields[4]).or_default().push(fields[1]);
+    }
+    assert!(
+        groups
+            .values()
+            .any(|users| users.windows(2).any(|pair| pair[0] > pair[1])),
+        "the listing keeps the seeding order inside every tie group:\n{go_listing}"
+    );
+    assert_eq!(
+        rust_listing, go_listing,
+        "the Rust CLI orders the tied feedback as the Go CLI does"
+    );
+}

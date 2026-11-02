@@ -237,7 +237,10 @@ recorded outputs in `crates/gorse-cmd/tests/golden/`. What differs, and why:
 - **Q-cli-7 Sorting uses Go's `sort.Slice` (pdqsort).** `gorse_common::gosort::slice`
   is the port. Ties in the feedback listing come out in the order Go gives them. The
   differential test covers 130 tie-heavy cases, from 0 to 1000 items, with both
-  directions. `sort.Stable` and the `slices` package are not ported; no output
+  directions. A live check in `mixed_cli` (`feedback_ties_list_the_same_under_both_clis`)
+  lists 15 feedback records in three tied groups from a Go master, under both CLIs,
+  and requires identical output. It fails when the Rust CLI uses a stable sort
+  instead, which was checked by a temporary mutant. `sort.Stable` and the `slices` package are not ported; no output
   path uses them.
 - **Q-cli-8 Leaf commands take extra words as Go does.** Cobra checks arguments
   only where a command declares `Args`. `cluster-info`, `stats`, `ps`, `reset`,
