@@ -31,7 +31,8 @@
 //! [`EXPLAINED`] fails the test. An entry names the route, the field and the JSON
 //! path of the value that differs, and carries the id of its note in
 //! `porting/notes/WP-5-1.md`. A number is covered only within the entry's
-//! relative tolerance. An entry that matches no difference in a run is reported in
+//! tolerance, by the rule of D-234 in `PORTING.md`:
+//! `|rust - go| <= tolerance * max(|go|, 1)`. An entry that matches no difference in a run is reported in
 //! the log, not failed: a progress count or a version can match on one run and not
 //! on the next.
 //!
@@ -111,11 +112,12 @@ const USER_COUNT: u64 = 943;
 /// the id must have its note in `porting/notes/WP-5-1.md`. The table starts empty:
 /// a difference is a port bug until a note explains it.
 const EXPLAINED: &[Explained] = &[
-    // Scores of the item-to-item recommender differ by about 6e-7 relative. Go
+    // Scores of the item-to-item recommender differ by up to 7.5e-7 relative. Go
     // computes them from float32 vectors with its own kernels, and the Rust port
-    // with the `cc` kernels of `gorse-common`. The accepted tolerance is the one
-    // `tests/item_to_item_oracle.rs` uses (1e-6 relative), so a score may differ by
-    // no more than that (X-WP51-1).
+    // with the `cc` kernels of `gorse-common`. The accepted rule is D-234 of
+    // PORTING.md, which `tests/item_to_item_oracle.rs` and `tests/recommend_oracle.rs`
+    // use: a score may differ from Go's by no more than 1e-6 * max(|Go's score|, 1)
+    // (X-WP51-1).
     Explained {
         node: "master",
         method: "GET",
@@ -202,8 +204,8 @@ const UNLISTED_PATH_PARAMS: &[(&str, &str)] = &[
 /// One explained difference: the node, the method and the path of the route, the
 /// field that differs (`status`, `content-type` or `body`), the JSON path of the
 /// value that differs with each array index written as `[*]` (empty for a status,
-/// a content type or a text body), the largest relative difference of a number
-/// that the explanation still covers (`None` for any value), and the note's id.
+/// a content type or a text body), the tolerance of a number that the explanation
+/// still covers under D-234 (`None` for any value), and the note's id.
 #[derive(Debug, Clone, Copy)]
 struct Explained {
     node: &'static str,
@@ -307,6 +309,24 @@ static HEX_ID: LazyLock<Regex> =
 /// The regex of one array index in a JSON path, such as `[3]`.
 static INDEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\[[0-9]+\]").expect("the index pattern is valid"));
+
+/// The regex of Go's error for a gRPC message that is too large, with the size
+/// of the message (`size`) and the limit (`limit`).
+static GO_TOO_LARGE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"grpc: received message larger than max \((?P<size>[0-9]+) vs\. (?P<limit>[0-9]+)\)",
+    )
+    .expect("the Go too-large pattern is valid")
+});
+
+/// The regex of tonic's error for a decoded gRPC message that is too large, with
+/// the size of the message (`size`) and the limit (`limit`).
+static RUST_TOO_LARGE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"Error, decoded message length too large: found (?P<size>[0-9]+) bytes, the limit is: (?P<limit>[0-9]+) bytes",
+    )
+    .expect("the Rust too-large pattern is valid")
+});
 
 /// The JSON keys whose number is a port of the run (N4). They are the keys the
 /// config dump uses for the ports of the master, the server and the worker.
@@ -848,6 +868,27 @@ fn run_dir(cluster: &Cluster) -> String {
         .map_or_else(String::new, |dir| dir.display().to_string())
 }
 
+/// Replaces the size of a too-large gRPC message with `<N>` (D-299). The limit and
+/// the rest of the text stay exact. The size must be above the limit, as a message
+/// that is too large is, or the test fails. Text without such a message is returned
+/// as it is, so a difference in the wording still shows.
+fn mask_message_size(text: &str) -> String {
+    for pattern in [&*GO_TOO_LARGE, &*RUST_TOO_LARGE] {
+        let Some(caps) = pattern.captures(text) else {
+            continue;
+        };
+        let size = caps.name("size").expect("the size group");
+        let size_value: u64 = size.as_str().parse().expect("a size of digits");
+        let limit: u64 = caps["limit"].parse().expect("a limit of digits");
+        assert!(
+            size_value > limit,
+            "a too-large message of {size_value} bytes does not exceed the limit of {limit} bytes: {text}"
+        );
+        return format!("{}<N>{}", &text[..size.start()], &text[size.end()..]);
+    }
+    text.to_owned()
+}
+
 /// Normalises a string by N1, N2 and N3.
 fn normalize_text(text: &str, run: &str) -> String {
     let text = TIME.replace_all(text, "<time>");
@@ -907,7 +948,7 @@ struct Difference {
     /// For a JSON body, the path of the value, with each array index as `[*]`
     /// (`$[*].Score`). Empty for a status, a content type or a text body.
     path: String,
-    /// Both values, when both are numbers, for a relative tolerance.
+    /// Go's value and Rust's value, when both are numbers, for the tolerance check.
     numbers: Option<(f64, f64)>,
     /// What differs, for a failure message.
     detail: String,
@@ -1002,8 +1043,14 @@ fn differences(go: &Reply, rust: &Reply, go_run: &str, rust_run: &str) -> Vec<Di
             }),
         }
     } else {
-        let go_text = normalize_text(&String::from_utf8_lossy(&go.body), go_run);
-        let rust_text = normalize_text(&String::from_utf8_lossy(&rust.body), rust_run);
+        let go_text = normalize_text(
+            &mask_message_size(&String::from_utf8_lossy(&go.body)),
+            go_run,
+        );
+        let rust_text = normalize_text(
+            &mask_message_size(&String::from_utf8_lossy(&rust.body)),
+            rust_run,
+        );
         if go_text != rust_text {
             found.push(Difference {
                 field: "body",
@@ -1032,23 +1079,20 @@ fn parse_normalized(body: &[u8], run: &str) -> Option<Value> {
     Some(value)
 }
 
-/// The first 80 characters of a text, for a failure message.
+/// The first 200 characters of a text, for a failure message. The size of a
+/// too-large gRPC message (`<N>`, D-299) comes after 80 characters, so it shows.
 fn excerpt(text: &str) -> String {
-    text.chars().take(80).collect()
+    text.chars().take(200).collect()
 }
 
-/// The relative difference of two numbers: their gap over the larger of them.
-fn relative(x: f64, y: f64) -> f64 {
-    let scale = x.abs().max(y.abs());
-    if scale == 0.0 {
-        0.0
-    } else {
-        (x - y).abs() / scale
-    }
+/// Whether Rust's number is within `tolerance` of Go's, by the rule of D-234 in
+/// PORTING.md: `|rust - go| <= tolerance * max(|go|, 1)`.
+fn within(go: f64, rust: f64, tolerance: f64) -> bool {
+    (rust - go).abs() <= tolerance * go.abs().max(1.0)
 }
 
 /// The explanation a difference has, if one matches it. A number is covered when
-/// its relative difference is within the explanation's tolerance.
+/// Go's and Rust's values are within the explanation's tolerance.
 fn explanation(route: &Route, difference: &Difference) -> Option<&'static Explained> {
     EXPLAINED.iter().find(|entry| {
         entry.node == route.node.name()
@@ -1058,7 +1102,7 @@ fn explanation(route: &Route, difference: &Difference) -> Option<&'static Explai
             && entry.json_path == difference.path
             && match (entry.tolerance, difference.numbers) {
                 (None, _) => true,
-                (Some(tolerance), Some((x, y))) => relative(x, y) <= tolerance,
+                (Some(tolerance), Some((go, rust))) => within(go, rust, tolerance),
                 (Some(_), None) => false,
             }
     })
@@ -1258,5 +1302,38 @@ mod rest_golden_checks {
     fn numbers_compare_as_floats() {
         assert!(json_equal(&serde_json::json!(0), &serde_json::json!(0.0)));
         assert!(!json_equal(&serde_json::json!(1), &serde_json::json!(2)));
+    }
+
+    #[test]
+    fn scores_are_covered_by_the_accepted_rule() {
+        // D-234: |rust - go| <= 1e-6 * max(|go|, 1). Below 1 the bound is absolute,
+        // so a gap of 9e-7 on a score of 0.5 is covered.
+        assert!(within(0.5, 0.5 + 9e-7, 1e-6));
+        assert!(!within(0.5, 0.5 + 1.1e-6, 1e-6));
+        // Above 1 the bound is relative to Go's score.
+        assert!(within(100.0, 100.0 + 9e-5, 1e-6));
+        assert!(!within(100.0, 100.0 + 2e-4, 1e-6));
+    }
+
+    #[test]
+    fn only_the_size_of_a_too_large_message_is_masked() {
+        // D-299: the size becomes <N>, and the limit and the rest of the text stay.
+        let go = "rpc error: code = ResourceExhausted desc = grpc: received message larger than max (9076002 vs. 4194304)";
+        assert_eq!(
+            mask_message_size(go),
+            "rpc error: code = ResourceExhausted desc = grpc: received message larger than max (<N> vs. 4194304)"
+        );
+        let rust = "rpc error: code = OutOfRange desc = Error, decoded message length too large: found 9076124 bytes, the limit is: 4194304 bytes";
+        assert_eq!(
+            mask_message_size(rust),
+            "rpc error: code = OutOfRange desc = Error, decoded message length too large: found <N> bytes, the limit is: 4194304 bytes"
+        );
+        assert_eq!(mask_message_size("no such error"), "no such error");
+    }
+
+    #[test]
+    #[should_panic(expected = "does not exceed the limit")]
+    fn a_too_large_message_must_exceed_its_limit() {
+        mask_message_size("grpc: received message larger than max (10 vs. 4194304)");
     }
 }
