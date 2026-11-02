@@ -15,7 +15,7 @@
 //! insertion sort, which keeps equal elements in input order; above that
 //! pdqsort may not.
 //!
-//! [`slice`] is Go's `sort.Slice`: the same pdqsort, with the element
+//! [`slice()`] is Go's `sort.Slice`: the same pdqsort, with the element
 //! comparison given as a closure. Not ported: `sort.Stable` and the `slices`
 //! package, which Gorse does not call on the paths this crate serves.
 
