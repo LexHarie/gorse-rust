@@ -3314,4 +3314,7 @@ O-WP52-1 (the `gorse_rs` suite was blocked on scope) is closed. Ritchie added `g
 - **O-92 Label float digits differ from Go (open, owner WP-4-3).** On the item-batch and latest routes, 51 batch items and 41 latest items differ by one float64 digit inside labels, at an exact 17-digit tie, with equal length. Evidence: `porting/evidence/o91/README.md` on `claude/project-thread-4aex1f`. Must match Go exactly (D-299 (c)).
 - **O-93 Dropped -0.0 score on the query reply (open, owner WP-4-3).** prost skips 0.0 by value, so the query reply is 5 bytes smaller in Rust, while protobuf-go keeps -0.0 because its bits are non-zero. A real wire difference (D-299 (b)).
 
-Next free ids: D-300, O-94, Q-271, X-265, C-38.
+- **O-91 closed by D-299. O-92 and O-93 closed by D-301.** The B3 residual is governed by D-299 (placeholder for N only). O-92 (label float ties) and O-93 (the -0.0 score on the query reply) are fixed in WP-4-3's branch and merged at `98e13dc`.
+- **O-90 status.** B3's client text is closed by D-300. B1, B2 and B4 (WP-4-4, `crates/gorse-master/src/rest.rs`) remain open. WP-5-1 stays blocked on them.
+
+Next free ids: D-302, O-94, Q-271, X-265, C-38.
