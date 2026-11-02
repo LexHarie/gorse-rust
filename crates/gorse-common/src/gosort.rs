@@ -15,8 +15,9 @@
 //! insertion sort, which keeps equal elements in input order; above that
 //! pdqsort may not.
 //!
-//! Not ported: `sort.Stable`, `sort.Slice` and the `slices` package, which
-//! Gorse does not call on the paths this crate serves.
+//! [`slice()`] is Go's `sort.Slice`: the same pdqsort, with the element
+//! comparison given as a closure. Not ported: `sort.Stable` and the `slices`
+//! package, which Gorse does not call on the paths this crate serves.
 
 /// Go's `sort.Interface`: the collection that [`sort`] reorders by index.
 pub trait Interface {
@@ -46,6 +47,33 @@ pub fn sort<D: Interface + ?Sized>(data: &mut D) {
     // bits.Len(uint(n))
     let limit = (usize::BITS - n.leading_zeros()) as usize;
     pdqsort(data, 0, n, limit);
+}
+
+/// Go's `sort.Slice`: sorts `items` so that `less(a, b)` holds for each
+/// element before the ones after it. Go runs the same pdqsort for `sort.Slice`
+/// as for [`sort`], with the same comparisons and swaps, so equal elements end
+/// where Go puts them.
+pub fn slice<T>(items: &mut [T], less: impl Fn(&T, &T) -> bool) {
+    struct ByLess<'a, T, F> {
+        items: &'a mut [T],
+        less: F,
+    }
+
+    impl<T, F: Fn(&T, &T) -> bool> Interface for ByLess<'_, T, F> {
+        fn len(&self) -> usize {
+            self.items.len()
+        }
+
+        fn less(&self, i: usize, j: usize) -> bool {
+            (self.less)(&self.items[i], &self.items[j])
+        }
+
+        fn swap(&mut self, i: usize, j: usize) {
+            self.items.swap(i, j);
+        }
+    }
+
+    sort(&mut ByLess { items, less });
 }
 
 /// The hint pdqsort takes from `choose_pivot` about the order of the slice.
@@ -460,6 +488,35 @@ mod tests {
             let mut want: Vec<usize> = (0..n).collect();
             want.sort_by_key(|&i| keys[i]);
             assert_eq!(got, want, "n = {n}");
+        }
+    }
+
+    #[test]
+    fn slice_orders_ties_as_the_interface_sort_does() {
+        // Keys with many ties, above the insertion-sort cutoff of 12, so pdqsort
+        // moves equal elements; the two entry points must agree on every order.
+        let keys: Vec<i64> = (0..60).map(|i| (i * 7) % 5).collect();
+        let mut by_slice: Vec<(i64, usize)> = keys.iter().copied().zip(0..).collect();
+        super::slice(&mut by_slice, |a, b| a.0 > b.0);
+        let mut by_interface: Vec<(i64, usize)> = keys.iter().copied().zip(0..).collect();
+        super::sort(&mut Descending(&mut by_interface));
+        assert_eq!(by_slice, by_interface);
+    }
+
+    /// Orders pairs by their first field, largest first, for the test above.
+    struct Descending<'a>(&'a mut [(i64, usize)]);
+
+    impl Interface for Descending<'_> {
+        fn len(&self) -> usize {
+            self.0.len()
+        }
+
+        fn less(&self, i: usize, j: usize) -> bool {
+            self.0[i].0 > self.0[j].0
+        }
+
+        fn swap(&mut self, i: usize, j: usize) {
+            self.0.swap(i, j);
         }
     }
 

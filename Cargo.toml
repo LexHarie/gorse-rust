@@ -49,7 +49,6 @@ futures-util = "0.3.34"
 hex = "0.4.3"
 http-body-util = "0.1.5"
 indexmap = "2.14.2"
-json-patch = "4.2.0"
 keyring = "4.2.0"
 hyper-rustls = { version = "0.27.10", default-features = false, features = ["aws-lc-rs", "http2", "tls12"] }
 md-5 = "0.11.0"

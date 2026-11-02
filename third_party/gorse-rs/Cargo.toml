@@ -1,0 +1,26 @@
+[package]
+name = "gorse_rs"
+version = "0.5.0"
+edition = "2021"
+description = "Rust SDK for gorse recommender system"
+readme = "README.md"
+homepage = "https://gorse.io"
+repository = "https://github.com/gorse-io/gorse-rs"
+license = "Apache-2.0"
+keywords = ["gorse", "machine-learning", "recommender-system"]
+categories = ["algorithms", "science"]
+
+[features]
+default = ["blocking"]
+blocking = ["reqwest/blocking"]
+
+[dependencies]
+reqwest = { version = "0.13", default-features = false, features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0.17"
+
+[dev-dependencies]
+chrono = "0.4.23"
+serial_test = "4.0.1"
+tokio = { version = "1.22.0", features = ["macros"] }

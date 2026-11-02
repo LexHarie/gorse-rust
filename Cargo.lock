@@ -1879,7 +1879,6 @@ dependencies = [
  "gorse-storage",
  "gorse-storage-core",
  "gorse-worker",
- "json-patch",
  "keyring",
  "prometheus",
  "regex",
@@ -1946,10 +1945,12 @@ version = "0.0.0"
 dependencies = [
  "axum",
  "base64 0.23.1",
+ "bytes",
  "flate2",
  "futures-core",
  "futures-util",
  "gorse-client",
+ "gorse-cmd",
  "gorse-common",
  "gorse-config",
  "gorse-dataset",
@@ -1962,13 +1963,17 @@ dependencies = [
  "gorse-storage",
  "gorse-storage-core",
  "gorse-worker",
+ "gorse_rs",
  "indexmap 2.14.2",
  "mongodb",
+ "prost",
+ "prost-types",
  "rcgen",
  "redis",
  "regex",
  "reqwest 0.13.5",
  "rusqlite",
+ "rustls",
  "serde",
  "serde_json",
  "sqlx",
@@ -2233,6 +2238,16 @@ dependencies = [
  "tokio-stream",
  "tonic",
  "tracing",
+]
+
+[[package]]
+name = "gorse_rs"
+version = "0.5.0"
+dependencies = [
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -2958,28 +2973,6 @@ dependencies = [
  "cfg-if 1.0.5",
  "futures-util",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "json-patch"
-version = "4.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7421438de105a0827e44fadd05377727847d717c80ce29a229f85fd04c427b72"
-dependencies = [
- "jsonptr",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "jsonptr"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5a3cc660ba5d72bce0b3bb295bf20847ccbb40fd423f3f05b61273672e561fe"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]

@@ -1,0 +1,11 @@
+# Extracted from the release run of the WP-5-1 golden test (claude/wp-5-1-rest-golden @17184b5).
+# Command: cargo test --release -p gorse-conformance --test rest_golden -- --nocapture
+# Source log: the run's stdout, 'rest_golden:' summary and the four server rows that differ in B3.
+# The failure messages were widened to 400 characters for this run (a local copy, not committed); the test logic is unchanged.
+
+rest_golden: 107 routes compared, 93 identical, 28 explained differences, 12 unexplained
+
+server GET /api/item-to-item/{name}/{item-id} [body] text: Go "rpc error: code = ResourceExhausted desc = grpc: received message larger than max (9076002 vs. 4194304)", Rust "rpc error: code = ResourceExhausted desc = grpc: received message larger than max (9076124 vs. 4194304)"
+server GET /api/item/{item-id}/neighbors/ [body] text: Go "rpc error: code = ResourceExhausted desc = grpc: received message larger than max (9076002 vs. 4194304)", Rust "rpc error: code = ResourceExhausted desc = grpc: received message larger than max (9076124 vs. 4194304)"
+server GET /api/item/{item-id}/neighbors/{category} [body] text: Go "rpc error: code = ResourceExhausted desc = grpc: received message larger than max (9076002 vs. 4194304)", Rust "rpc error: code = ResourceExhausted desc = grpc: received message larger than max (9076124 vs. 4194304)"
+server GET /api/latest [body] text: Go "rpc error: code = ResourceExhausted desc = grpc: received message larger than max (9071596 vs. 4194304)", Rust "rpc error: code = ResourceExhausted desc = grpc: received message larger than max (9071660 vs. 4194304)"

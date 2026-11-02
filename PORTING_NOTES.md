@@ -199,6 +199,54 @@ Deviations point to the decision in `PORTING.md` that approves them.
   restart logs everyone out (`master/rest.go` `cookieHandler`). The Rust master
   does the same; no cross-implementation cookie compatibility is needed.
 
+### gorse-cli output layers (WP-4-6, D-294)
+
+The usage and parse errors, the json-patch errors, the order of tied items and
+the YAML of `pipeline get` match Go. Each is checked against the Go oracle in
+`conformance/tests/cli_oracle.rs` (`contracts/tools/cligolden`) and against the
+recorded outputs in `crates/gorse-cmd/tests/golden/`. What differs, and why:
+
+- **Q-cli-1 The usage block is clap's help text.** Cobra prints `Usage:`, the
+  flags and the help text after an `Error:` line. The Rust CLI prints clap's
+  wording there. The `Error:` lines, the exit status and the texts before them
+  match Go, and the oracle compares those. The `--help` output is clap's too.
+- **Q-cli-2 `help` and `completion` are not ported.** Go's cobra adds both to the
+  root. `gorse-cli help` exits 0 in Go and 1 in Rust. `completion` is listed in
+  the suggestions for a mistyped command, so that the suggestion text matches, but
+  it does not run. The oracle table leaves out `help` for this reason.
+- **Q-cli-3 The keyring error text is the platform library's.** Go's keyring on
+  Linux runs `dbus-launch`, and the Rust `keyring` crate reports `No default
+  store` when there is no secret service. Both fail, with different text. It is
+  not a usage error, so the oracle does not compare it.
+- **Q-cli-4 yaml.v3 layout, as reproduced.** Literal blocks (`|`, `|-`, `|+`, with
+  the `4` indentation hint for a text that starts with a space or a break) are
+  written where yaml.v3 allows them. Otherwise the string is double quoted. A
+  mapping or sequence under a key is indented to the next multiple of four past
+  the key, and a mapping under a dash to the dash plus two. A key with a newline is
+  a `?` complex key. A tab, or a character yaml.v3 does not treat as printable
+  (for example a 4-byte emoji, which is written as `\U0001F600`), forces double
+  quotes. yaml.v3 does not fold long lines, and the port does not either.
+- **Q-cli-5 Open: U+2028 and U+2029 without a newline.** yaml.v3 treats these as
+  line breaks, so a string holding one is written single quoted or in a block. The
+  port writes such a string plain. No config value has been seen with one, and the
+  oracle does not cover it.
+- **Q-cli-6 Open: json-patch errors that print a nested object.** The 52 recorded
+  cases match, including the apply and decode texts. An error text that prints a
+  nested object's keys is not compared, because the recorded cases do not contain
+  one.
+- **Q-cli-7 Sorting uses Go's `sort.Slice` (pdqsort).** `gorse_common::gosort::slice`
+  is the port. Ties in the feedback listing come out in the order Go gives them. The
+  differential test covers 130 tie-heavy cases, from 0 to 1000 items, with both
+  directions. A live check in `mixed_cli` (`feedback_ties_list_the_same_under_both_clis`)
+  lists 15 feedback records in three tied groups from a Go master, under both CLIs,
+  and requires identical output. It fails when the Rust CLI uses a stable sort
+  instead, which was checked by a temporary mutant. `sort.Stable` and the `slices` package are not ported; no output
+  path uses them.
+- **Q-cli-8 Leaf commands take extra words as Go does.** Cobra checks arguments
+  only where a command declares `Args`. `cluster-info`, `stats`, `ps`, `reset`,
+  `schema` and the other leaves Go declares without `Args` accept extra words, and
+  so do the Rust ones. `cluster-info extra` reaches the same keyring error in both.
+
 ### Numerics
 
 - **Q-32 `MM` adds the product into `c`, except `a·bᵀ`, which overwrites it**
@@ -3243,3 +3291,30 @@ and the SQLite sentinel probe (see Q-234) were run against the Go oracle.
 - **X-253 Parallel BPR on Rust must sit inside Go's ±0.01 band in 12 of 12 automated runs, instead of being compared with one Go run (WP-3-8 deviation; approved by Ritchie, 2026-10-30 00:39Z, relayed by the coordinator; the approval is a question's answer, see below).** Go's BPR at NumCPU jobs is Hogwild-style and nondeterministic. The WP-3-8 thread saw Go miss its own mean by more than 0.01 in 2 of 12 shell runs (Q-269). The court's run of the per-run NumCPU test on `56eca0d` failed: Rust recall 0.7773065 against the reference 0.7613998, a difference of 1.59e-2 (`/mnt/project-files/reports/wp-3-8/court-run-56eca0d.log`). Ritchie chose to fix Rust's parallel BPR rather than mirror Go's spread. The gate is now: single-job runs identical to Go (the replay at 1e-5 and the one-job tests), and 12 of 12 automated NumCPU runs inside Go's ±0.01 band, with the band unchanged. The Welch and Fisher check of the provisional D-283 is withdrawn, and that note is discarded. The parallel BPR fix is a model change, which the brief's out-of-scope line otherwise forbids. The exact words of Ritchie's message, copied by the server, were: "would it be okay if we fix Rust, and not necessarily follow Go for BPR? like it doesn't miss in 12 runs". They are a question, not a yes. Ritchie then answered "yes" (cited by the server, 2026-10-30 00:42Z, relayed by the coordinator as his own words), which is his explicit confirmation before the model change is pushed to the WP-3-8 branch. The reference for the ml-100k band (no Go assertion exists) is Go's single-job ml-100k BPR recall at add21b5, measured automatically in the conformance crate on every run, with the band unchanged at ±0.01 (coordinator ruling, 2026-10-30 00:41Z). It is not a mean of parallel runs. The court checks the fix on the evidence of the pushed head.
 
 - **X-254 The master's HTTP listener serves no `/apidocs` page, no `/debug/pprof/` handlers, and no configured CORS; the server lacks `/apidocs` and pprof too (WP-4-5 open item 1, X-WP45-1; open, owner to be set by the coordinator; blocks the Phase 4 exit).** Go's `StartHttpServer` serves the Swagger UI page at `/apidocs`, the pprof handlers under `/debug/pprof/`, and a CORS filter that allows the configured `master.http_cors_domains` and `http_cors_methods`. The port serves none of the first two, and its CORS responses send `Access-Control-Allow-Origin: *` (WP-4-2, WP-4-4), which allows every origin where Go allows only the configured domains. The CORS wildcard is a security-relevant difference and should be fixed or recorded as a deviation with its reason. Owner: to be set by the coordinator. The WP-4-4 thread owns the master REST router. **Resolved for the master by X-254 (branch `claude/x-254-master-router`; see X-254a to X-254g above).** The master serves the configured CORS domains and methods, `/apidocs` and `/apidocs.json`, and the pprof routes. The server part is still open (X-214, X-215). Correction: Go's own helpers also send `Access-Control-Allow-Origin: *`, so the wildcard on success and error answers is Go's. The difference was the missing filter, which the master now has.
+
+## Phase 5 court record (integrator, 2026-11-02)
+
+The WP-5 threads used provisional ids. The court gives each one a real id here. Verdicts are in PORTING.md: D-295 (WP-4-6), D-296 (WP-5-2), D-297 (WP-5-3), D-298 (WP-5-1, blocked).
+
+- **X-257 WP-5-2 harness and suite entry (D-WP52-1, D-WP52-2, D-WP52-3).** The WP-4-7 harness moved to `conformance/tests/common/sdk_suite.rs` unchanged. The suite talks to the cluster's HTTP port (8088, the port of gorse-in-one's REST API). Its `#[serial]` tests are order-dependent: they run in the order cargo starts them, blocking first.
+- **X-258 WP-5-2 SQLite legs (X-WP52-1).** The SDK legs use SQLite, so no backend is on their path. The court's 12-backend gate covers the merged head.
+- **X-259 WP-5-3 CPU brand line (X-WP53-1).** Go's CPU line names the brand and Rust's does not. The test leaves the brand out of both.
+- **X-260 WP-5-3 JSON log lines before the welcome block (X-WP53-2).** Rust's JSON log lines print before the welcome block (WP-4-5 deviation 6). The test skips log records.
+- **X-261 WP-5-3 CDN stand-in (D-WP53-1).** Both binaries hard-code cdn.gorse.io. The test sends the download through `HTTPS_PROXY` to a loopback TLS stand-in, with a per-run test CA through `SSL_CERT_FILE`. The binaries run unchanged.
+- **X-262 WP-5-1 score tolerance (X-WP51-1).** Scores are compared within 1e-6 of `max(|score|, 1)`, the rule accepted in D-234 and D-236. Accepted by the court (D-298).
+- **X-263 WP-5-1 node version string (X-WP51-2).** Pending. Judged at WP-5-1 acceptance.
+- **X-264 WP-5-1 task count (X-WP51-3).** Pending. Judged at WP-5-1 acceptance.
+- **C-37 WP-5-2 vendored `gorse_rs` (D-WP52-4).** `third_party/gorse-rs` holds gorse_rs 0.5.0 at `gorse-io/gorse-rs` `2de2691`, with one rustfmt change (see `GORSE.md`). The crates.io package has no tests, so the suite comes from the repository.
+- **O-90 WP-5-1 blockers B1 to B4 (open).** B1 and B2 (dashboard config and category routes: Go 415, Rust 400 and 500) and B4 (dashboard collaborative recommend returns `[]`) belong to WP-4-4, in `crates/gorse-master/src/rest.rs`. B3 (gRPC error text on item-to-item, item-neighbour and latest) belongs to WP-2-12, in the storage proxy client.
+- **Q-270 WP-5-1 quirks (Q-WP51-1, Q-WP51-2).** Five table rows omit a path placeholder. Go writes no update time for cold-start users.
+
+O-WP52-1 (the `gorse_rs` suite was blocked on scope) is closed. Ritchie added `gorse-io/gorse-rs` to the scope at 2026-11-02 02:19Z.
+
+- **O-91 WP-5-1 B3 residual, the reply size in the too-large text (closed by D-299).** The Go master's reply size varies between runs, because `update_at` carries nanoseconds. The golden's placeholder rule for N is in D-299.
+- **O-92 Label float digits differ from Go (open, owner WP-4-3).** On the item-batch and latest routes, 51 batch items and 41 latest items differ by one float64 digit inside labels, at an exact 17-digit tie, with equal length. Evidence: `porting/evidence/o91/README.md` on `claude/project-thread-4aex1f`. Must match Go exactly (D-299 (c)).
+- **O-93 Dropped -0.0 score on the query reply (open, owner WP-4-3).** prost skips 0.0 by value, so the query reply is 5 bytes smaller in Rust, while protobuf-go keeps -0.0 because its bits are non-zero. A real wire difference (D-299 (b)).
+
+- **O-91 closed by D-299. O-92 and O-93 closed by D-301.** The B3 residual is governed by D-299 (placeholder for N only). O-92 (label float ties) and O-93 (the -0.0 score on the query reply) are fixed in WP-4-3's branch and merged at `98e13dc`.
+- **O-90 status.** B3's client text is closed by D-300. B1, B2 and B4 (WP-4-4, `crates/gorse-master/src/rest.rs`) remain open. WP-5-1 stays blocked on them.
+
+Next free ids: D-302, O-94, Q-271, X-265, C-38.

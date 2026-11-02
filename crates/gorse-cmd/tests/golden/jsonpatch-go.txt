@@ -1,0 +1,104 @@
+[{"op":"replace","path":"/a","value":2}]
+  ok: {"a":2,"arr":[1,2,3],"obj":{"x":"y"},"nul":null,"s":"str"}
+[{"op":"replace","path":"/zz","value":2}]
+  apply-err: replace operation does not apply: doc is missing key: /zz: missing value
+[{"op":"remove","path":"/zz"}]
+  apply-err: error in remove for path: '/zz': unable to remove nonexistent key: zz: missing value
+[{"op":"remove","path":"/a"}]
+  ok: {"arr":[1,2,3],"obj":{"x":"y"},"nul":null,"s":"str"}
+[{"op":"add","path":"/n/x","value":1}]
+  apply-err: add operation does not apply: doc is missing path: "/n/x": missing value
+[{"op":"add","path":"/arr/-","value":4}]
+  ok: {"a":1,"arr":[1,2,3,4],"obj":{"x":"y"},"nul":null,"s":"str"}
+[{"op":"add","path":"/arr/9","value":4}]
+  apply-err: error in add for path: '/arr/9': Unable to access invalid index: 9: invalid index referenced
+[{"op":"add","path":"/arr/x","value":4}]
+  apply-err: error in add for path: '/arr/x': value was not a proper array index: 'x': strconv.Atoi: parsing "x": invalid syntax
+[{"op":"remove","path":"/arr/1"}]
+  ok: {"a":1,"arr":[1,3],"obj":{"x":"y"},"nul":null,"s":"str"}
+[{"op":"remove","path":"/arr/-1"}]
+  ok: {"a":1,"arr":[1,2],"obj":{"x":"y"},"nul":null,"s":"str"}
+[{"op":"remove","path":"/arr/-9"}]
+  apply-err: error in remove for path: '/arr/-9': Unable to access invalid index: -9: invalid index referenced
+[{"op":"move","from":"/a","path":"/b"}]
+  ok: {"arr":[1,2,3],"obj":{"x":"y"},"nul":null,"s":"str","b":1}
+[{"op":"move","from":"/zz","path":"/b"}]
+  apply-err: error in move for path: 'zz': unable to get nonexistent key: zz: missing value
+[{"op":"move","from":"/a","path":"/zz/q"}]
+  apply-err: move operation does not apply: doc is missing destination path: /zz/q: missing value
+[{"op":"copy","from":"/obj","path":"/obj2"}]
+  ok: {"a":1,"arr":[1,2,3],"obj":{"x":"y"},"nul":null,"s":"str","obj2":{"x":"y"}}
+[{"op":"copy","from":"/zz","path":"/b"}]
+  apply-err: error in copy for from: '/zz': unable to get nonexistent key: zz: missing value
+[{"op":"test","path":"/a","value":1}]
+  ok: {"a":1,"arr":[1,2,3],"obj":{"x":"y"},"nul":null,"s":"str"}
+[{"op":"test","path":"/a","value":2}]
+  apply-err: testing value /a failed: test failed
+[{"op":"test","path":"/zz","value":null}]
+  ok: {"a":1,"arr":[1,2,3],"obj":{"x":"y"},"nul":null,"s":"str"}
+[{"op":"test","path":"/zz","value":1}]
+  apply-err: testing value /zz failed: test failed
+[{"op":"test","path":"/arr/x","value":1}]
+  apply-err: error in test for path: '/arr/x': strconv.Atoi: parsing "x": invalid syntax
+[{"op":"replace","path":"","value":"s"}]
+  apply-err: replace operation value must be object or array: %!w(<nil>)
+[{"op":"replace","path":"","value":{"q":1}}]
+  ok: {"q":1}
+[{"op":"add","path":"","value":{"q":1}}]
+  ok: {"q":1}
+[{"op":"bogus","path":"/a"}]
+  decode-err: invalid operation {"op":"bogus","path":"/a"}: unsupported operation
+[{"op":"replace","value":1}]
+  decode-err: invalid operation {"op":"replace","value":1}: failed to decode 'path': operation missing path field: missing value
+[{"op":"add","path":"/a"}]
+  decode-err: invalid operation {"op":"add","path":"/a"}: failed to decode 'value': operation, missing value field: missing value
+[{"op":"move","path":"/a"}]
+  decode-err: invalid operation {"op":"move","path":"/a"}: failed to decode 'from': operation, missing from field: missing value
+[{"op":"replace","path":5,"value":1}]
+  decode-err: invalid operation {"op":"replace","path":5,"value":1}: failed to decode 'path': json: cannot unmarshal number into Go value of type string
+not json
+  decode-err: invalid state detected
+{"op":"add"}
+  decode-err: json: cannot unmarshal object into Go value of type jsonpatch.Patch
+[1]
+  decode-err: json: cannot unmarshal number into Go value of type jsonpatch.Operation
+[null]
+  decode-err: invalid operation null: unsupported operation
+[{"op":"add","path":"/nul/x","value":1}]
+  apply-err: add operation does not apply: doc is missing path: "/nul/x": missing value
+[{"op":"add","path":"/s/x","value":1}]
+  apply-err: add operation does not apply: doc is missing path: "/s/x": missing value
+[{"op":"bogus","path":"/<&>"}]
+  decode-err: invalid operation {"op":"bogus","path":"/\u003c\u0026\u003e"}: unsupported operation
+[]
+  ok: {"a":1,"arr":[1,2,3],"obj":{"x":"y"},"nul":null,"s":"str"}
+null
+  ok: {"a":1,"arr":[1,2,3],"obj":{"x":"y"},"nul":null,"s":"str"}
+[{"op":"add","path":"/a/b","value":1}]
+  apply-err: add operation does not apply: doc is missing path: "/a/b": missing value
+[{"op":"remove","path":"/obj/x"},{"op":"replace","path":"/obj/x","value":1}]
+  apply-err: replace operation does not apply: doc is missing key: /obj/x: missing value
+[{"op":"add","path":"a","value":1}]
+  apply-err: add operation does not apply: doc is missing path: "a": missing value
+[{"op":"test","path":"/arr","value":[1,2,3]}]
+  ok: {"a":1,"arr":[1,2,3],"obj":{"x":"y"},"nul":null,"s":"str"}
+[{"op":"replace","path":"/s","value":"<x>"}]
+  ok: {"a":1,"arr":[1,2,3],"obj":{"x":"y"},"nul":null,"s":"\u003cx\u003e"}
+[{"op":"add","path":"","value":1}]
+  apply-err: json: cannot unmarshal number into Go value of type map[string]*jsonpatch.lazyNode
+[{"op":"add","path":"","value":"s"}]
+  apply-err: json: cannot unmarshal string into Go value of type map[string]*jsonpatch.lazyNode
+[{"op":"add","path":"","value":null}]
+  apply-err: json: error calling MarshalJSON for type *jsonpatch.partialDoc: invalid value, expected object
+[{"op":"add","path":"","value":true}]
+  apply-err: json: cannot unmarshal bool into Go value of type map[string]*jsonpatch.lazyNode
+[{"op":"replace","path":"","value":null}]
+  ok: null
+[{"op":"test","path":"","value":{"a":1,"arr":[1,2,3],"obj":{"x":"y"},"nul":null,"s":"str"}}]
+  ok: {"a":1,"arr":[1,2,3],"obj":{"x":"y"},"nul":null,"s":"str"}
+[{"op":"test","path":"/arr/-1","value":3}]
+  ok: {"a":1,"arr":[1,2,3],"obj":{"x":"y"},"nul":null,"s":"str"}
+[{"op":"add","path":"/arr/-1","value":9}]
+  ok: {"a":1,"arr":[1,2,3,9],"obj":{"x":"y"},"nul":null,"s":"str"}
+[{"op":"move","from":"/arr/0","path":"/arr/-"}]
+  ok: {"a":1,"arr":[2,3,1],"obj":{"x":"y"},"nul":null,"s":"str"}

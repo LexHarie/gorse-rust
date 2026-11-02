@@ -1,0 +1,34 @@
+// The program that recorded yaml-go.txt. It reads one JSON value per line from
+// stdin and prints what gopkg.in/yaml.v3 v3.0.1 writes for it: the line itself
+// after "== ", then the YAML, then "---END---". Run it in a module that requires
+// gopkg.in/yaml.v3 v3.0.1, with the lines of the case list on stdin.
+package main
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"os"
+
+	"gopkg.in/yaml.v3"
+)
+
+func main() {
+	sc := bufio.NewScanner(os.Stdin)
+	sc.Buffer(make([]byte, 1<<20), 1<<20)
+	for sc.Scan() {
+		line := sc.Text()
+		var v any
+		if err := json.Unmarshal([]byte(line), &v); err != nil {
+			fmt.Printf("bad input %s: %v\n", line, err)
+			continue
+		}
+		fmt.Printf("== %s\n", line)
+		out, err := yaml.Marshal(v)
+		if err != nil {
+			fmt.Printf("encode error: %v\n", err)
+		}
+		fmt.Printf("%s", out)
+		fmt.Printf("---END---\n")
+	}
+}

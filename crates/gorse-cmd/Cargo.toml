@@ -42,7 +42,6 @@ gorse-config = { workspace = true }
 gorse-dataset = { workspace = true }
 gorse-expr = { workspace = true }
 gorse-logics = { workspace = true }
-json-patch.workspace = true
 keyring.workspace = true
 rpassword.workspace = true
 gorse-master = { workspace = true }

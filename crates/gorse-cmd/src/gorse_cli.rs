@@ -9,13 +9,16 @@ use std::io::{self, BufRead, Write};
 
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use gorse_client::AdminClient;
+use gorse_common::gosort;
 use gorse_common::gotime::Duration as GoDuration;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
+use crate::cli_cobra::{self};
 use crate::cli_context::{
     Contexts, Credentials, KEYRING_SERVICE, Keyring, SystemKeyring, go_quote, resolve,
 };
+use crate::cli_jsonpatch;
 use crate::cli_output::{
     format_progress_bar, format_table_value, print_array_table, print_struct, print_table,
 };
@@ -60,14 +63,29 @@ const FEEDBACK_COLUMNS: [&str; 8] = [
     "Comment",
 ];
 
-/// A command that failed. The binary prints it as `Error: <message>`, then the
-/// suggestions after a blank line, and exits with status 1.
+/// Where a failure happened, which decides what the binary prints.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Stage {
+    /// The command ran and failed, as Go's `fatal` reports it: one `Error:` line.
+    Run,
+    /// The line is wrong for the command at this path. Cobra prints the error,
+    /// then the command's usage, and `main` prints the error once more.
+    Usage(String),
+    /// No command of the root matches. Cobra prints the error and the line
+    /// that asks for help, and `main` prints the error once more.
+    Find(String),
+}
+
+/// A command that failed. The binary prints it as Go does for its stage, and
+/// exits with status 1.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Failure {
     /// What went wrong, in Go's words.
     pub message: String,
     /// The lines that tell the user what to do next, if any.
     pub suggestions: Vec<String>,
+    /// Where the failure happened.
+    pub stage: Stage,
 }
 
 impl Failure {
@@ -75,6 +93,7 @@ impl Failure {
         Self {
             message: message.into(),
             suggestions: Vec::new(),
+            stage: Stage::Run,
         }
     }
 
@@ -82,21 +101,60 @@ impl Failure {
         Self {
             message: message.into(),
             suggestions: suggestions.iter().map(|line| (*line).to_owned()).collect(),
+            stage: Stage::Run,
         }
     }
 
-    /// The text the binary prints for this failure, as Go's `fatal` writes it.
-    pub fn render(&self) -> String {
-        let mut text = format!("Error: {}\n", self.message);
-        if !self.suggestions.is_empty() {
-            text.push('\n');
-            for line in &self.suggestions {
-                text.push_str(line);
-                text.push('\n');
-            }
+    /// A line that is wrong for the command at `path`.
+    fn usage(message: impl Into<String>, path: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            suggestions: Vec::new(),
+            stage: Stage::Usage(path.into()),
         }
-        text
     }
+
+    /// A line that names no command under the root.
+    fn find(message: impl Into<String>, path: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            suggestions: Vec::new(),
+            stage: Stage::Find(path.into()),
+        }
+    }
+
+    /// The text the binary prints for this failure, as Go writes it on stderr.
+    pub fn render(&self) -> String {
+        let error = format!("Error: {}\n", self.message);
+        match &self.stage {
+            Stage::Run => {
+                let mut text = error;
+                if !self.suggestions.is_empty() {
+                    text.push('\n');
+                    for line in &self.suggestions {
+                        text.push_str(line);
+                        text.push('\n');
+                    }
+                }
+                text
+            }
+            Stage::Usage(path) => format!("{error}{}\n{error}", help_text(path)),
+            Stage::Find(path) => format!("{error}Run '{path} --help' for usage.\n{error}"),
+        }
+    }
+}
+
+/// The help text of the command at `path` (`gorse-cli get users`), as clap
+/// prints it for `--help`. It is the usage that follows a usage error.
+fn help_text(path: &str) -> String {
+    let mut command = command();
+    for name in path.split_whitespace().skip(1) {
+        match command.find_subcommand(name).cloned() {
+            Some(sub) => command = sub,
+            None => break,
+        }
+    }
+    command.render_help().to_string()
 }
 
 /// `fatalErr`: the message, and the error after it.
@@ -137,13 +195,26 @@ pub async fn execute(
     stdin: &mut dyn BufRead,
     out: &mut dyn Write,
 ) -> Result<(), Failure> {
+    // Cobra first finds the command the line runs, then checks its flags with
+    // pflag's rules. Both report Go's errors, so a wrong line gets Go's text.
+    let tree = command();
+    let found = cli_cobra::find(&tree, args)
+        .map_err(|unknown| Failure::find(unknown.message, unknown.path))?;
+    let path = found.path();
+    let positional = cli_cobra::check_line(&tree, &found)
+        .map_err(|message| Failure::usage(message, path.clone()))?;
+    if found.command().get_name() == "context" && !positional.is_empty() {
+        // Go's `context` has no `Run` and no `Args`: a word it does not know
+        // gets its help, not an error.
+        return print_help(out, &["gorse-cli", "context"]);
+    }
     let mut words = vec!["gorse-cli".to_owned()];
     words.extend(args.iter().cloned());
     let matches = match command().try_get_matches_from(words) {
         Ok(matches) => matches,
         Err(err) => {
             if err.use_stderr() {
-                return Err(Failure::new(first_line(&err.to_string())));
+                return Err(Failure::usage(first_line(&err.to_string()), path));
             }
             out.write_all(err.to_string().as_bytes())
                 .map_err(io_failure)?;
@@ -208,13 +279,13 @@ fn is_known_child(parent: &str, child: &str) -> bool {
         .is_some_and(|parent| parent.find_subcommand(child).is_some())
 }
 
-/// Cobra's error for a word that is not a command of the one it follows.
+/// Cobra's error for a word that is not a command of the one at `path`. Its
+/// usage follows, as cobra prints it for a command that fails to run.
 fn unknown_command(word: &str, path: &str) -> Failure {
-    Failure::new(format!(
-        "unknown command {} for {}",
-        go_quote(word),
-        go_quote(path)
-    ))
+    Failure::usage(
+        format!("unknown command {} for {}", go_quote(word), go_quote(path)),
+        path,
+    )
 }
 
 /// Writes the help of the command at `path`, from the command tree.
@@ -238,12 +309,14 @@ fn check_args(args: &[String], path: &str, rule: Args) -> Result<(), Failure> {
             None => Ok(()),
             Some(word) => Err(unknown_command(word, path)),
         },
-        Args::Exact(count) if received != count => Err(Failure::new(format!(
-            "accepts {count} arg(s), received {received}"
-        ))),
-        Args::Range(min, max) if received < min || received > max => Err(Failure::new(format!(
-            "accepts between {min} and {max} arg(s), received {received}"
-        ))),
+        Args::Exact(count) if received != count => Err(Failure::usage(
+            format!("accepts {count} arg(s), received {received}"),
+            path,
+        )),
+        Args::Range(min, max) if received < min || received > max => Err(Failure::usage(
+            format!("accepts between {min} and {max} arg(s), received {received}"),
+            path,
+        )),
         _ => Ok(()),
     }
 }
@@ -306,6 +379,7 @@ fn client(run: &Run<'_>, matches: &ArgMatches, path: &str) -> Result<AdminClient
         |(message, suggestions)| Failure {
             message,
             suggestions,
+            stage: Stage::Run,
         },
     )?;
     let endpoint_missing = credentials.endpoint.is_empty();
@@ -559,7 +633,6 @@ fn page_size(matches: &ArgMatches) -> i64 {
 }
 
 async fn cluster_info(run: &mut Run<'_>, matches: &ArgMatches, path: &str) -> Result<(), Failure> {
-    check_args(&words(matches), path, Args::None)?;
     let client = client(run, matches, path)?;
     let nodes = client
         .get_cluster()
@@ -569,7 +642,6 @@ async fn cluster_info(run: &mut Run<'_>, matches: &ArgMatches, path: &str) -> Re
 }
 
 async fn stats(run: &mut Run<'_>, matches: &ArgMatches, path: &str) -> Result<(), Failure> {
-    check_args(&words(matches), path, Args::None)?;
     let client = client(run, matches, path)?;
     let stats = client
         .get_stats()
@@ -579,7 +651,6 @@ async fn stats(run: &mut Run<'_>, matches: &ArgMatches, path: &str) -> Result<()
 }
 
 async fn ps(run: &mut Run<'_>, matches: &ArgMatches, path: &str) -> Result<(), Failure> {
-    check_args(&words(matches), path, Args::None)?;
     let client = client(run, matches, path)?;
     let tasks = client
         .get_tasks()
@@ -708,7 +779,6 @@ fn context_command(
                 .map_err(io_failure)
         }
         "list" => {
-            check_args(&words(matches), path, Args::None)?;
             let names = contexts.names().map_err(|err| {
                 Failure::new(format!(
                     "failed to read contexts from the system keyring: {err}"
@@ -769,7 +839,6 @@ fn context_command(
             writeln!(run.out, "Context {} deleted.", go_quote(context)).map_err(io_failure)
         }
         _ => {
-            check_args(&words(matches), path, Args::None)?;
             let current = contexts.current_name().map_err(|err| {
                 Failure::new(format!(
                     "failed to read the current context from the system keyring: {err}"
@@ -814,7 +883,6 @@ async fn get_command(
     let words = words(matches);
     match name {
         "categories" => {
-            check_args(&words, path, Args::None)?;
             let client = client(run, matches, path)?;
             let categories = client
                 .get_categories()
@@ -832,7 +900,6 @@ async fn get_command(
             print_struct(run.out, &to_value(&user)?).map_err(io_failure)
         }
         "users" => {
-            check_args(&words, path, Args::None)?;
             let n = page_size(matches);
             let client = client(run, matches, path)?;
             let users = client
@@ -914,9 +981,11 @@ async fn get_command(
                         .feedback
                 }
             };
-            // Go's `sort.Slice` is not stable; a stable sort gives the same order
-            // whenever no two timestamps are equal.
-            feedback.sort_by_key(|record| std::cmp::Reverse(time_key(&record.timestamp)));
+            // Go's `sortFeedback`: `sort.Slice` with `Timestamp.After`, newest first.
+            // Equal timestamps keep the order pdqsort gives, not the input order.
+            gosort::slice(&mut feedback, |a, b| {
+                time_key(&a.timestamp) > time_key(&b.timestamp)
+            });
             if n > 0 && (n as usize) < feedback.len() {
                 feedback.truncate(n as usize);
             }
@@ -941,7 +1010,6 @@ async fn recommend_command(
     let categories = flag_list(matches, "category");
     match name {
         "latest" => {
-            check_args(&words, path, Args::None)?;
             let n = page_size(matches);
             let client = client(run, matches, path)?;
             let latest = client
@@ -1021,7 +1089,6 @@ async fn pipeline_command(
     let words = words(matches);
     match name {
         "get" => {
-            check_args(&words, path, Args::None)?;
             let client = client(run, matches, path)?;
             let config = client
                 .get_config()
@@ -1032,7 +1099,6 @@ async fn pipeline_command(
             write!(run.out, "{}", cli_yaml::encode(&recommend)).map_err(io_failure)
         }
         "schema" => {
-            check_args(&words, path, Args::None)?;
             let client = client(run, matches, path)?;
             let schema = client
                 .get_config_schema()
@@ -1049,20 +1115,21 @@ async fn pipeline_command(
                 .map_err(|err| fatal_err("admin API request failed", err))?;
             let (recommend_key, recommend_config) = recommend_config(&current)
                 .ok_or_else(|| Failure::new("recommend config not found"))?;
-            let mut document = recommend_config;
-            let patch: json_patch::Patch = serde_json::from_str(&words[0]).map_err(|err| {
-                fatal_err(
-                    "failed to apply JSON patch: failed to decode JSON patch",
-                    err,
-                )
+            // Go decodes the patch, applies it, then decodes the result into a map.
+            // Each step's error text is the one the library or encoding/json gives.
+            let patch = cli_jsonpatch::decode(words[0].as_bytes()).map_err(|err| {
+                Failure::new(format!(
+                    "failed to apply JSON patch: failed to decode JSON patch: {err}"
+                ))
             })?;
-            json_patch::patch(&mut document, &patch.0)
-                .map_err(|err| fatal_err("failed to apply JSON patch", err))?;
-            if !document.is_object() {
-                return Err(fatal_err(
-                    "failed to apply JSON patch: failed to decode patched config",
-                    "json: cannot unmarshal into Go value of type map[string]interface {}",
-                ));
+            let document = cli_jsonpatch::apply(&recommend_config, &patch)
+                .map_err(|err| Failure::new(format!("failed to apply JSON patch: {err}")))?;
+            // A `null` decodes into a nil map without an error.
+            if !document.is_object() && !document.is_null() {
+                return Err(Failure::new(format!(
+                    "failed to apply JSON patch: failed to decode patched config: json: cannot unmarshal {} into Go value of type map[string]interface {{}}",
+                    cli_jsonpatch::json_kind(&document)
+                )));
             }
             current.insert(recommend_key, document);
             let updated = client
@@ -1072,7 +1139,6 @@ async fn pipeline_command(
             print_struct(run.out, &Value::Object(updated)).map_err(io_failure)
         }
         _ => {
-            check_args(&words, path, Args::None)?;
             write!(
                 run.out,
                 "Reset recommendation pipeline configuration to file defaults? Current pipeline settings will be overwritten. Confirm [y/N]: "
