@@ -81,7 +81,7 @@ pub enum Node {
 /// One mix of nodes: the master, the server and the worker of a leg.
 #[derive(Debug, Clone, Copy)]
 pub struct Mix {
-    label: &'static str,
+    pub label: &'static str,
     master: Node,
     server: Node,
     worker: Node,
@@ -292,9 +292,10 @@ pub fn check_suite(label: &str, run: &SuiteRun) -> Result<()> {
     }
 }
 
-/// Runs one leg: the nodes, the setup, and the suite. The cluster stops when it
-/// drops, at the end of the leg.
-pub async fn run_leg(mix: Mix) -> Result<SuiteRun> {
+/// Starts the nodes of one leg, restores the MovieLens 100k dump, restarts the master
+/// and waits for the training. The cluster stops when it drops, so the caller keeps it
+/// for as long as the leg's tests need the nodes.
+pub async fn start_leg(mix: Mix) -> Result<Cluster> {
     let go = GoBuild::shared()?;
     RustBuild::shared()?;
     let config = repo_root().join("client/config.toml");
@@ -312,7 +313,13 @@ pub async fn run_leg(mix: Mix) -> Result<SuiteRun> {
     cluster.stop_master();
     start_master(&mut cluster, mix.master).await?;
     wait_for_training(cluster.ports.master_http, mix.label).await?;
+    Ok(cluster)
+}
 
+/// Runs one leg: the nodes, the setup, and the suite. The cluster stops when it drops,
+/// at the end of the leg.
+pub async fn run_leg(mix: Mix) -> Result<SuiteRun> {
+    let cluster = start_leg(mix).await?;
     run_suite(cluster.ports.server_http, cluster.ports.master_http)
 }
 

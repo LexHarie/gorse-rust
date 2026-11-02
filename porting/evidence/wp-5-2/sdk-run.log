@@ -1,0 +1,572 @@
+     Running tests/sdk.rs (target/debug/deps/sdk-f7e3729365161f72)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/server_http_surface.rs (target/debug/deps/server_http_surface-c87c6e546e7881f8)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/sparse_oracle.rs (target/debug/deps/sparse_oracle-76a64a8138e50e45)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/vector_cross_read.rs (target/debug/deps/vector_cross_read-74863b05e581953a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+MIXED_EXIT=0
+STAMP_BEGIN
+   Compiling ring v0.17.14
+   Compiling rustls v0.23.46 (/home/user/gorse-rust/third_party/rustls)
+   Compiling rustls-webpki v0.103.16
+   Compiling tokio-rustls v0.26.6
+   Compiling rustls-platform-verifier v0.7.1
+   Compiling sqlx-core v0.9.0
+   Compiling hyper-rustls v0.27.10
+   Compiling reqwest v0.13.5
+   Compiling tonic v0.14.6
+   Compiling redis v1.8.0
+   Compiling sqlx-mysql v0.9.0
+   Compiling tonic-prost v0.14.6
+   Compiling gorse-protocol v0.0.0 (/home/user/gorse-rust/crates/gorse-protocol)
+   Compiling sqlx-postgres v0.9.0
+   Compiling sqlx-sqlite v0.9.0
+   Compiling gorse-common v0.0.0 (/home/user/gorse-rust/crates/gorse-common)
+   Compiling qdrant-client v1.20.0
+   Compiling sqlx v0.9.0
+   Compiling object_store v0.14.2
+   Compiling gorse-expr v0.0.0 (/home/user/gorse-rust/crates/gorse-expr)
+   Compiling gorse-storage-core v0.0.0 (/home/user/gorse-rust/crates/gorse-storage-core)
+   Compiling gorse-model-core v0.0.0 (/home/user/gorse-rust/crates/gorse-model-core)
+   Compiling gorse-config v0.0.0 (/home/user/gorse-rust/crates/gorse-config)
+   Compiling mongodb v3.9.1 (/home/user/gorse-rust/third_party/mongodb-3.9.1)
+   Compiling reqwest v0.12.28
+   Compiling gorse_rs v0.5.0 (/home/user/gorse-rust/third_party/gorse-rs)
+   Compiling gorse-client v0.0.0 (/home/user/gorse-rust/crates/gorse-client)
+   Compiling oauth2 v5.0.0
+   Compiling openidconnect v4.0.1
+   Compiling gorse-storage v0.0.0 (/home/user/gorse-rust/crates/gorse-storage)
+   Compiling gorse-dataset v0.0.0 (/home/user/gorse-rust/crates/gorse-dataset)
+   Compiling gorse-logics v0.0.0 (/home/user/gorse-rust/crates/gorse-logics)
+   Compiling gorse-model v0.0.0 (/home/user/gorse-rust/crates/gorse-model)
+   Compiling gorse-server v0.0.0 (/home/user/gorse-rust/crates/gorse-server)
+   Compiling gorse-worker v0.0.0 (/home/user/gorse-rust/crates/gorse-worker)
+   Compiling gorse-master v0.0.0 (/home/user/gorse-rust/crates/gorse-master)
+   Compiling gorse-conformance v0.0.0 (/home/user/gorse-rust/conformance)
+    Finished `test` profile [unoptimized] target(s) in 1m 01s
+     Running unittests src/lib.rs (target/debug/deps/gorse_conformance-e77f55057de0ae13)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 21 filtered out; finished in 0.00s
+
+     Running unittests src/bin/proxy_peer.rs (target/debug/deps/proxy_peer-ca5aa584a5123205)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/bench_golden.rs (target/debug/deps/bench_golden-37a5dc6fc33815ae)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/cf_golden.rs (target/debug/deps/cf_golden-fb7846778599301f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/ctr_replay.rs (target/debug/deps/ctr_replay-80d864e68509f1a4)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/go_decode.rs (target/debug/deps/go_decode-f4c393197714ccb6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/go_printable.rs (target/debug/deps/go_printable-22ef95a0db9392e5)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/go_xmlname.rs (target/debug/deps/go_xmlname-e542fa5ca5b4cd39)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/item_to_item_oracle.rs (target/debug/deps/item_to_item_oracle-323d22ee5ed51e50)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/master_http_surface.rs (target/debug/deps/master_http_surface-1f4c7aa209ff908a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/metrics.rs (target/debug/deps/metrics-bec5523f922a28f8)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.00s
+
+     Running tests/mixed_cli.rs (target/debug/deps/mixed_cli-a7c9e542011292b0)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/mixed_cluster.rs (target/debug/deps/mixed_cluster-9ddcee7a535fce7d)
+
+running 1 test
+test stamp_seconds_reads_the_masters_stamps ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/mixed_cmd.rs (target/debug/deps/mixed_cmd-f7429a3e32917cb1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/mixed_master.rs (target/debug/deps/mixed_master-40fac7fad8f9fdc3)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests/mixed_master_rest.rs (target/debug/deps/mixed_master_rest-8cabcb475a5c2c17)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests/mixed_server.rs (target/debug/deps/mixed_server-7ff9eb4e1b174ad4)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests/mixed_worker.rs (target/debug/deps/mixed_worker-93094b2a6bcb97f3)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/monitor_empty_list.rs (target/debug/deps/monitor_empty_list-ff2b9a38c03d2ea1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/playground_restore.rs (target/debug/deps/playground_restore-76a624654660d143)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/proxy_wire.rs (target/debug/deps/proxy_wire-ffe044a304fed9ff)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests/recommend_oracle.rs (target/debug/deps/recommend_oracle-c16fdfaf0074aad9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/recommend_tie_go.rs (target/debug/deps/recommend_tie_go-875d025e2f689f84)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/schema.rs (target/debug/deps/schema-47c84dd3efdd0bed)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+     Running tests/sdk.rs (target/debug/deps/sdk-f7e3729365161f72)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/server_http_surface.rs (target/debug/deps/server_http_surface-c87c6e546e7881f8)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/sparse_oracle.rs (target/debug/deps/sparse_oracle-76a64a8138e50e45)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/vector_cross_read.rs (target/debug/deps/vector_cross_read-74863b05e581953a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+STAMP_EXIT=0
+FMT_BEGIN
+FMT_EXIT=0
+CLIPPY_BEGIN
+    Checking ring v0.17.14
+    Checking rustls-webpki v0.103.16
+    Checking rustls v0.23.46 (/home/user/gorse-rust/third_party/rustls)
+    Checking tokio-rustls v0.26.6
+    Checking rustls-platform-verifier v0.7.1
+    Checking sqlx-core v0.9.0
+    Checking hyper-rustls v0.27.10
+    Checking tonic v0.14.6
+    Checking mongodb v3.9.1 (/home/user/gorse-rust/third_party/mongodb-3.9.1)
+    Checking reqwest v0.13.5
+    Checking object_store v0.14.2
+    Checking tonic-prost v0.14.6
+    Checking gorse-protocol v0.0.0 (/home/user/gorse-rust/crates/gorse-protocol)
+    Checking sqlx-mysql v0.9.0
+    Checking sqlx-postgres v0.9.0
+    Checking gorse-common v0.0.0 (/home/user/gorse-rust/crates/gorse-common)
+    Checking sqlx-sqlite v0.9.0
+    Checking sqlx v0.9.0
+    Checking qdrant-client v1.20.0
+    Checking redis v1.8.0
+    Checking gorse-expr v0.0.0 (/home/user/gorse-rust/crates/gorse-expr)
+    Checking gorse-storage-core v0.0.0 (/home/user/gorse-rust/crates/gorse-storage-core)
+    Checking gorse-config v0.0.0 (/home/user/gorse-rust/crates/gorse-config)
+    Checking gorse-model-core v0.0.0 (/home/user/gorse-rust/crates/gorse-model-core)
+    Checking reqwest v0.12.28
+    Checking oauth2 v5.0.0
+    Checking openidconnect v4.0.1
+    Checking gorse-client v0.0.0 (/home/user/gorse-rust/crates/gorse-client)
+    Checking gorse_rs v0.5.0 (/home/user/gorse-rust/third_party/gorse-rs)
+    Checking gorse-storage v0.0.0 (/home/user/gorse-rust/crates/gorse-storage)
+    Checking gorse-dataset v0.0.0 (/home/user/gorse-rust/crates/gorse-dataset)
+    Checking gorse-logics v0.0.0 (/home/user/gorse-rust/crates/gorse-logics)
+    Checking gorse-model v0.0.0 (/home/user/gorse-rust/crates/gorse-model)
+    Checking gorse-server v0.0.0 (/home/user/gorse-rust/crates/gorse-server)
+    Checking gorse-worker v0.0.0 (/home/user/gorse-rust/crates/gorse-worker)
+    Checking gorse-master v0.0.0 (/home/user/gorse-rust/crates/gorse-master)
+    Checking gorse-conformance v0.0.0 (/home/user/gorse-rust/conformance)
+    Checking gorse-cmd v0.0.0 (/home/user/gorse-rust/crates/gorse-cmd)
+    Finished `dev` profile [unoptimized] target(s) in 26.57s
+CLIPPY_EXIT=0
+DOC_BEGIN
+warning: output filename collision at /home/user/gorse-rust/target/doc/gorse_master/index.html
+  |
+  = note: the lib target `gorse_master` in package `gorse-master v0.0.0 (/home/user/gorse-rust/crates/gorse-master)` has the same output filename as the bin target `gorse-master` in package `gorse-cmd v0.0.0 (/home/user/gorse-rust/crates/gorse-cmd)`
+  = note: if this looks unexpected, it may be a bug in Cargo. Please file a bug report at https://github.com/rust-lang/cargo/issues/ with as much information as you can provide.
+  = note: cargo 1.99.1 (5f94df478 2026-08-27) running on `x86_64-unknown-linux-gnu` target `x86_64-unknown-linux-gnu`
+  = note: first unit: Unit { pkg: Package { id: PackageId { name: "gorse-master", version: "0.0.0", source: "/home/user/gorse-rust/crates/gorse-master" }, ..: ".." }, target: TargetInner { name_inferred: true, ..: lib_target("gorse_master", ["lib"], "/home/user/gorse-rust/crates/gorse-master/src/lib.rs", Edition2024) }, profile: Profile { debuginfo: Resolved(None), incremental: false, strip: Resolved(Named("debuginfo")), ..: default_dev() }, kind: Host, mode: Doc, features: [], rustflags: [], rustdocflags: ["-D", "warnings"], links_overrides: {}, artifact: false, artifact_target_for_features: None, is_std: false, dep_hash: 2138639678090627369 }
+  = note: second unit: Unit { pkg: Package { id: PackageId { name: "gorse-cmd", version: "0.0.0", source: "/home/user/gorse-rust/crates/gorse-cmd" }, ..: ".." }, target: TargetInner { name: "gorse-master", doc: true, ..: with_path("/home/user/gorse-rust/crates/gorse-cmd/src/bin/gorse-master.rs", Edition2024) }, profile: Profile { debuginfo: Resolved(None), incremental: false, strip: Resolved(Named("debuginfo")), ..: default_dev() }, kind: Host, mode: Doc, features: [], rustflags: [], rustdocflags: ["-D", "warnings"], links_overrides: {}, artifact: false, artifact_target_for_features: None, is_std: false, dep_hash: 3233297393183760443 }
+warning: output filename collision at /home/user/gorse-rust/target/doc/gorse_server/index.html
+  |
+  = note: the lib target `gorse_server` in package `gorse-server v0.0.0 (/home/user/gorse-rust/crates/gorse-server)` has the same output filename as the bin target `gorse-server` in package `gorse-cmd v0.0.0 (/home/user/gorse-rust/crates/gorse-cmd)`
+  = note: if this looks unexpected, it may be a bug in Cargo. Please file a bug report at https://github.com/rust-lang/cargo/issues/ with as much information as you can provide.
+  = note: cargo 1.99.1 (5f94df478 2026-08-27) running on `x86_64-unknown-linux-gnu` target `x86_64-unknown-linux-gnu`
+  = note: first unit: Unit { pkg: Package { id: PackageId { name: "gorse-server", version: "0.0.0", source: "/home/user/gorse-rust/crates/gorse-server" }, ..: ".." }, target: TargetInner { name_inferred: true, ..: lib_target("gorse_server", ["lib"], "/home/user/gorse-rust/crates/gorse-server/src/lib.rs", Edition2024) }, profile: Profile { debuginfo: Resolved(None), incremental: false, strip: Resolved(Named("debuginfo")), ..: default_dev() }, kind: Host, mode: Doc, features: [], rustflags: [], rustdocflags: ["-D", "warnings"], links_overrides: {}, artifact: false, artifact_target_for_features: None, is_std: false, dep_hash: 7076896187679659765 }
+  = note: second unit: Unit { pkg: Package { id: PackageId { name: "gorse-cmd", version: "0.0.0", source: "/home/user/gorse-rust/crates/gorse-cmd" }, ..: ".." }, target: TargetInner { name: "gorse-server", doc: true, ..: with_path("/home/user/gorse-rust/crates/gorse-cmd/src/bin/gorse-server.rs", Edition2024) }, profile: Profile { debuginfo: Resolved(None), incremental: false, strip: Resolved(Named("debuginfo")), ..: default_dev() }, kind: Host, mode: Doc, features: [], rustflags: [], rustdocflags: ["-D", "warnings"], links_overrides: {}, artifact: false, artifact_target_for_features: None, is_std: false, dep_hash: 3233297393183760443 }
+warning: output filename collision at /home/user/gorse-rust/target/doc/gorse_worker/index.html
+  |
+  = note: the lib target `gorse_worker` in package `gorse-worker v0.0.0 (/home/user/gorse-rust/crates/gorse-worker)` has the same output filename as the bin target `gorse-worker` in package `gorse-cmd v0.0.0 (/home/user/gorse-rust/crates/gorse-cmd)`
+  = note: if this looks unexpected, it may be a bug in Cargo. Please file a bug report at https://github.com/rust-lang/cargo/issues/ with as much information as you can provide.
+  = note: cargo 1.99.1 (5f94df478 2026-08-27) running on `x86_64-unknown-linux-gnu` target `x86_64-unknown-linux-gnu`
+  = note: first unit: Unit { pkg: Package { id: PackageId { name: "gorse-worker", version: "0.0.0", source: "/home/user/gorse-rust/crates/gorse-worker" }, ..: ".." }, target: TargetInner { name_inferred: true, ..: lib_target("gorse_worker", ["lib"], "/home/user/gorse-rust/crates/gorse-worker/src/lib.rs", Edition2024) }, profile: Profile { debuginfo: Resolved(None), incremental: false, strip: Resolved(Named("debuginfo")), ..: default_dev() }, kind: Host, mode: Doc, features: [], rustflags: [], rustdocflags: ["-D", "warnings"], links_overrides: {}, artifact: false, artifact_target_for_features: None, is_std: false, dep_hash: 10015609215875545155 }
+  = note: second unit: Unit { pkg: Package { id: PackageId { name: "gorse-cmd", version: "0.0.0", source: "/home/user/gorse-rust/crates/gorse-cmd" }, ..: ".." }, target: TargetInner { name: "gorse-worker", doc: true, ..: with_path("/home/user/gorse-rust/crates/gorse-cmd/src/bin/gorse-worker.rs", Edition2024) }, profile: Profile { debuginfo: Resolved(None), incremental: false, strip: Resolved(Named("debuginfo")), ..: default_dev() }, kind: Host, mode: Doc, features: [], rustflags: [], rustdocflags: ["-D", "warnings"], links_overrides: {}, artifact: false, artifact_target_for_features: None, is_std: false, dep_hash: 3233297393183760443 }
+    Checking gorse-protocol v0.0.0 (/home/user/gorse-rust/crates/gorse-protocol)
+    Checking gorse-client v0.0.0 (/home/user/gorse-rust/crates/gorse-client)
+ Documenting gorse-protocol v0.0.0 (/home/user/gorse-rust/crates/gorse-protocol)
+ Documenting gorse-client v0.0.0 (/home/user/gorse-rust/crates/gorse-client)
+    Checking gorse-common v0.0.0 (/home/user/gorse-rust/crates/gorse-common)
+ Documenting gorse-common v0.0.0 (/home/user/gorse-rust/crates/gorse-common)
+    Checking gorse-storage-core v0.0.0 (/home/user/gorse-rust/crates/gorse-storage-core)
+    Checking gorse-expr v0.0.0 (/home/user/gorse-rust/crates/gorse-expr)
+    Checking gorse-model-core v0.0.0 (/home/user/gorse-rust/crates/gorse-model-core)
+ Documenting gorse-storage-core v0.0.0 (/home/user/gorse-rust/crates/gorse-storage-core)
+ Documenting gorse-model-core v0.0.0 (/home/user/gorse-rust/crates/gorse-model-core)
+ Documenting gorse-expr v0.0.0 (/home/user/gorse-rust/crates/gorse-expr)
+    Checking gorse-config v0.0.0 (/home/user/gorse-rust/crates/gorse-config)
+ Documenting gorse-config v0.0.0 (/home/user/gorse-rust/crates/gorse-config)
+    Checking gorse-storage v0.0.0 (/home/user/gorse-rust/crates/gorse-storage)
+ Documenting gorse-storage v0.0.0 (/home/user/gorse-rust/crates/gorse-storage)
+    Checking gorse-dataset v0.0.0 (/home/user/gorse-rust/crates/gorse-dataset)
+ Documenting gorse-dataset v0.0.0 (/home/user/gorse-rust/crates/gorse-dataset)
+    Checking gorse-logics v0.0.0 (/home/user/gorse-rust/crates/gorse-logics)
+    Checking gorse-model v0.0.0 (/home/user/gorse-rust/crates/gorse-model)
+ Documenting gorse-logics v0.0.0 (/home/user/gorse-rust/crates/gorse-logics)
+    Checking gorse-server v0.0.0 (/home/user/gorse-rust/crates/gorse-server)
+    Checking gorse-worker v0.0.0 (/home/user/gorse-rust/crates/gorse-worker)
+ Documenting gorse-worker v0.0.0 (/home/user/gorse-rust/crates/gorse-worker)
+ Documenting gorse-server v0.0.0 (/home/user/gorse-rust/crates/gorse-server)
+ Documenting gorse-model v0.0.0 (/home/user/gorse-rust/crates/gorse-model)
+    Checking gorse-master v0.0.0 (/home/user/gorse-rust/crates/gorse-master)
+ Documenting gorse-master v0.0.0 (/home/user/gorse-rust/crates/gorse-master)
+    Checking gorse-cmd v0.0.0 (/home/user/gorse-rust/crates/gorse-cmd)
+ Documenting gorse-cmd v0.0.0 (/home/user/gorse-rust/crates/gorse-cmd)
+    Checking gorse-conformance v0.0.0 (/home/user/gorse-rust/conformance)
+ Documenting gorse-conformance v0.0.0 (/home/user/gorse-rust/conformance)
+    Finished `dev` profile [unoptimized] target(s) in 21.18s
+   Generated /home/user/gorse-rust/target/doc/gorse_client/index.html and 23 other files
+DOC_EXIT=0
+SDK_BEGIN
+    Finished `test` profile [unoptimized] target(s) in 0.23s
+     Running unittests src/lib.rs (target/debug/deps/gorse_conformance-e77f55057de0ae13)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 21 filtered out; finished in 0.00s
+
+     Running unittests src/bin/proxy_peer.rs (target/debug/deps/proxy_peer-ca5aa584a5123205)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/bench_golden.rs (target/debug/deps/bench_golden-37a5dc6fc33815ae)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/cf_golden.rs (target/debug/deps/cf_golden-fb7846778599301f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/ctr_replay.rs (target/debug/deps/ctr_replay-80d864e68509f1a4)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/go_decode.rs (target/debug/deps/go_decode-f4c393197714ccb6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/go_printable.rs (target/debug/deps/go_printable-22ef95a0db9392e5)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/go_xmlname.rs (target/debug/deps/go_xmlname-e542fa5ca5b4cd39)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/item_to_item_oracle.rs (target/debug/deps/item_to_item_oracle-323d22ee5ed51e50)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/master_http_surface.rs (target/debug/deps/master_http_surface-1f4c7aa209ff908a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/metrics.rs (target/debug/deps/metrics-bec5523f922a28f8)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.00s
+
+     Running tests/mixed_cli.rs (target/debug/deps/mixed_cli-a7c9e542011292b0)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/mixed_cluster.rs (target/debug/deps/mixed_cluster-9ddcee7a535fce7d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+     Running tests/mixed_cmd.rs (target/debug/deps/mixed_cmd-f7429a3e32917cb1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/mixed_master.rs (target/debug/deps/mixed_master-40fac7fad8f9fdc3)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests/mixed_master_rest.rs (target/debug/deps/mixed_master_rest-8cabcb475a5c2c17)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests/mixed_server.rs (target/debug/deps/mixed_server-7ff9eb4e1b174ad4)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests/mixed_worker.rs (target/debug/deps/mixed_worker-93094b2a6bcb97f3)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/monitor_empty_list.rs (target/debug/deps/monitor_empty_list-ff2b9a38c03d2ea1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/playground_restore.rs (target/debug/deps/playground_restore-76a624654660d143)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/proxy_wire.rs (target/debug/deps/proxy_wire-ffe044a304fed9ff)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests/recommend_oracle.rs (target/debug/deps/recommend_oracle-c16fdfaf0074aad9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/recommend_tie_go.rs (target/debug/deps/recommend_tie_go-875d025e2f689f84)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/schema.rs (target/debug/deps/schema-47c84dd3efdd0bed)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+     Running tests/sdk.rs (target/debug/deps/sdk-f7e3729365161f72)
+
+running 5 tests
+test sdk_all_rust ... Rust master, Rust workers, Rust servers: master Rust, server Rust, worker Rust
+Rust master, Rust workers, Rust servers: the master's tasks finished 11.9 s after the restart:
+  [master] Load Dataset: Complete (start 2026-11-02T02:42:28.293898923Z, finish 2026-11-02T02:42:35.268676074Z)
+  [master] Generate user-to-user recommendation: Complete (start 2026-11-02T02:42:35.268702692Z, finish 2026-11-02T02:42:35.320620058Z)
+  [master] Generate item-to-item recommendation: Complete (start 2026-11-02T02:42:35.320657315Z, finish 2026-11-02T02:42:36.126110325Z)
+  [master] Train Collaborative Filtering Model: Complete (start 2026-11-02T02:42:36.126132129Z, finish 2026-11-02T02:42:40.132892411Z)
+  [master] Collect Garbage in Cache: Complete (start 2026-11-02T02:42:40.132900072Z, finish 2026-11-02T02:42:40.138174954Z)
+Rust master, Rust workers, Rust servers: the SDK suite ran 6 tests and all passed
+ok
+test sdk_go_master_rust_workers_go_servers ... Go master, Rust workers, Go servers: master Go, server Go, worker Rust
+Go master, Rust workers, Go servers: the master's tasks finished 4.1 s after the restart:
+  [master] Load Dataset: Complete (start 2026-11-02T02:42:54.763752633Z, finish 2026-11-02T02:42:56.570734222Z)
+  [master] Generate user-to-user recommendation: Complete (start 2026-11-02T02:42:56.570735692Z, finish 2026-11-02T02:42:56.670271476Z)
+  [master] Generate item-to-item recommendation: Complete (start 2026-11-02T02:42:56.670272585Z, finish 2026-11-02T02:42:57.571016186Z)
+  [master] Train Collaborative Filtering Model: Complete (start 2026-11-02T02:42:57.571017524Z, finish 2026-11-02T02:42:58.711375443Z)
+  [master] Collect Garbage in Cache: Complete (start 2026-11-02T02:42:58.711379742Z, finish 2026-11-02T02:42:58.712334076Z)
+Go master, Rust workers, Go servers: the SDK suite ran 6 tests and all passed
+ok
+test sdk_go_master_rust_workers_rust_servers ... Go master, Rust workers, Rust servers: master Go, server Rust, worker Rust
+Go master, Rust workers, Rust servers: the master's tasks finished 4.1 s after the restart:
+  [master] Load Dataset: Complete (start 2026-11-02T02:43:12.279065639Z, finish 2026-11-02T02:43:14.019445132Z)
+  [master] Generate user-to-user recommendation: Complete (start 2026-11-02T02:43:14.019446305Z, finish 2026-11-02T02:43:14.119915675Z)
+  [master] Generate item-to-item recommendation: Complete (start 2026-11-02T02:43:14.119916657Z, finish 2026-11-02T02:43:15.043097113Z)
+  [master] Train Collaborative Filtering Model: Complete (start 2026-11-02T02:43:15.043098101Z, finish 2026-11-02T02:43:16.195504377Z)
+  [master] Collect Garbage in Cache: Complete (start 2026-11-02T02:43:16.195505456Z, finish 2026-11-02T02:43:16.196465524Z)
+Go master, Rust workers, Rust servers: the SDK suite ran 6 tests and all passed
+ok
+test sdk_rs_suite_all_go ... all Go (baseline): master Go, server Go, worker Go
+all Go (baseline): the master's tasks finished 4.1 s after the restart:
+  [master] Load Dataset: Complete (start 2026-11-02T02:43:29.981775981Z, finish 2026-11-02T02:43:31.719595799Z)
+  [master] Generate user-to-user recommendation: Complete (start 2026-11-02T02:43:31.719596738Z, finish 2026-11-02T02:43:31.832665395Z)
+  [master] Generate item-to-item recommendation: Complete (start 2026-11-02T02:43:31.83266618Z, finish 2026-11-02T02:43:32.75935228Z)
+  [master] Train Collaborative Filtering Model: Complete (start 2026-11-02T02:43:32.759353505Z, finish 2026-11-02T02:43:33.90384464Z)
+  [master] Collect Garbage in Cache: Complete (start 2026-11-02T02:43:33.903845613Z, finish 2026-11-02T02:43:33.904912921Z)
+all Go (baseline): gorse_rs blocking::test_feedback passed
+all Go (baseline): gorse_rs blocking::test_item_to_item passed
+all Go (baseline): gorse_rs blocking::test_items passed
+all Go (baseline): gorse_rs blocking::test_recommend passed
+all Go (baseline): gorse_rs blocking::test_users passed
+all Go (baseline): gorse_rs test_feedback passed
+all Go (baseline): gorse_rs test_item_to_item passed
+all Go (baseline): gorse_rs test_items passed
+all Go (baseline): gorse_rs test_recommend passed
+all Go (baseline): gorse_rs test_recommend_with_multiple_categories passed
+all Go (baseline): gorse_rs test_users passed
+all Go (baseline): the gorse_rs suite ran 11 tests and all passed
+ok
+test sdk_rs_suite_all_rust ... Rust master, Rust workers, Rust servers: master Rust, server Rust, worker Rust
+Rust master, Rust workers, Rust servers: the master's tasks finished 11.7 s after the restart:
+  [master] Load Dataset: Complete (start 2026-11-02T02:44:02.318570863Z, finish 2026-11-02T02:44:09.030567439Z)
+  [master] Generate user-to-user recommendation: Complete (start 2026-11-02T02:44:09.030594654Z, finish 2026-11-02T02:44:09.081996597Z)
+  [master] Generate item-to-item recommendation: Complete (start 2026-11-02T02:44:09.082023377Z, finish 2026-11-02T02:44:09.896426579Z)
+  [master] Train Collaborative Filtering Model: Complete (start 2026-11-02T02:44:09.896451383Z, finish 2026-11-02T02:44:13.913909134Z)
+  [master] Collect Garbage in Cache: Complete (start 2026-11-02T02:44:13.913917376Z, finish 2026-11-02T02:44:13.919900212Z)
+Rust master, Rust workers, Rust servers: gorse_rs blocking::test_feedback passed
+Rust master, Rust workers, Rust servers: gorse_rs blocking::test_item_to_item passed
+Rust master, Rust workers, Rust servers: gorse_rs blocking::test_items passed
+Rust master, Rust workers, Rust servers: gorse_rs blocking::test_recommend passed
+Rust master, Rust workers, Rust servers: gorse_rs blocking::test_users passed
+Rust master, Rust workers, Rust servers: gorse_rs test_feedback passed
+Rust master, Rust workers, Rust servers: gorse_rs test_item_to_item passed
+Rust master, Rust workers, Rust servers: gorse_rs test_items passed
+Rust master, Rust workers, Rust servers: gorse_rs test_recommend passed
+Rust master, Rust workers, Rust servers: gorse_rs test_recommend_with_multiple_categories passed
+Rust master, Rust workers, Rust servers: gorse_rs test_users passed
+Rust master, Rust workers, Rust servers: the gorse_rs suite ran 11 tests and all passed
+ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 184.38s
+
+     Running tests/server_http_surface.rs (target/debug/deps/server_http_surface-c87c6e546e7881f8)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/sparse_oracle.rs (target/debug/deps/sparse_oracle-76a64a8138e50e45)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/vector_cross_read.rs (target/debug/deps/vector_cross_read-74863b05e581953a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+SDK_EXIT=0
