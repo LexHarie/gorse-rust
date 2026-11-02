@@ -98,3 +98,86 @@ async fn proxy_data_matches_go_transcript() {
     let channel = connect(router).await;
     assert_eq!(proxy_scenario::data_section(channel).await, golden("d."));
 }
+
+/// Serves a data store with two items of 3 MiB each, so that their
+/// `get_latest_items` reply is about 6 MiB. The temporary directory holds the
+/// database, so the caller keeps it alive.
+#[cfg(all(feature = "mysql", feature = "postgres", feature = "sqlite"))]
+async fn large_items_channel() -> (Channel, tempfile::TempDir) {
+    use gorse_common::gocontext::Context;
+    use gorse_common::gotime;
+    use gorse_storage::data::proxy::ProxyServer;
+    use gorse_storage::data::types::Item;
+    use gorse_storage::data::{self, Registry, sql};
+
+    let dir = tempfile::tempdir().expect("temp dir");
+    let mut registry = Registry::default();
+    sql::register(&mut registry);
+    let path = format!("sqlite://{}/data.db", dir.path().display());
+    let backend: Arc<dyn data::Database> =
+        Arc::from(registry.open(&path, "gorse_", &[]).await.expect("open"));
+    backend.init().await.expect("init");
+    let comment = "x".repeat(3 << 20);
+    let items: Vec<Item> = ["i1", "i2"]
+        .into_iter()
+        .map(|item_id| Item {
+            item_id: item_id.into(),
+            timestamp: gotime::unix(1704164645, 0).utc(),
+            comment: comment.clone(),
+            ..Default::default()
+        })
+        .collect();
+    backend
+        .batch_insert_items(&Context::background(), &items)
+        .await
+        .expect("insert the items");
+    let router = Server::builder().add_service(ProxyServer::new(backend).into_service());
+    (connect(router).await, dir)
+}
+
+/// Go's client refuses a reply over its receive limit, 4 MiB by default, with
+/// `ResourceExhausted` and `grpc: received message larger than max (N vs.
+/// 4194304)`, where N is the reply's size. The Rust client must refuse the
+/// 6 MiB reply with the same code and text.
+#[cfg(all(feature = "mysql", feature = "postgres", feature = "sqlite"))]
+#[tokio::test]
+async fn proxy_oversized_reply_is_refused_as_go_refuses_it() {
+    use gorse_common::gocontext::Context;
+    use gorse_storage::data::Database as _;
+    use gorse_storage::data::proxy::ProxyClient;
+
+    let (channel, _dir) = large_items_channel().await;
+    let text = match ProxyClient::new(channel)
+        .get_latest_items(&Context::background(), 10, &[], None)
+        .await
+    {
+        Ok(_) => panic!("a reply over 4 MiB was accepted"),
+        Err(err) => err.to_string(),
+    };
+    let size = text
+        .strip_prefix(
+            "rpc error: code = ResourceExhausted desc = grpc: received message larger than max (",
+        )
+        .and_then(|rest| rest.strip_suffix(" vs. 4194304)"))
+        .unwrap_or_else(|| panic!("unexpected error: {text}"));
+    let size: usize = size.parse().expect("the reply's size");
+    assert!(size >= 6 << 20, "the reply is {size} bytes");
+}
+
+/// Go's worker raises its receive limit to 512 MiB on every call of its
+/// connection, so the same 6 MiB reply reaches a worker's proxy client.
+#[cfg(all(feature = "mysql", feature = "postgres", feature = "sqlite"))]
+#[tokio::test]
+async fn proxy_worker_client_accepts_a_reply_under_512_mib() {
+    use gorse_common::gocontext::Context;
+    use gorse_storage::data::Database as _;
+    use gorse_storage::data::proxy::ProxyClient;
+
+    let (channel, _dir) = large_items_channel().await;
+    let items = ProxyClient::new(channel)
+        .max_decoding_message_size(512 << 20)
+        .get_latest_items(&Context::background(), 10, &[], None)
+        .await
+        .expect("the worker's limit admits the reply");
+    assert_eq!(items.len(), 2);
+}

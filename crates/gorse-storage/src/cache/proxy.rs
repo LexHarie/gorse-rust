@@ -325,6 +325,13 @@ impl ProxyClient {
         }
     }
 
+    /// The largest reply this client accepts, as Go's `MaxCallRecvMsgSize`
+    /// sets it. Without it the limit is tonic's 4 MiB, which is Go's default.
+    pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+        self.client = self.client.max_decoding_message_size(limit);
+        self
+    }
+
     /// A client for the proxy suite: `ping` and `purge` reach `backend` directly,
     /// as Go's `ProxyTestSuite.SetupTest` does (see the data store's client).
     #[cfg(all(test, feature = "sqlite"))]

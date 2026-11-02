@@ -124,10 +124,34 @@ impl std::error::Error for RpcError {}
 
 /// A status a Go client receives as an error.
 pub(crate) fn rpc_error(status: Status) -> RpcError {
+    if let Some((len, limit)) = oversized_reply(&status) {
+        return RpcError {
+            code: tonic::Code::ResourceExhausted,
+            message: format!("grpc: received message larger than max ({len} vs. {limit})"),
+        };
+    }
     RpcError {
         code: status.code(),
         message: status.message().to_owned(),
     }
+}
+
+/// The length and the limit of a reply that the client's decoder refused for
+/// its size. tonic reports it as `OutOfRange` with `Error, decoded message
+/// length too large: found <len> bytes, the limit is: <limit> bytes`
+/// (tonic 0.14.6, `codec/decode.rs`). Go's client refuses the same reply with
+/// `ResourceExhausted` and `grpc: received message larger than max (<len> vs.
+/// <limit>)` (grpc-go, `rpc_util.go`), so the status is translated to Go's.
+fn oversized_reply(status: &Status) -> Option<(usize, usize)> {
+    if status.code() != tonic::Code::OutOfRange {
+        return None;
+    }
+    let rest = status
+        .message()
+        .strip_prefix("Error, decoded message length too large: found ")?;
+    let (len, rest) = rest.split_once(" bytes, the limit is: ")?;
+    let limit = rest.strip_suffix(" bytes")?;
+    Some((len.parse().ok()?, limit.parse().ok()?))
 }
 
 /// Go's `codes.Code.String()`, which spells `Canceled` with one `l`.
@@ -989,6 +1013,13 @@ impl ProxyClient {
         }
     }
 
+    /// The largest reply this client accepts, as Go's `MaxCallRecvMsgSize`
+    /// sets it. Without it the limit is tonic's 4 MiB, which is Go's default.
+    pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+        self.client = self.client.max_decoding_message_size(limit);
+        self
+    }
+
     /// A client for the proxy suite: `ping` and `purge` reach `backend` directly,
     /// as Go's `ProxyTestSuite.SetupTest` does, and every other call goes over
     /// the channel.
@@ -1545,6 +1576,27 @@ fn backend_encoding(err: serde_json::Error) -> Error {
 mod tests {
     use super::super::types::{MAX_NESTING_DEPTH, nested_labels};
     use super::*;
+
+    #[test]
+    fn oversized_reply_is_refused_with_go_code_and_text() {
+        // tonic's decoder text for a 5 MiB reply against the 4 MiB limit.
+        let status = Status::out_of_range(
+            "Error, decoded message length too large: found 5242881 bytes, the limit is: 4194304 bytes",
+        );
+        assert_eq!(
+            rpc_error(status).to_string(),
+            "rpc error: code = ResourceExhausted desc = grpc: received message larger than max (5242881 vs. 4194304)"
+        );
+    }
+
+    #[test]
+    fn other_statuses_keep_their_code_and_text() {
+        let status = Status::out_of_range("Error, decoded message length too large: found x bytes");
+        assert_eq!(
+            rpc_error(status).to_string(),
+            "rpc error: code = OutOfRange desc = Error, decoded message length too large: found x bytes"
+        );
+    }
 
     #[test]
     fn labels_nested_ten_thousand_levels_round_trip_through_pb() {

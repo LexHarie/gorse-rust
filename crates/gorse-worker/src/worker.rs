@@ -212,9 +212,10 @@ impl Worker {
         if data_path != database.data_store || data_prefix != database.data_table_prefix {
             let data: Arc<dyn data::Database> = if database.data_store.starts_with(SQLITE_PREFIX) {
                 info!("connect data store via master");
-                Arc::new(data::proxy::ProxyClient::new(
-                    conn.clone().ok_or(Error::NotConnected)?,
-                ))
+                Arc::new(
+                    data::proxy::ProxyClient::new(conn.clone().ok_or(Error::NotConnected)?)
+                        .max_decoding_message_size(MAX_RECV_MESSAGE_SIZE),
+                )
             } else {
                 info!("connect data store");
                 let mut registry = data::Registry::default();
@@ -241,9 +242,10 @@ impl Worker {
             let cache: Arc<dyn cache::Database> = if database.cache_store.starts_with(SQLITE_PREFIX)
             {
                 info!("connect cache store via master");
-                Arc::new(cache::proxy::ProxyClient::new(
-                    conn.clone().ok_or(Error::NotConnected)?,
-                ))
+                Arc::new(
+                    cache::proxy::ProxyClient::new(conn.clone().ok_or(Error::NotConnected)?)
+                        .max_decoding_message_size(MAX_RECV_MESSAGE_SIZE),
+                )
             } else {
                 info!("connect cache store");
                 let mut registry = cache::Registry::default();
@@ -284,9 +286,10 @@ impl Worker {
             let vectors: Arc<dyn vectors::Database> =
                 if database.vector_store.starts_with(XVEC_PREFIX) {
                     info!("connect vector store via master");
-                    Arc::new(vectors::proxy::ProxyClient::new(
-                        conn.clone().ok_or(Error::NotConnected)?,
-                    ))
+                    Arc::new(
+                        vectors::proxy::ProxyClient::new(conn.clone().ok_or(Error::NotConnected)?)
+                            .max_decoding_message_size(MAX_RECV_MESSAGE_SIZE),
+                    )
                 } else {
                     Arc::from(
                         vectors::open(&database.vector_store, &database.vector_table_prefix, &[])
