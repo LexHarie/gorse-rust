@@ -1,0 +1,45 @@
+WP-5-1 golden run 14, base a54ff81 with the seed order changed (server and worker start after wait_for_training, on both sides, D-304) and the D-303 X-WP51-1 entry for the master's collaborative route, debug nodes, cargo test -p gorse-conformance --test rest_golden rest_golden_matches_go (exit 101). FAILED because of 4 unexplained lines, B1 and B2, as intended. B4's lists are identical on both sides: only the four Score lines differ, and they are explained.
+Copied from the run log by its line range (the summary line to the stack backtrace), not edited. The run took 1542.49 s.
+
+rest_golden: 107 routes compared, 97 identical, 32 explained differences, 4 unexplained
+rest_golden explained: master GET /api/dashboard/cluster [body] $[0].Version: Go "unknown-version", Rust "0.0.0" (X-WP51-2)
+rest_golden explained: master GET /api/dashboard/cluster [body] $[1].Version: Go "unknown-version", Rust "0.0.0" (X-WP51-2)
+rest_golden explained: master GET /api/dashboard/item-to-item/{name}/{item-id} [body] $[0].Score: Go 0.5263849201274426, Rust 0.5263846063365575 (X-WP51-1)
+rest_golden explained: master GET /api/dashboard/item-to-item/{name}/{item-id} [body] $[1].Score: Go 0.5214024286094681, Rust 0.5214020721184539 (X-WP51-1)
+rest_golden explained: master GET /api/dashboard/item-to-item/{name}/{item-id} [body] $[2].Score: Go 0.5121760292493105, Rust 0.5121759667063348 (X-WP51-1)
+rest_golden explained: master GET /api/dashboard/item-to-item/{name}/{item-id} [body] $[3].Score: Go 0.5059199135197779, Rust 0.5059196236539604 (X-WP51-1)
+rest_golden explained: master GET /api/dashboard/item-to-item/{name}/{item-id} [body] $[4].Score: Go 0.5019365009585497, Rust 0.5019361255386013 (X-WP51-1)
+rest_golden explained: master GET /api/dashboard/recommend/{user-id}/{recommender} [body] $[0].Score: Go 4.251259803771973, Rust 4.2512593269348145 (X-WP51-1)
+rest_golden explained: master GET /api/dashboard/recommend/{user-id}/{recommender} [body] $[1].Score: Go 3.587503433227539, Rust 3.58750319480896 (X-WP51-1)
+rest_golden explained: master GET /api/dashboard/recommend/{user-id}/{recommender} [body] $[2].Score: Go 3.454310417175293, Rust 3.4543099403381348 (X-WP51-1)
+rest_golden explained: master GET /api/dashboard/recommend/{user-id}/{recommender} [body] $[3].Score: Go 3.332918643951416, Rust 3.332918405532837 (X-WP51-1)
+rest_golden explained: master GET /api/dashboard/tasks [body] $[5].Count: Go 898, Rust 669 (X-WP51-3)
+rest_golden explained: master GET /api/item-to-item/{name}/{item-id} [body] $[0].Score: Go 0.5263849201274426, Rust 0.5263846063365575 (X-WP51-1)
+rest_golden explained: master GET /api/item-to-item/{name}/{item-id} [body] $[1].Score: Go 0.5214024286094681, Rust 0.5214020721184539 (X-WP51-1)
+rest_golden explained: master GET /api/item-to-item/{name}/{item-id} [body] $[2].Score: Go 0.5121760292493105, Rust 0.5121759667063348 (X-WP51-1)
+rest_golden explained: master GET /api/item-to-item/{name}/{item-id} [body] $[3].Score: Go 0.5059199135197779, Rust 0.5059196236539604 (X-WP51-1)
+rest_golden explained: master GET /api/item-to-item/{name}/{item-id} [body] $[4].Score: Go 0.4923132397074787, Rust 0.49231295077732035 (X-WP51-1)
+rest_golden explained: master GET /api/item/{item-id}/neighbors/ [body] $[0].Score: Go 0.5263849201274426, Rust 0.5263846063365575 (X-WP51-1)
+rest_golden explained: master GET /api/item/{item-id}/neighbors/ [body] $[1].Score: Go 0.5214024286094681, Rust 0.5214020721184539 (X-WP51-1)
+rest_golden explained: master GET /api/item/{item-id}/neighbors/ [body] $[2].Score: Go 0.5121760292493105, Rust 0.5121759667063348 (X-WP51-1)
+rest_golden explained: master GET /api/item/{item-id}/neighbors/ [body] $[3].Score: Go 0.5059199135197779, Rust 0.5059196236539604 (X-WP51-1)
+rest_golden explained: master GET /api/item/{item-id}/neighbors/ [body] $[4].Score: Go 0.4923132397074787, Rust 0.49231295077732035 (X-WP51-1)
+rest_golden explained: master POST /api/session/recommend [body] $[0].Score: Go 0.5263849201274426, Rust 0.5263846063365575 (X-WP51-1)
+rest_golden explained: master POST /api/session/recommend [body] $[1].Score: Go 0.5214024286094681, Rust 0.5214020721184539 (X-WP51-1)
+rest_golden explained: master POST /api/session/recommend [body] $[2].Score: Go 0.5121760292493105, Rust 0.5121759667063348 (X-WP51-1)
+rest_golden explained: master POST /api/session/recommend [body] $[3].Score: Go 0.5059199135197779, Rust 0.5059196236539604 (X-WP51-1)
+rest_golden explained: master POST /api/session/recommend [body] $[4].Score: Go 0.5019365009585497, Rust 0.5019361255386013 (X-WP51-1)
+rest_golden explained: server POST /api/session/recommend [body] $[0].Score: Go 0.5263849201274426, Rust 0.5263846063365575 (X-WP51-1)
+rest_golden explained: server POST /api/session/recommend [body] $[1].Score: Go 0.5214024286094681, Rust 0.5214020721184539 (X-WP51-1)
+rest_golden explained: server POST /api/session/recommend [body] $[2].Score: Go 0.5121760292493105, Rust 0.5121759667063348 (X-WP51-1)
+rest_golden explained: server POST /api/session/recommend [body] $[3].Score: Go 0.5059199135197779, Rust 0.5059196236539604 (X-WP51-1)
+rest_golden explained: server POST /api/session/recommend [body] $[4].Score: Go 0.5019365009585497, Rust 0.5019361255386013 (X-WP51-1)
+
+thread 'rest_golden_matches_go' (14542) panicked at conformance/tests/rest_golden.rs:1219:5:
+the Go and Rust nodes answer differently, and no note explains it:
+master POST /api/dashboard/config [status] Go 415, Rust 400
+master POST /api/dashboard/config [body] text: Go "415: Unsupported Media Type", Rust "EOF"
+master PUT /api/item/{item-id}/category/{category} [status] Go 415, Rust 500
+master PUT /api/item/{item-id}/category/{category} [body] text: Go "415: Unsupported Media Type", Rust "not found"
+
+test rest_golden_matches_go ... FAILED

@@ -1,0 +1,88 @@
+package worker
+
+// PROBE (temporary, not committed): a user passed before the collaborative model
+// is pulled, then the model arrives and a second pass runs.
+
+import (
+	"strconv"
+	"time"
+
+	"github.com/gorse-io/gorse/logics"
+	"github.com/gorse-io/gorse/storage/cache"
+	"github.com/gorse-io/gorse/storage/data"
+	"github.com/gorse-io/gorse/storage/vectors"
+)
+
+func (suite *WorkerTestSuite) TestB4OrderProbe() {
+	ctx := suite.T().Context()
+	now := time.Now()
+	err := suite.DataClient.BatchInsertFeedback(ctx, []data.Feedback{
+		{FeedbackType: "click", UserId: "0", ItemId: "9", Timestamp: now.Add(-time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "8", Timestamp: now.Add(-time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "7", Timestamp: now.Add(-time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "6", Timestamp: now.Add(-time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "5", Timestamp: now.Add(-time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "4", Timestamp: now.Add(-time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "3", Timestamp: now.Add(time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "2", Timestamp: now.Add(time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "1", Timestamp: now.Add(time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "0", Timestamp: now.Add(time.Hour)},
+	}, true, true, true)
+	suite.NoError(err)
+	vs := make([]vectors.Vector, 0, 10)
+	for i := range 10 {
+		vs = append(vs, vectors.Vector{Id: strconv.Itoa(i), Values: []float32{float32(i), 1}})
+	}
+	suite.NoError(suite.VectorClient.AddVectors(ctx, vectors.CollaborativeFilteringCollection(suite.MatrixFactorizationId), vs))
+
+	count := func(label string) {
+		cf, err := suite.CacheClient.SearchScores(ctx, cache.CollaborativeFiltering, "0", nil, 0, -1)
+		suite.NoError(err)
+		rec, err := suite.CacheClient.SearchScores(ctx, cache.Recommend, "0", nil, 0, -1)
+		suite.NoError(err)
+		digest, _ := suite.CacheClient.Get(ctx, cache.Key(cache.CollaborativeFilteringDigest, "0")).String()
+		suite.T().Logf("PROBE %s: collaborative rows %d, recommend rows %d, cf digest %q", label, len(cf), len(rec), digest)
+	}
+
+	// Pass 1: the collaborative model has not been pulled yet.
+	suite.MatrixFactorizationUsers = nil
+	suite.Recommend(ctx, []data.User{{UserId: "0"}}, nil)
+	count("pass 1 (no model)")
+
+	// The model is pulled, then the worker runs its next pass.
+	suite.MatrixFactorizationUsers = logics.NewMatrixFactorizationUsers()
+	suite.MatrixFactorizationUsers.Add("0", []float32{1, 0})
+	suite.T().Logf("PROBE checkRecommendCacheOutOfDate after the model is pulled: %v", suite.checkRecommendCacheOutOfDate(ctx, "0"))
+	suite.Recommend(ctx, []data.User{{UserId: "0"}}, nil)
+	count("pass 2 (model pulled)")
+}
+
+// Control: the same data, with the model in place for pass 1.
+func (suite *WorkerTestSuite) TestB4OrderControl() {
+	ctx := suite.T().Context()
+	now := time.Now()
+	err := suite.DataClient.BatchInsertFeedback(ctx, []data.Feedback{
+		{FeedbackType: "click", UserId: "0", ItemId: "9", Timestamp: now.Add(-time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "8", Timestamp: now.Add(-time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "7", Timestamp: now.Add(-time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "6", Timestamp: now.Add(-time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "5", Timestamp: now.Add(-time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "4", Timestamp: now.Add(-time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "3", Timestamp: now.Add(time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "2", Timestamp: now.Add(time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "1", Timestamp: now.Add(time.Hour)},
+		{FeedbackType: "click", UserId: "0", ItemId: "0", Timestamp: now.Add(time.Hour)},
+	}, true, true, true)
+	suite.NoError(err)
+	vs := make([]vectors.Vector, 0, 10)
+	for i := range 10 {
+		vs = append(vs, vectors.Vector{Id: strconv.Itoa(i), Values: []float32{float32(i), 1}})
+	}
+	suite.NoError(suite.VectorClient.AddVectors(ctx, vectors.CollaborativeFilteringCollection(suite.MatrixFactorizationId), vs))
+	suite.MatrixFactorizationUsers = logics.NewMatrixFactorizationUsers()
+	suite.MatrixFactorizationUsers.Add("0", []float32{1, 0})
+	suite.Recommend(ctx, []data.User{{UserId: "0"}}, nil)
+	cf, err := suite.CacheClient.SearchScores(ctx, cache.CollaborativeFiltering, "0", nil, 0, -1)
+	suite.NoError(err)
+	suite.T().Logf("PROBE control (model present on pass 1): collaborative rows %d", len(cf))
+}
