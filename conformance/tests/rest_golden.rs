@@ -31,7 +31,8 @@
 //! [`EXPLAINED`] fails the test. An entry names the route, the field and the JSON
 //! path of the value that differs, and carries the id of its note in
 //! `porting/notes/WP-5-1.md`. A number is covered only within the entry's
-//! relative tolerance. An entry that matches no difference in a run is reported in
+//! tolerance, by the rule of D-234 in `PORTING.md`:
+//! `|rust - go| <= tolerance * max(|go|, 1)`. An entry that matches no difference in a run is reported in
 //! the log, not failed: a progress count or a version can match on one run and not
 //! on the next.
 //!
@@ -108,11 +109,12 @@ const USER_COUNT: u64 = 943;
 /// the id must have its note in `porting/notes/WP-5-1.md`. The table starts empty:
 /// a difference is a port bug until a note explains it.
 const EXPLAINED: &[Explained] = &[
-    // Scores of the item-to-item recommender differ by about 6e-7 relative. Go
+    // Scores of the item-to-item recommender differ by up to 7.5e-7 relative. Go
     // computes them from float32 vectors with its own kernels, and the Rust port
-    // with the `cc` kernels of `gorse-common`. The accepted tolerance is the one
-    // `tests/item_to_item_oracle.rs` uses (1e-6 relative), so a score may differ by
-    // no more than that (X-WP51-1).
+    // with the `cc` kernels of `gorse-common`. The accepted rule is D-234 of
+    // PORTING.md, which `tests/item_to_item_oracle.rs` and `tests/recommend_oracle.rs`
+    // use: a score may differ from Go's by no more than 1e-6 * max(|Go's score|, 1)
+    // (X-WP51-1).
     Explained {
         node: "master",
         method: "GET",
@@ -199,8 +201,8 @@ const UNLISTED_PATH_PARAMS: &[(&str, &str)] = &[
 /// One explained difference: the node, the method and the path of the route, the
 /// field that differs (`status`, `content-type` or `body`), the JSON path of the
 /// value that differs with each array index written as `[*]` (empty for a status,
-/// a content type or a text body), the largest relative difference of a number
-/// that the explanation still covers (`None` for any value), and the note's id.
+/// a content type or a text body), the tolerance of a number that the explanation
+/// still covers under D-234 (`None` for any value), and the note's id.
 #[derive(Debug, Clone, Copy)]
 struct Explained {
     node: &'static str,
@@ -904,7 +906,7 @@ struct Difference {
     /// For a JSON body, the path of the value, with each array index as `[*]`
     /// (`$[*].Score`). Empty for a status, a content type or a text body.
     path: String,
-    /// Both values, when both are numbers, for a relative tolerance.
+    /// Go's value and Rust's value, when both are numbers, for the tolerance check.
     numbers: Option<(f64, f64)>,
     /// What differs, for a failure message.
     detail: String,
@@ -1034,18 +1036,14 @@ fn excerpt(text: &str) -> String {
     text.chars().take(80).collect()
 }
 
-/// The relative difference of two numbers: their gap over the larger of them.
-fn relative(x: f64, y: f64) -> f64 {
-    let scale = x.abs().max(y.abs());
-    if scale == 0.0 {
-        0.0
-    } else {
-        (x - y).abs() / scale
-    }
+/// Whether Rust's number is within `tolerance` of Go's, by the rule of D-234 in
+/// PORTING.md: `|rust - go| <= tolerance * max(|go|, 1)`.
+fn within(go: f64, rust: f64, tolerance: f64) -> bool {
+    (rust - go).abs() <= tolerance * go.abs().max(1.0)
 }
 
 /// The explanation a difference has, if one matches it. A number is covered when
-/// its relative difference is within the explanation's tolerance.
+/// Go's and Rust's values are within the explanation's tolerance.
 fn explanation(route: &Route, difference: &Difference) -> Option<&'static Explained> {
     EXPLAINED.iter().find(|entry| {
         entry.node == route.node.name()
@@ -1055,7 +1053,7 @@ fn explanation(route: &Route, difference: &Difference) -> Option<&'static Explai
             && entry.json_path == difference.path
             && match (entry.tolerance, difference.numbers) {
                 (None, _) => true,
-                (Some(tolerance), Some((x, y))) => relative(x, y) <= tolerance,
+                (Some(tolerance), Some((go, rust))) => within(go, rust, tolerance),
                 (Some(_), None) => false,
             }
     })
@@ -1255,5 +1253,16 @@ mod rest_golden_checks {
     fn numbers_compare_as_floats() {
         assert!(json_equal(&serde_json::json!(0), &serde_json::json!(0.0)));
         assert!(!json_equal(&serde_json::json!(1), &serde_json::json!(2)));
+    }
+
+    #[test]
+    fn scores_are_covered_by_the_accepted_rule() {
+        // D-234: |rust - go| <= 1e-6 * max(|go|, 1). Below 1 the bound is absolute,
+        // so a gap of 9e-7 on a score of 0.5 is covered.
+        assert!(within(0.5, 0.5 + 9e-7, 1e-6));
+        assert!(!within(0.5, 0.5 + 1.1e-6, 1e-6));
+        // Above 1 the bound is relative to Go's score.
+        assert!(within(100.0, 100.0 + 9e-5, 1e-6));
+        assert!(!within(100.0, 100.0 + 2e-4, 1e-6));
     }
 }
