@@ -80,10 +80,8 @@ const RESTORED_FEEDBACK: u64 = 100_000;
 const TRAINING_TASK: &str = "Train Collaborative Filtering Model";
 
 /// How long the seeding of one cluster may take: the restore, the training and
-/// every user's recommendation. Go's worker needs minutes for the 943 users.
-// A time budget, not an assertion. The Rust nodes are debug builds, and the Rust
-// worker's first pass over the 943 users runs at about 1.2 users a second, so the
-// recommendations settle after about 13 minutes. The comparisons are unchanged.
+/// every user's recommendation. Go's worker needs minutes for the 943 users. This
+/// is a time budget, not an assertion, raised from 900 s by D-302.
 const SEED_TIMEOUT: Duration = Duration::from_secs(1800);
 
 /// How long the set of recommended users must stay the same before the requests
@@ -140,6 +138,18 @@ const EXPLAINED: &[Explained] = &[
         node: "master",
         method: "GET",
         path: "/api/item/{item-id}/neighbors/",
+        field: "body",
+        json_path: "$[*].Score",
+        tolerance: Some(1e-6),
+        id: "X-WP51-1",
+    },
+    // The collaborative recommend's scores: the Rust vector store scores with an exact
+    // scan in f32, and Go's HNSW store with an f16 query, so a score can differ by an
+    // ulp. The item order is the same. Within the D-234 rule (D-303 on B4).
+    Explained {
+        node: "master",
+        method: "GET",
+        path: "/api/dashboard/recommend/{user-id}/{recommender}",
         field: "body",
         json_path: "$[*].Score",
         tolerance: Some(1e-6),
@@ -775,6 +785,18 @@ async fn seed(build: &'static GoBuild, side: Impl) -> Result<Cluster> {
     let config = repo_root().join("client/config.toml");
     let mut cluster = Cluster::new_from_config(build, &config, &[])?;
     start_master(&mut cluster, side).await?;
+    restore(cluster.ports.master_http, dump()?).await?;
+    cluster.stop_master();
+    start_master(&mut cluster, side).await?;
+    wait_for_training(cluster.ports.master_http).await?;
+    // The server and the worker start only after the training, on both sides, so that
+    // the worker's first ranking pass runs with the collaborative filtering model in
+    // place. A pass that runs before the model is pulled leaves its users without
+    // collaborative rows, and their recommendation then stays fresh, because
+    // `checkRecommendCacheOutOfDate` does not look at the collaborative rows (the
+    // 2026-11-02 runs: 10 users, the ones passed in the seconds before the pull, had no
+    // rows and the list was empty). The order changes when the worker starts, not what
+    // is compared.
     match side {
         Impl::Go => cluster.start_go_server().await?,
         Impl::Rust => cluster.start_rust_server_binary().await?,
@@ -791,10 +813,6 @@ async fn seed(build: &'static GoBuild, side: Impl) -> Result<Cluster> {
                 .await?
         }
     }
-    restore(cluster.ports.master_http, dump()?).await?;
-    cluster.stop_master();
-    start_master(&mut cluster, side).await?;
-    wait_for_training(cluster.ports.master_http).await?;
 
     // The worker needs about two minutes for the 943 users of the dump (the Go
     // worker does about seven users a second). It writes no update time for a user
