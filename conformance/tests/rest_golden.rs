@@ -307,6 +307,24 @@ static HEX_ID: LazyLock<Regex> =
 static INDEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\[[0-9]+\]").expect("the index pattern is valid"));
 
+/// The regex of Go's error for a gRPC message that is too large, with the size
+/// of the message (`size`) and the limit (`limit`).
+static GO_TOO_LARGE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"grpc: received message larger than max \((?P<size>[0-9]+) vs\. (?P<limit>[0-9]+)\)",
+    )
+    .expect("the Go too-large pattern is valid")
+});
+
+/// The regex of tonic's error for a decoded gRPC message that is too large, with
+/// the size of the message (`size`) and the limit (`limit`).
+static RUST_TOO_LARGE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"Error, decoded message length too large: found (?P<size>[0-9]+) bytes, the limit is: (?P<limit>[0-9]+) bytes",
+    )
+    .expect("the Rust too-large pattern is valid")
+});
+
 /// The JSON keys whose number is a port of the run (N4). They are the keys the
 /// config dump uses for the ports of the master, the server and the worker.
 const PORT_KEYS: [&str; 4] = ["port", "http_port", "server_port", "worker_port"];
@@ -847,6 +865,27 @@ fn run_dir(cluster: &Cluster) -> String {
         .map_or_else(String::new, |dir| dir.display().to_string())
 }
 
+/// Replaces the size of a too-large gRPC message with `<N>` (D-299). The limit and
+/// the rest of the text stay exact. The size must be above the limit, as a message
+/// that is too large is, or the test fails. Text without such a message is returned
+/// as it is, so a difference in the wording still shows.
+fn mask_message_size(text: &str) -> String {
+    for pattern in [&*GO_TOO_LARGE, &*RUST_TOO_LARGE] {
+        let Some(caps) = pattern.captures(text) else {
+            continue;
+        };
+        let size = caps.name("size").expect("the size group");
+        let size_value: u64 = size.as_str().parse().expect("a size of digits");
+        let limit: u64 = caps["limit"].parse().expect("a limit of digits");
+        assert!(
+            size_value > limit,
+            "a too-large message of {size_value} bytes does not exceed the limit of {limit} bytes: {text}"
+        );
+        return format!("{}<N>{}", &text[..size.start()], &text[size.end()..]);
+    }
+    text.to_owned()
+}
+
 /// Normalises a string by N1, N2 and N3.
 fn normalize_text(text: &str, run: &str) -> String {
     let text = TIME.replace_all(text, "<time>");
@@ -1001,8 +1040,14 @@ fn differences(go: &Reply, rust: &Reply, go_run: &str, rust_run: &str) -> Vec<Di
             }),
         }
     } else {
-        let go_text = normalize_text(&String::from_utf8_lossy(&go.body), go_run);
-        let rust_text = normalize_text(&String::from_utf8_lossy(&rust.body), rust_run);
+        let go_text = normalize_text(
+            &mask_message_size(&String::from_utf8_lossy(&go.body)),
+            go_run,
+        );
+        let rust_text = normalize_text(
+            &mask_message_size(&String::from_utf8_lossy(&rust.body)),
+            rust_run,
+        );
         if go_text != rust_text {
             found.push(Difference {
                 field: "body",
@@ -1031,9 +1076,10 @@ fn parse_normalized(body: &[u8], run: &str) -> Option<Value> {
     Some(value)
 }
 
-/// The first 80 characters of a text, for a failure message.
+/// The first 200 characters of a text, for a failure message. The size of a
+/// too-large gRPC message (`<N>`, D-299) comes after 80 characters, so it shows.
 fn excerpt(text: &str) -> String {
-    text.chars().take(80).collect()
+    text.chars().take(200).collect()
 }
 
 /// Whether Rust's number is within `tolerance` of Go's, by the rule of D-234 in
@@ -1264,5 +1310,27 @@ mod rest_golden_checks {
         // Above 1 the bound is relative to Go's score.
         assert!(within(100.0, 100.0 + 9e-5, 1e-6));
         assert!(!within(100.0, 100.0 + 2e-4, 1e-6));
+    }
+
+    #[test]
+    fn only_the_size_of_a_too_large_message_is_masked() {
+        // D-299: the size becomes <N>, and the limit and the rest of the text stay.
+        let go = "rpc error: code = ResourceExhausted desc = grpc: received message larger than max (9076002 vs. 4194304)";
+        assert_eq!(
+            mask_message_size(go),
+            "rpc error: code = ResourceExhausted desc = grpc: received message larger than max (<N> vs. 4194304)"
+        );
+        let rust = "rpc error: code = OutOfRange desc = Error, decoded message length too large: found 9076124 bytes, the limit is: 4194304 bytes";
+        assert_eq!(
+            mask_message_size(rust),
+            "rpc error: code = OutOfRange desc = Error, decoded message length too large: found <N> bytes, the limit is: 4194304 bytes"
+        );
+        assert_eq!(mask_message_size("no such error"), "no such error");
+    }
+
+    #[test]
+    #[should_panic(expected = "does not exceed the limit")]
+    fn a_too_large_message_must_exceed_its_limit() {
+        mask_message_size("grpc: received message larger than max (10 vs. 4194304)");
     }
 }
