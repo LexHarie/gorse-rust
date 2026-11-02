@@ -55,10 +55,33 @@ The golden's B3 rows are `ResourceExhausted ... (N vs. 4194304)`, where N is the
   stays the same between runs.
 - The B3 rows' N depends on the sub-second phase of the masters' restores. The Go N is not
   reproducible run to run, so a fixed payload cannot make the two N values equal every time.
-- Two real byte differences remain, and neither changes a size on the B3 routes: the `-0.0` score
-  field (item 4) and the float tie digits in labels (item 3).
+- The two byte differences are fixed on the head that adds this section: the float tie digits in
+  labels (item 3, O-92, `gorse-common/src/jsonutil.rs`) and the `-0.0` score (item 4, O-93,
+  `gorse-protocol/src/wire.rs`). Results are below.
 
-## Open question for the court
+## Rulings
 
-Whether the golden's B3 rows may compare N within a bound that the `update_at` widths explain,
-instead of exact equality. The coordinator's ruling asked for exact text, and the text contains N.
+The court's D-299 replaces N in the too-large text with a placeholder, and keeps the rest of the
+text and the limit exact. The golden is not changed on this branch. No size tolerance is used.
+
+## Results on the fixed head (O-92 and O-93)
+
+Go's replies are the captures of the probe run before the fixes (`go-*.bin`, Go is unchanged). The
+Rust replies come from a probe run on the fixed head. `update_at` is masked, as the sizes depend on
+its varint width, and nothing else is masked.
+
+| Reply | Go | Rust (fixed head) |
+|---|---|---|
+| `QueryVectors`, 278 vectors | 1718859 | 1718859 |
+| `BatchGetItems`, 277 items | 9076124 | 9076124 |
+| `GetLatestItems`, 277 items | 9071660 | 9071660 |
+
+- Items and latest: 277 of 277 items are byte-identical apart from `update_at`.
+- Query: all 278 vectors are byte-identical. The self neighbour's score is `00000080` on both sides.
+  The other neighbours' scores differ in the low float bits (11 of 278 are identical in bytes).
+  The worst relative difference is 2.86e-6, which is the kernel difference of X-WP51-1 (`cc`
+  kernels against Go's). It is outside the B3 rows and outside the O-92 and O-93 scope.
+
+Checks run for the O-92 label digits: the new float formatter matches Go's `json.Marshal` on 2,000,000
+float64 values, on the 850,944 numbers of the captured Go labels, and on 2,000,000 float32 values.
+Before the fix, Rust differed on 498 of the float64 values and 120 of the float32 values.

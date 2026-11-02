@@ -605,13 +605,26 @@ async fn o91_probe_master_replies() {
         PathBuf::from(std::env::var("O91_OUT").unwrap_or_else(|_| "/tmp/claude/o91".to_owned()));
     fs::create_dir_all(&out).expect("create the output directory");
 
+    // `O91_REUSE_GO=1` reads the Go captures already in the output folder instead of seeding
+    // the Go cluster again. Go's bytes do not depend on this change, so they can be kept.
+    let reuse_go = std::env::var_os("O91_REUSE_GO").is_some();
     let mut captured = Vec::new();
     for (name, side) in [("go", Impl::Go), ("rust", Impl::Rust)] {
-        let mut cluster = seed(go_build, side).await.expect("seed the cluster");
-        let replies = capture(&cluster)
-            .await
-            .expect("capture the master's replies");
-        cluster.stop();
+        let replies = if name == "go" && reuse_go {
+            Replies {
+                query: fs::read(out.join("go-query.bin")).expect("read the saved Go query reply"),
+                items: fs::read(out.join("go-items.bin")).expect("read the saved Go items reply"),
+                latest: fs::read(out.join("go-latest.bin"))
+                    .expect("read the saved Go latest reply"),
+            }
+        } else {
+            let mut cluster = seed(go_build, side).await.expect("seed the cluster");
+            let replies = capture(&cluster)
+                .await
+                .expect("capture the master's replies");
+            cluster.stop();
+            replies
+        };
         fs::write(out.join(format!("{name}-query.bin")), &replies.query)
             .expect("write the query reply");
         fs::write(out.join(format!("{name}-items.bin")), &replies.items)

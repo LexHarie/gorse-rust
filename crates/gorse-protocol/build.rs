@@ -24,6 +24,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_prost_build::configure()
         .build_client(true)
         .build_server(true)
+        // The codec writes `-0.0` scores as Go does (`src/wire.rs`, O-93).
+        .codec_path("crate::wire::GoWireCodec")
         .compile_fds(descriptors)?;
     Ok(())
 }
