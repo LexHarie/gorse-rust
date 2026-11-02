@@ -1,0 +1,63 @@
+{"k":"a\nb"}
+{"k":"a\nb\n"}
+{"k":"a\nb\n\n"}
+{"k":"\na"}
+{"k":" a\nb"}
+{"k":"a \nb"}
+{"k":"a\nb "}
+{"k":"a\tb\nc"}
+{"k":{"n":"x\ny\n"}}
+{"k":["x\ny\n","z"]}
+["x\ny\n"]
+"x\ny\n"
+{"k":"x\u0001y\nz"}
+{"k":"é\nz"}
+{"k":"a\n b"}
+[{"k":"x\ny"}]
+{"k":"x\n"}
+{"k":"\n"}
+{"k":"a\n\n\nb"}
+{"a":"one\ntwo","b":{"c":"three\nfour\n"}}
+{"k":["x\ny\n",{"m":"p\nq"}]}
+{"k":"  two\nspaces"}
+{"k":"ends with two\n\n"}
+"x\n\n"
+"\n"
+" x\n"
+"a\nb"
+[{"k":{"j":"v"}}]
+[{"k":["a"]}]
+[["a\nb"]]
+[["a\nb","c"],"d\ne\n"]
+{"a":{"b":{"c":"x\ny"}}}
+{"a":{"b":{"c":{"d":"x\ny"}}}}
+{"k":[{"m":{"n":"p\nq"}}]}
+{"k":[["x\ny"]]}
+{"k":"a\n\n\n"}
+{"k":"x\ty\nz "}
+{"k\nx":"v"}
+{"k":"it's\nok"}
+{"k":"#x\ny"}
+{"k":"- a\n- b"}
+{"k":"a: b\nc"}
+{"k":"a  \nb"}
+{"k":" \nb"}
+{"k":"a\n \nb"}
+{"k":"a\né"}
+{"k":"x\n","j":{"y":"z\nw"}}
+{"k":"a\tb"}
+{"k":"---x"}
+{"k":"...x"}
+{"k":"😀"}
+{"k":"😀\nx"}
+{"k":"\u0000\u0007\u0008\u000b\u000c\u001b\u0085  ﻿"}
+{"k":"é\u0001"}
+{"k\nx":["q"]}
+{"k\nx":{"a":1}}
+{"k\nx":"plain"}
+{"k\nx":"a\nb"}
+{"k\nx":"a \nb"}
+{"k":"aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii jjjj kkkk llll mmmm nnnn oooo pppp qqqq rrrr ssss tttt uuuu"}
+{"k":"#aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii jjjj kkkk llll mmmm nnnn oooo pppp qqqq rrrr ssss tttt"}
+{"k":"aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii jjjj kkkk llll mmmm nnnn oooo pppp qqqq rrrr ssss tttt "}
+{"k":"aaaa\u0001 bbbb cccc dddd eeee ffff gggg hhhh iiii jjjj kkkk llll mmmm nnnn oooo pppp qqqq rrrr sss"}
