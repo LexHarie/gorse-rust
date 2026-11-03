@@ -177,7 +177,8 @@ const EXPLAINED: &[Explained] = &[
     },
     // The node's version is the build's own string: Go's build here has no version
     // set and says `unknown-version`, and the Rust crate says its package version
-    // (X-WP51-2). Any value of the field is covered.
+    // (X-WP51-2). Any string is covered, as long as both answers have the field and
+    // it is a string (D-307).
     Explained {
         node: "master",
         method: "GET",
@@ -189,7 +190,8 @@ const EXPLAINED: &[Explained] = &[
     },
     // A task's count is its progress at the moment the list is read. The worker's
     // pass runs on its own clock, so the two clusters are at different points of
-    // the pass (X-WP51-3). Any value of the field is covered.
+    // the pass (X-WP51-3). Any number is covered, as long as both answers have the
+    // field and it is a number (D-307).
     Explained {
         node: "master",
         method: "GET",
@@ -217,7 +219,8 @@ const UNLISTED_PATH_PARAMS: &[(&str, &str)] = &[
 /// field that differs (`status`, `content-type` or `body`), the JSON path of the
 /// value that differs with each array index written as `[*]` (empty for a status,
 /// a content type or a text body), the tolerance of a number that the explanation
-/// still covers under D-234 (`None` for any value), and the note's id.
+/// still covers under D-234 (`None` for any value of the same JSON kind, present on
+/// both sides, D-307), and the note's id.
 #[derive(Debug, Clone, Copy)]
 struct Explained {
     node: &'static str,
@@ -969,8 +972,24 @@ struct Difference {
     path: String,
     /// Go's value and Rust's value, when both are numbers, for the tolerance check.
     numbers: Option<(f64, f64)>,
+    /// Whether both answers have the value and of the same JSON kind (D-307). An
+    /// explanation with no tolerance covers a difference only when this holds, so
+    /// a key missing on one side, or a value of another kind, is never covered.
+    same_shape: bool,
     /// What differs, for a failure message.
     detail: String,
+}
+
+/// The JSON kind of a value, as a word.
+fn json_kind(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "bool",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
 }
 
 /// A difference at one path of two JSON values.
@@ -979,10 +998,15 @@ fn leaf(at: &str, go: Option<&Value>, rust: Option<&Value>) -> Difference {
         (Some(x), Some(y)) => Some((x, y)),
         _ => None,
     };
+    let same_shape = match (go, rust) {
+        (Some(x), Some(y)) => json_kind(x) == json_kind(y),
+        _ => false,
+    };
     Difference {
         field: "body",
         path: INDEX.replace_all(at, "[*]").into_owned(),
         numbers,
+        same_shape,
         detail: format!("{at}: Go {}, Rust {}", short(go), short(rust)),
     }
 }
@@ -1035,6 +1059,7 @@ fn differences(go: &Reply, rust: &Reply, go_run: &str, rust_run: &str) -> Vec<Di
             field: "status",
             path: String::new(),
             numbers: None,
+            same_shape: false,
             detail: format!("Go {}, Rust {}", go.status, rust.status),
         });
     }
@@ -1043,6 +1068,7 @@ fn differences(go: &Reply, rust: &Reply, go_run: &str, rust_run: &str) -> Vec<Di
             field: "content-type",
             path: String::new(),
             numbers: None,
+            same_shape: false,
             detail: format!("Go {:?}, Rust {:?}", go.content_type, rust.content_type),
         });
     }
@@ -1058,6 +1084,7 @@ fn differences(go: &Reply, rust: &Reply, go_run: &str, rust_run: &str) -> Vec<Di
                 field: "body",
                 path: String::new(),
                 numbers: None,
+                same_shape: false,
                 detail: "a JSON body does not parse".to_owned(),
             }),
         }
@@ -1075,6 +1102,7 @@ fn differences(go: &Reply, rust: &Reply, go_run: &str, rust_run: &str) -> Vec<Di
                 field: "body",
                 path: String::new(),
                 numbers: None,
+                same_shape: false,
                 detail: format!(
                     "text: Go {:?}, Rust {:?}",
                     excerpt(&go_text),
@@ -1111,7 +1139,9 @@ fn within(go: f64, rust: f64, tolerance: f64) -> bool {
 }
 
 /// The explanation a difference has, if one matches it. A number is covered when
-/// Go's and Rust's values are within the explanation's tolerance.
+/// Go's and Rust's values are within the explanation's tolerance. An explanation
+/// with no tolerance covers a value only when both answers have it, of the same
+/// JSON kind (D-307).
 fn explanation(route: &Route, difference: &Difference) -> Option<&'static Explained> {
     EXPLAINED.iter().find(|entry| {
         entry.node == route.node.name()
@@ -1120,7 +1150,7 @@ fn explanation(route: &Route, difference: &Difference) -> Option<&'static Explai
             && entry.field == difference.field
             && entry.json_path == difference.path
             && match (entry.tolerance, difference.numbers) {
-                (None, _) => true,
+                (None, _) => difference.same_shape,
                 (Some(tolerance), Some((go, rust))) => within(go, rust, tolerance),
                 (Some(_), None) => false,
             }
@@ -1354,5 +1384,57 @@ mod rest_golden_checks {
     #[should_panic(expected = "does not exceed the limit")]
     fn a_too_large_message_must_exceed_its_limit() {
         mask_message_size("grpc: received message larger than max (10 vs. 4194304)");
+    }
+
+    #[test]
+    fn a_value_present_on_both_sides_of_one_kind_has_the_same_shape() {
+        // D-307: X-WP51-2 covers a string and X-WP51-3 a number, on both sides.
+        let version = leaf(
+            "$[0].Version",
+            Some(&serde_json::json!("unknown-version")),
+            Some(&serde_json::json!("0.0.0")),
+        );
+        assert!(version.same_shape);
+        let count = leaf(
+            "$[5].Count",
+            Some(&serde_json::json!(908)),
+            Some(&serde_json::json!(321)),
+        );
+        assert!(count.same_shape);
+    }
+
+    #[test]
+    fn a_missing_key_or_another_kind_is_not_the_same_shape() {
+        // D-307: a key missing on one side, or a value of another kind, is covered by
+        // no explanation with no tolerance.
+        let missing = leaf("$[0].Version", Some(&serde_json::json!("0.0.0")), None);
+        assert!(!missing.same_shape);
+        let other_kind = leaf(
+            "$[5].Count",
+            Some(&serde_json::json!(908)),
+            Some(&serde_json::json!("908")),
+        );
+        assert!(!other_kind.same_shape);
+    }
+
+    #[test]
+    fn the_no_tolerance_explanations_cover_only_the_same_shape() {
+        // D-307, end to end: X-WP51-2 on the master's cluster list covers a string
+        // Version on both sides, and no longer covers a missing one.
+        let routes = routes().expect("the tables parse");
+        let route = routes
+            .iter()
+            .find(|r| {
+                r.node.name() == "master" && r.method == "GET" && r.path == "/api/dashboard/cluster"
+            })
+            .expect("the cluster route is in the table");
+        let both = leaf(
+            "$[0].Version",
+            Some(&serde_json::json!("unknown-version")),
+            Some(&serde_json::json!("0.0.0")),
+        );
+        assert_eq!(explanation(route, &both).map(|e| e.id), Some("X-WP51-2"));
+        let missing = leaf("$[0].Version", Some(&serde_json::json!("0.0.0")), None);
+        assert!(explanation(route, &missing).is_none());
     }
 }
