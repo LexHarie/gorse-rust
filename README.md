@@ -2,8 +2,6 @@
 
 <img width=160 src="assets/gorse.png"/>
 
-[![test](https://github.com/gorse-io/gorse/actions/workflows/build_test.yml/badge.svg)](https://github.com/gorse-io/gorse/actions/workflows/build_test.yml)
-[![codecov](https://codecov.io/gh/gorse-io/gorse/branch/master/graph/badge.svg)](https://codecov.io/gh/gorse-io/gorse)
 [![Discord](https://img.shields.io/discord/830635934210588743)](https://discord.gg/x6gAtNNkAE)
 [![Twitter Follow](https://img.shields.io/twitter/follow/gorse_io?label=Follow&style=social)](https://twitter.com/gorse_io)
 [![Gurubase](https://img.shields.io/badge/Gurubase-Ask%20Gorse%20Guru-006BFF)](https://gurubase.io/g/gorse)
