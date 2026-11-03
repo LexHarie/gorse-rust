@@ -19,7 +19,7 @@ Reading and following these guidelines will help us make the contribution proces
 
 These following installations are required:
 
-- **Go** (>= 1.18): Since Go features from 1.18 are used in Gorse, the version of the compiler must be greater than 1.18. GoLand or Visual Studio Code is highly recommended as the IDE to develop Gorse.
+- **Rust** (1.99.1, pinned in `rust-toolchain.toml`): install it with rustup. The IDE is up to you; rust-analyzer in VS Code or RustRover is the usual choice.
 
 - **Docker Compose**: Multiple databases are required for unit tests. It's convenient to manage databases on Docker Compose.
 
@@ -42,7 +42,7 @@ mysql -h 127.0.0.1 -u gorse -pgorse_pass gorse < github.sql
 ### Option 1: Run an All-in-one Node
 
 ```bash
-go run cmd/gorse-in-one/main.go --config config/config.toml
+cargo run -p gorse-cmd --bin gorse-in-one -- --config config/config.toml
 ```
 
 ### Option 2: Run Nodes
@@ -50,19 +50,19 @@ go run cmd/gorse-in-one/main.go --config config/config.toml
 - Start the master node with the configuration file.
 
 ```bash
-go run cmd/gorse-master/main.go --config config/config.toml
+cargo run -p gorse-cmd --bin gorse-master -- --config config/config.toml
 ```
 
 - Start the worker node.
 
 ```bash
-go run cmd/gorse-worker/main.go
+cargo run -p gorse-cmd --bin gorse-worker
 ```
 
 - Start the server node.
 
 ```bash
-go run cmd/gorse-server/main.go
+cargo run -p gorse-cmd --bin gorse-server
 ```
 
 ### Run Unit Tests
@@ -70,7 +70,7 @@ go run cmd/gorse-server/main.go
 Most logics in Gorse are covered by unit tests. Run unit tests by the following command:
 
 ```bash
-go test -v ./...
+cargo test --workspace
 ```
 
 The default database URLs are directed to these databases in `storage/docker-compose.yml`. Test databases could be overrode by setting following environment variables:
@@ -85,7 +85,7 @@ The default database URLs are directed to these databases in `storage/docker-com
 For example, use TiDB as a test database by:
 
 ```bash
-MYSQL_URI=mysql://root:password@tcp(127.0.0.1:4000)/ go test -v ./...
+MYSQL_URI=mysql://root:password@tcp(127.0.0.1:4000)/ cargo test --workspace
 ```
 
 ## Your First Contribution

@@ -9,18 +9,16 @@ use prometheus::core::Collector;
 
 use super::*;
 
-/// The metric name, the namespace, the subsystem and the Go file's `Name:` must
-/// agree. A rename in either place fails here.
+/// The metric name, the namespace, the subsystem and the name Go's `metrics.go`
+/// gives it must agree. A rename in either place fails here. The Go names are
+/// the fixture `go_metric_names.txt`, extracted from the Go file at add21b5.
 #[test]
 fn metric_names_match_go() {
-    let go = include_str!("../../../../master/metrics.go");
-    let go_names: HashSet<String> = go
+    let go_names: HashSet<String> = include_str!("go_metric_names.txt")
         .lines()
-        .filter_map(|line| {
-            let rest = line.split("Name:").nth(1)?;
-            let value = rest.trim().strip_prefix('"')?;
-            Some(value.split('"').next()?.to_owned())
-        })
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(str::to_owned)
         .collect();
     let collectors: Vec<&dyn Collector> = vec![
         &*LOAD_DATASET_STEP_SECONDS_VEC,

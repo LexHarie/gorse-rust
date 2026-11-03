@@ -1,38 +1,25 @@
 # syntax = docker/dockerfile:1
 
-############################
-# STEP 1 build executable binary
-############################
-FROM --platform=$BUILDPLATFORM golang:1.27
+# STEP 1 build the Rust binary. The Go build of this image is removed (WP-6-1).
+FROM rust:1.99.1-bookworm AS build
 
 WORKDIR /src
 
-COPY go.* ./
-
-RUN go mod download
-
 COPY . ./
 
-ARG TARGETOS
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/src/target \
+    cargo build --release --locked -p gorse-cmd --bin gorse-master && \
+    cp target/release/gorse-master /usr/local/bin/gorse-master
 
-ARG TARGETARCH
+# STEP 2 build a small image with the binary and the CA certificates.
+FROM debian:bookworm-slim
 
-RUN --mount=type=cache,target=/root/.cache/go-build \
-    cd cmd/gorse-master && \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 go build -ldflags=" \
-    -X 'github.com/gorse-io/gorse/cmd/version.Version=$(git describe --tags $(git rev-parse HEAD))' \
-    -X 'github.com/gorse-io/gorse/cmd/version.GitCommit=$(git rev-parse HEAD)' \
-    -X 'github.com/gorse-io/gorse/cmd/version.BuildTime=$(date)' \
-    -X 'github.com/gorse-io/gorse/config.RootDir=/var/lib/gorse'" .
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
-############################
-# STEP 2 build a small image
-############################
-FROM scratch
-
-COPY --from=0 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-
-COPY --from=0 /src/cmd/gorse-master/gorse-master /usr/bin/gorse-master
+COPY --from=build /usr/local/bin/gorse-master /usr/bin/gorse-master
 
 ENV USER=root
 

@@ -2,7 +2,7 @@
 # PORTING.md) is the reference oracle; see PORTING.md before changing anything.
 [workspace]
 resolver = "3"
-members = ["crates/*", "conformance"]
+members = ["crates/*"]
 # Patched dependencies; not workspace members.
 exclude = ["third_party"]
 

@@ -2,14 +2,13 @@
 
 <img width=160 src="assets/gorse.png"/>
 
-![](https://img.shields.io/github/go-mod/go-version/gorse-io/gorse)
 [![test](https://github.com/gorse-io/gorse/actions/workflows/build_test.yml/badge.svg)](https://github.com/gorse-io/gorse/actions/workflows/build_test.yml)
 [![codecov](https://codecov.io/gh/gorse-io/gorse/branch/master/graph/badge.svg)](https://codecov.io/gh/gorse-io/gorse)
 [![Discord](https://img.shields.io/discord/830635934210588743)](https://discord.gg/x6gAtNNkAE)
 [![Twitter Follow](https://img.shields.io/twitter/follow/gorse_io?label=Follow&style=social)](https://twitter.com/gorse_io)
 [![Gurubase](https://img.shields.io/badge/Gurubase-Ask%20Gorse%20Guru-006BFF)](https://gurubase.io/g/gorse)
 
-Gorse is an AI powered open-source recommender system written in Go. Gorse aims to be a universal open-source recommender system that can be quickly integrated into a wide variety of online services. By importing items, users, and interaction data into Gorse, the system will automatically train models to generate recommendations for each user. Project features are as follows.
+Gorse is an AI powered open-source recommender system written in Rust. Gorse aims to be a universal open-source recommender system that can be quickly integrated into a wide variety of online services. By importing items, users, and interaction data into Gorse, the system will automatically train models to generate recommendations for each user. Project features are as follows.
 
 ![](https://github.com/gorse-io/docs/blob/main/src/img/dashboard/recflow.png?raw=true)
 
