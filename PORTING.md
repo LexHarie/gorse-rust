@@ -2700,3 +2700,5 @@ or accepts a metric gap outside the Go tests' own tolerances.
   The playground ML-100k ignore at `crates/gorse-cmd/tests/playground.rs:155` stays (O-1, D-297). Run here, it fails on the CDN, because the binary fetches `cdn.gorse.io` itself. The import is covered by `conformance/tests/playground.rs` in TEST, through the CDN stand-in (X-261).
 
   The coordinator's written instruction (2026-11-03) takes WP-6-1 next, in the approved scope: tag `go-oracle-final`, remove Go, gate green with no Go toolchain, then merge to master and report.
+
+- **D-310 `go-oracle-final` is a branch, not a tag (coordinator ruling, 2026-11-03 03:37Z; integrator, logged 2026-11-03).** Pushing the tag to origin is refused: GitHub answers HTTP 403 for the tag ref, on every try, while branch pushes work. The coordinator ruled that the branch `go-oracle-final` at `2e9c969` marks the last head with the Go oracle, the WP-5-4 merge. Ritchie creates a tag himself if he wants one. The local tag was removed. Nothing is lost: `2e9c969` is an ancestor of `master` after the fast-forward (WP-6-1), so the Go code stays in history.
