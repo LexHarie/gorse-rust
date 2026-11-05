@@ -40,6 +40,8 @@ pub fn evaluate(
     n_jobs: usize,
     scorers: &[Metric],
 ) -> Vec<Option<f32>> {
+    // A1 config check: a zero cut-off leaves every ranked list empty, so it is refused here.
+    assert!(top_k >= 1, "top_k must be at least 1, got {top_k}");
     let negatives = test_set
         .sample_user_negatives(train_set, num_candidates)
         .to_vec();
@@ -189,9 +191,9 @@ pub fn map(target_set: &HashSet<i32>, rank_list: &[i32]) -> Option<f32> {
 }
 
 /// Go's `MRR`: the reciprocal rank of the first relevant item, or 0 when none
-/// is recommended. Undefined (`None`) for an empty ranked list.
+/// is recommended. Undefined (`None`) for an empty target set or an empty ranked list (A1).
 pub fn mrr(target_set: &HashSet<i32>, rank_list: &[i32]) -> Option<f32> {
-    if rank_list.is_empty() {
+    if target_set.is_empty() || rank_list.is_empty() {
         return None;
     }
     for (i, item_id) in rank_list.iter().enumerate() {
@@ -293,7 +295,29 @@ mod tests {
         assert_eq!(None, map(&set(&[]), &rank_list));
         assert_eq!(None, map(&set(&[1]), &[]));
         assert_eq!(None, mrr(&set(&[1]), &[]));
+        assert_eq!(None, mrr(&set(&[]), &rank_list));
         assert_eq!(None, hr(&set(&[1]), &[]));
+    }
+
+    /// A1 (D-324): precision is defined on an empty target set, recall on an empty
+    /// ranked list, and hr on an empty target set. Each is `Some(0)` there, because
+    /// nothing in the ranked list is relevant.
+    #[test]
+    fn test_metrics_are_zero_where_defined_on_empty_target() {
+        let rank_list: Vec<i32> = (0..10).collect();
+        assert_eq!(Some(0.0), precision(&set(&[]), &rank_list));
+        assert_eq!(Some(0.0), recall(&set(&[1]), &[]));
+        assert_eq!(Some(0.0), hr(&set(&[]), &rank_list));
+    }
+
+    /// A1 config check (D-324): `evaluate` refuses a `top_k` of 0.
+    #[test]
+    #[should_panic(expected = "top_k must be at least 1, got 0")]
+    fn test_evaluate_rejects_zero_top_k() {
+        let train = Dataset::new(gotime::now(), 0, 0);
+        let mut test = Dataset::new(gotime::now(), 0, 0);
+        let m = MockMatrixFactorizationForEval::default();
+        evaluate(&m, &mut test, &train, 0, 1, 1, &[precision]);
     }
 
     /// Go's `mockMatrixFactorizationForEval`: scores from fixed positive and
