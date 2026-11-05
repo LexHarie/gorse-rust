@@ -122,6 +122,12 @@ if ! ls "$work"/aeneas/src/*.opam >/dev/null 2>&1; then
 fi
 (cd "$work/aeneas" && opam install ./src --deps-only --with-test --yes)
 
+# Charon's OCaml library (charon-ml) needs the opam dependencies in Charon's own
+# opam file, which Aeneas's setup does not install (ppx_deriving_hash, in the
+# first attempt). They are installed from the Charon fetched above, at the same
+# commit as the Charon that setup builds.
+(cd "$work/charon" && opam install . --deps-only --with-test --yes)
+
 # The Aeneas Makefile fetches and builds the Charon at charon-pin, then builds
 # Aeneas itself, as its README describes.
 (cd "$work/aeneas" && make setup-charon)
