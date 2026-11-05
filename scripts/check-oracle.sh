@@ -13,7 +13,11 @@
 # checks for them wait for their own models.
 #
 # Usage: scripts/check-oracle.sh [work-directory]
-# The Lean project in proofs/ must be built first, so that `lake exe oracle` runs.
+#
+# The oracle reads its cases in chunks of CHUNK lines, one process per chunk. Its loop
+# recurses once per line, and in CI it overflowed the 8 MiB main-thread stack after
+# some hundreds of thousands of lines (run 42097762799). A bounded chunk keeps the stack
+# depth bounded, whatever the loop compiles to.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -24,9 +28,17 @@ work="$(cd "$work" && pwd)"
 cases="$work/cases.jsonl"
 results="$work/results.txt"
 
+CHUNK=1000
+
 example=(cargo run --release -q -p gorse-model --example g9_oracle --)
 
 "${example[@]}" selftest
 "${example[@]}" gen "$cases"
-(cd proofs && lake exe oracle <"$cases" >"$results")
+
+# The oracle is built once, then run on each chunk of the cases, in order.
+(cd proofs && lake build oracle)
+oracle="$PWD/proofs/.lake/build/bin/oracle"
+: >"$results"
+split -l "$CHUNK" --filter="\"$oracle\" >>\"$results\"" "$cases"
+
 "${example[@]}" check "$cases" "$results"
