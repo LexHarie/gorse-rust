@@ -49,7 +49,9 @@ services:
     image: mcr.microsoft.com/azure-storage/azurite:3.34.0
     ports:
       - 10000:10000
-    command: azurite-blob --blobHost 0.0.0.0 --blobPort 10000
+    # Azurite 3.34 rejects the API version that the current az CLI sends unless
+    # the version check is skipped; the test account is a local emulator.
+    command: azurite-blob --blobHost 0.0.0.0 --blobPort 10000 --skipApiVersionCheck
 
   qdrant:
     image: qdrant/qdrant:latest
