@@ -231,9 +231,11 @@ fn evaluate(
         results.lock().unwrap_or_else(|err| err.into_inner()).push((
             user,
             Metrics {
-                ndcg: ndcg(&target_set, &rank_list),
-                precision: precision(&target_set, &rank_list),
-                recall: recall(&target_set, &rank_list),
+                // This bench keeps its mean over every user, so an undefined metric
+                // stays NaN here, as it did before the evaluator returned no value (A1).
+                ndcg: ndcg(&target_set, &rank_list).unwrap_or(f32::NAN),
+                precision: precision(&target_set, &rank_list).unwrap_or(f32::NAN),
+                recall: recall(&target_set, &rank_list).unwrap_or(f32::NAN),
             },
         ));
     })
