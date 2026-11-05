@@ -1,0 +1,10 @@
+[package]
+name = "aeneas-spike"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "The Aeneas spike of the verification plan (P1-3): one loop and one f32 dot product."
+license = "Apache-2.0"
+
+# Not a member of the root workspace: it is translated by Charon and Aeneas in CI.
+[workspace]
