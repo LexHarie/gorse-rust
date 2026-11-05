@@ -23,7 +23,9 @@ jobs:
       - name: Install elan, the Lean toolchain manager
         run: |
           curl -sSfL -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
-          sha256sum elan-init.sh | tee -a "$GITHUB_STEP_SUMMARY"
+          # The installer's digest, recorded from the first run (2026-11-05). A changed
+          # installer fails here, before it runs.
+          echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c -
           sh elan-init.sh -y --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
@@ -37,6 +39,8 @@ jobs:
             echo "- lean binary sha256: \`$(sha256sum "$(elan which lean)" | cut -d' ' -f1)\`"
             echo "- lake-manifest.json sha256: \`$(sha256sum lake-manifest.json | cut -d' ' -f1)\`"
           } >> "$GITHUB_STEP_SUMMARY"
+          # Printed in the log so the resolved revisions can be recorded in the repository.
+          cat lake-manifest.json
 
       - name: Run the G1 checks
         run: scripts/check-proofs.sh
