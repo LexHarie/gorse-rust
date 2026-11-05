@@ -67,6 +67,16 @@ cargo_in_pinned_tree() {
   (cd "$SRC" && CARGO_TARGET_DIR="$SCRATCH/target" cargo "$@")
 }
 
+# The golden test seeds the database that MYSQL_URI names, so it gets the
+# database-level DSN from backends.env. The subshell keeps the variable local.
+run_golden() {
+  (
+    export MYSQL_URI="$MYSQL_GOLDEN_URI"
+    cargo_in_pinned_tree test -p gorse-conformance --test bench_golden -- \
+      --include-ignored --test-threads=1
+  )
+}
+
 extract_pinned_tree
 build_go_nodes
 
@@ -79,12 +89,27 @@ case "$cmd" in
     echo "parity: dry run done; no backend was started and no suite ran"
     ;;
   run)
+    # Without --no-fail-fast, cargo stops at the first failing test binary and
+    # the suites after it never run. bench_golden is run on its own below,
+    # because it needs MYSQL_URI to name a database, and the other suites need
+    # the server-level DSN in MYSQL_URI.
     if [ "$#" -eq 0 ]; then
-      cargo_in_pinned_tree test -p gorse-conformance -- --include-ignored --test-threads=1
+      status=0
+      cargo_in_pinned_tree test -p gorse-conformance --no-fail-fast -- \
+        --include-ignored --test-threads=1 --skip bench_golden_matches_go || status=$?
+      run_golden || status=$?
+      exit "$status"
     else
+      status=0
       for name in "$@"; do
-        cargo_in_pinned_tree test -p gorse-conformance --test "$name" -- --include-ignored --test-threads=1
+        if [ "$name" = bench_golden ]; then
+          run_golden || status=$?
+        else
+          cargo_in_pinned_tree test -p gorse-conformance --test "$name" -- \
+            --include-ignored --test-threads=1 || status=$?
+        fi
       done
+      exit "$status"
     fi
     ;;
 esac
