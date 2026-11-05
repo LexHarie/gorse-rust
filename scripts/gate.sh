@@ -15,7 +15,7 @@
 # The TEST stage also prints its totals, summed over every suite.
 #
 # Backends: the VECTOR_ACCEPT, PROXY_STORE and TEST stages need the backends of
-# storage/docker-compose.yml, with the URIs below. The workflow starts them;
+# storage/docker-compose.yml, with the URIs in scripts/backends.env. The workflow starts them;
 # this script does not start containers. A backend that is down makes its
 # stage fail, which is the intended result.
 #
@@ -27,20 +27,8 @@ cd "$(dirname "$0")/.." || exit 2
 LOG_DIR="${GATE_LOG_DIR:-target/gate}"
 mkdir -p "$LOG_DIR"
 
-# Backend URIs, matching storage/docker-compose.yml. These are throwaway
-# credentials for the local test containers only.
-: "${REDIS_URI:=redis://127.0.0.1:6379/}"
-: "${MYSQL_URI:=mysql://gorse:gorse_pass@127.0.0.1:3306/gorse}"
-: "${POSTGRES_URI:=postgres://gorse:gorse_pass@127.0.0.1:5432/}"
-: "${MONGO_URI:=mongodb://root:password@127.0.0.1:27017/?authSource=admin}"
-: "${QDRANT_URI:=http://127.0.0.1:6334}"
-: "${MILVUS_URI:=milvus://127.0.0.1:19530}"
-: "${WEAVIATE_URI:=weaviate://127.0.0.1:8080}"
-: "${S3_ENDPOINT:=127.0.0.1:9000}"
-: "${AWS_ACCESS_KEY_ID:=rustfsadmin}"
-: "${AWS_SECRET_ACCESS_KEY:=rustfsadmin}"
-export REDIS_URI MYSQL_URI POSTGRES_URI MONGO_URI QDRANT_URI MILVUS_URI WEAVIATE_URI
-export S3_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+# Backend URIs (see scripts/backends.env).
+. "$(dirname "$0")/backends.env"
 
 # Expected exit status per stage. Every other stage expects 0.
 expected_status() {
