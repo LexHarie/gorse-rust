@@ -1643,7 +1643,11 @@ mod tests {
             &mut test_set,
             &fit_config,
         );
-        assert!((0.36 - score.ndcg.unwrap_or(f32::NAN)).abs() <= BENCH_DELTA);
+        // D-323: 156 of ml-1m's 6,040 users have a repeated candidate. The fit's NDCG,
+        // deduplicated, is 0.34746802. Without deduplication the same model's mean NDCG is
+        // 0.3540669, 0.0066 away, which a tolerance of 1e-3 excludes. This test no longer
+        // checks Go's 0.36 ± 0.01 band, which is kept here only as a comment.
+        assert!((0.34746802 - score.ndcg.unwrap_or(f32::NAN)).abs() <= 1e-3);
 
         // test predict
         assert_eq!(m.predict("1", "1"), m.internal_predict(1, 1));
