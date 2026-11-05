@@ -97,8 +97,9 @@ check_pin() { # name dir rev digest
 fetch_rev "$work/aeneas" "$AENEAS_REPO" "$AENEAS_REV"
 check_pin aeneas "$work/aeneas" "$AENEAS_REV" "$AENEAS_TREE_SHA256"
 
-charon_rev="$(tr -d '[:space:]' < "$work/aeneas/charon-pin")"
-echo "charon-pin in aeneas: $charon_rev"
+# charon-pin is a comment line followed by the commit, so take the SHA line.
+charon_rev="$(grep -E -x '[0-9a-f]{40}' "$work/aeneas/charon-pin" | tail -n 1 || true)"
+echo "charon-pin in aeneas: ${charon_rev:-none}"
 [[ "$charon_rev" =~ ^[0-9a-f]{40}$ ]] || die "charon-pin is not a full commit SHA: $charon_rev"
 if [ -n "$CHARON_REV" ] && [ "$CHARON_REV" != "$charon_rev" ]; then
   die "CHARON_REV $CHARON_REV differs from the charon-pin of Aeneas $charon_rev"
