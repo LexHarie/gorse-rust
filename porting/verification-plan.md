@@ -1,8 +1,10 @@
 # Verification-led modernization plan
 
-Status: **design only**. Nothing in this file is implemented. It proposes
-decisions (marked *proposed D-313* to *D-316*) that are not yet in the
-`PORTING.md` decision log, and only Ritchie can record them.
+Status: **design only, with decisions taken**. Nothing in this file is
+implemented. The owner decided D-313 to D-316 on 2026-11-05; the decisions are
+recorded in the "Decision record" section below. They are not yet copied
+into the `PORTING.md` decision log. Where a later section still says
+*proposed*, the decision record wins.
 
 Base: `master` at `eccb0f2` (the D-312 verdict). The last head with the Go
 oracle is the branch `go-oracle-final` at `2e9c969` (D-310), which still holds
@@ -12,6 +14,28 @@ Rule for evidence. Every claim below cites a file and line in this tree, a
 decision ID, or a primary source (listed in §7). Where an X/Q/O entry is
 cited, the code it describes was read and is cited next to it. The entry's
 summary was not taken on trust.
+
+---
+
+## Decision record (owner, 2026-11-05)
+
+These are the owner's decisions on the plan's proposals. They are recorded
+here and nothing has been implemented yet. They become `PORTING.md`
+decision-log entries when the work starts.
+
+| ID | Decision | What it means for the work |
+|---|---|---|
+| **D-313** | **Accepted:** the three-tier contract of §1 replaces "parity with Go". | Tier I exact theorems, tier II proven floating-point bounds, tier III pre-registered statistical bands. Each Rust build stays deterministic with a given seed (tier I). Equality with Go's numbers is no longer required. |
+| **D-314** | **Accepted:** the scope of Go compatibility. **Kept:** reading Go-written stored data (model blobs, cache, database schemas) for one migration period, and the REST and gRPC message formats. **Dropped:** byte-for-byte imitation of Go, namely gob writing, Go's random number sequences, heap tie order and the quirks of Go's `exp` code. | §1.2's table holds as written. The Go replay checks (`crates/gorse-model/src/cf/replay.rs`) and the Go-recorded goldens for incidental items become parity-tier checks (G11). They are not per-commit requirements. |
+| **D-315** | **Rulings on the spec questions of §3.2:** | |
+| | A1 **Accepted:** metrics give *no value* instead of NaN. | `ndcg`, `precision`, `recall`, `map` and `mrr` return "no value" when undefined (empty ranked list, empty target set). `evaluate` averages only the defined values, and gives no value when no user has one. The config is checked for `top_k ≥ 1`. |
+| | A4 **Confirm, then fix:** duplicate items in the candidates. | In Lean, prove both `ndcg_gt_one_of_dup` (duplicates can push NDCG above 1) and the bound under `Nodup`. Lean proves the mathematics only; until Aeneas links the Rust code (§2.3), it cannot show that duplicates actually reach the Rust evaluator. That needs a Rust test as well: a dataset with two positive feedback types for one (user, item) pair. If both confirm it, deduplicate the candidates in `evaluate`. |
+| | A5 **Fix:** NaN scores in top-k. | Method as proposed: `TopKFilter` rejects NaN weights at the boundary and counts them, instead of keeping them where the heap happens to place them. |
+| | A8 **Fix, with Lean:** the BPR gradient that becomes NaN without an error (F5). | Replace `model.rs:704` with the stable sigmoid (`exp` evaluated only at non-positive arguments). In Lean, prove that the stable form equals σ(−d) and lies in [0, 1] for every real d; the tier II f32 bound follows with T3. Add a regression test at d = −89, which gives NaN today. |
+| | A9 **Decided: all items.** The eALS missing-data term sums over **all items**, as in He et al. 2016, not only the items with feedback. | Change the Gram matrix at `model.rs:1270` and fix the wrong Hu et al. citation at `model.rs:1091-1092`. ALS's numbers change, so the ALS Go replay must be re-baselined as a parity-tier check (D-314). The ml-1m band (`test_ccd_movielens`) must still pass. |
+| | A2, A3, A6, A7, A10 to A15 | **Open.** The proposed rulings in §3.2 stand until the owner decides. |
+| **D-316** | **Accepted: bring CI back** (this reverses D-312). | Step P0 commits the gate script and restores the GitHub Actions workflows: the gate stages of D-312, plus G1 to G4 once the Lean project exists. |
+| — | **Out of scope, confirmed:** the expression checker and the HNSW index. | Neither is verified or reworked. HNSW keeps only its existing recall test. Revisit only if their production role changes (§5). |
 
 ---
 
@@ -228,8 +252,8 @@ proved contract unlocks.
 | 5 | Consistent-hash ring (`consistent.rs`) | `worker.rs:611-621` (only `new`, `add`, `get`) | 1.5 | Medium: on a 64-bit point collision, `host_at` returns `""` (`consistent.rs:137-143`), so **every** worker skips that user | Low | **T5** (optional) |
 | 6 | Codecs and varint (`cf/model.rs:486-505`, `nn/codec.rs`, `gob.rs`) | Blob decoding | 1 | Low: well understood; it matches Go, including the non-canonical forms Go accepts | Low | Proptest and cargo-fuzz only |
 | 7 | `unified_index` | FM only | 1 | Low-medium: i32 sum overflow (`unified_index.rs:316-322`); the direct index orders label ranges differently from the map index (`:453-466` versus `:344-372`), in test code only | Low | Kani overflow proof only |
-| 8 | Expression checker (`gorse-expr`, about 14k lines, expr-lang v1.17.8) | User config expressions | 20+ | Medium | Low | Not now: differential fuzzing against `go-oracle-final` instead |
-| 9 | HNSW invariants (`ann.rs`) | **Tests only at the pin** (`ann.rs:5-6`) | 6 | Low | Low | Not now. Only the tier III recall band, unless HNSW becomes a production path. |
+| 8 | Expression checker (`gorse-expr`, about 14k lines, expr-lang v1.17.8) | User config expressions | 20+ | Medium | Low | **Out of scope (owner, 2026-11-05)** |
+| 9 | HNSW invariants (`ann.rs`) | **Tests only at the pin** (`ann.rs:5-6`) | 6 | Low | Low | **Out of scope (owner, 2026-11-05)**. The existing recall test stays. |
 
 ### 3.1 The theorems for the picks
 
@@ -485,13 +509,12 @@ and the pilot itself is pre-registered.
   "12 of 12 inside ±0.01"**, which has no stated error rate: a build whose runs
   land inside the band with p = 0.9 passes 12 of 12 with probability 0.9¹² ≈ 0.28.
 - *FM* on frappe: AUC, TOST with δ = 0.005, the same α.
-- *HNSW*: 10 builds × 1000 queries, mean recall@10 per build against brute
-  force, one-sided 99.8% lower t-bound ≥ 0.95. This replaces the single build
-  asserting `r > 0.99` (`ann/tests.rs:537-564`).
+- *HNSW*: out of scope (decision record). The existing single-build test
+  asserting `r > 0.99` (`ann/tests.rs:537-564`) stays as it is.
 - *TPE*: on a fixed synthetic objective, 50 seeds, a sign test that the best
   after 30 trials beats random search, at α = 0.002. Plus equivalence with the
   goptuna reference built from `go-oracle-final`.
-- *Family-wise*: 5 tests at 0.002 give ≤ 1% false alarms per gate run
+- *Family-wise*: 4 tests (BPR, ALS, FM, TPE) at 0.002 give ≤ 0.8% false alarms per gate run
   (Bonferroni). No optional stopping: n is fixed unless a group-sequential design is
   pre-registered.
 
