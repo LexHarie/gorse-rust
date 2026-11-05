@@ -79,3 +79,7 @@ jobs:
       - name: Run the independent kernels on the proofs (G2)
         timeout-minutes: 60
         run: scripts/check-kernels.sh
+
+      - name: Bisect the nanoda failure per theorem (scratch, not for merge)
+        if: always()
+        run: scripts/bisect-nanoda.sh
