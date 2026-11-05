@@ -1,0 +1,27 @@
+# G10, cargo-mutants on the verified T1 metric code (scripts/check-mutants.sh, D-327).
+name: mutants
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  g10:
+    name: cargo-mutants on the T1 metrics (G10)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install cargo-mutants
+        # Pinned, so a new release cannot change which mutants are generated.
+        run: cargo install cargo-mutants --locked --version 27.1.0
+
+      - name: Run the mutants on the T1 metrics
+        run: scripts/check-mutants.sh "$RUNNER_TEMP/mutants"
