@@ -39,11 +39,22 @@ services:
       RUSTFS_ACCESS_KEY: rustfsadmin
       RUSTFS_SECRET_KEY: rustfsadmin
 
+  fake-gcs:
+    image: fsouza/fake-gcs-server:1.56.1
+    # The GCS test (blob::gcs, test_gcs_read_list_remove) needs both flags set to the
+    # emulator's own address; without -public-host the XML list and read answer 404.
+    command: ["-scheme", "http", "-port", "4443", "-backend", "memory",
+      "-external-url", "http://127.0.0.1:4443", "-public-host", "127.0.0.1:4443"]
+    ports:
+      - 4443:4443
+
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite:3.34.0
     ports:
       - 10000:10000
-    command: azurite-blob --blobHost 0.0.0.0 --blobPort 10000
+    # Azurite 3.34 rejects the API version that the current az CLI sends unless
+    # the version check is skipped; the test account is a local emulator.
+    command: azurite-blob --blobHost 0.0.0.0 --blobPort 10000 --skipApiVersionCheck
 
   qdrant:
     image: qdrant/qdrant:latest

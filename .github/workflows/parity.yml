@@ -1,0 +1,34 @@
+name: parity
+
+# Runs the parity tier (G11 in porting/verification-plan.md): the frozen
+# differential suites against the Go oracle built from commit 2e9c969
+# (branch go-oracle-final). It runs per release and on demand, not per commit.
+# The workflow holds no secrets and no credentials; the backend URIs come from
+# scripts/backends.env and the containers from storage/docker-compose.yml.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parity:
+    name: parity suites against the Go oracle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Check out the repository with history
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          # The oracle commit 2e9c969 is an ancestor of master, so the full history is needed.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Start the backends
+        run: docker compose -f storage/docker-compose.yml up -d
+
+      - name: Run the parity suites
+        run: scripts/parity.sh run
