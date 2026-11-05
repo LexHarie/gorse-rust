@@ -58,8 +58,16 @@ jobs:
 
       - name: Check the statement freeze (G4)
         env:
+          # The base rule applies to pull requests: it compares the manifest with the
+          # pull request's base commit. A workflow_dispatch run has no base, so it runs
+          # the plain check, which still checks every statement against the manifest.
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: scripts/check-statements.sh --base "$BASE_SHA"
+        run: |
+          if [ -n "$BASE_SHA" ]; then
+            scripts/check-statements.sh --base "$BASE_SHA"
+          else
+            scripts/check-statements.sh
+          fi
 
       - name: Run the independent kernels on the proofs (G2)
         timeout-minutes: 60
