@@ -34,18 +34,32 @@ use super::evaluator::{Metric, evaluate, ndcg, precision, recall};
 use super::lock;
 
 /// Go's `Score`: the metrics of a fit's last evaluation. Go's struct has no
-/// JSON tags, so the stored JSON names the fields as Go does.
-#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+/// JSON tags, so the stored JSON names the fields as Go does. A metric with no
+/// defined value is `None` (A1, D-324), which JSON stores as `null`, as it did for NaN.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Score {
     /// NDCG at the configured top-k.
     #[serde(rename = "NDCG")]
-    pub ndcg: f32,
+    pub ndcg: Option<f32>,
     /// Precision at the configured top-k.
     #[serde(rename = "Precision")]
-    pub precision: f32,
+    pub precision: Option<f32>,
     /// Recall at the configured top-k.
     #[serde(rename = "Recall")]
-    pub recall: f32,
+    pub recall: Option<f32>,
+}
+
+/// Go's zero `Score`: every metric is 0 until a fit evaluates it. That zero is a
+/// value of Go's struct, not an undefined metric, so the default keeps it as 0
+/// and the JSON stays `0` (A1, D-324).
+impl Default for Score {
+    fn default() -> Self {
+        Score {
+            ndcg: Some(0.0),
+            precision: Some(0.0),
+            recall: Some(0.0),
+        }
+    }
 }
 
 /// Go's `FitConfig`.
@@ -612,7 +626,7 @@ fn evaluate_score(
 /// The epoch history of a fit, which early stopping reads.
 struct History {
     /// The (epoch, NDCG) of every evaluation, starting with epoch 0.
-    scores: Vec<(usize, f32)>,
+    scores: Vec<(usize, Option<f32>)>,
     /// The last evaluation.
     score: Score,
 }
@@ -625,10 +639,12 @@ impl History {
         }
     }
 
-    /// Go's `lo.MaxBy` over the history: the first entry with the largest NDCG.
-    fn best(&self) -> (usize, f32) {
+    /// Go's `lo.MaxBy` over the history: the first entry with the largest NDCG. An
+    /// undefined NDCG (`None`) is smaller than any defined one, so a defined value
+    /// always beats it.
+    fn best(&self) -> (usize, Option<f32>) {
         let Some(&first) = self.scores.first() else {
-            return (0, 0.0);
+            return (0, None);
         };
         let mut best = first;
         for &entry in &self.scores[1..] {
@@ -1580,7 +1596,7 @@ mod tests {
             &mut test_set,
             &fit_config,
         );
-        assert!((0.36 - score.ndcg).abs() <= BENCH_DELTA);
+        assert!((0.36 - score.ndcg.unwrap_or(f32::NAN)).abs() <= BENCH_DELTA);
         assert!(same_dict(train_set.get_user_dict(), m.get_user_index()));
         assert!(same_dict(test_set.get_item_dict(), m.get_item_index()));
 
@@ -1627,7 +1643,7 @@ mod tests {
             &mut test_set,
             &fit_config,
         );
-        assert!((0.36 - score.ndcg).abs() <= BENCH_DELTA);
+        assert!((0.36 - score.ndcg.unwrap_or(f32::NAN)).abs() <= BENCH_DELTA);
 
         // test predict
         assert_eq!(m.predict("1", "1"), m.internal_predict(1, 1));

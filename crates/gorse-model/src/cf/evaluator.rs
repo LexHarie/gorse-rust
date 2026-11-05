@@ -6,7 +6,6 @@
 use std::collections::HashSet;
 use std::sync::Mutex;
 
-use gorse_common::floats;
 use gorse_common::gocontext::{Context, ContextError};
 use gorse_common::heap::TopKFilter;
 use gorse_common::parallel;
@@ -15,19 +14,20 @@ use gorse_dataset::dataset::CfSplit;
 use super::lock;
 use super::model::MatrixFactorization;
 
-/// Go's `Metric`: scores a ranked list against the set of relevant items.
-pub type Metric = fn(&HashSet<i32>, &[i32]) -> f32;
+/// Go's `Metric`: scores a ranked list against the set of relevant items. `None` when
+/// the metric is undefined for the list, as A1 requires (D-315).
+pub type Metric = fn(&HashSet<i32>, &[i32]) -> Option<f32>;
 
-/// The per-job partial results of [`evaluate`]: the sum of each metric and the
-/// number of users scored.
+/// The per-job partial results of [`evaluate`]: for each metric, the sum of its defined
+/// values and the number of users it was defined for.
 struct Partial {
     sum: Vec<f32>,
-    count: f32,
+    count: Vec<f32>,
 }
 
-/// Go's `Evaluate`: the mean of each metric over the test users who have
-/// relevant items. Each user is ranked over its test items and `num_candidates`
-/// sampled negatives, and the top `top_k` are scored.
+/// Go's `Evaluate`: the mean of each metric over the test users for whom it is defined,
+/// and `None` when no user has a defined value (A1, D-324). Each user is ranked over its
+/// test items and `num_candidates` sampled negatives, and the top `top_k` are scored.
 ///
 /// The negatives are sampled once per split and cached, so every call on the
 /// same split sees the same ones, as in Go.
@@ -39,7 +39,9 @@ pub fn evaluate(
     num_candidates: usize,
     n_jobs: usize,
     scorers: &[Metric],
-) -> Vec<f32> {
+) -> Vec<Option<f32>> {
+    // A1 config check: a zero cut-off leaves every ranked list empty, so it is refused here.
+    assert!(top_k >= 1, "top_k must be at least 1, got {top_k}");
     let negatives = test_set
         .sample_user_negatives(train_set, num_candidates)
         .to_vec();
@@ -49,7 +51,7 @@ pub fn evaluate(
         .map(|_| {
             Mutex::new(Partial {
                 sum: vec![0.0; scorers.len()],
-                count: 0.0,
+                count: vec![0.0; scorers.len()],
             })
         })
         .collect();
@@ -70,29 +72,40 @@ pub fn evaluate(
                 // Find top-n ItemFeedback in predictions
                 let rank_list = rank(estimator, user_index as i32, &candidates, top_k);
                 let mut partial = lock(&partials[worker_id]);
-                partial.count += 1.0;
-                for (sum, metric) in partial.sum.iter_mut().zip(scorers) {
-                    *sum += metric(&target_set, &rank_list);
+                let Partial { sum, count } = &mut *partial;
+                for ((total, n), metric) in sum.iter_mut().zip(count.iter_mut()).zip(scorers) {
+                    if let Some(value) = metric(&target_set, &rank_list) {
+                        *total += value;
+                        *n += 1.0;
+                    }
                 }
             }
             Ok(())
         },
     );
     let mut sum = vec![0f32; scorers.len()];
-    let mut count = 0f32;
+    let mut count = vec![0f32; scorers.len()];
     for partial in partials {
         let partial = partial.into_inner().unwrap_or_else(|e| e.into_inner());
         for (total, part) in sum.iter_mut().zip(&partial.sum) {
             *total += part;
         }
-        count += partial.count;
+        for (n, part) in count.iter_mut().zip(&partial.count) {
+            *n += part;
+        }
     }
-    floats::mul_const(&mut sum, 1.0 / count);
-    sum
+    sum.iter()
+        .zip(&count)
+        .map(|(&total, &n)| (n > 0.0).then(|| total * (1.0 / n)))
+        .collect()
 }
 
-/// Go's `NDCG`: normalized discounted cumulative gain.
-pub fn ndcg(target_set: &HashSet<i32>, rank_list: &[i32]) -> f32 {
+/// Go's `NDCG`: normalized discounted cumulative gain. Undefined (`None`) when the target
+/// set or the ranked list is empty, as in the T1 specification (D-317, D-318).
+pub fn ndcg(target_set: &HashSet<i32>, rank_list: &[i32]) -> Option<f32> {
+    if target_set.is_empty() || rank_list.is_empty() {
+        return None;
+    }
     // IDCG = \sum^{|REL|}_{i=1} \frac {1} {\log_2(i+1)}
     let mut idcg = 0f32;
     for i in 0..target_set.len().min(rank_list.len()) {
@@ -105,7 +118,7 @@ pub fn ndcg(target_set: &HashSet<i32>, rank_list: &[i32]) -> f32 {
             dcg += 1.0 / log2(i as f32 + 2.0);
         }
     }
-    dcg / idcg
+    Some(dcg / idcg)
 }
 
 /// Go's `math32.Log2`, which is `float32(math.Log2(float64(x)))`. The float64
@@ -115,41 +128,57 @@ fn log2(x: f32) -> f32 {
     f64::from(x).log2() as f32
 }
 
-/// Go's `Precision`: the fraction of recommended items that are relevant.
-pub fn precision(target_set: &HashSet<i32>, rank_list: &[i32]) -> f32 {
+/// Go's `Precision`, written `P@|L|` (D-315, A3): the fraction of recommended items that
+/// are relevant. Undefined (`None`) for an empty ranked list.
+pub fn precision(target_set: &HashSet<i32>, rank_list: &[i32]) -> Option<f32> {
+    if rank_list.is_empty() {
+        return None;
+    }
     let mut hit = 0f32;
     for item_id in rank_list {
         if target_set.contains(item_id) {
             hit += 1.0;
         }
     }
-    hit / rank_list.len() as f32
+    Some(hit / rank_list.len() as f32)
 }
 
-/// Go's `Recall`: the fraction of relevant items that are recommended.
-pub fn recall(target_set: &HashSet<i32>, rank_list: &[i32]) -> f32 {
+/// Go's `Recall`: the fraction of relevant items that are recommended. Undefined (`None`)
+/// for an empty target set.
+pub fn recall(target_set: &HashSet<i32>, rank_list: &[i32]) -> Option<f32> {
+    if target_set.is_empty() {
+        return None;
+    }
     let mut hit = 0usize;
     for item_id in rank_list {
         if target_set.contains(item_id) {
             hit += 1;
         }
     }
-    hit as f32 / target_set.len() as f32
+    Some(hit as f32 / target_set.len() as f32)
 }
 
-/// Go's `HR`: 1 when some relevant item is recommended, else 0.
-pub fn hr(target_set: &HashSet<i32>, rank_list: &[i32]) -> f32 {
+/// Go's `HR`: 1 when some relevant item is recommended, else 0. Undefined (`None`) for an
+/// empty ranked list.
+pub fn hr(target_set: &HashSet<i32>, rank_list: &[i32]) -> Option<f32> {
+    if rank_list.is_empty() {
+        return None;
+    }
     for item_id in rank_list {
         if target_set.contains(item_id) {
-            return 1.0;
+            return Some(1.0);
         }
     }
-    0.0
+    Some(0.0)
 }
 
-/// Go's `MAP`: mean average precision.
+/// Go's `MAP`: mean average precision, which divides by `|T|` (the `AP/|T|` of D-315, A3).
+/// Undefined (`None`) when the target set or the ranked list is empty.
 /// mAP: <http://sdsawtelle.github.io/blog/output/mean-average-precision-MAP-for-recommender-systems.html>
-pub fn map(target_set: &HashSet<i32>, rank_list: &[i32]) -> f32 {
+pub fn map(target_set: &HashSet<i32>, rank_list: &[i32]) -> Option<f32> {
+    if target_set.is_empty() || rank_list.is_empty() {
+        return None;
+    }
     let mut sum_precision = 0f32;
     let mut hit = 0usize;
     for (i, item_id) in rank_list.iter().enumerate() {
@@ -158,18 +187,21 @@ pub fn map(target_set: &HashSet<i32>, rank_list: &[i32]) -> f32 {
             sum_precision += hit as f32 / (i + 1) as f32;
         }
     }
-    sum_precision / target_set.len() as f32
+    Some(sum_precision / target_set.len() as f32)
 }
 
 /// Go's `MRR`: the reciprocal rank of the first relevant item, or 0 when none
-/// is recommended.
-pub fn mrr(target_set: &HashSet<i32>, rank_list: &[i32]) -> f32 {
+/// is recommended. Undefined (`None`) for an empty target set or an empty ranked list (A1).
+pub fn mrr(target_set: &HashSet<i32>, rank_list: &[i32]) -> Option<f32> {
+    if target_set.is_empty() || rank_list.is_empty() {
+        return None;
+    }
     for (i, item_id) in rank_list.iter().enumerate() {
         if target_set.contains(item_id) {
-            return 1.0 / (i + 1) as f32;
+            return Some(1.0 / (i + 1) as f32);
         }
     }
-    0.0
+    Some(0.0)
 }
 
 /// Go's `Rank`: the `top_n` candidates the model scores highest, best first.
@@ -214,42 +246,78 @@ mod tests {
     fn test_ndcg() {
         let target_set = set(&[1, 3, 5, 7]);
         let rank_list: Vec<i32> = (0..10).collect();
-        assert!((0.6766372989 - ndcg(&target_set, &rank_list)).abs() <= EVAL_EPSILON);
+        assert!((0.6766372989 - ndcg(&target_set, &rank_list).unwrap()).abs() <= EVAL_EPSILON);
     }
 
     #[test]
     fn test_precision() {
         let target_set = set(&[1, 3, 5, 7]);
         let rank_list: Vec<i32> = (0..10).collect();
-        assert!((0.4 - precision(&target_set, &rank_list)).abs() <= EVAL_EPSILON);
+        assert!((0.4 - precision(&target_set, &rank_list).unwrap()).abs() <= EVAL_EPSILON);
     }
 
     #[test]
     fn test_recall() {
         let target_set = set(&[1, 3, 15, 17, 19]);
         let rank_list: Vec<i32> = (0..10).collect();
-        assert!((0.4 - recall(&target_set, &rank_list)).abs() <= EVAL_EPSILON);
+        assert!((0.4 - recall(&target_set, &rank_list).unwrap()).abs() <= EVAL_EPSILON);
     }
 
     #[test]
     fn test_ap() {
         let target_set = set(&[1, 3, 7, 9]);
         let rank_list: Vec<i32> = (0..10).collect();
-        assert!((0.44375 - map(&target_set, &rank_list)).abs() <= EVAL_EPSILON);
+        assert!((0.44375 - map(&target_set, &rank_list).unwrap()).abs() <= EVAL_EPSILON);
     }
 
     #[test]
     fn test_rr() {
         let target_set = set(&[3]);
         let rank_list: Vec<i32> = (0..10).collect();
-        assert!((0.25 - mrr(&target_set, &rank_list)).abs() <= EVAL_EPSILON);
+        assert!((0.25 - mrr(&target_set, &rank_list).unwrap()).abs() <= EVAL_EPSILON);
     }
 
     #[test]
     fn test_hr() {
         let rank_list: Vec<i32> = (0..10).collect();
-        assert!((1.0 - hr(&set(&[3]), &rank_list)).abs() <= EVAL_EPSILON);
-        assert!((0.0 - hr(&set(&[30]), &rank_list)).abs() <= EVAL_EPSILON);
+        assert!((1.0 - hr(&set(&[3]), &rank_list).unwrap()).abs() <= EVAL_EPSILON);
+        assert!((0.0 - hr(&set(&[30]), &rank_list).unwrap()).abs() <= EVAL_EPSILON);
+    }
+
+    /// A1 (D-315): each metric is undefined, not NaN, on an empty target set or list.
+    #[test]
+    fn test_metrics_are_none_when_undefined() {
+        let rank_list: Vec<i32> = (0..10).collect();
+        assert_eq!(None, ndcg(&set(&[]), &rank_list));
+        assert_eq!(None, ndcg(&set(&[1]), &[]));
+        assert_eq!(None, precision(&set(&[1]), &[]));
+        assert_eq!(None, recall(&set(&[]), &rank_list));
+        assert_eq!(None, map(&set(&[]), &rank_list));
+        assert_eq!(None, map(&set(&[1]), &[]));
+        assert_eq!(None, mrr(&set(&[1]), &[]));
+        assert_eq!(None, mrr(&set(&[]), &rank_list));
+        assert_eq!(None, hr(&set(&[1]), &[]));
+    }
+
+    /// A1 (D-324): precision is defined on an empty target set, recall on an empty
+    /// ranked list, and hr on an empty target set. Each is `Some(0)` there, because
+    /// nothing in the ranked list is relevant.
+    #[test]
+    fn test_metrics_are_zero_where_defined_on_empty_target() {
+        let rank_list: Vec<i32> = (0..10).collect();
+        assert_eq!(Some(0.0), precision(&set(&[]), &rank_list));
+        assert_eq!(Some(0.0), recall(&set(&[1]), &[]));
+        assert_eq!(Some(0.0), hr(&set(&[]), &rank_list));
+    }
+
+    /// A1 config check (D-324): `evaluate` refuses a `top_k` of 0.
+    #[test]
+    #[should_panic(expected = "top_k must be at least 1, got 0")]
+    fn test_evaluate_rejects_zero_top_k() {
+        let train = Dataset::new(gotime::now(), 0, 0);
+        let mut test = Dataset::new(gotime::now(), 0, 0);
+        let m = MockMatrixFactorizationForEval::default();
+        evaluate(&m, &mut test, &train, 0, 1, 1, &[precision]);
     }
 
     /// Go's `mockMatrixFactorizationForEval`: scores from fixed positive and
@@ -391,6 +459,6 @@ mod tests {
         let num_candidates = test.count_items();
         let s = evaluate(&m, &mut test, &train, 4, num_candidates, 4, &[precision]);
         assert_eq!(1, s.len());
-        assert_eq!(0.625, s[0]);
+        assert_eq!(Some(0.625), s[0]);
     }
 }

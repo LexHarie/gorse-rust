@@ -131,10 +131,16 @@ fn als_model(epochs: i64) -> Box<dyn Model> {
 
 /// The largest absolute difference between a fitted score and the Go score.
 fn score_diff(score: Score, expected: &EpochScore) -> f32 {
-    (score.ndcg - expected.ndcg)
+    // An undefined metric compares as NaN, as the Go score it is checked against would.
+    let (ndcg, precision, recall) = (
+        score.ndcg.unwrap_or(f32::NAN),
+        score.precision.unwrap_or(f32::NAN),
+        score.recall.unwrap_or(f32::NAN),
+    );
+    (ndcg - expected.ndcg)
         .abs()
-        .max((score.precision - expected.precision).abs())
-        .max((score.recall - expected.recall).abs())
+        .max((precision - expected.precision).abs())
+        .max((recall - expected.recall).abs())
 }
 
 /// Replays one model against its golden output and returns the largest difference.
