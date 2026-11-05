@@ -1,0 +1,17 @@
+[package]
+name = "gorse-kernels"
+description = "The verified numeric kernels of Gorse: the f32 vector and matrix operations and their SIMD C kernels."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+
+[build-dependencies]
+cc.workspace = true
+
+[lints]
+workspace = true

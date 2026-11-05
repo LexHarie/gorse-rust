@@ -18,6 +18,7 @@ repository = "https://github.com/LexHarie/gorse-rust"
 flate2 = "1.1.10"
 gorse-protocol = { path = "crates/gorse-protocol" }
 gorse-common = { path = "crates/gorse-common" }
+gorse-kernels = { path = "crates/gorse-kernels" }
 gorse-expr = { path = "crates/gorse-expr" }
 gorse-ratelimit = { path = "crates/gorse-ratelimit" }
 gorse-storage-core = { path = "crates/gorse-storage-core" }

@@ -16,7 +16,7 @@ pub mod decision;
 pub mod encoding;
 pub mod event;
 pub mod expression;
-pub mod floats;
+pub use gorse_kernels::floats;
 pub mod gocontext;
 pub mod gojson;
 pub mod gonet;
