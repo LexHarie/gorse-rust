@@ -311,6 +311,16 @@ theorem extracted_ndcg_refines (T L) :
 `log2` rounded to f32 (`evaluator.rs:114-116`) plus two sums of length ≤ n
 and one division.
 
+**Status of the f32 link (D-328).** `extracted_ndcg_refines` is not available: f32
+is out of verified scope at Aeneas c2d2343, and the pin is not bumped. So the P2
+link for f32 is tier II under the G9 fallback of §2.3. That fallback is an exact model
+of the f32 kernels, checked bit for bit against the Rust and C code, with Kani for the
+shape properties. Neither check is built yet for f32: the G9 check of D-326 covers only
+precision, recall, hr and mrr. The tier II work that owns f32, `map` and `ndcg` is
+P4 (T3 rounding model and dot), which
+builds the f32 rounding model, the fixed summation order that `map` needs, and the
+proven bound that `ndcg` needs (D-326).
+
 #### T2. Top-k
 
 In plain English:
