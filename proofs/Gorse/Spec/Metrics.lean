@@ -1,4 +1,6 @@
-import Mathlib
+import Mathlib.Analysis.SpecialFunctions.Log.Base
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.NormNum
 
 /-! The T1 specification of the verification plan (§3.1, T1): the ranking metrics,
 stated over finite sets of item IDs and lists of recommended IDs. The definitions
