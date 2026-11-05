@@ -36,7 +36,7 @@ use super::lock;
 /// Go's `Score`: the metrics of a fit's last evaluation. Go's struct has no
 /// JSON tags, so the stored JSON names the fields as Go does. A metric with no
 /// defined value is `None` (A1, D-324), which JSON stores as `null`, as it did for NaN.
-#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Score {
     /// NDCG at the configured top-k.
     #[serde(rename = "NDCG")]
@@ -47,6 +47,19 @@ pub struct Score {
     /// Recall at the configured top-k.
     #[serde(rename = "Recall")]
     pub recall: Option<f32>,
+}
+
+/// Go's zero `Score`: every metric is 0 until a fit evaluates it. That zero is a
+/// value of Go's struct, not an undefined metric, so the default keeps it as 0
+/// and the JSON stays `0` (A1, D-324).
+impl Default for Score {
+    fn default() -> Self {
+        Score {
+            ndcg: Some(0.0),
+            precision: Some(0.0),
+            recall: Some(0.0),
+        }
+    }
 }
 
 /// Go's `FitConfig`.
