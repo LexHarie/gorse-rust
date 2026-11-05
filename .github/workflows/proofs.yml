@@ -20,6 +20,8 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
+          # The full history, so the base commit of the pull request can be read (G4).
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Install elan, the Lean toolchain manager
@@ -55,7 +57,9 @@ jobs:
         run: scripts/check-statements.sh --self-test
 
       - name: Check the statement freeze (G4)
-        run: scripts/check-statements.sh
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: scripts/check-statements.sh --base "$BASE_SHA"
 
       - name: Run the independent kernels on the proofs (G2)
         timeout-minutes: 60
