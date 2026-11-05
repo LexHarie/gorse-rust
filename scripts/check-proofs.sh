@@ -59,7 +59,8 @@ echo "== step 2: lake build"
 echo "== step 3: #print axioms of the exported theorems"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
-exports=(Gorse.scaffold_true Gorse.scaffold_or_comm)
+# The exported theorems, from proofs/exports.txt. The G2 export reads the same list.
+mapfile -t exports < <(grep -v -E '^(#|$)' proofs/exports.txt)
 {
   echo "import Gorse"
   for name in "${exports[@]}"; do
