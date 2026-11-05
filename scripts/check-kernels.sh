@@ -4,7 +4,8 @@
 #   1. lean4checker replays the declarations of every module under proofs/Gorse on
 #      top of the environment its imports provide.
 #   2. nanoda, a second kernel written in Rust, checks the export of the theorems
-#      listed in proofs/exports.txt. The export comes from the lean4export copy in
+#      listed in proofs/nanoda-exports.txt, the scaffold names only (D-321). The
+#      export comes from the lean4export copy in
 #      proofs/kernel/lean4export, built on the project's own toolchain (its
 #      provenance and changes are in NOTICE.md there).
 #
@@ -59,7 +60,7 @@ cp -R proofs/kernel/lean4export "$work/lean4export"
 exporter="$work/lean4export/.lake/build/bin/lean4export"
 [ -x "$exporter" ] || { echo "G2: lean4export was not built" >&2; exit 1; }
 
-mapfile -t exported < <(grep -v -E '^(#|$)' proofs/exports.txt)
+mapfile -t exported < <(grep -v -E '^(#|$)' proofs/nanoda-exports.txt)
 (cd proofs && lake env "$exporter" Gorse -- "${exported[@]}") > "$work/export.txt"
 echo "export: $(wc -l < "$work/export.txt") lines for ${#exported[@]} theorems"
 # The export is short, and printing it lets a failure in nanoda be read from the log.
