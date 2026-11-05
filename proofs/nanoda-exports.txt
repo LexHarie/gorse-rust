@@ -1,0 +1,6 @@
+# The theorems the nanoda leg of G2 checks (scripts/check-kernels.sh). One fully
+# qualified name per line. Only the scaffold names are here. nanoda v0.2.0 panics on
+# any export that depends on Mathlib (D-321, bisect run 42053132118), so the
+# Mathlib-dependent theorems in proofs/exports.txt are checked by lean4checker alone.
+Gorse.scaffold_true
+Gorse.scaffold_or_comm

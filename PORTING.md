@@ -2144,6 +2144,10 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
 - **D-316 Bring CI back (owner decision, 2026-11-05; this reverses D-312).** Step P0 commits the gate script and restores the GitHub Actions workflows: the gate stages of D-312, plus G1 to G4 once the Lean project exists. Out of scope, confirmed: the expression checker and the HNSW index. Neither is verified or reworked, and HNSW keeps only its existing recall test. Revisit only if their production role changes.
 
+- **D-317 (President, 2026-11-05): Freeze the T1 metrics specification statements in proofs/Gorse/Spec/Metrics.lean (P2). Statement hashes are recorded in proofs/statements.txt.** Theorems: `hits_le_card`, `precision_le_one`, `recall_le_one`, `ndcg_gt_one_of_dup`. Later P2 and P3 statement batches take the next D-number in the same way.
+
+- **D-321 nanoda's leg of G2 covers the scaffold names only (President ruling, 2026-11-05 15:22Z, answering the judge's question on PR #12; owner: the T1 spec thread).** The four T1 theorems (`hits_le_card`, `precision_le_one`, `recall_le_one`, `ndcg_gt_one_of_dup`) stay in `proofs/exports.txt` for the G1 axiom check. nanoda reads only `proofs/nanoda-exports.txt`, which lists `Gorse.scaffold_true` and `Gorse.scaffold_or_comm`. The reason is that nanoda v0.2.0 panics on any export that depends on Mathlib. In bisect run 42053132118 (scratch branch, not merged), each T1 theorem exported alone panics: `src/inductive.rs:468:77` for three of them, and `src/util.rs:364:66` for `hits_le_card`. `Real.log_one`, a plain Mathlib theorem with no T1 definitions, panics at `src/inductive.rs:468:77` too, so the cause is the Mathlib closure and not the T1 statements. The four theorems are covered by lean4checker's replay of `Gorse.Spec.Metrics` (G2 leg 1), not by a second kernel. Follow-up, required before any release: a second kernel check on Mathlib-dependent exports, for example a newer lean4export and nanoda pair that reads them. Owner: the T1 spec thread.
+
 ## Open questions for Ritchie
 
 

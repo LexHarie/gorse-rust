@@ -3,3 +3,7 @@
 # decision-log ID that accepted the statement.
 cfd51b9769d6b2fc803bc7fd50afa591a57df68d0e0f38e8fa836eacfe3c6fe6 Gorse/Scaffold.lean scaffold_or_comm D-316
 ca6c6a0c3e4f42ee7da27873109a494864a0dea65debe8158f7f1ab0f3829ef8 Gorse/Scaffold.lean scaffold_true D-316
+b907b5ff5ca5fc7e8da5562a1d3489160ceae35be5786cf6de8e3072c4ed1a9f Gorse/Spec/Metrics.lean hits_le_card D-317
+b70392fa617e21e2abdb3d1c00177aca0325458d1bb326e5dde345896326325c Gorse/Spec/Metrics.lean ndcg_gt_one_of_dup D-317
+6884db5067035f2483f6debf9db37de3e5698f78d19d56d7e35610454ce770f7 Gorse/Spec/Metrics.lean precision_le_one D-317
+481baa9b4b029b71421fb6eb07251c3f6f932c2670fa3500d41b4ffd51043822 Gorse/Spec/Metrics.lean recall_le_one D-317
