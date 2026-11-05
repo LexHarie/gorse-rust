@@ -121,8 +121,16 @@ case "$cmd" in
           if [ "$name" = metrics ]; then
             skip_args=(--exact --skip pinterest_20_bpr)
           fi
-          cargo_in_pinned_tree test -p gorse-conformance --test "$name" -- \
-            --include-ignored --test-threads=1 "${skip_args[@]}" || status=$?
+          # The pinned mixed_server test appends only the database name to MONGO_URI,
+          # so the auth source is added for that suite alone. The subshell keeps the
+          # change local, as run_golden does for MYSQL_URI.
+          (
+            if [ "$name" = mixed_server ]; then
+              export MONGO_URI="$MONGO_URI?authSource=admin"
+            fi
+            cargo_in_pinned_tree test -p gorse-conformance --test "$name" -- \
+              --include-ignored --test-threads=1 "${skip_args[@]}"
+          ) || status=$?
         fi
       done
       exit "$status"
