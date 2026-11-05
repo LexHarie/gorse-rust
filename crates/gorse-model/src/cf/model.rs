@@ -1627,11 +1627,44 @@ mod tests {
             &mut test_set,
             &fit_config,
         );
-        assert!(
-            (0.36 - score.ndcg).abs() <= BENCH_DELTA,
-            "diagnostic ndcg {:?}",
-            score.ndcg
-        );
+        // D-323 attribution (diagnostic, removed before review). Counts the test
+        // candidates that repeat an item, and the mean NDCG with the candidates as
+        // the Go oracle has them (not deduplicated) and as evaluate now builds them.
+        let feedback = test_set.get_user_feedback().to_vec();
+        let negatives = test_set.sample_user_negatives(&train_set, 0).to_vec();
+        let mut users = 0usize;
+        let mut users_with_repeats = 0usize;
+        let mut repeated_entries = 0usize;
+        let (mut sum_on, mut sum_off) = (0f32, 0f32);
+        for (user, items) in feedback.iter().enumerate() {
+            if items.is_empty() {
+                continue;
+            }
+            users += 1;
+            let target: HashSet<i32> = items.iter().copied().collect();
+            let raw: Vec<i32> = items.iter().chain(&negatives[user]).copied().collect();
+            let mut seen = HashSet::new();
+            let dedup: Vec<i32> = raw.iter().copied().filter(|x| seen.insert(*x)).collect();
+            if dedup.len() < raw.len() {
+                users_with_repeats += 1;
+                repeated_entries += raw.len() - dedup.len();
+            }
+            let top_k = fit_config.top_k;
+            let off = crate::cf::evaluator::rank(&m, user as i32, &raw, top_k);
+            let on = crate::cf::evaluator::rank(&m, user as i32, &dedup, top_k);
+            sum_off += crate::cf::evaluator::ndcg(&target, &off);
+            sum_on += crate::cf::evaluator::ndcg(&target, &on);
+        }
+        let n = users as f32;
+        if users > 0 {
+            panic!(
+                "D-323 attribution: users={users} users_with_repeats={users_with_repeats} repeated_entries={repeated_entries} ndcg_dedupe_off={} ndcg_dedupe_on={} fit_ndcg={}",
+                sum_off / n,
+                sum_on / n,
+                score.ndcg
+            );
+        }
+        assert!((0.36 - score.ndcg).abs() <= BENCH_DELTA);
 
         // test predict
         assert_eq!(m.predict("1", "1"), m.internal_predict(1, 1));
