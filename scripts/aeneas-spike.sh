@@ -113,7 +113,14 @@ check_pin charon "$work/charon" "$charon_rev" "$CHARON_TREE_SHA256"
 opam init --bare --yes --disable-sandboxing --no-setup
 opam switch create aeneas-spike ocaml-base-compiler.5.3.0 --yes
 eval "$(opam env --switch=aeneas-spike --set-switch)"
-(cd "$work/aeneas" && opam install src --deps-only --with-test --yes)
+# opam reads the dependencies from the opam file in src/. It needs the path
+# (./src), not the bare name, which it takes for a package called src.
+if ! ls "$work"/aeneas/src/*.opam >/dev/null 2>&1; then
+  echo "no opam file in aeneas/src; its dune-project says:" >&2
+  head -n 60 "$work/aeneas/src/dune-project" >&2 || true
+  die "cannot read the OCaml dependencies of Aeneas"
+fi
+(cd "$work/aeneas" && opam install ./src --deps-only --with-test --yes)
 
 # The Aeneas Makefile fetches and builds the Charon at charon-pin, then builds
 # Aeneas itself, as its README describes.
