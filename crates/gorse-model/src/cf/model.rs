@@ -1627,7 +1627,11 @@ mod tests {
             &mut test_set,
             &fit_config,
         );
-        assert!((0.36 - score.ndcg).abs() <= BENCH_DELTA);
+        assert!(
+            (0.36 - score.ndcg).abs() <= BENCH_DELTA,
+            "diagnostic ndcg {:?}",
+            score.ndcg
+        );
 
         // test predict
         assert_eq!(m.predict("1", "1"), m.internal_predict(1, 1));
