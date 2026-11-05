@@ -58,6 +58,20 @@ run_stage() {
   esac
 }
 
+# REDIS_TLS_UNSET must exit 101 because the two TLS tests fail for the right
+# reason: the URI is unset. Cargo also exits 101 when the build fails, so the
+# exit code alone does not prove the negative check ran. This checks the names
+# of the two expected failures, their panic message and the result line.
+redis_tls_failed_as_expected() {
+  local log="$1" t
+  for t in tls_verifies_the_server_by_default tls_skip_verify_connects_to_a_self_signed_server; do
+    grep -q -E "^test cache::redis::tests::$t \.\.\. FAILED$" "$log" || return 1
+  done
+  grep -q -E "^test result: FAILED\. 0 passed; 2 failed;" "$log" || return 1
+  grep -q "REDIS_TLS_URI is not set" "$log" || return 1
+  return 0
+}
+
 # Sums the "test result:" lines of a cargo test log into one set of totals.
 test_totals() {
   awk '
@@ -85,6 +99,11 @@ for stage in "$@"; do
   run_stage "$stage" >"$log" 2>&1
   status=$?
   want=$(expected_status "$stage")
+  if [ "$stage" = "REDIS_TLS_UNSET" ] && [ "$status" -eq "$want" ] \
+     && ! redis_tls_failed_as_expected "$log"; then
+    echo "   exit $status, but the two expected TLS failures are not in the log" >>"$log"
+    status=1
+  fi
   if [ "$status" -eq "$want" ]; then
     result="ok (exit $status)"
   else
