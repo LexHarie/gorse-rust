@@ -34,6 +34,20 @@ jobs:
       - name: Start the backends
         run: docker compose -f storage/docker-compose.yml up -d
 
+      # Three suites read ml-100k and github dumps from /mnt/project-files/datasets,
+      # a path the pinned tests hard-code (the pinned tree has no setting for it),
+      # and the playground reads ml-100k from ~/.gorse/dataset. The script places the
+      # dumps in the home folder; the hard-coded path gets copies. Its zip list is
+      # cut to iris, the smallest, because the script fetches the zips first and
+      # stops at a failed one. The suites' own loader fetches the other datasets.
+      - name: Place the playground dumps the suites read
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          GORSE_DATASETS=iris GORSE_DUMPS="ml-100k.bin.gz github.bin.gz" scripts/setup-datasets.sh
+          sudo mkdir -p /mnt/project-files/datasets
+          sudo cp "$HOME/.gorse/dataset/ml-100k.bin.gz" "$HOME/.gorse/dataset/github.bin.gz" /mnt/project-files/datasets/
+
       - name: Build the Go oracle and extract the pinned tree
         id: build
         timeout-minutes: 45
