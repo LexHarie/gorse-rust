@@ -2118,6 +2118,32 @@ or accepts a metric gap outside the Go tests' own tolerances.
   that the module's `statik.go` registers as a string literal, not the module zip itself. WP-4-4 owns the
   script, the directory and the embedding.
 
+- **D-313 The three-tier correctness contract (owner decision, 2026-11-05; from `porting/verification-plan.md` §1).** The three-tier contract replaces "parity with Go". Tier I is exact theorems: each Rust build stays deterministic with a given seed. Tier II is proven floating-point bounds. Tier III is pre-registered statistical bands. Equality with Go's numbers is no longer required.
+
+- **D-314 The scope of Go compatibility (owner decision, 2026-11-05).** Kept: reading Go-written stored data (model blobs, cache, database schemas) for one migration period, and the REST and gRPC message formats. Dropped: byte-for-byte imitation of Go, namely gob writing, Go's random number sequences, heap tie order and the quirks of Go's `exp`. The Go replay checks and the Go-recorded goldens for incidental items become parity-tier checks (G11). They are not per-commit requirements.
+
+- **D-315 Rulings on the spec questions (owner decision, 2026-11-05).** A1 is accepted, A4, A5 and A8 are decided as fixes, and A9 is decided. The Congress bill's amendment Q1 requires these acceptances: A2 and A3 before P2, A4 before P2-3, and A5 before P3-3. The President's ruling, under the Founder's autopilot directive of 2026-11-05, accepts the proposed rulings of A2 and A3, which satisfies Q1's requirement for both. The proposed rulings of A6 and A7 are accepted the same way. The other rulings stay open. The table gives the status and owner of each ruling, A1 to A15.
+
+  | ID | Finding | Ruling | Status | Owner | Task |
+  |---|---|---|---|---|---|
+  | A1 | `ndcg`, `precision` and the others return NaN when undefined | Return no value; average only the defined values; check `top_k ≥ 1` | Accepted (D-315) | Ritchie | P2-4 |
+  | A2 | DCG discount: J&K 2002 against Burges 2005 | Keep Burges, and name it | Accepted as proposed (President, Founder autopilot directive, 2026-11-05); Q1 required acceptance before P2. | President (Founder autopilot directive) | P2-1 |
+  | A3 | Precision divides by \|L\|, AP by \|T\| | Keep, and name them `P@\|L\|` and `AP/\|T\|` | Accepted as proposed (President, Founder autopilot directive, 2026-11-05); Q1 required acceptance before P2. | President (Founder autopilot directive) | P2-1 |
+  | A4 | Duplicate candidates can make NDCG > 1 | Confirm in Lean and by a Rust test, then deduplicate in `evaluate` | Confirm then fix (D-315); must be confirmed before P2-3 (Q1) | Ritchie | P2-3, P2-4 |
+  | A5 | NaN weights: `TopKFilter` keeps them, `PriorityQueue` panics | Reject at the boundary, and count them | Fix (D-315); due before P3-3 (Q1) | Ritchie | P3-3 |
+  | A6 | BPR samples users uniformly, not pairs | Keep, as a stated parameter (proposed) | Accepted as proposed (President, Founder autopilot directive, 2026-11-05). | President (Founder autopilot directive) | P5 (T4) |
+  | A7 | BPR negative sampling never ends for a user with every item | Precondition, plus a guard (proposed) | Accepted as proposed (President, Founder autopilot directive, 2026-11-05). | President (Founder autopilot directive) | P5 (T4) |
+  | A8 | BPR gradient becomes NaN without an error (F5) | Stable sigmoid, with a Lean proof and a test at d = −89 | Fix, with Lean (D-315) | Ritchie | P5 (T4) |
+  | A9 | eALS missing-data term sums over items with feedback only | Sum over all items, as in He et al. 2016; re-baseline the ALS replay | Decided (D-315) | Ritchie | P5 (T4) |
+  | A10 | HNSW: a zero uniform draw gives layer `MinInt64` | Draw from (0, 1] (proposed) | Open | Ritchie | none yet |
+  | A11 | Bounded-load capacity floors before it scales | Moot: the code is unused | Open | Ritchie | none yet |
+  | A12 | A ring point collision drops the user | Detect the collision in `add`, and fail (proposed) | Open | Ritchie | none yet |
+  | A13 | `unified_index` length can overflow i32 | Checked arithmetic, and document the direct index as test-only (proposed) | Open | Ritchie | none yet |
+  | A14 | The feedback-type expression does not round-trip at 1e6 and up | A round-trip contract (proposed) | Open | Ritchie | none yet |
+  | A15 | Results depend on the architecture (F7) | A tier II bound per level (proposed) | Open | Ritchie | none yet |
+
+- **D-316 Bring CI back (owner decision, 2026-11-05; this reverses D-312).** Step P0 commits the gate script and restores the GitHub Actions workflows: the gate stages of D-312, plus G1 to G4 once the Lean project exists. Out of scope, confirmed: the expression checker and the HNSW index. Neither is verified or reworked, and HNSW keeps only its existing recall test. Revisit only if their production role changes.
+
 ## Open questions for Ritchie
 
 
