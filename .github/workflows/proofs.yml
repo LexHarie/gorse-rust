@@ -79,3 +79,29 @@ jobs:
       - name: Run the independent kernels on the proofs (G2)
         timeout-minutes: 60
         run: scripts/check-kernels.sh
+
+  g9:
+    name: Lean oracle for the T1 metrics (G9)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install elan, the Lean toolchain manager
+        run: |
+          curl -sSfL -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
+          # The installer's digest, as recorded by the g1 job above.
+          echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c -
+          sh elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Build the oracle executable
+        # The oracle imports only Lean's own library, so this does not build Mathlib.
+        working-directory: proofs
+        run: lake build oracle
+
+      - name: Check the T1 metrics against the oracle (G9)
+        run: scripts/check-oracle.sh "$RUNNER_TEMP/g9"
