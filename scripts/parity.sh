@@ -10,8 +10,9 @@
 # Usage:
 #   scripts/parity.sh build           extract the pinned tree and build the Go nodes
 #   scripts/parity.sh dry-run         build, compile the suites, list them; starts no backend
-#   scripts/parity.sh run [NAME...]   build, then run the named suites (default: all) with
-#                                     --ignored; needs the backends of storage/docker-compose.yml
+#   scripts/parity.sh run [NAME...]   build, then run the named suites (default: all), with
+#                                     ignored tests included; needs the backends of
+#                                     storage/docker-compose.yml
 #
 # Environment:
 #   PARITY_DIR   scratch root (default: target/parity)
@@ -74,15 +75,15 @@ case "$cmd" in
     ;;
   dry-run)
     cargo_in_pinned_tree test -p gorse-conformance --no-run
-    cargo_in_pinned_tree test -p gorse-conformance -- --list --ignored
+    cargo_in_pinned_tree test -p gorse-conformance -- --list
     echo "parity: dry run done; no backend was started and no suite ran"
     ;;
   run)
     if [ "$#" -eq 0 ]; then
-      cargo_in_pinned_tree test -p gorse-conformance -- --ignored --test-threads=1
+      cargo_in_pinned_tree test -p gorse-conformance -- --include-ignored --test-threads=1
     else
       for name in "$@"; do
-        cargo_in_pinned_tree test -p gorse-conformance --test "$name" -- --ignored --test-threads=1
+        cargo_in_pinned_tree test -p gorse-conformance --test "$name" -- --include-ignored --test-threads=1
       done
     fi
     ;;
