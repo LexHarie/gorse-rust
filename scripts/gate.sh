@@ -92,6 +92,12 @@ for stage in "$@"; do
     overall=1
   fi
   echo "   $result, log: $log"
+  if [ "$status" -ne "$want" ]; then
+    # Print the failing tests and their first panics, so the CI log shows the cause
+    # without the full log. The full log is kept in $LOG_DIR.
+    grep -E "^test .* FAILED$" "$log" | head -60 | sed 's/^/     /'
+    grep -A1 -E "panicked at" "$log" | head -120 | sed 's/^/     /'
+  fi
   if [ "$stage" = "TEST" ]; then
     test_totals "$log"
   fi
