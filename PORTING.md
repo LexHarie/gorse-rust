@@ -2122,19 +2122,19 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
 - **D-314 The scope of Go compatibility (owner decision, 2026-11-05).** Kept: reading Go-written stored data (model blobs, cache, database schemas) for one migration period, and the REST and gRPC message formats. Dropped: byte-for-byte imitation of Go, namely gob writing, Go's random number sequences, heap tie order and the quirks of Go's `exp`. The Go replay checks and the Go-recorded goldens for incidental items become parity-tier checks (G11). They are not per-commit requirements.
 
-- **D-315 Rulings on the spec questions (owner decision, 2026-11-05).** A1 is accepted, A4, A5 and A8 are decided as fixes, and A9 is decided. The Congress bill's amendment Q1 accepts A2 and A3 before P2, and sets the deadlines for A4 (before P2-3) and A5 (before P3-3). The other rulings stay open until the owner decides, and the proposed ruling in §3.2 of the plan stands in the meantime. The table gives the status and owner of each ruling, A1 to A15.
+- **D-315 Rulings on the spec questions (owner decision, 2026-11-05).** A1 is accepted, A4, A5 and A8 are decided as fixes, and A9 is decided. The Congress bill's amendment Q1 requires these acceptances: A2 and A3 before P2, A4 before P2-3, and A5 before P3-3. The President's ruling, under the Founder's autopilot directive of 2026-11-05, accepts the proposed rulings of A2 and A3, which satisfies Q1's requirement for both. The proposed rulings of A6 and A7 are accepted the same way. The other rulings stay open. The table gives the status and owner of each ruling, A1 to A15.
 
   | ID | Finding | Ruling | Status | Owner | Task |
   |---|---|---|---|---|---|
   | A1 | `ndcg`, `precision` and the others return NaN when undefined | Return no value; average only the defined values; check `top_k ≥ 1` | Accepted (D-315) | Ritchie | P2-4 |
-  | A2 | DCG discount: J&K 2002 against Burges 2005 | Keep Burges, and name it | Accepted before P2 (Q1) | Ritchie | P2-1 |
-  | A3 | Precision divides by \|L\|, AP by \|T\| | Keep, and name them `P@\|L\|` and `AP/\|T\|` | Accepted before P2 (Q1) | Ritchie | P2-1 |
-  | A4 | Duplicate candidates can make NDCG > 1 | Confirm in Lean and by a Rust test, then deduplicate in `evaluate` | Confirm then fix (D-315); accepted before P2-3 (Q1) | Ritchie | P2-3, P2-4 |
-  | A5 | NaN weights: `TopKFilter` keeps them, `PriorityQueue` panics | Reject at the boundary, and count them | Fix (D-315); accepted before P3-3 (Q1) | Ritchie | P3-3 |
-  | A6 | BPR samples users uniformly, not pairs | Keep, as a stated parameter (proposed) | Open | Ritchie | none yet |
-  | A7 | BPR negative sampling never ends for a user with every item | Precondition, plus a guard (proposed) | Open | Ritchie | none yet |
-  | A8 | BPR gradient becomes NaN without an error (F5) | Stable sigmoid, with a Lean proof and a test at d = −89 | Fix, with Lean (D-315) | Ritchie | none in P1 to P3 |
-  | A9 | eALS missing-data term sums over items with feedback only | Sum over all items, as in He et al. 2016; re-baseline the ALS replay | Decided (D-315) | Ritchie | none in P1 to P3; parity tier (G11) |
+  | A2 | DCG discount: J&K 2002 against Burges 2005 | Keep Burges, and name it | Accepted as proposed (President, Founder autopilot directive, 2026-11-05); Q1 required acceptance before P2. | President (Founder autopilot directive) | P2-1 |
+  | A3 | Precision divides by \|L\|, AP by \|T\| | Keep, and name them `P@\|L\|` and `AP/\|T\|` | Accepted as proposed (President, Founder autopilot directive, 2026-11-05); Q1 required acceptance before P2. | President (Founder autopilot directive) | P2-1 |
+  | A4 | Duplicate candidates can make NDCG > 1 | Confirm in Lean and by a Rust test, then deduplicate in `evaluate` | Confirm then fix (D-315); must be confirmed before P2-3 (Q1) | Ritchie | P2-3, P2-4 |
+  | A5 | NaN weights: `TopKFilter` keeps them, `PriorityQueue` panics | Reject at the boundary, and count them | Fix (D-315); due before P3-3 (Q1) | Ritchie | P3-3 |
+  | A6 | BPR samples users uniformly, not pairs | Keep, as a stated parameter (proposed) | Accepted as proposed (President, Founder autopilot directive, 2026-11-05). | President (Founder autopilot directive) | P5 (T4) |
+  | A7 | BPR negative sampling never ends for a user with every item | Precondition, plus a guard (proposed) | Accepted as proposed (President, Founder autopilot directive, 2026-11-05). | President (Founder autopilot directive) | P5 (T4) |
+  | A8 | BPR gradient becomes NaN without an error (F5) | Stable sigmoid, with a Lean proof and a test at d = −89 | Fix, with Lean (D-315) | Ritchie | P5 (T4) |
+  | A9 | eALS missing-data term sums over items with feedback only | Sum over all items, as in He et al. 2016; re-baseline the ALS replay | Decided (D-315) | Ritchie | P5 (T4) |
   | A10 | HNSW: a zero uniform draw gives layer `MinInt64` | Draw from (0, 1] (proposed) | Open | Ritchie | none yet |
   | A11 | Bounded-load capacity floors before it scales | Moot: the code is unused | Open | Ritchie | none yet |
   | A12 | A ring point collision drops the user | Detect the collision in `add`, and fail (proposed) | Open | Ritchie | none yet |
