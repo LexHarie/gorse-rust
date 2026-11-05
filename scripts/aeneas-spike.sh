@@ -6,10 +6,17 @@
 #   scripts/aeneas-spike.sh discover   print the current Charon and Aeneas heads,
 #                                      their archive digests and the files that
 #                                      pin their toolchains
-#   scripts/aeneas-spike.sh build      fetch the pinned Aeneas, read the Charon it
-#                                      pins (charon-pin), and build both
-#   scripts/aeneas-spike.sh spike      build, then translate each spike crate with
-#                                      Charon and Aeneas, and build the Lean output
+#   scripts/aeneas-spike.sh charon     fetch and check the pinned Aeneas and the
+#                                      Charon it pins, then build Charon
+#   scripts/aeneas-spike.sh aeneas     build Aeneas, then translate each spike
+#                                      crate with Charon and Aeneas
+#   scripts/aeneas-spike.sh lean       fetch the Mathlib cache, then build the
+#                                      generated Lean against the Aeneas library
+#   scripts/aeneas-spike.sh spike      charon, aeneas and lean in turn
+#
+# CI runs the stages as separate workflow steps, so the step list shows which one
+# failed. The stages share one work directory, named by SPIKE_WORK. Without it,
+# the script makes a temporary directory and removes it on exit.
 #
 # The pins live in porting/aeneas/pins.env. They are recorded from a discover
 # run and checked on every run; a pin left empty is reported, not enforced
@@ -27,9 +34,9 @@ ROOT="$(pwd)"
 
 mode="${1:-}"
 case "$mode" in
-  discover | build | spike) ;;
+  discover | charon | aeneas | lean | spike) ;;
   *)
-    echo "usage: scripts/aeneas-spike.sh discover|build|spike" >&2
+    echo "usage: scripts/aeneas-spike.sh discover|charon|aeneas|lean|spike" >&2
     exit 2
     ;;
 esac
@@ -39,8 +46,13 @@ die() {
   exit 1
 }
 
-work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+if [ -n "${SPIKE_WORK:-}" ]; then
+  work="$SPIKE_WORK"
+  mkdir -p "$work"
+else
+  work="$(mktemp -d)"
+  trap 'rm -rf "$work"' EXIT
+fi
 
 # Fetches exactly one commit by its head, not a branch, so the digest printed
 # here names what the run used.
@@ -85,12 +97,14 @@ if [ "$mode" = "discover" ]; then
   exit 0
 fi
 
-# build and spike: the pins decide what is built.
+# The stages below: the pins decide what is fetched and built.
 # shellcheck source=../porting/aeneas/pins.env
 . porting/aeneas/pins.env
 
+# Checks a tree that is already fetched: its commit and its archive digest.
 check_pin() { # name dir rev digest
   local name="$1" dir="$2" rev="$3" want="$4" got
+  [ -d "$dir/.git" ] || die "$name: $dir is not fetched; run the charon stage first"
   [ "$(git -C "$dir" rev-parse HEAD)" = "$rev" ] || die "$name: checked out a different commit than $rev"
   got="$(tree_digest "$dir")"
   echo "$name $rev archive sha256 $got"
@@ -101,65 +115,50 @@ check_pin() { # name dir rev digest
   fi
 }
 
-[ -n "$AENEAS_REV" ] || die "AENEAS_REV is not pinned in porting/aeneas/pins.env"
-
-fetch_rev "$work/aeneas" "$AENEAS_REPO" "$AENEAS_REV"
-check_pin aeneas "$work/aeneas" "$AENEAS_REV" "$AENEAS_TREE_SHA256"
-
 # charon-pin is a comment line followed by the commit, so take the SHA line.
-charon_rev="$(grep -E -x '[0-9a-f]{40}' "$work/aeneas/charon-pin" | tail -n 1 || true)"
-echo "charon-pin in aeneas: ${charon_rev:-none}"
-[[ "$charon_rev" =~ ^[0-9a-f]{40}$ ]] || die "charon-pin is not a full commit SHA: $charon_rev"
-if [ -n "$CHARON_REV" ] && [ "$CHARON_REV" != "$charon_rev" ]; then
-  die "CHARON_REV $CHARON_REV differs from the charon-pin of Aeneas $charon_rev"
-fi
+charon_pin_rev() {
+  local rev
+  rev="$(grep -E -x '[0-9a-f]{40}' "$work/aeneas/charon-pin" | tail -n 1 || true)"
+  [[ "$rev" =~ ^[0-9a-f]{40}$ ]] || die "charon-pin is not a full commit SHA: ${rev:-none}"
+  echo "$rev"
+}
 
-fetch_rev "$work/charon" "$CHARON_REPO" "$charon_rev"
-check_pin charon "$work/charon" "$charon_rev" "$CHARON_TREE_SHA256"
+# Each CI stage is a new shell, so each one activates the switch itself.
+use_switch() {
+  eval "$(opam env --switch=aeneas-spike --set-switch)"
+}
 
-# Aeneas is written in OCaml 5 (its README suggests 5.3.0), with the opam
-# dependencies in its src directory.
-opam init --bare --yes --disable-sandboxing --no-setup
-opam switch create aeneas-spike ocaml-base-compiler.5.3.0 --yes
-eval "$(opam env --switch=aeneas-spike --set-switch)"
-# opam reads the dependencies from the opam file in src/. It needs the path
-# (./src), not the bare name, which it takes for a package called src.
-if ! ls "$work"/aeneas/src/*.opam >/dev/null 2>&1; then
-  echo "no opam file in aeneas/src; its dune-project says:" >&2
-  head -n 60 "$work/aeneas/src/dune-project" >&2 || true
-  die "cannot read the OCaml dependencies of Aeneas"
-fi
-(cd "$work/aeneas" && opam install ./src --deps-only --with-test --yes)
+stage_charon() {
+  [ -n "$AENEAS_REV" ] || die "AENEAS_REV is not pinned in porting/aeneas/pins.env"
+  [ -d "$work/aeneas/.git" ] || fetch_rev "$work/aeneas" "$AENEAS_REPO" "$AENEAS_REV"
+  check_pin aeneas "$work/aeneas" "$AENEAS_REV" "$AENEAS_TREE_SHA256"
 
-# Charon's OCaml library (charon-ml) needs the opam dependencies in Charon's own
-# opam file, which Aeneas's setup does not install (ppx_deriving_hash, in the
-# first attempt). They are installed from the Charon fetched above, at the same
-# commit as the Charon that setup builds.
-(cd "$work/charon" && opam install . --deps-only --with-test --yes)
+  local charon_rev
+  charon_rev="$(charon_pin_rev)"
+  echo "charon-pin in aeneas: $charon_rev"
+  if [ -n "$CHARON_REV" ] && [ "$CHARON_REV" != "$charon_rev" ]; then
+    die "CHARON_REV $CHARON_REV differs from the charon-pin of Aeneas $charon_rev"
+  fi
+  [ -d "$work/charon/.git" ] || fetch_rev "$work/charon" "$CHARON_REPO" "$charon_rev"
+  check_pin charon "$work/charon" "$charon_rev" "$CHARON_TREE_SHA256"
 
-# The Aeneas Makefile fetches and builds the Charon at charon-pin, then builds
-# Aeneas itself, as its README describes.
-(cd "$work/aeneas" && make setup-charon)
-(cd "$work/aeneas" && make)
+  # Aeneas is written in OCaml 5 (its README suggests 5.3.0). Charon's OCaml
+  # library needs the opam dependencies in Charon's own opam file, which
+  # Aeneas's setup does not install (ppx_deriving_hash, in the first attempt).
+  # They come from the Charon fetched above, at the commit setup builds.
+  opam init --bare --yes --disable-sandboxing --no-setup
+  opam switch create aeneas-spike ocaml-base-compiler.5.3.0 --yes
+  use_switch
+  (cd "$work/charon" && opam install . --deps-only --with-test --yes)
 
-echo "== built"
-ls -l "$work/aeneas/bin"
-"$work/aeneas/bin/aeneas" -version || true
-
-if [ "$mode" = "build" ]; then
-  exit 0
-fi
-
-# spike: translate each crate with Charon (to LLBC), then with Aeneas (to Lean).
-charon="$work/aeneas/charon/bin/charon"
-aeneas="$work/aeneas/bin/aeneas"
-nightly="$(sed -n 's/^channel = "\(.*\)"/\1/p' "$work/charon/rust-toolchain")"
-[ -n "$nightly" ] || die "no channel in charon/rust-toolchain"
-echo "== charon's toolchain: $nightly"
-rustup toolchain install "$nightly" --profile minimal -c rustc-dev -c llvm-tools -c rust-src
+  # The Aeneas Makefile fetches and builds the Charon at charon-pin.
+  (cd "$work/aeneas" && make setup-charon)
+  [ -x "$work/aeneas/charon/bin/charon" ] || die "setup-charon did not build charon/bin/charon"
+  echo "== charon built"
+}
 
 # Translates one crate. Returns non-zero when Charon or Aeneas fails, and says
-# where, so the caller can record the outcome.
+# where, so the caller can record the outcome. Needs $charon, $aeneas, $nightly.
 translate() { # name crate-dir
   local name="$1" crate="$ROOT/$2" out="$work/out-$1"
   rm -rf "$out"
@@ -172,55 +171,126 @@ translate() { # name crate-dir
   ls -l "$out/crate"/*.llbc || { echo "charon wrote no .llbc for $name"; return 1; }
 
   echo "== aeneas: $name"
-  "$aeneas" -help 2>&1 | head -n 80 || true
   "$aeneas" -backend lean -dest "$out/lean" "$out/crate"/*.llbc || { echo "aeneas failed on $name"; return 1; }
   echo "--- generated Lean for $name"
   find "$out/lean" -name '*.lean' | sort
   return 0
 }
 
-# Builds the generated Lean for one crate, against the Aeneas Lean library at
-# the pinned Aeneas, with that library's own Lean toolchain.
-lean_build() { # name
-  local name="$1" out="$work/out-$1" proj modules root
-  proj="$out/lean-proj"
+stage_aeneas() {
+  [ -d "$work/charon/.git" ] || die "charon is not fetched; run the charon stage first"
+  [ -x "$work/aeneas/charon/bin/charon" ] || die "charon is not built; run the charon stage first"
+  check_pin aeneas "$work/aeneas" "$AENEAS_REV" "$AENEAS_TREE_SHA256"
+  local charon_rev
+  charon_rev="$(charon_pin_rev)"
+  check_pin charon "$work/charon" "$charon_rev" "$CHARON_TREE_SHA256"
+
+  use_switch
+  # opam reads the dependencies from the opam file in src/. It needs the path
+  # (./src), not the bare name, which it takes for a package called src.
+  if ! ls "$work"/aeneas/src/*.opam >/dev/null 2>&1; then
+    echo "no opam file in aeneas/src; its dune-project says:" >&2
+    head -n 60 "$work/aeneas/src/dune-project" >&2 || true
+    die "cannot read the OCaml dependencies of Aeneas"
+  fi
+  (cd "$work/aeneas" && opam install ./src --deps-only --with-test --yes)
+  (cd "$work/aeneas" && make)
+  echo "== aeneas built"
+  "$work/aeneas/bin/aeneas" -version || true
+
+  charon="$work/aeneas/charon/bin/charon"
+  aeneas="$work/aeneas/bin/aeneas"
+  nightly="$(sed -n 's/^channel = "\(.*\)"/\1/p' "$work/charon/rust-toolchain")"
+  [ -n "$nightly" ] || die "no channel in charon/rust-toolchain"
+  echo "== charon's toolchain: $nightly"
+  rustup toolchain install "$nightly" --profile minimal -c rustc-dev -c llvm-tools -c rust-src
+
+  # The loop crate must translate; its failure ends the stage.
+  translate sum_u32 porting/aeneas/spike || die "the loop crate did not translate"
+
+  # The f32 crate is reported, not required: its outcome is the f32 verdict.
+  if translate dot_f32 porting/aeneas/spike-f32; then
+    echo translated > "$work/f32.translate"
+  else
+    echo "not translated" > "$work/f32.translate"
+    echo "f32 (dot_f32) did not translate; see the log above"
+  fi
+}
+
+# Module names of the generated Lean files under a directory, as a lakefile list.
+modules_of() { # dir
+  (cd "$1" && find . -name '*.lean' | sed 's#^\./##; s#\.lean$##; s#/#.#g' | sort | sed 's/.*/"&"/' | paste -sd, -)
+}
+
+stage_lean() {
+  [ -d "$work/aeneas/backends/lean" ] || die "the Aeneas Lean library is not fetched; run the charon stage first"
+  [ -d "$work/out-sum_u32/lean" ] || die "the loop crate is not translated; run the aeneas stage first"
+  command -v lake >/dev/null || die "lake is not on the PATH; the elan step did not run"
+
+  # Both crates go into one Lake project, so Mathlib is fetched and built once.
+  # Each crate is its own library, so the f32 build cannot fail the loop build.
+  local proj="$work/lean-proj" loop_mods f32_mods="" f32_block="" f32_built="no"
+  rm -rf "$proj"
   mkdir -p "$proj"
-  cp -r "$out/lean"/. "$proj/"
   cp "$work/aeneas/backends/lean/lean-toolchain" "$proj/lean-toolchain"
-  # Module names are the paths of the generated files, relative to the root.
-  modules="$(cd "$proj" && find . -name '*.lean' | sed 's#^\./##; s#\.lean$##; s#/#.#g' | sort | sed 's/.*/"&"/' | paste -sd, -)"
+  cp -r "$work/out-sum_u32/lean"/. "$proj/"
+  loop_mods="$(modules_of "$work/out-sum_u32/lean")"
+  if [ "$(cat "$work/f32.translate" 2>/dev/null)" = "translated" ]; then
+    cp -r "$work/out-dot_f32/lean"/. "$proj/"
+    f32_mods="$(modules_of "$work/out-dot_f32/lean")"
+    f32_block=$(printf '\n[[lean_lib]]\nname = "SpikeF32"\nsrcDir = "."\nroots = [%s]\n' "$f32_mods")
+  fi
+
   cat > "$proj/lakefile.toml" <<EOF
-name = "spike_$name"
-defaultTargets = ["Spike"]
+name = "spike"
 
 [[require]]
 name = "aeneas"
 path = "$work/aeneas/backends/lean"
 
 [[lean_lib]]
-name = "Spike"
+name = "SpikeLoop"
 srcDir = "."
-roots = [$modules]
+roots = [$loop_mods]
+$f32_block
 EOF
-  echo "== lake build: $name (modules: $modules)"
+
+  # Mathlib is a dependency of the Aeneas Lean library. Its prebuilt files come
+  # from the Mathlib cache; building Mathlib here would take hours.
+  echo "== lean cache: fetching the Mathlib build"
+  (cd "$proj" && lake exe cache get) || die "lake exe cache get failed; Mathlib is not fetched"
+
+  echo "== lake build SpikeLoop (modules: $loop_mods)"
   echo "disk before lake build: $(df -h / | tail -n 1)"
-  (cd "$proj" && lake build)
+  (cd "$proj" && lake build SpikeLoop) || die "the loop crate did not build"
+  echo "loop (sum_u32): translated and built"
+
+  if [ -n "$f32_mods" ]; then
+    echo "== lake build SpikeF32 (modules: $f32_mods)"
+    if (cd "$proj" && lake build SpikeF32); then
+      f32_built="yes"
+    fi
+  fi
+  if [ "$f32_built" = "yes" ]; then
+    echo "f32 (dot_f32): translated and built"
+  else
+    echo "f32 (dot_f32): not built; see the log above"
+  fi
 }
 
-loop_status=0
-translate sum_u32 porting/aeneas/spike || loop_status=$?
-if [ "$loop_status" -eq 0 ]; then
-  lean_build sum_u32 || loop_status=$?
-fi
-
-f32_status=0
-translate dot_f32 porting/aeneas/spike-f32 || f32_status=$?
-if [ "$f32_status" -eq 0 ]; then
-  lean_build dot_f32 || f32_status=$?
-fi
-
-echo "== spike result"
-echo "loop (sum_u32): $([ "$loop_status" -eq 0 ] && echo translated and built || echo "FAILED (status $loop_status)")"
-echo "f32 (dot_f32): $([ "$f32_status" -eq 0 ] && echo translated and built || echo "not translated or not built (status $f32_status); see the log above")"
-
-[ "$loop_status" -eq 0 ] || die "the loop crate did not translate and build"
+case "$mode" in
+  charon)
+    stage_charon
+    ;;
+  aeneas)
+    stage_aeneas
+    ;;
+  lean)
+    stage_lean
+    ;;
+  spike)
+    stage_charon
+    stage_aeneas
+    stage_lean
+    ;;
+esac

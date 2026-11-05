@@ -24,10 +24,15 @@ jobs:
       - name: Print the current revisions and the toolchain pins
         run: scripts/aeneas-spike.sh discover
 
+  # The spike runs in three stages, each a step of its own, so the step list shows
+  # which stage failed. Each stage tees its output to a file; the last step reports
+  # the tail of every stage that ran, in the job summary and as an error annotation.
   spike:
-    name: Build Charon and Aeneas, translate the spike crates, build the Lean output
+    name: Spike, in the charon, aeneas and lean stages
     runs-on: ubuntu-24.04
     timeout-minutes: 150
+    env:
+      SPIKE_WORK: ${{ runner.temp }}/aeneas-spike
     steps:
       - name: Check out the repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -35,7 +40,7 @@ jobs:
           persist-credentials: false
 
       # The hosted runner has about 14 GB free. The spike adds an OCaml switch, a
-      # Rust nightly with rustc-dev, and the Mathlib build, and the last run's
+      # Rust nightly with rustc-dev, and the Mathlib cache, and the last run's
       # job was cut off without finishing its step. These preinstalled trees are
       # not used here, so removing them frees room for the spike.
       - name: Free runner disk space the spike needs
@@ -57,5 +62,32 @@ jobs:
           sh elan-init.sh -y --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
-      - name: Build Charon and Aeneas, translate the spike crates, build the Lean output
-        run: scripts/aeneas-spike.sh spike
+      - name: "Stage charon: fetch the pins and build Charon"
+        shell: bash
+        run: scripts/aeneas-spike.sh charon 2>&1 | tee "$RUNNER_TEMP/aeneas-charon.log"
+
+      - name: "Stage aeneas: build Aeneas and translate the spike crates"
+        shell: bash
+        run: scripts/aeneas-spike.sh aeneas 2>&1 | tee "$RUNNER_TEMP/aeneas-aeneas.log"
+
+      - name: "Stage lean: fetch the Mathlib cache and build the generated Lean"
+        shell: bash
+        run: scripts/aeneas-spike.sh lean 2>&1 | tee "$RUNNER_TEMP/aeneas-lean.log"
+
+      - name: Report the tail of each stage's log when a stage failed
+        if: failure()
+        shell: bash
+        run: |
+          for f in "$RUNNER_TEMP"/aeneas-charon.log "$RUNNER_TEMP"/aeneas-aeneas.log "$RUNNER_TEMP"/aeneas-lean.log; do
+            [ -s "$f" ] || continue
+            stage="$(basename "$f" .log)"
+            {
+              echo "## $stage: last 100 lines"
+              echo '```'
+              tail -n 100 "$f"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            # An annotation message is one line for the runner: escape %, CR and LF.
+            msg="$(tail -n 20 "$f" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | sed -e ':a;N;$!ba;s/\n/%0A/g')"
+            echo "::error title=$stage failed::$msg"
+          done
