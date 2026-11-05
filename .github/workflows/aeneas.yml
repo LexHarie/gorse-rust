@@ -24,10 +24,10 @@ jobs:
       - name: Print the current revisions and the toolchain pins
         run: scripts/aeneas-spike.sh discover
 
-  build:
-    name: Build Charon and Aeneas at the pins
+  spike:
+    name: Build Charon and Aeneas, translate the spike crates, build the Lean output
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 150
     steps:
       - name: Check out the repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -39,5 +39,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y opam libgmp-dev pkg-config m4 build-essential
 
-      - name: Build Charon and Aeneas
-        run: scripts/aeneas-spike.sh build
+      - name: Install elan, the Lean toolchain manager
+        run: |
+          curl -sSfL -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
+          # The same installer digest as proofs.yml, checked before the installer runs.
+          echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c -
+          sh elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Build Charon and Aeneas, translate the spike crates, build the Lean output
+        run: scripts/aeneas-spike.sh spike

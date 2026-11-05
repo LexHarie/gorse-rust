@@ -8,19 +8,28 @@
 #                                      pin their toolchains
 #   scripts/aeneas-spike.sh build      fetch the pinned Aeneas, read the Charon it
 #                                      pins (charon-pin), and build both
+#   scripts/aeneas-spike.sh spike      build, then translate each spike crate with
+#                                      Charon and Aeneas, and build the Lean output
 #
 # The pins live in porting/aeneas/pins.env. They are recorded from a discover
 # run and checked on every run; a pin left empty is reported, not enforced
 # (trust on first use, as for the elan installer in proofs.yml).
+#
+# The spike has two crates, so the f32 result cannot hide the loop result:
+#   porting/aeneas/spike       sum_u32, a loop over a slice. Must translate and
+#                              build; this is the spike's pass condition.
+#   porting/aeneas/spike-f32   dot_f32. Its outcome is the f32 verdict and is
+#                              reported, not required to pass.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+ROOT="$(pwd)"
 
 mode="${1:-}"
 case "$mode" in
-  discover | build) ;;
+  discover | build | spike) ;;
   *)
-    echo "usage: scripts/aeneas-spike.sh discover|build" >&2
+    echo "usage: scripts/aeneas-spike.sh discover|build|spike" >&2
     exit 2
     ;;
 esac
@@ -76,7 +85,7 @@ if [ "$mode" = "discover" ]; then
   exit 0
 fi
 
-# build: the pins decide what is built.
+# build and spike: the pins decide what is built.
 # shellcheck source=../porting/aeneas/pins.env
 . porting/aeneas/pins.env
 
@@ -135,5 +144,81 @@ fi
 
 echo "== built"
 ls -l "$work/aeneas/bin"
-"$work/aeneas/charon/bin/charon" --version || true
-"$work/aeneas/bin/aeneas" --help | head -n 5 || true
+"$work/aeneas/bin/aeneas" -version || true
+
+if [ "$mode" = "build" ]; then
+  exit 0
+fi
+
+# spike: translate each crate with Charon (to LLBC), then with Aeneas (to Lean).
+charon="$work/aeneas/charon/bin/charon"
+aeneas="$work/aeneas/bin/aeneas"
+nightly="$(sed -n 's/^channel = "\(.*\)"/\1/p' "$work/charon/rust-toolchain")"
+[ -n "$nightly" ] || die "no channel in charon/rust-toolchain"
+echo "== charon's toolchain: $nightly"
+rustup toolchain install "$nightly" --profile minimal -c rustc-dev -c llvm-tools -c rust-src
+
+# Translates one crate. Returns non-zero when Charon or Aeneas fails, and says
+# where, so the caller can record the outcome.
+translate() { # name crate-dir
+  local name="$1" crate="$ROOT/$2" out="$work/out-$1"
+  rm -rf "$out"
+  mkdir -p "$out"
+  cp -r "$crate" "$out/crate"
+  echo "== charon: $name ($2)"
+  (cd "$out/crate" && RUSTUP_TOOLCHAIN="$nightly" CARGO_TARGET_DIR="$out/target" \
+    "$charon" cargo --preset=aeneas) || { echo "charon failed on $name"; return 1; }
+  ls -l "$out/crate"/*.llbc || { echo "charon wrote no .llbc for $name"; return 1; }
+
+  echo "== aeneas: $name"
+  "$aeneas" -help 2>&1 | head -n 80 || true
+  "$aeneas" -backend lean -dest "$out/lean" "$out/crate"/*.llbc || { echo "aeneas failed on $name"; return 1; }
+  echo "--- generated Lean for $name"
+  find "$out/lean" -name '*.lean' | sort
+  return 0
+}
+
+# Builds the generated Lean for one crate, against the Aeneas Lean library at
+# the pinned Aeneas, with that library's own Lean toolchain.
+lean_build() { # name
+  local name="$1" out="$work/out-$1" proj modules root
+  proj="$out/lean-proj"
+  mkdir -p "$proj"
+  cp -r "$out/lean"/. "$proj/"
+  cp "$work/aeneas/backends/lean/lean-toolchain" "$proj/lean-toolchain"
+  # Module names are the paths of the generated files, relative to the root.
+  modules="$(cd "$proj" && find . -name '*.lean' | sed 's#^\./##; s#\.lean$##; s#/#.#g' | sort | sed 's/.*/"&"/' | paste -sd, -)"
+  cat > "$proj/lakefile.toml" <<EOF
+name = "spike_$name"
+defaultTargets = ["Spike"]
+
+[[require]]
+name = "aeneas"
+path = "$work/aeneas/backends/lean"
+
+[[lean_lib]]
+name = "Spike"
+srcDir = "."
+roots = [$modules]
+EOF
+  echo "== lake build: $name (modules: $modules)"
+  (cd "$proj" && lake build)
+}
+
+loop_status=0
+translate sum_u32 porting/aeneas/spike || loop_status=$?
+if [ "$loop_status" -eq 0 ]; then
+  lean_build sum_u32 || loop_status=$?
+fi
+
+f32_status=0
+translate dot_f32 porting/aeneas/spike-f32 || f32_status=$?
+if [ "$f32_status" -eq 0 ]; then
+  lean_build dot_f32 || f32_status=$?
+fi
+
+echo "== spike result"
+echo "loop (sum_u32): $([ "$loop_status" -eq 0 ] && echo translated and built || echo "FAILED (status $loop_status)")"
+echo "f32 (dot_f32): $([ "$f32_status" -eq 0 ] && echo translated and built || echo "not translated or not built (status $f32_status); see the log above")"
+
+[ "$loop_status" -eq 0 ] || die "the loop crate did not translate and build"
