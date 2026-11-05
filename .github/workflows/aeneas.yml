@@ -1,5 +1,5 @@
 # The Aeneas spike of the verification plan (P1-3). Charon and Aeneas are fetched
-# and run here, because the sandbox cannot reach the Lean hosts or the release
+# and built here, because the sandbox cannot reach the Lean hosts or the release
 # downloads they need.
 name: aeneas
 
@@ -23,3 +23,21 @@ jobs:
 
       - name: Print the current revisions and the toolchain pins
         run: scripts/aeneas-spike.sh discover
+
+  build:
+    name: Build Charon and Aeneas at the pins
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install OPAM and the C libraries the OCaml dependencies need
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y opam libgmp-dev pkg-config m4 build-essential
+
+      - name: Build Charon and Aeneas
+        run: scripts/aeneas-spike.sh build
