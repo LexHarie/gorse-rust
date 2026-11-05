@@ -2,9 +2,9 @@ name: gate
 
 # Runs scripts/gate.sh, the verification gate (G0 in porting/verification-plan.md),
 # inside a Rust image pinned by digest. The workflow holds no secrets and no
-# credentials: the backend URIs of the local test containers live in
-# scripts/gate.sh, and the containers come from storage/docker-compose.yml. Fork
-# pull requests therefore run with nothing beyond the read-only default token.
+# credentials: the backend URIs and the local test accounts live in
+# scripts/backends.env, and the containers come from storage/docker-compose.yml.
+# Fork pull requests therefore run with nothing beyond the read-only default token.
 
 on:
   push:
@@ -36,10 +36,36 @@ jobs:
       - name: Start the backends
         run: docker compose -f storage/docker-compose.yml up -d
 
+      - name: Create the buckets, the container and the playground dumps
+        # The blob tests need a bucket, a container and a GCS bucket that the
+        # emulators do not create, and the playground tests read their dumps from
+        # /mnt/project-files/datasets (mounted into the gate container below).
+        run: |
+          set -euo pipefail
+          source scripts/backends.env
+          export AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY" AWS_DEFAULT_REGION=us-east-1
+          retry() {
+            for _ in $(seq 1 30); do
+              if "$@"; then return 0; fi
+              sleep 5
+            done
+            echo "gave up after 30 tries: $*" >&2
+            return 1
+          }
+          retry bash -c 'aws --endpoint-url "http://$S3_ENDPOINT" s3api create-bucket --bucket gorse-test >/dev/null 2>&1 || aws --endpoint-url "http://$S3_ENDPOINT" s3api head-bucket --bucket gorse-test'
+          retry az storage container create --name gorse-test --connection-string "$AZURE_STORAGE_CONNECTION_STRING" --only-show-errors
+          retry bash -c 'curl -fsS -X POST -H "Content-Type: application/json" -d "{\"name\":\"gorse-test\"}" "$GCS_EMULATOR_ENDPOINT/storage/v1/b" >/dev/null 2>&1 || curl -fsS "$GCS_EMULATOR_ENDPOINT/storage/v1/b/gorse-test" >/dev/null'
+          sudo mkdir -p /mnt/project-files/datasets
+          sudo chown "$(id -u):$(id -g)" /mnt/project-files/datasets
+          for dump in ml-100k.bin.gz github.bin.gz; do
+            curl -fsSL -o "/mnt/project-files/datasets/$dump" "https://cdn.gorse.io/example/$dump"
+          done
+
       - name: Run the gate in the pinned container
         run: |
           docker run --rm --network host \
             -v "$GITHUB_WORKSPACE:/work" -w /work \
+            -v /mnt/project-files:/mnt/project-files:ro \
             -e GATE_LOG_DIR=/work/target/gate \
             "$GATE_IMAGE" \
             bash -c "apt-get update -qq && apt-get install -y -qq clang cmake >/dev/null && scripts/gate.sh"

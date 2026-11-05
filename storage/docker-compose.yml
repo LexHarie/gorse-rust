@@ -39,6 +39,12 @@ services:
       RUSTFS_ACCESS_KEY: rustfsadmin
       RUSTFS_SECRET_KEY: rustfsadmin
 
+  fake-gcs:
+    image: fsouza/fake-gcs-server:1.56.1
+    command: ["-scheme", "http", "-port", "4443", "-backend", "memory"]
+    ports:
+      - 4443:4443
+
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite:3.34.0
     ports:
