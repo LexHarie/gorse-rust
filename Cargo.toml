@@ -85,6 +85,7 @@ tokio-rustls = "0.26.6"
 tokio-stream = "0.1.19"
 tonic = "0.14.6"
 tonic-prost = "0.14.6"
+proptest = { version = "1", default-features = false, features = ["std"] }
 tempfile = "3.27.0"
 tonic-prost-build = "0.14.6"
 tower = "0.5.3"
