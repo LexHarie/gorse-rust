@@ -32,7 +32,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
-      SPIKE_WORK: ${{ runner.temp }}/aeneas-spike
+      # The runner context is not available in a job's env, so the work directory
+      # is a fixed path. The stages run on one runner, so they share it.
+      SPIKE_WORK: /tmp/aeneas-spike
     steps:
       - name: Check out the repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
