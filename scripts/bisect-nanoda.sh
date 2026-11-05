@@ -32,7 +32,7 @@ names=(
   Gorse.Spec.Metrics.precision_le_one
   Gorse.Spec.Metrics.recall_le_one
   Gorse.Spec.Metrics.ndcg_gt_one_of_dup
-  Gorse.Spec.Metrics.ndcg_gt_one_of_dup_control_unused
+  Real.log_one
 )
 
 summary=()
