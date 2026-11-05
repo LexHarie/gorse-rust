@@ -215,6 +215,17 @@ stage_aeneas() {
     echo "not translated" > "$work/f32.translate"
     echo "f32 (dot_f32) did not translate; see the log above"
   fi
+
+  # A probe of f32 arithmetic with no float literal, since dot_f32 failed at its
+  # literal. Its outcome is the second part of the f32 verdict; it is reported,
+  # not required to pass.
+  if translate dot_f32_from porting/aeneas/spike-f32-probe; then
+    echo translated > "$work/f32probe.translate"
+    echo "f32 probe (dot_f32_from): translated"
+  else
+    echo "not translated" > "$work/f32probe.translate"
+    echo "f32 probe (dot_f32_from) did not translate; see the log above"
+  fi
 }
 
 # Module names of the generated Lean files under a directory, as a lakefile list.
