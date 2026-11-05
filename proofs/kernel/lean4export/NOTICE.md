@@ -10,6 +10,9 @@ and a Lean export can only be read by the Lean version that wrote the `.olean`
 files, so the copy is changed only where Lean `v4.15.0` requires it:
 
 - `lean-toolchain`: `leanprover/lean4:v4.15.0` instead of `v4.20.0-rc5`.
+- `Export.lean`: the hash maps are written `Std.HashMap`, and the line
+  `open Std (HashMap)` is removed. Lean `v4.15.0` still has the deprecated
+  `Lean.HashMap`, which `open Lean` brings into scope, so the bare name is ambiguous
+  there (CI run 42035215698 failed on it).
 
-The changes to `Export.lean` and `Main.lean` are listed below once CI has built them.
-The export format itself is unchanged.
+`Main.lean` is unchanged. The export format itself is unchanged.

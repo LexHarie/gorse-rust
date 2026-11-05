@@ -2,7 +2,6 @@ import Lean
 import Std.Data.HashMap.Basic
 
 open Lean
-open Std (HashMap)
 
 instance : Hashable RecursorRule where
   hash r := hash (r.ctor, r.nfields, r.rhs)
@@ -11,10 +10,10 @@ structure Context where
   env : Environment
 
 structure State where
-  visitedNames : HashMap Name Nat := .insert {} .anonymous 0
-  visitedLevels : HashMap Level Nat := .insert {} .zero 0
-  visitedExprs : HashMap Expr Nat := {}
-  visitedRecRules : HashMap RecursorRule Nat := {}
+  visitedNames : Std.HashMap Name Nat := .insert {} .anonymous 0
+  visitedLevels : Std.HashMap Level Nat := .insert {} .zero 0
+  visitedExprs : Std.HashMap Expr Nat := {}
+  visitedRecRules : Std.HashMap RecursorRule Nat := {}
   visitedConstants : NameHashSet := {}
 
 abbrev M := ReaderT Context <| StateT State IO
@@ -25,7 +24,7 @@ def M.run (env : Environment) (act : M α) : IO α :=
       act
 
 @[inline]
-def getIdx [Hashable α] [BEq α] (x : α) (getM : State → HashMap α Nat) (setM : State → HashMap α Nat → State) (rec : M String) : M Nat := do
+def getIdx [Hashable α] [BEq α] (x : α) (getM : State → Std.HashMap α Nat) (setM : State → Std.HashMap α Nat → State) (rec : M String) : M Nat := do
   let m ← getM <$> get
   if let some idx := m[x]? then
     return idx
