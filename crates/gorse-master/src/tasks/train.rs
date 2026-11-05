@@ -111,10 +111,10 @@ impl Master {
         // a different model that scores better than the current one
         let mut model_type = state.meta.r#type.clone();
         let mut model_params = state.meta.params.clone();
-        if state.target.score.ndcg > 0.0
-            && !state.target.equal(&state.meta)
-            && state.target.score.ndcg > state.meta.score.ndcg
-        {
+        // An undefined NDCG (A1, D-324) is NaN here, so it never wins a comparison.
+        let target_ndcg = state.target.score.ndcg.unwrap_or(f32::NAN);
+        let meta_ndcg = state.meta.score.ndcg.unwrap_or(f32::NAN);
+        if target_ndcg > 0.0 && !state.target.equal(&state.meta) && target_ndcg > meta_ndcg {
             model_type = state.target.r#type.clone();
             model_params = state.target.params.clone();
             info!(
@@ -217,9 +217,10 @@ impl Master {
         }
 
         info!(id = model_id, "fit collaborative filtering model completed");
-        metrics::COLLABORATIVE_FILTERING_NDCG_10.set(f64::from(score.ndcg));
-        metrics::COLLABORATIVE_FILTERING_RECALL_10.set(f64::from(score.recall));
-        metrics::COLLABORATIVE_FILTERING_PRECISION_10.set(f64::from(score.precision));
+        metrics::COLLABORATIVE_FILTERING_NDCG_10.set(f64::from(score.ndcg.unwrap_or(f32::NAN)));
+        metrics::COLLABORATIVE_FILTERING_RECALL_10.set(f64::from(score.recall.unwrap_or(f32::NAN)));
+        metrics::COLLABORATIVE_FILTERING_PRECISION_10
+            .set(f64::from(score.precision.unwrap_or(f32::NAN)));
         let cache_client = self.cache();
         if let Err(err) = cache_client
             .set(
@@ -279,17 +280,17 @@ impl Master {
         let points = [
             TimeSeriesPoint {
                 name: cache::CF_NDCG.to_owned(),
-                value: f64::from(score.ndcg),
+                value: f64::from(score.ndcg.unwrap_or(f32::NAN)),
                 timestamp: now.clone(),
             },
             TimeSeriesPoint {
                 name: cache::CF_PRECISION.to_owned(),
-                value: f64::from(score.precision),
+                value: f64::from(score.precision.unwrap_or(f32::NAN)),
                 timestamp: now.clone(),
             },
             TimeSeriesPoint {
                 name: cache::CF_RECALL.to_owned(),
-                value: f64::from(score.recall),
+                value: f64::from(score.recall.unwrap_or(f32::NAN)),
                 timestamp: now,
             },
         ];

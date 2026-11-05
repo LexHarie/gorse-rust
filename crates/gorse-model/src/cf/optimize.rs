@@ -99,7 +99,8 @@ impl ModelSearch {
         if let Some(span) = &self.span {
             span.add(1);
         }
-        Ok(f64::from(score.ndcg))
+        // An undefined NDCG is NaN here, as the Go objective returns it (A1, D-324).
+        Ok(f64::from(score.ndcg.unwrap_or(f32::NAN)))
     }
 
     /// Go's `Result`: the best model type, its parameters and its score so far.
@@ -188,7 +189,7 @@ mod tests {
                 + params.get_float32(INIT_MEAN, 0.0)
                 + params.get_float32(INIT_STD_DEV, 0.0);
             Score {
-                ndcg,
+                ndcg: Some(ndcg),
                 ..Score::default()
             }
         }
@@ -318,7 +319,7 @@ mod tests {
         assert_eq!(
             result.score,
             Score {
-                ndcg: 12.0,
+                ndcg: Some(12.0),
                 ..Score::default()
             }
         );
