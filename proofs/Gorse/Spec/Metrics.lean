@@ -58,9 +58,10 @@ theorem hits_le_card {T : Finset ℕ} {L : List ℕ} (hnd : L.Nodup) :
 theorem precision_le_one {T : Finset ℕ} {L : List ℕ} {v : ℝ}
     (h : precision T L = some v) : v ≤ 1 := by
   unfold precision at h
-  split_ifs at h with hL
-  · exact absurd h (by simp)
-  · obtain rfl := Option.some.inj h
+  by_cases hL : L = []
+  · simp [hL] at h
+  · rw [if_neg hL] at h
+    obtain rfl := Option.some.inj h
     have hlen : (0 : ℝ) < (L.length : ℝ) := by
       exact_mod_cast List.length_pos_of_ne_nil hL
     have hhits : (hits T L : ℝ) ≤ (L.length : ℝ) := by
@@ -74,9 +75,10 @@ theorem precision_le_one {T : Finset ℕ} {L : List ℕ} {v : ℝ}
 theorem recall_le_one {T : Finset ℕ} {L : List ℕ} {v : ℝ} (hnd : L.Nodup)
     (h : recall T L = some v) : v ≤ 1 := by
   unfold recall at h
-  split_ifs at h with hT
-  · exact absurd h (by simp)
-  · obtain rfl := Option.some.inj h
+  by_cases hT : T.card = 0
+  · simp [hT] at h
+  · rw [if_neg hT] at h
+    obtain rfl := Option.some.inj h
     have hpos : (0 : ℝ) < (T.card : ℝ) := by
       exact_mod_cast Nat.pos_of_ne_zero hT
     have hle : (hits T L : ℝ) ≤ (T.card : ℝ) := by
@@ -90,7 +92,15 @@ theorem ndcg_gt_one_of_dup : ∃ (T : Finset ℕ) (L : List ℕ) (v : ℝ),
   refine ⟨{1}, [1, 1], 1 + 1 / Real.logb 2 3, ?_, ?_, ?_⟩
   · simp
   · have h2 : Real.logb 2 2 = 1 := Real.logb_self_eq_one (by norm_num)
-    norm_num [ndcg, dcg, idcg, disc, Finset.sum_range_succ, h2]
+    have hne : ¬ (({1} : Finset ℕ).card = 0 ∨ ([1, 1] : List ℕ) = []) := by simp
+    have hd : dcg {1} [1, 1] = 1 + 1 / Real.logb 2 3 := by
+      unfold dcg
+      norm_num [Finset.sum_range_succ, disc, h2]
+    have hi : idcg {1} [1, 1].length = 1 := by
+      unfold idcg
+      norm_num [disc, h2]
+    unfold ndcg
+    rw [if_neg hne, hd, hi, div_one]
   · have hpos : 0 < 1 / Real.logb 2 3 :=
       one_div_pos.mpr (Real.logb_pos (by norm_num) (by norm_num))
     linarith
