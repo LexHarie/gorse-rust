@@ -1,0 +1,4 @@
+# The exported theorems: the names the G1 axiom check (scripts/check-proofs.sh)
+# and the G2 export (scripts/check-kernels.sh) cover. One fully qualified name per line.
+Gorse.scaffold_true
+Gorse.scaffold_or_comm

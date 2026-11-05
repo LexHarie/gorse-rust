@@ -1,5 +1,7 @@
-# The Lean project of the verification plan (G1, P1-2). It builds proofs/ on the
-# pinned toolchain and Mathlib, then runs the G1 checks in scripts/check-proofs.sh.
+# The Lean project of the verification plan. It builds proofs/ on the pinned toolchain
+# and Mathlib, then runs the G1 checks (scripts/check-proofs.sh, P1-2), the statement
+# freeze (G4, scripts/check-statements.sh) and the independent kernels (G2,
+# scripts/check-kernels.sh, P1-5).
 name: proofs
 
 on:
@@ -48,3 +50,13 @@ jobs:
 
       - name: Run the G1 checks
         run: scripts/check-proofs.sh
+
+      - name: Check that the statement scan catches a changed statement (G4)
+        run: scripts/check-statements.sh --self-test
+
+      - name: Check the statement freeze (G4)
+        run: scripts/check-statements.sh
+
+      - name: Run the independent kernels on the proofs (G2)
+        timeout-minutes: 60
+        run: scripts/check-kernels.sh
