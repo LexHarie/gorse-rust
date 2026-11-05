@@ -32,7 +32,8 @@ noncomputable def ndcg (T : Finset ℕ) (L : List ℕ) : Option ℝ :=
 def hits (T : Finset ℕ) (L : List ℕ) : ℕ :=
   (L.filter (fun x => decide (x ∈ T))).length
 
-/-- Precision, undefined (`none`) for an empty list. -/
+/-- Precision, written `P@|L|` (D-315, A3): the hits divided by `|L|`, undefined (`none`)
+for an empty list. -/
 noncomputable def precision (T : Finset ℕ) (L : List ℕ) : Option ℝ :=
   if L = [] then none else some ((hits T L : ℝ) / (L.length : ℝ))
 
@@ -369,5 +370,66 @@ theorem ndcg_eq_one_iff {T : Finset ℕ} {L : List ℕ}
       exact Finset.sum_le_sum_of_subset_of_nonneg hsub (fun j _ _ => (disc_pos j).le)
     have heq : dcg T L = idcg T L.length := le_antisymm (dcg_le_idcg T L hnd) hge
     rw [heq, div_self hidc.ne']
+
+/-- The number of hits of `L` among its first `i + 1` positions. -/
+def hitsUpTo (T : Finset ℕ) (L : List ℕ) (i : ℕ) : ℕ :=
+  ((range (i + 1)).filter (fun j => L.getD j 0 ∈ T)).card
+
+/-- Average precision, written `AP/|T|` (D-315, A3): the precision at each position that
+holds a relevant item, summed and divided by `|T|`. The sum is the one the Rust `map`
+computes. Undefined (`none`) when the target set or the list is empty. -/
+noncomputable def ap (T : Finset ℕ) (L : List ℕ) : Option ℝ :=
+  if T.card = 0 ∨ L = [] then none else
+    some ((∑ i ∈ range L.length,
+      if L.getD i 0 ∈ T then (hitsUpTo T L i : ℝ) / ((i : ℝ) + 1) else 0) / (T.card : ℝ))
+
+theorem hitsUpTo_le (T : Finset ℕ) (L : List ℕ) (i : ℕ) : hitsUpTo T L i ≤ i + 1 := by
+  unfold hitsUpTo
+  calc ((range (i + 1)).filter (fun j => L.getD j 0 ∈ T)).card
+      ≤ (range (i + 1)).card := Finset.card_le_card (Finset.filter_subset _ _)
+    _ = i + 1 := Finset.card_range _
+
+/-- Each term of the average-precision sum is at most the indicator of a hit. -/
+theorem ap_term_le (T : Finset ℕ) (L : List ℕ) (i : ℕ) :
+    (if L.getD i 0 ∈ T then (hitsUpTo T L i : ℝ) / ((i : ℝ) + 1) else 0) ≤
+      (if L.getD i 0 ∈ T then (1 : ℝ) else 0) := by
+  split_ifs
+  · have hle : (hitsUpTo T L i : ℝ) ≤ (i : ℝ) + 1 := by
+      exact_mod_cast hitsUpTo_le T L i
+    have hpos : (0 : ℝ) < (i : ℝ) + 1 := by positivity
+    exact (div_le_one hpos).mpr hle
+  · exact le_rfl
+
+/-- The average-precision sum is at most the number of hits. -/
+theorem sum_ap_le_card (T : Finset ℕ) (L : List ℕ) :
+    ∑ i ∈ range L.length,
+        (if L.getD i 0 ∈ T then (hitsUpTo T L i : ℝ) / ((i : ℝ) + 1) else 0) ≤
+      ((hitIdx T L).card : ℝ) := by
+  calc ∑ i ∈ range L.length,
+        (if L.getD i 0 ∈ T then (hitsUpTo T L i : ℝ) / ((i : ℝ) + 1) else 0)
+      ≤ ∑ i ∈ range L.length, (if L.getD i 0 ∈ T then (1 : ℝ) else 0) :=
+        Finset.sum_le_sum (fun i _ => ap_term_le T L i)
+    _ = ((hitIdx T L).card : ℝ) := by
+        first
+          | simp [hitIdx, Finset.sum_boole]
+          | (rw [Finset.sum_boole]; simp [hitIdx])
+
+/-- Average precision is at most 1 when `L` has no duplicates. -/
+theorem ap_le_one {T : Finset ℕ} {L : List ℕ} {v : ℝ} (hnd : L.Nodup)
+    (h : ap T L = some v) : v ≤ 1 := by
+  unfold ap at h
+  by_cases hc : T.card = 0 ∨ L = []
+  · rw [if_pos hc] at h
+    simp at h
+  · rw [if_neg hc] at h
+    obtain rfl := Option.some.inj h
+    have hTpos : (0 : ℝ) < (T.card : ℝ) := by
+      have : 0 < T.card := Nat.pos_of_ne_zero (fun h0 => hc (Or.inl h0))
+      exact_mod_cast this
+    rw [div_le_one hTpos]
+    have hsum := sum_ap_le_card T L
+    have hcard : (hitIdx T L).card ≤ T.card := (card_hitIdx_le T hnd).trans (min_le_left _ _)
+    have hcardR : ((hitIdx T L).card : ℝ) ≤ (T.card : ℝ) := by exact_mod_cast hcard
+    linarith
 
 end Gorse.Spec.Metrics
