@@ -1,0 +1,14 @@
+# The Lean project of the verification plan (P1-2). The toolchain is pinned in
+# lean-toolchain, and Mathlib is pinned to the tag of the same release. The
+# resolved revision and the manifest are recorded in lake-manifest.json.
+name = "gorse_proofs"
+version = "0.1.0"
+defaultTargets = ["Gorse"]
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.15.0"
+
+[[lean_lib]]
+name = "Gorse"
