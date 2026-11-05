@@ -10,13 +10,15 @@ pattern of the metric's value, or `none` where the metric is undefined. A case i
 
 Each value is computed exactly over the naturals and rounded once to the nearest f32, ties
 to even. `ratioBits` mirrors `ratio_bits` in `crates/gorse-model/examples/g9_oracle.rs`,
-step for step, and that file checks it against IEEE division. The definitions follow the
-T1 specification in `Gorse/Spec/Metrics.lean`, with the same undefined cases:
+step for step, and that file checks it against IEEE division. The undefined cases are these:
 
-* `precision` is undefined only for an empty ranked list;
-* `recall` is undefined only for an empty target set;
-* `hr` is undefined only for an empty ranked list;
-* `mrr` is undefined for an empty target set or an empty ranked list.
+* `precision` follows T1 in `Gorse/Spec/Metrics.lean`, and is undefined only for an empty
+  ranked list;
+* `recall` follows T1 in `Gorse/Spec/Metrics.lean`, and is undefined only for an empty
+  target set;
+* `hr` follows D-324, and is undefined only for an empty ranked list;
+* `mrr` follows D-324, and its empty-target rule comes from A1: it is undefined for an
+  empty target set or an empty ranked list.
 
 `hits` counts entries of the ranked list with multiplicity, as the specification does.
 -/
