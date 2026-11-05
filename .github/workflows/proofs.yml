@@ -39,8 +39,12 @@ jobs:
             echo "- lean binary sha256: \`$(sha256sum "$(elan which lean)" | cut -d' ' -f1)\`"
             echo "- lake-manifest.json sha256: \`$(sha256sum lake-manifest.json | cut -d' ' -f1)\`"
           } >> "$GITHUB_STEP_SUMMARY"
-          # Printed in the log so the resolved revisions can be recorded in the repository.
-          cat lake-manifest.json
+
+      - name: Check that the build kept the committed manifest
+        run: git diff --exit-code -- proofs/lake-manifest.json
+
+      - name: Check that the scan catches a planted sorry
+        run: scripts/check-proofs.sh --self-test
 
       - name: Run the G1 checks
         run: scripts/check-proofs.sh
