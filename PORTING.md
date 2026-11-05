@@ -2144,6 +2144,8 @@ or accepts a metric gap outside the Go tests' own tolerances.
 
 - **D-316 Bring CI back (owner decision, 2026-11-05; this reverses D-312).** Step P0 commits the gate script and restores the GitHub Actions workflows: the gate stages of D-312, plus G1 to G4 once the Lean project exists. Out of scope, confirmed: the expression checker and the HNSW index. Neither is verified or reworked, and HNSW keeps only its existing recall test. Revisit only if their production role changes.
 
+- **D-317 (President, 2026-11-05): Freeze the T1 metrics specification statements in proofs/Gorse/Spec/Metrics.lean (P2). Statement hashes are recorded in proofs/statements.txt.** Theorems: `hits_le_card`, `precision_le_one`, `recall_le_one`, `ndcg_gt_one_of_dup`. Later P2 and P3 statement batches take the next D-number in the same way.
+
 ## Open questions for Ritchie
 
 
