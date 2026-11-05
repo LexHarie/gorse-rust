@@ -34,6 +34,16 @@ jobs:
         with:
           persist-credentials: false
 
+      # The hosted runner has about 14 GB free. The spike adds an OCaml switch, a
+      # Rust nightly with rustc-dev, and the Mathlib build, and the last run's
+      # job was cut off without finishing its step. These preinstalled trees are
+      # not used here, so removing them frees room for the spike.
+      - name: Free runner disk space the spike needs
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/android
+          df -h /
+
       - name: Install OPAM and the C libraries the OCaml dependencies need
         run: |
           sudo apt-get update

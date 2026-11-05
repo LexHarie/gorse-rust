@@ -166,6 +166,7 @@ translate() { # name crate-dir
   mkdir -p "$out"
   cp -r "$crate" "$out/crate"
   echo "== charon: $name ($2)"
+  echo "disk before charon: $(df -h / | tail -n 1)"
   (cd "$out/crate" && RUSTUP_TOOLCHAIN="$nightly" CARGO_TARGET_DIR="$out/target" \
     "$charon" cargo --preset=aeneas) || { echo "charon failed on $name"; return 1; }
   ls -l "$out/crate"/*.llbc || { echo "charon wrote no .llbc for $name"; return 1; }
@@ -202,6 +203,7 @@ srcDir = "."
 roots = [$modules]
 EOF
   echo "== lake build: $name (modules: $modules)"
+  echo "disk before lake build: $(df -h / | tail -n 1)"
   (cd "$proj" && lake build)
 }
 
