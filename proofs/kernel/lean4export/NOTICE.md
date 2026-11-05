@@ -15,4 +15,9 @@ files, so the copy is changed only where Lean `v4.15.0` requires it:
   `Lean.HashMap`, which `open Lean` brings into scope, so the bare name is ambiguous
   there (CI run 42035215698 failed on it).
 
-`Main.lean` is unchanged. The export format itself is unchanged.
+- `Main.lean`: the first line of the export is `2.0.0` instead of `0.1.2`. nanoda
+  `v0.3.2` rejects an export whose version is below `2.0.0` (its parser's
+  `MIN_SUPPORTED_SEMVER`), and CI run 42035578046 failed on it. The version line is not
+  otherwise checked, and the rest of the format is what nanoda's checker reads.
+
+The export format itself is unchanged.
