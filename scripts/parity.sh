@@ -44,10 +44,17 @@ if ! git cat-file -e "$PIN^{commit}" 2>/dev/null; then
   exit 2
 fi
 
+# Each CI step that runs one suite calls this script again. The pinned tree is
+# extracted once per scratch root, so the later steps reuse it and cargo does
+# not rebuild the pinned workspace for every suite.
 extract_pinned_tree() {
+  if [ -f "$SCRATCH/extracted-$PIN" ] && [ -d "$SRC" ]; then
+    return 0
+  fi
   rm -rf "$SRC" "$BIN"
   mkdir -p "$SRC" "$BIN"
   git archive "$PIN" | tar -x -C "$SRC"
+  touch "$SCRATCH/extracted-$PIN"
 }
 
 build_go_nodes() {

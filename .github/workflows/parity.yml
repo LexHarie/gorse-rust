@@ -5,6 +5,9 @@ name: parity
 # (branch go-oracle-final). It runs per release and on demand, not per commit.
 # The workflow holds no secrets and no credentials; the backend URIs come from
 # scripts/backends.env and the containers from storage/docker-compose.yml.
+#
+# Each suite is its own step with a 45-minute limit, so a hang shows as the
+# suite that is stuck. A failed or timed-out suite does not stop the next one.
 
 on:
   release:
@@ -18,6 +21,7 @@ jobs:
   parity:
     name: parity suites against the Go oracle
     runs-on: ubuntu-24.04
+    # A backstop for the whole job. The per-suite limits are the ones that apply.
     timeout-minutes: 360
     steps:
       - name: Check out the repository with history
@@ -30,5 +34,157 @@ jobs:
       - name: Start the backends
         run: docker compose -f storage/docker-compose.yml up -d
 
-      - name: Run the parity suites
-        run: scripts/parity.sh run
+      - name: Build the Go oracle and extract the pinned tree
+        id: build
+        timeout-minutes: 45
+        run: scripts/parity.sh build
+
+      - name: "suite bench_golden"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run bench_golden
+
+      - name: "suite cf_golden"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run cf_golden
+
+      - name: "suite cli_oracle"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run cli_oracle
+
+      - name: "suite ctr_replay"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run ctr_replay
+
+      - name: "suite go_decode"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run go_decode
+
+      - name: "suite go_printable"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run go_printable
+
+      - name: "suite go_xmlname"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run go_xmlname
+
+      - name: "suite item_to_item_oracle"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run item_to_item_oracle
+
+      - name: "suite master_http_surface"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run master_http_surface
+
+      - name: "suite metrics"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run metrics
+
+      - name: "suite mixed_cli"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run mixed_cli
+
+      - name: "suite mixed_cluster"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run mixed_cluster
+
+      - name: "suite mixed_cmd"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run mixed_cmd
+
+      - name: "suite mixed_master"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run mixed_master
+
+      - name: "suite mixed_master_rest"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run mixed_master_rest
+
+      - name: "suite mixed_server"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run mixed_server
+
+      - name: "suite mixed_worker"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run mixed_worker
+
+      - name: "suite monitor_empty_list"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run monitor_empty_list
+
+      - name: "suite o91_probe"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run o91_probe
+
+      - name: "suite playground"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run playground
+
+      - name: "suite playground_restore"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run playground_restore
+
+      - name: "suite proxy_wire"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run proxy_wire
+
+      - name: "suite recommend_oracle"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run recommend_oracle
+
+      - name: "suite recommend_tie_go"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run recommend_tie_go
+
+      - name: "suite rest_golden"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run rest_golden
+
+      - name: "suite schema"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run schema
+
+      - name: "suite sdk"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run sdk
+
+      - name: "suite server_http_surface"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run server_http_surface
+
+      - name: "suite sparse_oracle"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run sparse_oracle
+
+      - name: "suite vector_cross_read"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 45
+        run: scripts/parity.sh run vector_cross_read
