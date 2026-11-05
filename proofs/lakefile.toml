@@ -12,3 +12,9 @@ rev = "v4.15.0"
 
 [[lean_lib]]
 name = "Gorse"
+
+# The G9 oracle for the T1 metrics (D-326). Built by `lake build oracle`, not by the
+# default target, and run by scripts/check-oracle.sh.
+[[lean_exe]]
+name = "oracle"
+root = "Oracle.Main"
