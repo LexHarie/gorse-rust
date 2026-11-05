@@ -11,7 +11,7 @@
 
 use std::collections::HashSet;
 
-use gorse_model::cf::evaluator::{ndcg, precision, recall};
+use gorse_model::cf::evaluator::{map, ndcg, precision, recall};
 use proptest::prelude::*;
 
 /// The number of random cases per property (G8: at least 10⁵).
@@ -112,6 +112,14 @@ proptest! {
     #[test]
     fn thm_recall_le_one(t in target(), l in nodup_list()) {
         prop_assert!(value(recall(&t, &l)) <= 1.0);
+    }
+
+    /// `ap_le_one`: with no duplicates in the list, average precision is at most 1.
+    /// The Rust `map` sums the precision at each hit and divides by |T|, as the Lean
+    /// `ap` does.
+    #[test]
+    fn thm_ap_le_one(t in target(), l in nodup_list()) {
+        prop_assert!(value(map(&t, &l)) <= 1.0);
     }
 
     /// `ndcg_gt_one_of_dup`: a list with a repeated hit has NDCG above 1. The
