@@ -62,6 +62,8 @@ exporter="$work/lean4export/.lake/build/bin/lean4export"
 mapfile -t exported < <(grep -v -E '^(#|$)' proofs/exports.txt)
 (cd proofs && lake env "$exporter" Gorse -- "${exported[@]}") > "$work/export.txt"
 echo "export: $(wc -l < "$work/export.txt") lines for ${#exported[@]} theorems"
+# The export is short, and printing it lets a failure in nanoda be read from the log.
+cat "$work/export.txt"
 
 fetch_rev "$NANODA_REPO" "$NANODA_REV" "$work/nanoda"
 (cd "$work/nanoda" && cargo build --release --locked --bin nanoda_bin)
