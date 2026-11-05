@@ -116,7 +116,7 @@ case "$cmd" in
           # output stopped after pinterest_20_als at 11:30:22Z, and the suite
           # reached its 45-minute limit at 12:03:40Z with no result. It is
           # skipped here until its cause is found. Exact match, so
-          # pinterest_20_bpr_one_job still runs. Tracked in the PR #3 description.
+          # pinterest_20_bpr_one_job still runs. Recorded as D-320 in PORTING.md.
           skip_args=()
           if [ "$name" = metrics ]; then
             skip_args=(--exact --skip pinterest_20_bpr)

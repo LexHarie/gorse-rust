@@ -7,3 +7,5 @@ Gorse.Spec.Metrics.hits_le_card
 Gorse.Spec.Metrics.precision_le_one
 Gorse.Spec.Metrics.recall_le_one
 Gorse.Spec.Metrics.ndcg_gt_one_of_dup
+Gorse.Spec.Metrics.ndcg_mem_unitInterval
+Gorse.Spec.Metrics.ndcg_eq_one_iff
