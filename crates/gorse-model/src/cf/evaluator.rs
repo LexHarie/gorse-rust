@@ -63,10 +63,7 @@ pub fn evaluate(
             let target_set: HashSet<i32> = feedback[user_index].iter().copied().collect();
             if !target_set.is_empty() {
                 // Sample negative samples
-                let negative_sample = &negatives[user_index];
-                let mut candidates = Vec::with_capacity(target_set.len() + negative_sample.len());
-                candidates.extend_from_slice(&feedback[user_index]);
-                candidates.extend_from_slice(negative_sample);
+                let candidates = candidate_list(&feedback[user_index], &negatives[user_index]);
                 // Find top-n ItemFeedback in predictions
                 let rank_list = rank(estimator, user_index as i32, &candidates, top_k);
                 let mut partial = lock(&partials[worker_id]);
@@ -170,6 +167,19 @@ pub fn mrr(target_set: &HashSet<i32>, rank_list: &[i32]) -> f32 {
         }
     }
     0.0
+}
+
+/// The candidates of one user: the feedback and the sampled negatives, each item once, in
+/// first-seen order. A repeated item would enter the ranked list twice and could lift NDCG
+/// above 1 (A4, D-315). Feedback repeats when a user has several rows for one item.
+fn candidate_list(feedback: &[i32], negatives: &[i32]) -> Vec<i32> {
+    let mut seen = HashSet::with_capacity(feedback.len() + negatives.len());
+    feedback
+        .iter()
+        .chain(negatives)
+        .copied()
+        .filter(|item| seen.insert(*item))
+        .collect()
 }
 
 /// Go's `Rank`: the `top_n` candidates the model scores highest, best first.
@@ -392,5 +402,40 @@ mod tests {
         let s = evaluate(&m, &mut test, &train, 4, num_candidates, 4, &[precision]);
         assert_eq!(1, s.len());
         assert_eq!(0.625, s[0]);
+    }
+
+    /// A4 (D-315), confirmed: a repeated candidate enters the ranked list twice, and NDCG
+    /// then exceeds 1, as `ndcg_gt_one_of_dup` in proofs/Gorse/Spec/Metrics.lean states.
+    #[test]
+    fn test_ndcg_exceeds_one_on_repeated_candidate() {
+        let m = MockMatrixFactorizationForEval {
+            positive: vec![set(&[0])],
+            negative: vec![set(&[])],
+            ..Default::default()
+        };
+        let rank_list = rank(&m, 0, &[0, 0], 2);
+        assert_eq!(vec![0, 0], rank_list);
+        assert!(ndcg(&set(&[0]), &rank_list) > 1.0);
+    }
+
+    /// A4 (D-315), the fix: the candidates are deduplicated before ranking, so NDCG of
+    /// the same user stays at most 1.
+    #[test]
+    fn test_candidate_list_drops_repeats() {
+        assert_eq!(vec![0, 1, 2], candidate_list(&[0, 0, 1], &[1, 2]));
+        assert_eq!(Vec::<i32>::new(), candidate_list(&[], &[]));
+    }
+
+    #[test]
+    fn test_ndcg_at_most_one_on_deduplicated_candidates() {
+        let m = MockMatrixFactorizationForEval {
+            positive: vec![set(&[0])],
+            negative: vec![set(&[])],
+            ..Default::default()
+        };
+        let candidates = candidate_list(&[0, 0], &[]);
+        let rank_list = rank(&m, 0, &candidates, 2);
+        assert_eq!(vec![0], rank_list);
+        assert!(ndcg(&set(&[0]), &rank_list) <= 1.0);
     }
 }
