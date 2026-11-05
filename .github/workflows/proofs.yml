@@ -33,6 +33,13 @@ jobs:
           sh elan-init.sh -y --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
+      - name: Fetch the prebuilt Mathlib modules
+        # Mathlib's cache holds the compiled modules for the pinned revision in
+        # lake-manifest.json. Without it, the build compiles every Mathlib module the
+        # project imports, which ran past 15 minutes for the T1 spec.
+        working-directory: proofs
+        run: lake exe cache get
+
       - name: Build the Lean project
         working-directory: proofs
         run: |
