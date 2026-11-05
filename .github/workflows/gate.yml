@@ -1,0 +1,45 @@
+name: gate
+
+# Runs scripts/gate.sh, the verification gate (G0 in porting/verification-plan.md),
+# inside a Rust image pinned by digest. The workflow holds no secrets and no
+# credentials: the backend URIs of the local test containers live in
+# scripts/gate.sh, and the containers come from storage/docker-compose.yml. Fork
+# pull requests therefore run with nothing beyond the read-only default token.
+
+on:
+  push:
+    branches:
+      - master
+      - claude/project-thread-pl4abn
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # rust:1.99.1-bookworm, the image digest recorded on 2026-11-05. The toolchain
+  # version is pinned by rust-toolchain.toml; the digest pins the image around it.
+  GATE_IMAGE: rust@sha256:c9155318d07341301a78b45ecdd81af2e43b8b297d64e8fd4c5e80d7735607c3
+
+jobs:
+  gate:
+    name: verification gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Start the backends
+        run: docker compose -f storage/docker-compose.yml up -d
+
+      - name: Run the gate in the pinned container
+        run: |
+          docker run --rm --network host \
+            -v "$GITHUB_WORKSPACE:/work" -w /work \
+            -e GATE_LOG_DIR=/work/target/gate \
+            "$GATE_IMAGE" \
+            bash -c "apt-get update -qq && apt-get install -y -qq clang cmake >/dev/null && scripts/gate.sh"
