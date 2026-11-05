@@ -777,13 +777,13 @@ pub fn add_to(a: &[f32], b: &[f32], dst: &mut [f32]) {
 /// (Intel SDM vol. 1, table 4-7). LLVM may swap the operands of `+`, which
 /// would carry `y`'s NaN instead, so the NaN is chosen here.
 #[inline]
-pub(crate) fn add_first(x: f32, y: f32) -> f32 {
+pub fn add_first(x: f32, y: f32) -> f32 {
     first_nan(x, y, x + y)
 }
 
 /// `x * y` with `x`'s NaN first, as [`add_first`].
 #[inline]
-pub(crate) fn mul_first(x: f32, y: f32) -> f32 {
+pub fn mul_first(x: f32, y: f32) -> f32 {
     first_nan(x, y, x * y)
 }
 
