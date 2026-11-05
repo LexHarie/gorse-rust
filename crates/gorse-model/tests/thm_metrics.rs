@@ -5,7 +5,8 @@
 //! property is a sample of its theorem, not a proof: it runs [`CASES`] random
 //! cases, and the theorem in `proofs/Gorse/Spec/Metrics.lean` covers all of them.
 //!
-//! The Rust metrics return `f32`. The theorems are over the reals, so each check
+//! The Rust metrics return `Option<f32>`, with `None` where they are undefined.
+//! The theorems are over the reals, so each check
 //! uses the same operations in the same order as the Rust code. Where a check
 //! compares with a bound, the bound is one the theorem gives, not a tolerance.
 
@@ -23,29 +24,11 @@ const ITEMS: i32 = 40;
 /// The longest target set and list.
 const MAX_LEN: usize = 15;
 
-/// The metrics return `f32` before D-324 and `Option<f32>` after it. This converts
-/// either form, so the mirrors compile on both sides of that change.
-trait Metric {
-    fn defined(self) -> Option<f32>;
-}
-
-impl Metric for f32 {
-    fn defined(self) -> Option<f32> {
-        Some(self)
-    }
-}
-
-impl Metric for Option<f32> {
-    fn defined(self) -> Option<f32> {
-        self
-    }
-}
-
-/// The value of a metric on an input where the theorem says it is defined.
-fn value(metric: impl Metric) -> f32 {
-    metric
-        .defined()
-        .expect("the metric is defined on this input")
+/// The value of a metric on an input where the theorem says it is defined. The
+/// metrics return `None` where they are undefined, so a mirror that reads a value
+/// there is a failure of the input, not of the metric.
+fn value(metric: Option<f32>) -> f32 {
+    metric.expect("the metric is defined on this input")
 }
 
 /// A non-empty target set.
