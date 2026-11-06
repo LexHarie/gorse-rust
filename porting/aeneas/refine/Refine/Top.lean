@@ -169,7 +169,8 @@ theorem top_k_loop_eq (kn : ℕ) (items : Slice (heap.Elem Std.U32 Std.I64))
       rw [htake] at hperm
       exact ⟨hperm, hH⟩
   obtain ⟨p, hp, hpost⟩ := exists_ok_of_spec (loop.spec_decr_nat
-    (fun p => items.val.length - p.2.val) (TopState kn items.val) (TopPost kn items.val)
+    (fun (p : heap.TopKFilter Std.U32 Std.I64 × Std.Usize) => items.val.length - p.2.val)
+    (TopState kn items.val) (TopPost kn items.val)
     (fun q => top_k_u32_i64_loop.body items q.1 q.2) (f0, i0) hBody hI)
   exact ⟨p, by unfold top_k_u32_i64_loop; exact hp, hpost⟩
 

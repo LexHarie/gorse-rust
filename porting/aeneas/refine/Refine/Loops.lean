@@ -105,9 +105,10 @@ theorem up_body_go (s : heap.TopKFilter Std.U32 Std.I64) (j : Usize) (hj0 : 0 < 
   rw [if_pos (decide_eq_true hw)]
   obtain ⟨s1, hs1, hs1v⟩ := swap_eq s.elems.slice i1 j
     (by show i1.val < s.elems.val.length; omega) (by show j.val < s.elems.val.length; omega)
+  simp only [alloc.vec.Vec.deref_mut, lift_eq, bind_ok]
   refine ⟨{ s with elems := { slice := s1 } }, i1, ?_, hi1p, ?_, rfl, rfl⟩
   · show (core.slice.Slice.swap s.elems.slice i1 j >>= fun s1 =>
-        ok (cont ({ elems := { slice := s1 }, k := s.k, nan := s.nan }, i1))) = _
+        ok (cont ({ s with elems := { slice := s1 } }, i1))) = _
     rw [hs1] <;> rfl
   · show s1.val = _
     rw [hs1v, hi1p] <;> rfl
@@ -189,7 +190,8 @@ theorem up_loop_eq (s : heap.TopKFilter Std.U32 Std.I64) (j : Usize)
       (loop (fun q => heap.TopKFilter.up_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 q.1 q.2)
         (s, j))
       (UpPost s) :=
-    loop.spec_decr_nat (fun p => p.2.val) (UpState s) (UpPost s)
+    loop.spec_decr_nat (fun (p : heap.TopKFilter Std.U32 Std.I64 × Usize) => p.2.val)
+      (UpState s) (UpPost s)
       (fun q => heap.TopKFilter.up_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 q.1 q.2)
       (s, j) hBody hInv
   obtain ⟨s', hs', hP⟩ := exists_ok_of_spec hspec

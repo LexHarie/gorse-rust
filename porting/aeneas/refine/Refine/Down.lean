@@ -347,7 +347,8 @@ theorem down_loop_eq (s : heap.TopKFilter Std.U32 Std.I64) (n i : Usize)
       (loop (fun q => heap.TopKFilter.down_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 n
         q.1 q.2) (s, i))
       (DownPost n.val s) :=
-    loop.spec_decr_nat (fun p => n.val - p.2.val) (DownState n.val s) (DownPost n.val s)
+    loop.spec_decr_nat (fun (p : heap.TopKFilter Std.U32 Std.I64 × Usize) => n.val - p.2.val)
+      (DownState n.val s) (DownPost n.val s)
       (fun q => heap.TopKFilter.down_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 n q.1 q.2)
       (s, i) hBody hInv
   obtain ⟨s', hs', hP⟩ := exists_ok_of_spec hspec

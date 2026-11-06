@@ -106,7 +106,8 @@ theorem pop_all_loop_eq (buf : List E) (hbuf : buf.length < 2 ^ 59)
       rw [hbufe, hA, hres1]
       simp [List.append_assoc]
   obtain ⟨p, hp, hpost⟩ := exists_ok_of_spec (loop.spec_decr_nat
-    (fun p => p.1.elems.val.length) (PopState buf) (fun y => y.2.val.reverse = buf)
+    (fun (p : heap.TopKFilter Std.U32 Std.I64 × alloc.vec.Vec E) => p.1.elems.val.length)
+    (PopState buf) (fun y => y.2.val.reverse = buf)
     (fun q => heap.TopKFilter.pop_all_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 q.1 q.2)
     (h0, res0) hBody hI)
   exact ⟨p, by unfold heap.TopKFilter.pop_all_loop; exact hp, hpost⟩
