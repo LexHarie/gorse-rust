@@ -63,9 +63,9 @@ theorem pop_all_loop_eq (buf : List E) (hbuf : buf.length < 2 ^ 59)
       (h0, res0) ?_ hI
     rintro ⟨h, res⟩ ⟨⟨rem, hperm, hsorted, hbufe⟩, hH⟩
     show WP.spec (heap.TopKFilter.pop_all_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 h res) _
-    unfold heap.TopKFilter.pop_all_loop.body
     by_cases hemp : h.elems.val = []
     · -- The heap is empty: the loop ends with the popped elements.
+      unfold heap.TopKFilter.pop_all_loop.body
       have hrem : rem = [] := by
         have hps := hperm.symm
         rw [hemp] at hps
@@ -91,14 +91,7 @@ theorem pop_all_loop_eq (buf : List E) (hbuf : buf.length < 2 ^ 59)
         omega
       obtain ⟨h2, hpw, hperm2, hH2, hlen2, hk2, hnan2, hG⟩ :=
         pop_worst_eq h r hL hne hH hr hplat
-      rw [hpw]
-      simp only [bind_ok]
       obtain ⟨res1, hpush, hres1⟩ := vec_push_eq res r (by omega)
-      -- the match on `(some r, h2)` reduces to the push of `r`: `change` states that by definitional
-      -- unfolding (dsimp and simp make no progress on it), so that `hpush` matches
-      change WP.spec (Bind.bind (res.push r) _) _
-      rw [hpush]
-      simp only [bind_tc_ok, bind_ok]
       -- the popped element is the last of `rem`
       have hrmem : r ∈ rem := hperm.mem_iff.1 (List.mem_iff_getElem?.2 ⟨0, hr⟩)
       have hwmem : ∀ y ∈ rem, ¬ TieBefore wv kv r y :=
@@ -110,11 +103,18 @@ theorem pop_all_loop_eq (buf : List E) (hbuf : buf.length < 2 ^ 59)
       have hsA : SortedBest wv kv A := by
         rw [hA] at hsorted
         exact List.Pairwise.sublist (List.sublist_append_left A [r]) hsorted
+      have hgoal : PopState buf (h2, res1) ∧ h2.elems.val.length < h.elems.val.length := by
+        refine ⟨⟨⟨A, hH2perm, hsA, ?_⟩, hH2⟩, by omega⟩
+        rw [hbufe, hA, hres1]
+        simp [List.append_assoc]
+      -- the loop body pops `r` and pushes it onto the results, and continues with `h2`
+      have hbody : heap.TopKFilter.pop_all_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 h res
+          = ok (ControlFlow.cont (h2, res1)) := by
+        unfold heap.TopKFilter.pop_all_loop.body
+        simp only [hpw, hpush, bind_tc_ok, bind_ok]
+      rw [hbody]
       refine (WP.spec_ok _).2 ?_
-      show PopState buf (h2, res1) ∧ h2.elems.val.length < h.elems.val.length
-      refine ⟨⟨⟨A, hH2perm, hsA, ?_⟩, hH2⟩, by omega⟩
-      rw [hbufe, hA, hres1]
-      simp [List.append_assoc]
+      exact hgoal
   obtain ⟨p, hp, hpost⟩ := exists_ok_of_spec hspec
   exact ⟨p, by unfold heap.TopKFilter.pop_all_loop; exact hp, hpost⟩
 

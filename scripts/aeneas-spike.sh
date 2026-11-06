@@ -405,7 +405,9 @@ EOF
   # against topKModel must build, with no sorry and no axiom beyond the standard three.
   if [ -n "$topk_mods" ]; then
     echo "== lake build TopKRefine (modules: $topk_mods)"
-    (cd "$proj" && lake build TopKRefine) || die "the TopKFilter refinement did not build"
+    # -k keeps building the modules that do not depend on a failed one, so one run reports
+    # every remaining error (the wrapper loop in TopLoop does not need PopAll).
+    (cd "$proj" && lake build -k TopKRefine) || die "the TopKFilter refinement did not build"
     check_topk_axioms "$proj"
     echo "topk (topk_i64): extracted to Lean, refinement built"
   else
