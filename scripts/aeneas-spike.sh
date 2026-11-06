@@ -257,6 +257,39 @@ stage_aeneas() {
   fi
 }
 
+# The copies of the spec files in the refinement project must match proofs/ byte for byte
+# (D-331): the refinement proves things about the definitions the spec states.
+check_refine_copies() {
+  local f
+  for f in TopK TopKModel; do
+    cmp -s "$ROOT/proofs/Gorse/Spec/$f.lean" "$ROOT/porting/aeneas/refine/Gorse/Spec/$f.lean" \
+      || die "porting/aeneas/refine/Gorse/Spec/$f.lean differs from proofs/Gorse/Spec/$f.lean"
+  done
+  echo "refinement copies: TopK.lean and TopKModel.lean match proofs/ byte for byte"
+}
+
+# Removes the three std axioms that Aeneas emits for functions the library does not model,
+# and imports their models (porting/aeneas/refine/Refine/StdModels.lean) in their place.
+strip_std_axioms() { # file
+  python3 -c '
+import re
+import sys
+
+path = sys.argv[1]
+text = open(path).read()
+blocks = text.split("\n\n")
+kept = [b for b in blocks if not re.search(r"^axiom\b", b, re.M)]
+if len(blocks) - len(kept) != 3:
+    sys.exit("expected three std axioms in the generated file, found %d" % (len(blocks) - len(kept)))
+header = "public import Aeneas\n"
+if text.count(header) != 1:
+    sys.exit("expected one `public import Aeneas` line in the generated file")
+text = "\n\n".join(kept).replace(header, header + "public import Refine.StdModels\n")
+open(path, "w").write(text)
+print("std axioms removed: 3; Refine.StdModels imported in their place")
+' "$1"
+}
+
 # Module names of the generated Lean files under a directory, as a lakefile list.
 modules_of() { # dir
   (cd "$1" && find . -name '*.lean' | sed 's#^\./##; s#\.lean$##; s#/#.#g' | sort | sed 's/.*/"&"/' | paste -sd, -)
@@ -282,9 +315,12 @@ stage_lean() {
     f32_block=$(printf '\n[[lean_lib]]\nname = "SpikeF32"\nsrcDir = "."\nroots = [%s]\n' "$f32_mods")
   fi
   if [ "$(cat "$work/topk.translate" 2>/dev/null)" = "translated" ]; then
+    check_refine_copies
     cp -r "$work/out-topk_i64/lean"/. "$proj/"
-    topk_mods="$(modules_of "$work/out-topk_i64/lean")"
-    topk_block=$(printf '\n[[lean_lib]]\nname = "SpikeTopK"\nsrcDir = "."\nroots = [%s]\n' "$topk_mods")
+    strip_std_axioms "$proj/AeneasSpikeTopk.lean"
+    cp -r "$ROOT/porting/aeneas/refine"/. "$proj/"
+    topk_mods="\"AeneasSpikeTopk\",$(modules_of "$ROOT/porting/aeneas/refine")"
+    topk_block=$(printf '\n[[lean_lib]]\nname = "TopKRefine"\nsrcDir = "."\nroots = [%s]\n' "$topk_mods")
   fi
 
   cat > "$proj/lakefile.toml" <<EOF
@@ -324,18 +360,14 @@ EOF
     echo "f32 (dot_f32): not built; see the log above"
   fi
 
-  # The TopKFilter attempt (D-331). Reported, not required: a failure here is
-  # recorded in D-331 with the failing stage and its error, and does not fail CI.
+  # The TopKFilter refinement (D-331). Required: the extracted heap loops and their proofs
+  # against topKModel must build, with no sorry and no axiom beyond the standard three.
   if [ -n "$topk_mods" ]; then
-    echo "== lake build SpikeTopK (modules: $topk_mods)"
-    if (cd "$proj" && lake build SpikeTopK); then
-      topk_built="yes"
-    fi
-  fi
-  if [ "$topk_built" = "yes" ]; then
-    echo "topk (topk_i64): extracted to Lean and built"
+    echo "== lake build TopKRefine (modules: $topk_mods)"
+    (cd "$proj" && lake build TopKRefine) || die "the TopKFilter refinement did not build"
+    echo "topk (topk_i64): extracted to Lean, refinement built"
   else
-    echo "topk (topk_i64): not built; see the log above"
+    echo "topk (topk_i64): not translated, so the refinement was not built"
   fi
 }
 
