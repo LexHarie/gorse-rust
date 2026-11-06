@@ -24,7 +24,7 @@ theorem usize_sub_one_fail (x : Usize) (h : x.val = 0) : x - 1#usize = fail .int
 theorem pop_worst_empty (s : heap.TopKFilter Std.U32 Std.I64) (hs : s.elems.val = []) :
     heap.TopKFilter.pop_worst core.cmp.OrdU32 core.cmp.PartialOrdI64 s = ok (none, s) := by
   have hlenU : (alloc.vec.Vec.len s.elems).val = 0 := by
-    simp [Vec.len_val, hs]
+    simp [alloc.vec.Vec.len_val, hs]
   have hco : Usize.checked_sub (alloc.vec.Vec.len s.elems) 1#usize = none := by
     unfold Usize.checked_sub core.num.checked_sub_UScalar
     rw [usize_sub_one_fail _ hlenU] <;> rfl

@@ -131,7 +131,8 @@ theorem pop_worst_eq (s : heap.TopKFilter Std.U32 Std.I64) (r : E)
         ∀ y ∈ s'.elems.val, G r y := by
   have h0v : (0#usize).val = 0 := by scalar_tac
   have h1v : (1#usize).val = 1 := by scalar_tac
-  have hlenU : (alloc.vec.Vec.len s.elems).val = s.elems.val.length := Vec.len_val s.elems
+  have hlenU : (alloc.vec.Vec.len s.elems).val = s.elems.val.length :=
+    alloc.vec.Vec.len_val s.elems
   obtain ⟨val, hvalE, hvalv⟩ :=
     usize_checked_sub_eq (alloc.vec.Vec.len s.elems) (by omega)
   have hvalL : val.val = s.elems.val.length - 1 := by omega
@@ -200,19 +201,16 @@ theorem pop_worst_eq (s : heap.TopKFilter Std.U32 Std.I64) (r : E)
     rw [hvalE]
     simp only [core.option.Option.Insts.CoreOpsTry_traitTry.branch, bind_ok]
     simp only [alloc.vec.Vec.deref_mut, lift_eq, bind_ok]
-    rw [hsl]
-    simp only [bind_ok]
+    show (core.slice.Slice.swap s.elems.slice 0#usize val >>= _) = _
+    simp only [hsl]
     unfold heap.TopKFilter.down
-    rw [hs2]
-    simp only [bind_ok]
-    rw [hw]
-    simp only [bind_ok]
+    simp only [hs2, hw]
   refine ⟨{ s2 with elems := w }, hpw, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · show (r :: w.val).Perm s.elems.val
     rw [hwv]
     have hrw : (r :: s2.elems.val.dropLast).Perm s2.elems.val := by
       conv_rhs => rw [hv2]
-      exact List.perm_append_comm
+      exact (List.perm_append_singleton r _).symm
     exact hrw.trans hpermS
   · show HeapOrdN w.val w.val.length
     have hvw : val.val = w.val.length := by
@@ -254,7 +252,7 @@ theorem push_eq (s : heap.TopKFilter Std.U32 Std.I64) (k : Nat) (buf : List E)
     rw [hvv]
     simp
   have hvLen : (alloc.vec.Vec.len v).val = s.elems.val.length + 1 := by
-    rw [Vec.len_val]
+    rw [alloc.vec.Vec.len_val]
     exact hvlen
   obtain ⟨last, hlast, hlastv⟩ := usize_sub_eq (alloc.vec.Vec.len v) 1#usize (by omega)
   have hlastL : last.val = s.elems.val.length := by omega
@@ -272,7 +270,8 @@ theorem push_eq (s : heap.TopKFilter Std.U32 Std.I64) (k : Nat) (buf : List E)
   have hH1 : HeapOrdN s1.elems.val s1.elems.val.length := hUP.1
   have hPerm1 : s1.elems.val.Perm v.val := hUP.2.1
   -- the heap after the sift holds the elements of `ins x buf`
-  have hA : (s.elems.val ++ [⟨item, weight⟩]).Perm (buf ++ [⟨item, weight⟩]) :=
+  have hA : (s.elems.val ++ [(⟨item, weight⟩ : heap.Elem Std.U32 Std.I64)]).Perm
+      (buf ++ [(⟨item, weight⟩ : heap.Elem Std.U32 Std.I64)]) :=
     hperm.append (List.Perm.refl _)
   have hv' : v.val.Perm (buf ++ [⟨item, weight⟩]) := by
     rw [hvv]
@@ -282,7 +281,7 @@ theorem push_eq (s : heap.TopKFilter Std.U32 Std.I64) (k : Nat) (buf : List E)
   have hCl : (ins wv kv ⟨item, weight⟩ buf).length = buf.length + 1 :=
     (ins_perm wv kv _ buf).length_eq.trans (by simp)
   have hLenS1 : (alloc.vec.Vec.len s1.elems).val = s.elems.val.length + 1 := by
-    rw [Vec.len_val]
+    rw [alloc.vec.Vec.len_val]
     exact hs1len
   unfold heap.TopKFilter.push
   rw [is_nan_eq]
@@ -319,8 +318,7 @@ theorem push_eq (s : heap.TopKFilter Std.U32 Std.I64) (k : Nat) (buf : List E)
       rw [hLA, ← hAl]
       simp
     refine ⟨s2, ?_, ?_, hHo2, hk2.trans hks1, hnan2.trans hnan1⟩
-    · rw [if_pos hcond, hpw]
-      simp only [bind_ok]
+    · rw [if_pos hcond, hpw] <;> rfl
     · rw [hpush]
       have hX : (ins wv kv ⟨item, weight⟩ buf).Perm (r :: A) := by
         rw [hLA]
