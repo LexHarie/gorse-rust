@@ -27,8 +27,10 @@ theorem exists_ok_of_spec {α : Type _} {m : Result α} {P : α → Prop}
 
 set_option maxHeartbeats 1000000 in
 theorem usize_sub_eq (x y : Usize) (h : y.val ≤ x.val) :
-    ∃ z : Usize, x - y = ok z ∧ z.val = x.val - y.val :=
-  exists_ok_of_spec (m := x - y) (P := fun z => z.val = x.val - y.val) (Usize.sub_spec h)
+    ∃ z : Usize, x - y = ok z ∧ z.val = x.val - y.val := by
+  obtain ⟨z, hz, hP⟩ := exists_ok_of_spec (m := x - y)
+    (P := fun z => z.val = x.val - y.val ∧ y.val ≤ x.val) (Usize.sub_spec h)
+  exact ⟨z, hz, hP.1⟩
 
 theorem usize_div2_eq (x : Usize) : ∃ z : Usize, x / 2#usize = ok z ∧ z.val = x.val / 2 :=
   exists_ok_of_spec (Usize.div_spec x (by decide))
@@ -102,13 +104,10 @@ theorem swap_eq {E' : Type} [Inhabited E'] (s : Slice E') (a b : Usize)
   intro k
   rw [swapL_getElem? default s.val a.val b.val ha hb k]
   by_cases hka : k = a.val
-  · subst hka
-    simp only [if_pos rfl]
-    rw [List.getElem?_eq_getElem hl'a, List.getElem?_eq_getElem hb, hA']
+  · rw [if_pos hka, hka, List.getElem?_eq_getElem hl'a, List.getElem?_eq_getElem hb, hA']
   · by_cases hkb : k = b.val
-    · subst hkb
-      simp only [if_neg hka, if_pos rfl]
-      rw [List.getElem?_eq_getElem hl'b, List.getElem?_eq_getElem ha, hB']
+    · rw [if_neg hka, if_pos hkb, hkb, List.getElem?_eq_getElem hl'b,
+        List.getElem?_eq_getElem ha, hB']
     · simp only [if_neg hka, if_neg hkb]
       by_cases hk : k < s.val.length
       · have hk' : k < s'.val.length := by rw [hlen']; exact hk

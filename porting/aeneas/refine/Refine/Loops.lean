@@ -107,8 +107,8 @@ theorem up_body_go (s : heap.TopKFilter Std.U32 Std.I64) (j : Usize) (hj0 : 0 < 
   rw [hs1]
   simp only [bind_ok]
   refine ⟨{ s with elems := { slice := s1 } }, i1, rfl, hi1p, ?_, rfl, rfl⟩
+  show s1.val = _
   rw [hs1v, hi1p]
-  rfl
 
 /-- The state of the `up` loop, the heap with the position it sifts from, keeps the invariant:
 the position is in the array, the array is a permutation of the input, `k` and `nan` are

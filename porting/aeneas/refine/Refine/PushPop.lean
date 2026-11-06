@@ -43,7 +43,8 @@ theorem eq_dropLast_append_of_getElem? {α : Type} (l : List α) (x : α)
   have hpos : 0 < l.length := by
     by_contra hc
     have hz : l.length = 0 := by omega
-    rw [hz] at h
+    have hnil : l = [] := List.eq_nil_of_length_eq_zero hz
+    subst hnil
     simp at h
   have hlt : l.length - 1 < l.length := by omega
   rw [List.getElem?_eq_getElem hlt] at h
@@ -62,10 +63,10 @@ theorem heapOrd_of_append_singleton {A : List E} {x : E} {n : Nat} (h : n ≤ A.
     (H : HeapOrdN (A ++ [x]) n) : HeapOrdN A n := by
   intro c a q hc hcn ha hq
   have ha' : (A ++ [x])[c]? = some a := by
-    rw [List.getElem?_append_left (by omega)]
+    rw [List.getElem?_append_left (show c < A.length by omega)]
     exact ha
   have hq' : (A ++ [x])[(c - 1) / 2]? = some q := by
-    rw [List.getElem?_append_left (by omega)]
+    rw [List.getElem?_append_left (show (c - 1) / 2 < A.length by omega)]
     exact hq
   exact H c a q hc hcn ha' hq'
 
@@ -101,10 +102,10 @@ theorem upInv_append {xs : List E} {n : Nat} (hH : HeapOrdN xs n) (hn : xs.lengt
       have := (List.getElem?_eq_some_iff.1 ha).1
       simpa using this
     have ha' : xs[c]? = some a := by
-      rw [List.getElem?_append_left (by omega)] at ha
+      rw [List.getElem?_append_left (show c < xs.length by omega)] at ha
       exact ha
     have hq' : xs[(c - 1) / 2]? = some q := by
-      rw [List.getElem?_append_left (by omega)] at hq
+      rw [List.getElem?_append_left (show (c - 1) / 2 < xs.length by omega)] at hq
       exact hq
     exact hH c a q hc (by omega) ha' hq'
   · intro c a g hn0 hc hpc ha hg
@@ -160,7 +161,7 @@ theorem pop_worst_eq (s : heap.TopKFilter Std.U32 Std.I64) (r : E)
     by_cases h0 : val.val = 0
     · rw [if_pos h0, h0]
       exact hr
-    · rw [if_neg h0, if_pos rfl]
+    · rw [if_neg h0, if_pos (rfl : val.val = val.val)]
       exact hr
   have hidx : s2.elems.val.length - 1 = val.val := by omega
   have hlast2' : s2.elems.val[s2.elems.val.length - 1]? = some r := by
