@@ -82,10 +82,13 @@ theorem swapL_length {α : Type} (d : α) (l : List α) (i j : Nat) :
 theorem swapL_getElem? {α : Type} (d : α) (l : List α) (i j : Nat)
     (hi : i < l.length) (hj : j < l.length) (k : Nat) :
     (swapL d l i j)[k]? = if k = i then l[j]? else if k = j then l[i]? else l[k]? := by
-  have hi' : l[i]? = some (l[i]) := List.getElem?_eq_getElem hi
-  have hj' : l[j]? = some (l[j]) := List.getElem?_eq_getElem hj
+  obtain ⟨x, hx⟩ : ∃ x, l[i]? = some x := ⟨l[i], List.getElem?_eq_getElem hi⟩
+  obtain ⟨y, hy⟩ : ∃ y, l[j]? = some y := ⟨l[j], List.getElem?_eq_getElem hj⟩
+  have hgi : l.getD i d = x := by simp [List.getD_eq_getElem?_getD, hx]
+  have hgj : l.getD j d = y := by simp [List.getD_eq_getElem?_getD, hy]
   unfold swapL
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_set, hi, hj, hi', hj']
+  rw [hgi, hgj, hx, hy]
+  simp only [List.getElem?_set, List.length_set, hi, hj]
   split_ifs <;> simp_all
 
 end Refine
