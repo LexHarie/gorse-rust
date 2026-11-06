@@ -85,9 +85,11 @@ theorem worse_eq (a b : E) :
       ok (decide (TieBefore wv kv b a)) := by
   unfold heap.worse TieBefore wv kv
   simp only [core.cmp.PartialOrdI64, core.cmp.OrdU32, liftFun2, bind_ok]
-  split_ifs <;> simp_all <;> omega
+  split_ifs <;> simp_all <;> first | omega | scalar_tac
 
-/-- `is_nan` on an `i64` weight is false. -/
-theorem is_nan_eq (w : Std.I64) : heap.is_nan core.cmp.PartialOrdI64 w = ok false := rfl
+/-- `is_nan` on an `i64` weight is false: the partial comparison of a weight with itself is
+`some` of an ordering, and `is_none` of that is `false`. -/
+theorem is_nan_eq (w : Std.I64) : heap.is_nan core.cmp.PartialOrdI64 w = ok false := by
+  simp [heap.is_nan, core.cmp.PartialOrdI64, liftFun2, core.option.Option.is_none]
 
 end Refine

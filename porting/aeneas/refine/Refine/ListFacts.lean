@@ -84,6 +84,6 @@ theorem swapL_getElem? {α : Type} (d : α) (l : List α) (i j : Nat)
     (swapL d l i j)[k]? = if k = i then l[j]? else if k = j then l[i]? else l[k]? := by
   unfold swapL
   simp only [List.getD_eq_getElem?_getD, List.getElem?_set]
-  split_ifs <;> simp_all <;> omega
+  split_ifs <;> first | omega | simp_all only | (simp only [*] at * <;> omega)
 
 end Refine
