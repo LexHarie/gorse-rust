@@ -231,7 +231,7 @@ theorem down_body_swap (s : heap.TopKFilter Std.U32 Std.I64) (n i j : Usize)
   · simp only [alloc.vec.Vec.deref_mut, lift_eq, bind_ok]
     show (core.slice.Slice.swap s.elems.slice i j >>= fun s1 =>
         ok (cont ({ s with elems := { slice := s1 } }, j))) = _
-    rw [hs1] <;> rfl
+    simp only [hs1, bind_ok]
   · exact hs1v
 
 /-! ## The loop of `down` -/
@@ -260,12 +260,18 @@ theorem down_loop_eq (s : heap.TopKFilter Std.U32 Std.I64) (n i : Usize)
     ∃ s' : heap.TopKFilter Std.U32 Std.I64,
       heap.TopKFilter.down_loop core.cmp.OrdU32 core.cmp.PartialOrdI64 s n i = ok s' ∧
         DownPost n.val s s' := by
-  have hBody : ∀ p : heap.TopKFilter Std.U32 Std.I64 × Usize, DownState n.val s p →
-      WP.spec (heap.TopKFilter.down_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 n p.1 p.2)
-        (fun r => match r with
-          | ControlFlow.done y => DownPost n.val s y
-          | ControlFlow.cont x' => DownState n.val s x' ∧
-              n.val - x'.2.val < n.val - p.2.val) := by
+  have hInv : DownState n.val s (s, i) :=
+    ⟨hn, List.Perm.refl _, rfl, rfl, hI, hi, fun k _ => rfl⟩
+  have hspec : WP.spec
+      (loop (fun (q : heap.TopKFilter Std.U32 Std.I64 × Usize) =>
+        heap.TopKFilter.down_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 n q.1 q.2) (s, i))
+      (DownPost n.val s) := by
+    refine loop.spec_decr_nat
+      (fun (p : heap.TopKFilter Std.U32 Std.I64 × Usize) => n.val - p.2.val)
+      (DownState n.val s) (DownPost n.val s)
+      (fun (q : heap.TopKFilter Std.U32 Std.I64 × Usize) =>
+        heap.TopKFilter.down_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 n q.1 q.2)
+      (s, i) ?_ hInv
     rintro ⟨s1, i1⟩ hst
     obtain ⟨hn1, hperm, hk, hnan, hI1, hi1, hbey⟩ : n.val ≤ s1.elems.val.length ∧
         s1.elems.val.Perm s.elems.val ∧ s1.k = s.k ∧ s1.nan = s.nan ∧
@@ -341,16 +347,6 @@ theorem down_loop_eq (s : heap.TopKFilter Std.U32 Std.I64) (n i : Usize)
         show DownPost n.val s s1
         exact ⟨downInv_stop_child hI1 hx hjv hjn hw hxw hworst, hperm, hperm.length_eq, hk,
           hnan, hbey⟩
-  have hInv : DownState n.val s (s, i) :=
-    ⟨hn, List.Perm.refl _, rfl, rfl, hI, hi, fun k _ => rfl⟩
-  have hspec : WP.spec
-      (loop (fun q => heap.TopKFilter.down_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 n
-        q.1 q.2) (s, i))
-      (DownPost n.val s) :=
-    loop.spec_decr_nat (fun (p : heap.TopKFilter Std.U32 Std.I64 × Usize) => n.val - p.2.val)
-      (DownState n.val s) (DownPost n.val s)
-      (fun q => heap.TopKFilter.down_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 n q.1 q.2)
-      (s, i) hBody hInv
   obtain ⟨s', hs', hP⟩ := exists_ok_of_spec hspec
   exact ⟨s', by unfold heap.TopKFilter.down_loop; exact hs', hP⟩
 

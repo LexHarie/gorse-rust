@@ -49,11 +49,16 @@ theorem pop_all_loop_eq (buf : List E) (hbuf : buf.length < 2 ^ 59)
     ∃ p : heap.TopKFilter Std.U32 Std.I64 × alloc.vec.Vec E,
       heap.TopKFilter.pop_all_loop core.cmp.OrdU32 core.cmp.PartialOrdI64 h0 res0 = ok p ∧
         p.2.val.reverse = buf := by
-  have hBody : ∀ p : heap.TopKFilter Std.U32 Std.I64 × alloc.vec.Vec E, PopState buf p →
-      WP.spec (heap.TopKFilter.pop_all_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 p.1 p.2)
-        (fun r => match r with
-          | ControlFlow.done y => y.2.val.reverse = buf
-          | ControlFlow.cont x' => PopState buf x' ∧ x'.1.elems.val.length < p.1.elems.val.length) := by
+  have hspec : WP.spec
+      (loop (fun (q : heap.TopKFilter Std.U32 Std.I64 × alloc.vec.Vec E) =>
+        heap.TopKFilter.pop_all_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 q.1 q.2) (h0, res0))
+      (fun (y : heap.TopKFilter Std.U32 Std.I64 × alloc.vec.Vec E) => y.2.val.reverse = buf) := by
+    refine loop.spec_decr_nat
+      (fun (p : heap.TopKFilter Std.U32 Std.I64 × alloc.vec.Vec E) => p.1.elems.val.length)
+      (PopState buf) (fun (y : heap.TopKFilter Std.U32 Std.I64 × alloc.vec.Vec E) => y.2.val.reverse = buf)
+      (fun (q : heap.TopKFilter Std.U32 Std.I64 × alloc.vec.Vec E) =>
+        heap.TopKFilter.pop_all_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 q.1 q.2)
+      (h0, res0) ?_ hI
     rintro ⟨h, res⟩ ⟨⟨rem, hperm, hsorted, hbufe⟩, hH⟩
     show WP.spec (heap.TopKFilter.pop_all_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 h res) _
     unfold heap.TopKFilter.pop_all_loop.body
@@ -105,11 +110,7 @@ theorem pop_all_loop_eq (buf : List E) (hbuf : buf.length < 2 ^ 59)
       refine ⟨⟨⟨A, hH2perm, hsA, ?_⟩, hH2⟩, by omega⟩
       rw [hbufe, hA, hres1]
       simp [List.append_assoc]
-  obtain ⟨p, hp, hpost⟩ := exists_ok_of_spec (loop.spec_decr_nat
-    (fun (p : heap.TopKFilter Std.U32 Std.I64 × alloc.vec.Vec E) => p.1.elems.val.length)
-    (PopState buf) (fun y => y.2.val.reverse = buf)
-    (fun q => heap.TopKFilter.pop_all_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 q.1 q.2)
-    (h0, res0) hBody hI)
+  obtain ⟨p, hp, hpost⟩ := exists_ok_of_spec hspec
   exact ⟨p, by unfold heap.TopKFilter.pop_all_loop; exact hp, hpost⟩
 
 /-- A new vector is empty. -/

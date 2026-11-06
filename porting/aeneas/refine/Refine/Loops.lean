@@ -109,7 +109,7 @@ theorem up_body_go (s : heap.TopKFilter Std.U32 Std.I64) (j : Usize) (hj0 : 0 < 
   refine ⟨{ s with elems := { slice := s1 } }, i1, ?_, hi1p, ?_, rfl, rfl⟩
   · show (core.slice.Slice.swap s.elems.slice i1 j >>= fun s1 =>
         ok (cont ({ s with elems := { slice := s1 } }, i1))) = _
-    rw [hs1] <;> rfl
+    simp only [hs1, bind_ok]
   · show s1.val = _
     rw [hs1v, hi1p] <;> rfl
 
@@ -134,11 +134,16 @@ theorem up_loop_eq (s : heap.TopKFilter Std.U32 Std.I64) (j : Usize)
     ∃ s' : heap.TopKFilter Std.U32 Std.I64,
       heap.TopKFilter.up_loop core.cmp.OrdU32 core.cmp.PartialOrdI64 s j = ok s' ∧
         UpPost s s' := by
-  have hBody : ∀ p : heap.TopKFilter Std.U32 Std.I64 × Usize, UpState s p →
-      WP.spec (heap.TopKFilter.up_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 p.1 p.2)
-        (fun r => match r with
-          | ControlFlow.done y => UpPost s y
-          | ControlFlow.cont x' => UpState s x' ∧ x'.2.val < p.2.val) := by
+  have hInv : UpState s (s, j) := ⟨hjl, List.Perm.refl _, rfl, rfl, hI⟩
+  have hspec : WP.spec
+      (loop (fun (q : heap.TopKFilter Std.U32 Std.I64 × Usize) =>
+        heap.TopKFilter.up_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 q.1 q.2) (s, j))
+      (UpPost s) := by
+    refine loop.spec_decr_nat (fun (p : heap.TopKFilter Std.U32 Std.I64 × Usize) => p.2.val)
+      (UpState s) (UpPost s)
+      (fun (q : heap.TopKFilter Std.U32 Std.I64 × Usize) =>
+        heap.TopKFilter.up_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 q.1 q.2)
+      (s, j) ?_ hInv
     rintro ⟨s1, j1⟩ hst
     obtain ⟨hpos, hperm, hk, hn, hI1⟩ : j1.val < s1.elems.val.length ∧
         s1.elems.val.Perm s.elems.val ∧ s1.k = s.k ∧ s1.nan = s.nan ∧
@@ -185,15 +190,6 @@ theorem up_loop_eq (s : heap.TopKFilter Std.U32 Std.I64) (j : Usize)
           rw [← e1, ← e2]
           exact hw
         exact ⟨upInv_exit hI1 hexit, hperm, hperm.length_eq, hk, hn⟩
-  have hInv : UpState s (s, j) := ⟨hjl, List.Perm.refl _, rfl, rfl, hI⟩
-  have hspec : WP.spec
-      (loop (fun q => heap.TopKFilter.up_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 q.1 q.2)
-        (s, j))
-      (UpPost s) :=
-    loop.spec_decr_nat (fun (p : heap.TopKFilter Std.U32 Std.I64 × Usize) => p.2.val)
-      (UpState s) (UpPost s)
-      (fun q => heap.TopKFilter.up_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 q.1 q.2)
-      (s, j) hBody hInv
   obtain ⟨s', hs', hP⟩ := exists_ok_of_spec hspec
   exact ⟨s', by unfold heap.TopKFilter.up_loop; exact hs', hP⟩
 

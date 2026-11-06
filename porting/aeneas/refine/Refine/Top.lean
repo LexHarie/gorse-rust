@@ -110,12 +110,15 @@ theorem top_k_loop_eq (kn : ℕ) (items : Slice (heap.Elem Std.U32 Std.I64))
     (f0 : heap.TopKFilter Std.U32 Std.I64) (i0 : Std.Usize)
     (hI : TopState kn items.val (f0, i0)) :
     ∃ f, top_k_u32_i64_loop items f0 i0 = ok f ∧ TopPost kn items.val f := by
-  have hBody : ∀ p : heap.TopKFilter Std.U32 Std.I64 × Std.Usize, TopState kn items.val p →
-      WP.spec (top_k_u32_i64_loop.body items p.1 p.2)
-        (fun r => match r with
-          | ControlFlow.done y => TopPost kn items.val y
-          | ControlFlow.cont x' => TopState kn items.val x' ∧
-              items.val.length - x'.2.val < items.val.length - p.2.val) := by
+  have hspec : WP.spec
+      (loop (fun (q : heap.TopKFilter Std.U32 Std.I64 × Std.Usize) =>
+        top_k_u32_i64_loop.body items q.1 q.2) (f0, i0))
+      (TopPost kn items.val) := by
+    refine loop.spec_decr_nat
+      (fun (p : heap.TopKFilter Std.U32 Std.I64 × Std.Usize) => items.val.length - p.2.val)
+      (TopState kn items.val) (TopPost kn items.val)
+      (fun (q : heap.TopKFilter Std.U32 Std.I64 × Std.Usize) => top_k_u32_i64_loop.body items q.1 q.2)
+      (f0, i0) ?_ hI
     rintro ⟨f, i⟩ ⟨hi, hk, hperm, hH⟩
     show WP.spec (top_k_u32_i64_loop.body items f i) _
     unfold top_k_u32_i64_loop.body
@@ -168,10 +171,7 @@ theorem top_k_loop_eq (kn : ℕ) (items : Slice (heap.Elem Std.U32 Std.I64))
       have htake : items.val.take i.val = items.val := List.take_of_length_le (by omega)
       rw [htake] at hperm
       exact ⟨hperm, hH⟩
-  obtain ⟨p, hp, hpost⟩ := exists_ok_of_spec (loop.spec_decr_nat
-    (fun (p : heap.TopKFilter Std.U32 Std.I64 × Std.Usize) => items.val.length - p.2.val)
-    (TopState kn items.val) (TopPost kn items.val)
-    (fun q => top_k_u32_i64_loop.body items q.1 q.2) (f0, i0) hBody hI)
+  obtain ⟨p, hp, hpost⟩ := exists_ok_of_spec hspec
   exact ⟨p, by unfold top_k_u32_i64_loop; exact hp, hpost⟩
 
 /-- The extracted `top_k_u32_i64` returns the model's top-k of its items, best first, for any
