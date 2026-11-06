@@ -405,9 +405,15 @@ EOF
   # against topKModel must build, with no sorry and no axiom beyond the standard three.
   if [ -n "$topk_mods" ]; then
     echo "== lake build TopKRefine (modules: $topk_mods)"
-    # -k keeps building the modules that do not depend on a failed one, so one run reports
-    # every remaining error (the wrapper loop in TopLoop does not need PopAll).
-    (cd "$proj" && lake build -k TopKRefine) || die "the TopKFilter refinement did not build"
+    # Build each module on its own and go on after a failure, so one run reports every
+    # remaining error. This Lake has no keep-going flag (`lake build -k` is an unknown option).
+    # A module that does not import a failed one still builds (TopLoop does not import PopAll).
+    topk_failed=""
+    for m in $(echo "$topk_mods" | tr -d '"' | tr ',' ' '); do
+      echo "== lake build $m"
+      (cd "$proj" && lake build "$m") || topk_failed="$topk_failed $m"
+    done
+    [ -z "$topk_failed" ] || die "the TopKFilter refinement did not build:$topk_failed"
     check_topk_axioms "$proj"
     echo "topk (topk_i64): extracted to Lean, refinement built"
   else
