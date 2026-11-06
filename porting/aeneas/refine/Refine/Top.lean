@@ -108,7 +108,7 @@ abbrev TopPost (kn : ℕ) (items : List E) (y : heap.TopKFilter Std.U32 Std.I64)
 theorem top_k_loop_eq (kn : ℕ) (items : Slice (heap.Elem Std.U32 Std.I64))
     (hL : items.val.length < 2 ^ 59)
     (f0 : heap.TopKFilter Std.U32 Std.I64) (i0 : Std.Usize)
-    (hI : TopState kn items.val (f0, i0)) :
+    (hI : TopState kn items.val (f0, i0)) (hplat : 2 ^ 60 ≤ Usize.max) :
     ∃ f, top_k_u32_i64_loop items f0 i0 = ok f ∧ TopPost kn items.val f := by
   have hspec : WP.spec
       (loop (fun (q : heap.TopKFilter Std.U32 Std.I64 × Std.Usize) =>
@@ -141,7 +141,7 @@ theorem top_k_loop_eq (kn : ℕ) (items : Slice (heap.Elem Std.U32 Std.I64))
       have hLf : f.elems.val.length + 1 < 2 ^ 59 := by omega
       obtain ⟨f1, hpush, hperm1, hH1, hk1, _⟩ :=
         push_eq f kn (topKModel wv kv kn (items.val.take i.val)) e.value e.weight hk
-          (topKModel_sorted kn _) hperm hH hlen_le hLf
+          (topKModel_sorted kn _) hperm hH hlen_le hLf hplat
       rw [hpush]
       simp only [bind_ok]
       obtain ⟨i2, hi2, hi2v⟩ := usize_add1_eq i (by scalar_tac)
@@ -177,7 +177,7 @@ theorem top_k_loop_eq (kn : ℕ) (items : Slice (heap.Elem Std.U32 Std.I64))
 /-- The extracted `top_k_u32_i64` returns the model's top-k of its items, best first, for any
 `k` and any input shorter than `2^59`. -/
 theorem top_k_u32_i64_eq (k : Std.Usize) (items : Slice (heap.Elem Std.U32 Std.I64))
-    (hL : items.val.length < 2 ^ 59) :
+    (hL : items.val.length < 2 ^ 59) (hplat : 2 ^ 60 ≤ Usize.max) :
     ∃ v, top_k_u32_i64 k items = ok v ∧ v.val = topKModel wv kv k.val items.val := by
   have hnew : heap.TopKFilter.new core.cmp.OrdU32 core.cmp.PartialOrdI64 k =
       ok { elems := alloc.vec.Vec.new (heap.Elem Std.U32 Std.I64), k := k, nan := 0#usize } :=
@@ -193,13 +193,13 @@ theorem top_k_u32_i64_eq (k : Std.Usize) (items : Slice (heap.Elem Std.U32 Std.I
         (topKModel wv kv k.val (items.val.take (0#usize).val))
       simp only [h0, List.take_zero, topKModel_nil_eq, vec_new_val, List.Perm.refl]
     · exact heapOrd_nil _
-  obtain ⟨f, hf, hfP⟩ := top_k_loop_eq k.val items hL _ 0#usize hI0
+  obtain ⟨f, hf, hfP⟩ := top_k_loop_eq k.val items hL _ 0#usize hI0 hplat
   have hbuf : (topKModel wv kv k.val items.val).length < 2 ^ 59 := by
     have h1 := topK_length_le k.val items.val
     have h2 : min k.val items.val.length ≤ items.val.length := min_le_right _ _
     omega
   obtain ⟨v, self', hpa, hv⟩ := pop_all_eq f (topKModel wv kv k.val items.val) hbuf hfP.1
-    (topKModel_sorted k.val items.val) hfP.2
+    (topKModel_sorted k.val items.val) hfP.2 hplat
   refine ⟨v, ?_, hv⟩
   unfold top_k_u32_i64
   simp only [hnew, bind_ok, hf, hpa]

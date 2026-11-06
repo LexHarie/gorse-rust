@@ -45,7 +45,7 @@ abbrev PopState (buf : List E) (p : heap.TopKFilter Std.U32 Std.I64 × alloc.vec
 model's list is shorter than `2^59`. -/
 theorem pop_all_loop_eq (buf : List E) (hbuf : buf.length < 2 ^ 59)
     (h0 : heap.TopKFilter Std.U32 Std.I64) (res0 : alloc.vec.Vec E)
-    (hI : PopState buf (h0, res0)) :
+    (hI : PopState buf (h0, res0)) (hplat : 2 ^ 60 ≤ Usize.max) :
     ∃ p : heap.TopKFilter Std.U32 Std.I64 × alloc.vec.Vec E,
       heap.TopKFilter.pop_all_loop core.cmp.OrdU32 core.cmp.PartialOrdI64 h0 res0 = ok p ∧
         p.2.val.reverse = buf := by
@@ -88,7 +88,7 @@ theorem pop_all_loop_eq (buf : List E) (hbuf : buf.length < 2 ^ 59)
         have hrl : res.val.reverse.length = res.val.length := List.length_reverse
         omega
       obtain ⟨h2, hpw, hperm2, hH2, hlen2, hk2, hnan2, hG⟩ :=
-        pop_worst_eq h r hL hne hH hr
+        pop_worst_eq h r hL hne hH hr hplat
       rw [hpw]
       simp only [bind_ok]
       obtain ⟨res1, hpush, hres1⟩ := vec_push_eq res r (by scalar_tac)
@@ -120,7 +120,7 @@ theorem vec_new_val (T : Type) : (alloc.vec.Vec.new T).val = [] := rfl
 emptied. `pop_all` reverses the popped vector, so `results` holds the worst first. -/
 theorem pop_all_eq (self : heap.TopKFilter Std.U32 Std.I64) (buf : List E)
     (hbuf : buf.length < 2 ^ 59) (hperm : self.elems.val.Perm buf) (hsorted : SortedBest wv kv buf)
-    (hH : HeapOrdN self.elems.val self.elems.val.length) :
+    (hH : HeapOrdN self.elems.val self.elems.val.length) (hplat : 2 ^ 60 ≤ Usize.max) :
     ∃ (v : alloc.vec.Vec (heap.Elem Std.U32 Std.I64)) (self' : heap.TopKFilter Std.U32 Std.I64),
       heap.TopKFilter.pop_all core.cmp.OrdU32 core.cmp.PartialOrdI64 self = ok (v, self') ∧
         v.val = buf := by
@@ -128,7 +128,7 @@ theorem pop_all_eq (self : heap.TopKFilter Std.U32 Std.I64) (buf : List E)
     ⟨⟨buf, hperm, hsorted, by
       show buf = buf ++ (alloc.vec.Vec.new (heap.Elem Std.U32 Std.I64)).val.reverse
       simp [vec_new_val]⟩, hH⟩
-  obtain ⟨⟨self1, res1⟩, hp, hpv⟩ := pop_all_loop_eq buf hbuf self _ hI
+  obtain ⟨⟨self1, res1⟩, hp, hpv⟩ := pop_all_loop_eq buf hbuf self _ hI hplat
   have hpv' : res1.val.reverse = buf := hpv
   refine ⟨{ slice := core.slice.Slice.reverse res1.slice }, self1, ?_, ?_⟩
   · have hlen : heap.TopKFilter.len core.cmp.OrdU32 core.cmp.PartialOrdI64 self =

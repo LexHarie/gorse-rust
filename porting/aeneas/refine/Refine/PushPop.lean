@@ -20,7 +20,8 @@ namespace Refine
 /-- `checked_sub` of a `usize` at least one is `some` of the predecessor. -/
 theorem usize_checked_sub_eq (x : Usize) (h : 1 ≤ x.val) :
     ∃ z : Usize, Usize.checked_sub x 1#usize = some z ∧ z.val = x.val - 1 := by
-  obtain ⟨z, hz, hzv⟩ := usize_sub_eq x 1#usize (by scalar_tac)
+  have h1v : (1#usize).val = 1 := by scalar_tac
+  obtain ⟨z, hz, hzv⟩ := usize_sub_eq x 1#usize (by omega)
   refine ⟨z, ?_, hzv⟩
   unfold Usize.checked_sub core.num.checked_sub_UScalar
   rw [hz]
@@ -121,7 +122,8 @@ theorem upInv_append {xs : List E} {n : Nat} (hH : HeapOrdN xs n) (hn : xs.lengt
 The rest of the heap stays in order, and is a permutation of the input without the root. -/
 theorem pop_worst_eq (s : heap.TopKFilter Std.U32 Std.I64) (r : E)
     (hL : s.elems.val.length < 2 ^ 59) (hne : 0 < s.elems.val.length)
-    (hH : HeapOrdN s.elems.val s.elems.val.length) (hr : s.elems.val[0]? = some r) :
+    (hH : HeapOrdN s.elems.val s.elems.val.length) (hr : s.elems.val[0]? = some r)
+    (hplat : 2 ^ 60 ≤ Usize.max) :
     ∃ s' : heap.TopKFilter Std.U32 Std.I64,
       heap.TopKFilter.pop_worst core.cmp.OrdU32 core.cmp.PartialOrdI64 s = ok (some r, s') ∧
         (r :: s'.elems.val).Perm s.elems.val ∧ HeapOrdN s'.elems.val s'.elems.val.length ∧
@@ -148,7 +150,7 @@ theorem pop_worst_eq (s : heap.TopKFilter Std.U32 Std.I64) (r : E)
     (by show sl.val.length < 2 ^ 59; rw [hlenS]; exact hL)
     (by show val.val ≤ sl.val.length; rw [hlenS]; omega)
     (by rw [h0v]; norm_num)
-    (by show DownInv sl.val val.val (0#usize).val; exact hI0)
+    (by show DownInv sl.val val.val (0#usize).val; exact hI0) hplat
   obtain ⟨hHs2, hperm2, hlen2, hk2, hnan2, hbey2⟩ := hP2
   have hlen2' : s2.elems.val.length = s.elems.val.length := by
     rw [hlen2]
@@ -240,7 +242,7 @@ theorem push_eq (s : heap.TopKFilter Std.U32 Std.I64) (k : Nat) (buf : List E)
     (item : Std.U32) (weight : Std.I64)
     (hk : s.k.val = k) (hbuf : SortedBest wv kv buf) (hperm : s.elems.val.Perm buf)
     (hH : HeapOrdN s.elems.val s.elems.val.length) (hlen : buf.length ≤ k)
-    (hL : s.elems.val.length + 1 < 2 ^ 59) :
+    (hL : s.elems.val.length + 1 < 2 ^ 59) (hplat : 2 ^ 60 ≤ Usize.max) :
     ∃ s' : heap.TopKFilter Std.U32 Std.I64,
       heap.TopKFilter.push core.cmp.OrdU32 core.cmp.PartialOrdI64 s item weight = ok s' ∧
         s'.elems.val.Perm (pushStep wv kv k buf ⟨item, weight⟩) ∧
@@ -303,7 +305,7 @@ theorem push_eq (s : heap.TopKFilter Std.U32 Std.I64) (k : Nat) (buf : List E)
     obtain ⟨r, hr⟩ : ∃ r, s1.elems.val[0]? = some r :=
       ⟨_, List.getElem?_eq_getElem (by omega)⟩
     obtain ⟨s2, hpw, hperm2, hHo2, hlen2, hk2, hnan2, _⟩ :=
-      pop_worst_eq s1 r (by omega) (by omega) hH1 hr
+      pop_worst_eq s1 r (by omega) (by omega) hH1 hr hplat
     obtain ⟨A, hLA⟩ := root_last (ins_sorted wv kv _ buf hbuf)
       (hP1.mem_iff.1 (List.mem_iff_getElem?.2 ⟨0, hr⟩))
       (fun y hy => root_worst_mem hH1 hr rfl y (hP1.mem_iff.2 hy))

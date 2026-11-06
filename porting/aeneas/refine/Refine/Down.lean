@@ -18,10 +18,6 @@ namespace Refine
 
 /-! ## Usize values -/
 
-/-- A `usize` with a given value below `2^59`. -/
-theorem usize_of_val (k : Nat) (h : k < 2 ^ 59) : ∃ x : Usize, x.val = k :=
-  ⟨⟨k, by scalar_tac⟩, rfl⟩
-
 /-! ## List facts for a sift-down step -/
 
 /-- With no child in the first `n` positions, the heap is in order. -/
@@ -68,7 +64,7 @@ theorem downInv_stop_child {xs : List E} {n i j : Nat} {x w : E} (hI : DownInv x
 
 /-- `down`'s loop body stops when there is no child in the first `n` positions. -/
 theorem down_body_nochild (n : Usize) (s : heap.TopKFilter Std.U32 Std.I64) (i : Usize)
-    (hn : n.val ≤ 2 * i.val + 1) (hi : i.val < 2 ^ 59) :
+    (hn : n.val ≤ 2 * i.val + 1) (hi : i.val < 2 ^ 59) (hplat : 2 ^ 60 ≤ Usize.max) :
     heap.TopKFilter.down_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 n s i =
       ok (done s) := by
   unfold heap.TopKFilter.down_loop.body
@@ -92,7 +88,8 @@ theorem down_body_eq (s : heap.TopKFilter Std.U32 Std.I64) (n i j : Usize)
     {a1 a2 : E} (h1 : s.elems.val[2 * i.val + 1]? = some a1)
     (h2 : 2 * i.val + 2 < n.val → s.elems.val[2 * i.val + 2]? = some a2)
     (hj : (2 * i.val + 2 < n.val ∧ TieBefore wv kv a1 a2 ∧ j.val = 2 * i.val + 2) ∨
-          (¬ (2 * i.val + 2 < n.val ∧ TieBefore wv kv a1 a2) ∧ j.val = 2 * i.val + 1)) :
+          (¬ (2 * i.val + 2 < n.val ∧ TieBefore wv kv a1 a2) ∧ j.val = 2 * i.val + 1))
+    (hplat : 2 ^ 60 ≤ Usize.max) :
     heap.TopKFilter.down_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 n s i =
       (do
         let b ← heap.TopKFilter.worse_at core.cmp.OrdU32 core.cmp.PartialOrdI64 s j i
@@ -179,12 +176,12 @@ theorem down_body_stop (s : heap.TopKFilter Std.U32 Std.I64) (n i j : Usize)
     (hj : (2 * i.val + 2 < n.val ∧ TieBefore wv kv a1 a2 ∧ j.val = 2 * i.val + 2) ∨
           (¬ (2 * i.val + 2 < n.val ∧ TieBefore wv kv a1 a2) ∧ j.val = 2 * i.val + 1))
     {x w : E} (hx : s.elems.val[i.val]? = some x) (hw : s.elems.val[j.val]? = some w)
-    (hxw : ¬ TieBefore wv kv x w) :
+    (hxw : ¬ TieBefore wv kv x w) (hplat : 2 ^ 60 ≤ Usize.max) :
     heap.TopKFilter.down_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 n s i =
       ok (done s) := by
   have hjn : j.val < s.elems.val.length := by
     rcases hj with ⟨h, _, hjv⟩ | ⟨_, hjv⟩ <;> omega
-  rw [down_body_eq s n i j hi hL hn hlt h1 h2 hj]
+  rw [down_body_eq s n i j hi hL hn hlt h1 h2 hj hplat]
   obtain ⟨e1, e2, he1, he2, hwe⟩ := worse_at_eq s j i hjn (by omega)
   have ew : e1 = w := Option.some.inj (he1.symm.trans hw)
   have ex : e2 = x := Option.some.inj (he2.symm.trans hx)
@@ -208,14 +205,14 @@ theorem down_body_swap (s : heap.TopKFilter Std.U32 Std.I64) (n i j : Usize)
     (hj : (2 * i.val + 2 < n.val ∧ TieBefore wv kv a1 a2 ∧ j.val = 2 * i.val + 2) ∨
           (¬ (2 * i.val + 2 < n.val ∧ TieBefore wv kv a1 a2) ∧ j.val = 2 * i.val + 1))
     {x w : E} (hx : s.elems.val[i.val]? = some x) (hw : s.elems.val[j.val]? = some w)
-    (hxw : TieBefore wv kv x w) :
+    (hxw : TieBefore wv kv x w) (hplat : 2 ^ 60 ≤ Usize.max) :
     ∃ s' : heap.TopKFilter Std.U32 Std.I64,
       heap.TopKFilter.down_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 n s i =
           ok (cont (s', j)) ∧
         s'.elems.val = swapL default s.elems.val i.val j.val ∧ s'.k = s.k ∧ s'.nan = s.nan := by
   have hjn : j.val < s.elems.val.length := by
     rcases hj with ⟨h, _, hjv⟩ | ⟨_, hjv⟩ <;> omega
-  rw [down_body_eq s n i j hi hL hn hlt h1 h2 hj]
+  rw [down_body_eq s n i j hi hL hn hlt h1 h2 hj hplat]
   obtain ⟨e1, e2, he1, he2, hwe⟩ := worse_at_eq s j i hjn (by omega)
   have ew : e1 = w := Option.some.inj (he1.symm.trans hw)
   have ex : e2 = x := Option.some.inj (he2.symm.trans hx)
@@ -260,7 +257,7 @@ abbrev DownPost (n : Nat) (s y : heap.TopKFilter Std.U32 Std.I64) : Prop :=
 order. -/
 theorem down_loop_eq (s : heap.TopKFilter Std.U32 Std.I64) (n i : Usize)
     (hL : s.elems.val.length < 2 ^ 59) (hn : n.val ≤ s.elems.val.length) (hi : i.val < 2 ^ 59)
-    (hI : DownInv s.elems.val n.val i.val) :
+    (hI : DownInv s.elems.val n.val i.val) (hplat : 2 ^ 60 ≤ Usize.max) :
     ∃ s' : heap.TopKFilter Std.U32 Std.I64,
       heap.TopKFilter.down_loop core.cmp.OrdU32 core.cmp.PartialOrdI64 s n i = ok s' ∧
         DownPost n.val s s' := by
@@ -287,7 +284,7 @@ theorem down_loop_eq (s : heap.TopKFilter Std.U32 Std.I64) (n i : Usize)
       omega
     by_cases hleaf : n.val ≤ 2 * i1.val + 1
     · -- No child in range: `down` stops, and the heap is in order.
-      rw [down_body_nochild n s1 i1 hleaf hi1]
+      rw [down_body_nochild n s1 i1 hleaf hi1 hplat]
       refine (WP.spec_ok _).2 ?_
       show DownPost n.val s s1
       exact ⟨downInv_nochild hI1 hleaf, hperm, hperm.length_eq, hk, hnan, hbey⟩
@@ -297,17 +294,21 @@ theorem down_loop_eq (s : heap.TopKFilter Std.U32 Std.I64) (n i : Usize)
       obtain ⟨a2, h2⟩ : ∃ a2 : E, 2 * i1.val + 2 < n.val →
           s1.elems.val[2 * i1.val + 2]? = some a2 := by
         by_cases hc : 2 * i1.val + 2 < n.val
-        · exact ⟨_, fun _ => List.getElem?_eq_getElem (by omega)⟩
+        · obtain ⟨a, ha⟩ : ∃ a, s1.elems.val[2 * i1.val + 2]? = some a :=
+            ⟨_, List.getElem?_eq_getElem (by omega)⟩
+          exact ⟨a, fun _ => ha⟩
         · exact ⟨a1, fun h => absurd h hc⟩
-      -- The child `j` that `down` compares with: the worse of the two children.
+      -- The child `j` that `down` compares with: the worse of the two children. Its value is
+      -- `2i+1` or `2i+2`, built by two `usize` steps from `2i`.
+      obtain ⟨m1, _, hm1v⟩ := usize_mul2_eq i1 (by omega)
+      obtain ⟨j1, _, hj1v⟩ := usize_add1_eq m1 (by omega)
+      obtain ⟨j2, _, hj2v⟩ := usize_add1_eq j1 (by omega)
       have hchoice : ∃ j : Usize,
           (2 * i1.val + 2 < n.val ∧ TieBefore wv kv a1 a2 ∧ j.val = 2 * i1.val + 2) ∨
           (¬ (2 * i1.val + 2 < n.val ∧ TieBefore wv kv a1 a2) ∧ j.val = 2 * i1.val + 1) := by
         by_cases hT : 2 * i1.val + 2 < n.val ∧ TieBefore wv kv a1 a2
-        · obtain ⟨j, hjv⟩ := usize_of_val (2 * i1.val + 2) (by omega)
-          exact ⟨j, Or.inl ⟨hT.1, hT.2, hjv⟩⟩
-        · obtain ⟨j, hjv⟩ := usize_of_val (2 * i1.val + 1) (by omega)
-          exact ⟨j, Or.inr ⟨hT, hjv⟩⟩
+        · exact ⟨j2, Or.inl ⟨hT.1, hT.2, by omega⟩⟩
+        · exact ⟨j1, Or.inr ⟨hT, by omega⟩⟩
       obtain ⟨j, hj⟩ := hchoice
       have hjv : j.val = 2 * i1.val + 1 ∨ j.val = 2 * i1.val + 2 := by
         rcases hj with ⟨_, _, h⟩ | ⟨_, h⟩
@@ -324,7 +325,7 @@ theorem down_loop_eq (s : heap.TopKFilter Std.U32 Std.I64) (n i : Usize)
       by_cases hxw : TieBefore wv kv x w
       · -- `x` is before `w`: `down` swaps them and moves on from `j`.
         obtain ⟨s', hb, hsE, hk', hnan'⟩ :=
-          down_body_swap s1 n i1 j hi1 hL1 hn1 hlt h1 h2 hj hx hw hxw
+          down_body_swap s1 n i1 j hi1 hL1 hn1 hlt h1 h2 hj hx hw hxw hplat
         rw [hb]
         refine (WP.spec_ok _).2 ?_
         show DownState n.val s (s', j) ∧ n.val - j.val < n.val - i1.val
@@ -343,9 +344,15 @@ theorem down_loop_eq (s : heap.TopKFilter Std.U32 Std.I64) (n i : Usize)
           rw [hsE, swapL_getElem? _ _ _ _ hi1l hjl k, if_neg (show ¬ (k = i1.val) by omega),
             if_neg (show ¬ (k = j.val) by omega)]
           exact hbey k hk
-        exact ⟨⟨by omega, hperm', hk'.trans hk, hnan'.trans hnan, hI', by omega, hbey'⟩, by omega⟩
+        refine ⟨⟨?_, hperm', hk'.trans hk, hnan'.trans hnan, hI', ?_, hbey'⟩, ?_⟩
+        · show n.val ≤ s'.elems.val.length
+          omega
+        · show j.val < 2 ^ 59
+          omega
+        · show n.val - j.val < n.val - i1.val
+          omega
       · -- `x` is not before `w`: `down` stops, and the heap is in order.
-        have hcs := down_body_stop s1 n i1 j hi1 hL1 hn1 hlt h1 h2 hj hx hw hxw
+        have hcs := down_body_stop s1 n i1 j hi1 hL1 hn1 hlt h1 h2 hj hx hw hxw hplat
         rw [hcs]
         refine (WP.spec_ok _).2 ?_
         show DownPost n.val s s1
