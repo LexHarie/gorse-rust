@@ -111,7 +111,11 @@ theorem pop_all_loop_eq (buf : List E) (hbuf : buf.length < 2 ^ 59)
       have hbody : heap.TopKFilter.pop_all_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 h res
           = ok (ControlFlow.cont (h2, res1)) := by
         unfold heap.TopKFilter.pop_all_loop.body
-        simp only [hpw, hpush, bind_tc_ok, bind_ok]
+        simp only [hpw, bind_tc_ok, bind_ok]
+        -- the `let` and the `match` on `(some r, h2)` reduce by definition, which simp does not do
+        show Bind.bind (res.push r) (fun results1 => ok (ControlFlow.cont (h2, results1)))
+          = ok (ControlFlow.cont (h2, res1))
+        rw [hpush] <;> simp only [bind_tc_ok, bind_ok]
       rw [hbody]
       refine (WP.spec_ok _).2 ?_
       exact hgoal

@@ -161,7 +161,11 @@ theorem top_k_loop_eq (kn : ℕ) (items : Slice (heap.Elem Std.U32 Std.I64))
         exact hk
       refine (WP.spec_ok _).2 ?_
       show TopState kn items.val (f1, i2) ∧ items.val.length - i2.val < items.val.length - i.val
-      exact ⟨⟨by omega, hk2, hperm', hH1⟩, by omega⟩
+      refine ⟨⟨?_, hk2, hperm', hH1⟩, ?_⟩
+      · show i2.val ≤ items.val.length
+        omega
+      · show items.val.length - i2.val < items.val.length - i.val
+        omega
     · have hge : ¬ (i < Slice.len items) := fun h => hlt (hgtiff.1 h)
       rw [if_neg hge]
       refine (WP.spec_ok _).2 ?_
