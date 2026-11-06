@@ -7,6 +7,9 @@ import Refine.PopAll
 keeps the model's list of the items so far: after `i` items the heap holds `topKModel k
 (take i items)` and is in heap order. The final theorem says that the extracted function
 returns the model's list of all the items, best first.
+
+The model facts used here come from the core of the spec, `Gorse.Spec.TopKRegion` (D-331). The
+rest of the spec, including `topKFilter_correct`, is not imported: it needs the older toolchain.
 -/
 
 open Aeneas Aeneas.Std Result ControlFlow Error
@@ -26,20 +29,60 @@ theorem topKModel_snoc (kn : ℕ) (xs : List E) (x : E) :
   unfold topKModel
   simp only [List.foldl_append, List.foldl_cons, List.foldl_nil]
 
-/-- The model's list is in D-329 order. -/
-theorem topKModel_sorted (kn : ℕ) (xs : List E) : SortedBest wv kv (topKModel wv kv kn xs) := by
-  have hT0 : IsTopK wv kn ([] : List E) [] := by
-    unfold IsTopK
-    exact ⟨by simp, by simp, by simp [List.Sorted], by simp⟩
-  have hO0 : SortedBest wv kv ([] : List E) := by simp [SortedBest]
-  unfold topKModel
-  exact (topKModel_inv wv kv (k := kn) xs [] [] hT0 hO0).2
+/-- Pushing onto a list of at most `k` elements keeps it within `k` elements. -/
+theorem foldl_length_le (kn : ℕ) (xs : List E) :
+    ∀ (buf : List E), buf.length ≤ kn →
+      (xs.foldl (pushStep wv kv kn) buf).length ≤ kn := by
+  induction xs with
+  | nil => intro buf hb; simpa using hb
+  | cons x xs ih =>
+    intro buf _
+    simp only [List.foldl_cons]
+    apply ih
+    unfold pushStep
+    rw [List.length_take]
+    exact min_le_left _ _
+
+/-- Each push adds at most one element. -/
+theorem foldl_length_le_len (kn : ℕ) (xs : List E) : ∀ (buf : List E),
+    (xs.foldl (pushStep wv kv kn) buf).length ≤ buf.length + xs.length := by
+  induction xs with
+  | nil => intro buf; simp
+  | cons x xs ih =>
+    intro buf
+    simp only [List.foldl_cons, List.length_cons]
+    have h1 := ih (pushStep wv kv kn buf x)
+    have h2 : (pushStep wv kv kn buf x).length ≤ buf.length + 1 := by
+      have hp := (ins_perm wv kv x buf).length_eq
+      simp only [List.length_cons] at hp
+      unfold pushStep
+      rw [List.length_take]
+      omega
+    omega
 
 /-- The model's list has at most `k` elements, and at most as many as its input. -/
 theorem topK_length_le (kn : ℕ) (xs : List E) :
     (topKModel wv kv kn xs).length ≤ min kn xs.length := by
-  obtain ⟨-, hlen, -, -⟩ := topKFilter_correct wv kv kn xs
-  exact hlen.le
+  unfold topKModel
+  refine le_min (foldl_length_le kn xs [] (by simp)) ?_
+  simpa using foldl_length_le_len kn xs []
+
+/-- Pushing onto a list in D-329 order keeps it in D-329 order. -/
+theorem foldl_sorted (kn : ℕ) (xs : List E) : ∀ (buf : List E),
+    SortedBest wv kv buf → SortedBest wv kv (xs.foldl (pushStep wv kv kn) buf) := by
+  induction xs with
+  | nil => intro buf hb; simpa using hb
+  | cons x xs ih =>
+    intro buf hb
+    simp only [List.foldl_cons]
+    apply ih
+    unfold pushStep
+    exact List.Pairwise.sublist (List.take_sublist kn _) (ins_sorted wv kv x buf hb)
+
+/-- The model's list is in D-329 order. -/
+theorem topKModel_sorted (kn : ℕ) (xs : List E) : SortedBest wv kv (topKModel wv kv kn xs) := by
+  unfold topKModel
+  exact foldl_sorted kn xs [] (by simp [SortedBest])
 
 /-- Indexing a slice inside its length returns the element there. -/
 theorem slice_index_eq {E' : Type} (s : Slice E') (i : Usize) (h : i.val < s.val.length) :
@@ -85,17 +128,17 @@ theorem top_k_loop_eq (kn : ℕ) (items : Slice (heap.Elem Std.U32 Std.I64))
       rw [he]
       simp only [bind_ok]
       have hbl : (topKModel wv kv kn (items.val.take i.val)).length ≤ i.val := by
-        have h1 := topK_length_le wv kv kn (items.val.take i.val)
+        have h1 := topK_length_le kn (items.val.take i.val)
         rw [List.length_take] at h1
         omega
       have hlen_le : (topKModel wv kv kn (items.val.take i.val)).length ≤ kn :=
-        (topK_length_le wv kv kn _).trans (min_le_left _ _)
+        (topK_length_le kn _).trans (min_le_left _ _)
       have hflen : f.elems.val.length = (topKModel wv kv kn (items.val.take i.val)).length :=
         hperm.length_eq
       have hLf : f.elems.val.length + 1 < 2 ^ 59 := by omega
       obtain ⟨f1, hpush, hperm1, hH1, hk1, _⟩ :=
         push_eq f kn (topKModel wv kv kn (items.val.take i.val)) e.value e.weight hk
-          (topKModel_sorted wv kv kn _) hperm hH hlen_le hLf
+          (topKModel_sorted kn _) hperm hH hlen_le hLf
       rw [hpush]
       simp only [bind_ok]
       obtain ⟨i2, hi2, hi2v⟩ := usize_add1_eq i (by scalar_tac)
@@ -151,11 +194,11 @@ theorem top_k_u32_i64_eq (k : Std.Usize) (items : Slice (heap.Elem Std.U32 Std.I
     · exact heapOrd_nil _
   obtain ⟨f, hf, hfP⟩ := top_k_loop_eq k.val items hL _ 0#usize hI0
   have hbuf : (topKModel wv kv k.val items.val).length < 2 ^ 59 := by
-    have h1 := topK_length_le wv kv k.val items.val
+    have h1 := topK_length_le k.val items.val
     have h2 : min k.val items.val.length ≤ items.val.length := min_le_right _ _
     omega
   obtain ⟨v, self', hpa, hv⟩ := pop_all_eq f (topKModel wv kv k.val items.val) hbuf hfP.1
-    (topKModel_sorted wv kv k.val items.val) hfP.2
+    (topKModel_sorted k.val items.val) hfP.2
   refine ⟨v, ?_, hv⟩
   unfold top_k_u32_i64
   simp only [hnew, bind_ok, hf, hpa]

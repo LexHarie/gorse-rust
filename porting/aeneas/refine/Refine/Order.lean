@@ -1,5 +1,5 @@
 import AeneasSpikeTopk
-import Gorse.Spec.TopKModel
+import Gorse.Spec.TopKRegion
 
 /-!
 # The Rust elements in the D-329 order (P3-2 refinement, D-331)

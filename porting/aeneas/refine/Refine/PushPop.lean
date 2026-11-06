@@ -1,5 +1,5 @@
 import Refine.Down
-import Gorse.Spec.TopKModel
+import Gorse.Spec.TopKRegion
 
 /-!
 # `pop_worst` and `push` of `TopKFilter` (P3-2 refinement, D-331)

@@ -15,10 +15,18 @@ not proved. f32 is out of scope at this pin (D-328). The golden replay of `heap_
 with the D-330 overrides (G9) also compares the Rust output with the D-329 rule bit for bit.
 -/
 
+-- BEGIN refinement region (D-331): the core of the model. The refinement copies the lines
+-- between these markers byte for byte, into porting/aeneas/refine/Gorse/Spec/TopKRegion.lean.
 namespace Gorse.Spec.TopK
 
 variable {α W ι : Type} [DecidableEq α] [LinearOrder W] [LinearOrder ι]
   (w : α → W) (key : α → ι)
+
+/-- The tie-break of P3-3 (D-329): `TieBefore w key a b` says that `a` comes before `b`,
+a higher weight first and, between equal weights, the smaller `key` first. Go has no such
+order: its equal weights come out in heap order (`common/heap/pq.go:42-48`). -/
+def TieBefore (a b : α) : Prop :=
+  w b < w a ∨ (w a = w b ∧ key a < key b)
 
 /-- A list is held in D-329 order when no later element is `TieBefore` an earlier one. -/
 def SortedBest (L : List α) : Prop :=
@@ -105,6 +113,14 @@ theorem ins_sorted (x : α) (L : List α) (hL : SortedBest w key L) :
       rcases List.mem_cons.1 hy2 with rfl | hy'
       · exact h
       · exact hbl y hy'
+
+end Gorse.Spec.TopK
+-- END refinement region (D-331)
+
+namespace Gorse.Spec.TopK
+
+variable {α W ι : Type} [DecidableEq α] [LinearOrder W] [LinearOrder ι]
+  (w : α → W) (key : α → ι)
 
 /-- Cutting a list in D-329 order to its first `k` elements gives a top-k of it. -/
 theorem isTopK_take {k : ℕ} {L : List α} (hL : SortedBest w key L) :

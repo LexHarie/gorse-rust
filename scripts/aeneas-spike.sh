@@ -257,15 +257,19 @@ stage_aeneas() {
   fi
 }
 
-# The copies of the spec files in the refinement project must match proofs/ byte for byte
-# (D-331): the refinement proves things about the definitions the spec states.
+# The refinement uses the core of the model: the lines between the BEGIN and END markers in
+# proofs/Gorse/Spec/TopKModel.lean (D-331). The copy must match those lines byte for byte, after
+# its one import line. The core is core Lean plus the Mathlib order classes, and the refinement
+# never imports the rest of the spec, which needs the older toolchain (D-331).
 check_refine_copies() {
-  local f
-  for f in TopK TopKModel; do
-    cmp -s "$ROOT/proofs/Gorse/Spec/$f.lean" "$ROOT/porting/aeneas/refine/Gorse/Spec/$f.lean" \
-      || die "porting/aeneas/refine/Gorse/Spec/$f.lean differs from proofs/Gorse/Spec/$f.lean"
-  done
-  echo "refinement copies: TopK.lean and TopKModel.lean match proofs/ byte for byte"
+  local src="$ROOT/proofs/Gorse/Spec/TopKModel.lean"
+  local copy="$ROOT/porting/aeneas/refine/Gorse/Spec/TopKRegion.lean"
+  [ "$(head -n 1 "$copy" 2>/dev/null)" = "import Mathlib" ] \
+    || die "porting/aeneas/refine/Gorse/Spec/TopKRegion.lean must start with import Mathlib"
+  cmp -s <(tail -n +2 "$copy") \
+    <(sed -n '/^-- BEGIN refinement region (D-331)/,/^-- END refinement region (D-331)/p' "$src" | sed '1d;$d') \
+    || die "porting/aeneas/refine/Gorse/Spec/TopKRegion.lean differs from the BEGIN/END region of proofs/Gorse/Spec/TopKModel.lean"
+  echo "refinement copy: TopKRegion.lean matches the proofs/ region byte for byte"
 }
 
 # The refinement uses no sorry, and each theorem that carries a scope depends only on the

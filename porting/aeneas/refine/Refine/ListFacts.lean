@@ -1,4 +1,4 @@
-import Gorse.Spec.TopKModel
+import Gorse.Spec.TopKRegion
 
 /-!
 # List facts for the heap proofs (P3-2 refinement, D-331)
