@@ -144,7 +144,7 @@ theorem top_k_loop_eq (kn : ℕ) (items : Slice (heap.Elem Std.U32 Std.I64))
           (topKModel_sorted kn _) hperm hH hlen_le hLf hplat
       rw [hpush]
       simp only [bind_ok]
-      obtain ⟨i2, hi2, hi2v⟩ := usize_add1_eq i (by scalar_tac)
+      obtain ⟨i2, hi2, hi2v⟩ := usize_add1_eq i (by omega)
       rw [hi2]
       simp only [bind_ok]
       have hT : items.val.take (i.val + 1) = items.val.take i.val ++ [e] := by

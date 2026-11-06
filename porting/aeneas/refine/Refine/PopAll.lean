@@ -24,7 +24,9 @@ theorem usize_sub_one_fail (x : Usize) (h : x.val = 0) : x - 1#usize = fail .int
 theorem pop_worst_empty (s : heap.TopKFilter Std.U32 Std.I64) (hs : s.elems.val = []) :
     heap.TopKFilter.pop_worst core.cmp.OrdU32 core.cmp.PartialOrdI64 s = ok (none, s) := by
   have hlenU : (alloc.vec.Vec.len s.elems).val = 0 := by
-    simp [alloc.vec.Vec.len_val, hs]
+    rw [alloc.vec.Vec.len_val]
+    show s.elems.val.length = 0
+    simp [hs]
   have hco : Usize.checked_sub (alloc.vec.Vec.len s.elems) 1#usize = none := by
     unfold Usize.checked_sub core.num.checked_sub_UScalar
     rw [usize_sub_one_fail _ hlenU] <;> rfl
@@ -91,7 +93,7 @@ theorem pop_all_loop_eq (buf : List E) (hbuf : buf.length < 2 ^ 59)
         pop_worst_eq h r hL hne hH hr hplat
       rw [hpw]
       simp only [bind_ok]
-      obtain ⟨res1, hpush, hres1⟩ := vec_push_eq res r (by scalar_tac)
+      obtain ⟨res1, hpush, hres1⟩ := vec_push_eq res r (by omega)
       rw [hpush]
       simp only [bind_ok]
       -- the popped element is the last of `rem`
@@ -139,7 +141,7 @@ theorem pop_all_eq (self : heap.TopKFilter Std.U32 Std.I64) (buf : List E)
     simp only [hlen, bind_ok, hwc, hp, lift_eq, alloc.vec.Vec.deref_mut]
   · have hr : (core.slice.Slice.reverse res1.slice).val = res1.val.reverse := by
       unfold core.slice.Slice.reverse
-      simp [Vec.val]
+      simp [alloc.vec.Vec.val, Slice.from_val]
     show (core.slice.Slice.reverse res1.slice).val = buf
     rw [hr, hpv']
 
