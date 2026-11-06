@@ -25,6 +25,7 @@ theorem exists_ok_of_spec {α : Type _} {m : Result α} {P : α → Prop}
 
 /-! ## `usize` arithmetic -/
 
+set_option maxHeartbeats 1000000 in
 theorem usize_sub_eq (x y : Usize) (h : y.val ≤ x.val) :
     ∃ z : Usize, x - y = ok z ∧ z.val = x.val - y.val :=
   exists_ok_of_spec (m := x - y) (P := fun z => z.val = x.val - y.val) (Usize.sub_spec h)
@@ -62,15 +63,21 @@ theorem vec_pop_some {E' : Type} (A : Type) (v : alloc.vec.Vec E') (L : List E')
     ∃ w, alloc.vec.Vec.pop A v = ok (some x, w) ∧ w.val = L := by
   refine ⟨alloc.vec.Vec.from L (by have h1 := v.property; rw [hv] at h1; simp at h1; omega), ?_, ?_⟩
   · unfold aeneas_spike_topk.alloc.vec.Vec.pop
-    rw [hv]
-    simp
-  · rfl
+    simp [hv]
+  · first | rfl | simp
 
 /-- `Vec::pop` on an empty vector returns `None` and the vector. -/
 theorem vec_pop_none {E' : Type} (A : Type) (v : alloc.vec.Vec E') (hv : v.val = []) :
     aeneas_spike_topk.alloc.vec.Vec.pop A v = ok (none, v) := by
   unfold aeneas_spike_topk.alloc.vec.Vec.pop
   simp [hv]
+
+/-- An in-range `getElem!` is the `getElem` at that index. -/
+theorem getElem!_eq_of_lt {E' : Type} [Inhabited E'] (l : List E') (i : Nat) (h : i < l.length) :
+    l[i]! = l[i] := by
+  first
+    | exact getElem!_pos l i h
+    | simp [h]
 
 /-- `core::slice::swap`: the exchange of two in-range entries. -/
 theorem swap_eq {E' : Type} [Inhabited E'] (s : Slice E') (a b : Usize)
@@ -79,29 +86,38 @@ theorem swap_eq {E' : Type} [Inhabited E'] (s : Slice E') (a b : Usize)
   obtain ⟨s', hs', hP⟩ := exists_ok_of_spec (core.slice.Slice.swap_spec s a b ha hb)
   refine ⟨s', hs', ?_⟩
   obtain ⟨hlen, hA, hB, hO⟩ := hP
+  have hlen' : s'.val.length = s.val.length := by
+    first
+      | exact hlen
+      | simpa using hlen
+  have hl'a : a.val < s'.val.length := by rw [hlen']; exact ha
+  have hl'b : b.val < s'.val.length := by rw [hlen']; exact hb
+  have hA' : s'.val[a.val] = s.val[b.val] := by
+    rw [← getElem!_eq_of_lt s'.val a.val hl'a, ← getElem!_eq_of_lt s.val b.val hb]
+    exact hA
+  have hB' : s'.val[b.val] = s.val[a.val] := by
+    rw [← getElem!_eq_of_lt s'.val b.val hl'b, ← getElem!_eq_of_lt s.val a.val ha]
+    exact hB
   apply List.ext_getElem?
   intro k
   rw [swapL_getElem? default s.val a.val b.val ha hb k]
   by_cases hka : k = a.val
   · subst hka
     simp only [if_pos rfl]
-    have hl : a.val < s'.val.length := by rw [hlen]; exact ha
-    rw [List.getElem?_eq_getElem hl, List.getElem?_eq_getElem hb]
-    exact congrArg some hA
+    rw [List.getElem?_eq_getElem hl'a, List.getElem?_eq_getElem hb, hA']
   · by_cases hkb : k = b.val
     · subst hkb
       simp only [if_neg hka, if_pos rfl]
-      have hl : b.val < s'.val.length := by rw [hlen]; exact hb
-      rw [List.getElem?_eq_getElem hl, List.getElem?_eq_getElem ha]
-      exact congrArg some hB
+      rw [List.getElem?_eq_getElem hl'b, List.getElem?_eq_getElem ha, hB']
     · simp only [if_neg hka, if_neg hkb]
       by_cases hk : k < s.val.length
-      · have hk' : k < s'.val.length := by rw [hlen]; exact hk
+      · have hk' : k < s'.val.length := by rw [hlen']; exact hk
         have e := hO k hka hkb
-        rw [List.getElem?_eq_getElem hk', List.getElem?_eq_getElem hk]
-        rw [List.getElem?_eq_getElem hk', List.getElem?_eq_getElem hk] at e
-        simpa using e
-      · have h1 : s'.val[k]? = none := List.getElem?_eq_none (by rw [hlen]; omega)
+        have e' : s'.val[k] = s.val[k] := by
+          rw [← getElem!_eq_of_lt s'.val k hk', ← getElem!_eq_of_lt s.val k hk]
+          exact e
+        rw [List.getElem?_eq_getElem hk', List.getElem?_eq_getElem hk, e']
+      · have h1 : s'.val[k]? = none := List.getElem?_eq_none (by rw [hlen']; omega)
         have h2 : s.val[k]? = none := List.getElem?_eq_none (by omega)
         rw [h1, h2]
 
