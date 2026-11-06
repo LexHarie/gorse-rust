@@ -79,6 +79,7 @@ theorem countP_kept {X R : Multiset α} (hR : R ≤ X)
     rw [hzero, add_zero] at hsplit
     rw [hsplit, min_eq_right hle]
 
+omit [DecidableEq α] in
 /-- Counting the elements of `M` by their weight at `v`: those equal to `v` and those
 strictly above it make up those at least `v`. -/
 theorem countP_eq_add_countP_lt (M : Multiset α) (v : W) :
@@ -99,6 +100,7 @@ theorem countP_eq_add_countP_lt (M : Multiset α) (v : W) :
     · rw [if_neg h.ne', if_neg (not_lt.2 h.le), if_neg (not_le.2 h)]
       omega
 
+omit [DecidableEq α] in
 /-- The number of copies of `v` among the weights of `M`, counted by elements. -/
 theorem count_map_eq_countP (M : Multiset α) (v : W) :
     (M.map w).count v = M.countP (fun x => v = w x) := by
