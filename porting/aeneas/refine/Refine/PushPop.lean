@@ -208,7 +208,12 @@ theorem pop_worst_eq (s : heap.TopKFilter Std.U32 Std.I64) (r : E)
         { elems := { slice := sl }, k := s.k, nan := s.nan } 0#usize val = ok s2 := by
       unfold heap.TopKFilter.down
       first | exact hs2 | simp only [hs2, bind_ok] | simpa using hs2
-    simp only [hdown, bind_ok, hw]
+    -- restate the goal in `>>=` form, so that `hdown` matches the term syntactically
+    show (heap.TopKFilter.down core.cmp.OrdU32 core.cmp.PartialOrdI64
+        { elems := { slice := sl }, k := s.k, nan := s.nan } 0#usize val >>= fun self1 =>
+          (alloc.vec.Vec.pop alloc.alloc.Global self1.elems >>= fun p =>
+            ok (p.1, { elems := p.2, k := self1.k, nan := self1.nan }))) = _
+    rw [hdown] <;> simp only [bind_ok, hw]
     all_goals (first | with_unfolding_all rfl | simp)
   refine ⟨{ s2 with elems := w }, hpw, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · show (r :: w.val).Perm s.elems.val
