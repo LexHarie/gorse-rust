@@ -268,6 +268,43 @@ check_refine_copies() {
   echo "refinement copies: TopK.lean and TopKModel.lean match proofs/ byte for byte"
 }
 
+# The refinement uses no sorry, and each theorem that carries a scope depends only on the
+# standard axioms (propext, Classical.choice, Quot.sound). The std axioms Aeneas emits are
+# removed and replaced by their models (StdModels.lean), so a leftover axiom fails here (D-331).
+check_topk_axioms() { # proj
+  local proj="$1" out="$1/axioms.out"
+  if grep -rn -w sorry "$ROOT/porting/aeneas/refine"; then
+    die "a sorry remains in porting/aeneas/refine"
+  fi
+  cat > "$proj/AxiomsCheck.lean" <<'LEAN'
+import Refine.Top
+#print axioms Refine.pop_worst_eq
+#print axioms Refine.push_eq
+#print axioms Refine.pop_all_eq
+#print axioms Refine.top_k_u32_i64_eq
+LEAN
+  (cd "$proj" && lake env lean AxiomsCheck.lean) > "$out" 2>&1 \
+    || { cat "$out"; die "the axioms check did not run"; }
+  cat "$out"
+  if grep -q "sorryAx" "$out"; then
+    die "a checked theorem depends on sorry"
+  fi
+  python3 - "$out" <<'PY' || die "a checked theorem depends on a non-standard axiom"
+import re, sys
+std = {"propext", "Classical.choice", "Quot.sound"}
+text = open(sys.argv[1]).read()
+hits = re.findall(r"'([^']+)' depends on axioms: \[([^\]]*)\]", text)
+if len(hits) != 4:
+    sys.exit("expected 4 axiom reports, got %d" % len(hits))
+for name, axs in hits:
+    extra = sorted({a.strip() for a in axs.split(",") if a.strip()} - std)
+    if extra:
+        sys.exit("%s depends on %s" % (name, ", ".join(extra)))
+print("axioms: %d theorems checked, standard axioms only" % len(hits))
+PY
+  echo "refinement: no sorry, and the checked theorems use only the standard axioms"
+}
+
 # Removes the three std axioms that Aeneas emits for functions the library does not model,
 # and imports their models (porting/aeneas/refine/Refine/StdModels.lean) in their place.
 strip_std_axioms() { # file
@@ -365,6 +402,7 @@ EOF
   if [ -n "$topk_mods" ]; then
     echo "== lake build TopKRefine (modules: $topk_mods)"
     (cd "$proj" && lake build TopKRefine) || die "the TopKFilter refinement did not build"
+    check_topk_axioms "$proj"
     echo "topk (topk_i64): extracted to Lean, refinement built"
   else
     echo "topk (topk_i64): not translated, so the refinement was not built"
