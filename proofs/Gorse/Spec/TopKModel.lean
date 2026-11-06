@@ -9,10 +9,10 @@ held in D-329 order, best first. Each pushed element is inserted at its place, a
 list is cut to `k` elements. That mirrors `TopKFilter::push` and `pop_all` in
 `crates/gorse-common/src/heap.rs`, which keep a heap rather than a sorted list.
 
-The model is not extracted from the Rust code. Aeneas at c2d2343 does not take f32, and the
-loop is generic over the weight with a `Vec`-backed heap, so this is the G9 fallback
-(D-331, linked to D-328). G9 links the model to the Rust code by the golden replay of
-`heap_golden.json` with the D-330 overrides, which compare the Rust output bit for bit.
+The heap loops on an integer weight are extracted by Aeneas at c2d2343 (the spike crate
+`porting/aeneas/spike-topk`, D-331). The refinement from that extracted code to this model is
+not proved. f32 is out of scope at this pin (D-328). The golden replay of `heap_golden.json`
+with the D-330 overrides (G9) also compares the Rust output with the D-329 rule bit for bit.
 -/
 
 namespace Gorse.Spec.TopK
