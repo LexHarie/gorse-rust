@@ -102,7 +102,7 @@ theorem up_body_go (s : heap.TopKFilter Std.U32 Std.I64) (j : Usize) (hj0 : 0 < 
   simp only [bind_ok]
   rw [if_pos (decide_eq_true hw)]
   obtain ⟨s1, hs1, hs1v⟩ := swap_eq s.elems.slice i1 j
-    (by simp only [Slice.length]; omega) (by simp only [Slice.length]; omega)
+    (by show i1.val < s.elems.val.length; omega) (by show j.val < s.elems.val.length; omega)
   simp only [alloc.vec.Vec.deref_mut, lift_eq, bind_ok]
   rw [hs1]
   simp only [bind_ok]
@@ -110,33 +110,85 @@ theorem up_body_go (s : heap.TopKFilter Std.U32 Std.I64) (j : Usize) (hj0 : 0 < 
   rw [hs1v, hi1p]
   rfl
 
+/-- The state of the `up` loop, the heap with the position it sifts from, keeps the invariant:
+the position is in the array, the array is a permutation of the input, `k` and `nan` are
+unchanged, and the sift invariant holds at the position. -/
+abbrev UpState (s : heap.TopKFilter Std.U32 Std.I64)
+    (p : heap.TopKFilter Std.U32 Std.I64 × Usize) : Prop :=
+  p.2.val < p.1.elems.val.length ∧ p.1.elems.val.Perm s.elems.val ∧ p.1.k = s.k ∧
+    p.1.nan = s.nan ∧ UpInv p.1.elems.val p.2.val
+
+/-- What `up` leaves behind: a heap in order, a permutation of the input with the same `k` and
+`nan`. -/
+abbrev UpPost (s y : heap.TopKFilter Std.U32 Std.I64) : Prop :=
+  HeapOrdN y.elems.val y.elems.val.length ∧ y.elems.val.Perm s.elems.val ∧
+    y.elems.val.length = s.elems.val.length ∧ y.k = s.k ∧ y.nan = s.nan
+
 /-- The invariant of `up` is kept while it runs, and at the end the heap is in order. -/
 theorem up_loop_eq (s : heap.TopKFilter Std.U32 Std.I64) (j : Usize)
-    (hlen : s.elems.val.length < 2 ^ 59) (hjl : j.val < s.elems.val.length)
-    (hI : UpInv s.elems.val j.val) :
+    (hjl : j.val < s.elems.val.length) (hI : UpInv s.elems.val j.val) :
     ∃ s' : heap.TopKFilter Std.U32 Std.I64,
       heap.TopKFilter.up_loop core.cmp.OrdU32 core.cmp.PartialOrdI64 s j = ok s' ∧
-        s'.elems.val.Perm s.elems.val ∧ HeapOrdN s'.elems.val s'.elems.val.length ∧
-        s'.elems.val.length = s.elems.val.length ∧ s'.k = s.k ∧ s'.nan = s.nan := by
-  sorry
-
-/-! ## Sifting down -/
-
-/-- `down`'s loop body stops when there is no child. -/
-theorem down_body_nochild (n : Usize) (s : heap.TopKFilter Std.U32 Std.I64) (i : Usize)
-    (hn : n.val ≤ 2 * i.val + 1) (hi : i.val < 2 ^ 58) :
-    heap.TopKFilter.down_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 n s i =
-      ok (done s) := by
-  unfold heap.TopKFilter.down_loop.body
-  obtain ⟨i1, hi1, hi1v⟩ := usize_mul2_eq i (by scalar_tac)
-  rw [hi1]
-  simp only [bind_ok]
-  obtain ⟨j1, hj1, hj1v⟩ := usize_add1_eq i1 (by scalar_tac)
-  rw [hj1]
-  simp only [bind_ok]
-  have hge : j1 ≥ n := by
-    show n.val ≤ j1.val
-    omega
-  rw [if_pos hge]
+        UpPost s s' := by
+  have hBody : ∀ p : heap.TopKFilter Std.U32 Std.I64 × Usize, UpState s p →
+      WP.spec (heap.TopKFilter.up_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 p.1 p.2)
+        (fun r => match r with
+          | ControlFlow.done y => UpPost s y
+          | ControlFlow.cont x' => UpState s x' ∧ x'.2.val < p.2.val) := by
+    rintro ⟨s1, j1⟩ hst
+    obtain ⟨hpos, hperm, hk, hn, hI1⟩ : j1.val < s1.elems.val.length ∧
+        s1.elems.val.Perm s.elems.val ∧ s1.k = s.k ∧ s1.nan = s.nan ∧
+          UpInv s1.elems.val j1.val := hst
+    show WP.spec (heap.TopKFilter.up_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 s1 j1) _
+    by_cases h0 : j1.val = 0
+    · -- At the root `up` stops at once, and the heap is in order.
+      rw [up_body_zero s1 j1 h0]
+      refine (WP.spec_ok _).2 ?_
+      show UpPost s s1
+      exact ⟨upInv_exit hI1 (Or.inl h0), hperm, hperm.length_eq, hk, hn⟩
+    · have hpos0 : 0 < j1.val := Nat.pos_of_ne_zero h0
+      obtain ⟨z, hz⟩ : ∃ z, s1.elems.val[(j1.val - 1) / 2]? = some z :=
+        ⟨_, List.getElem?_eq_getElem (by omega)⟩
+      obtain ⟨x, hx⟩ : ∃ x, s1.elems.val[j1.val]? = some x :=
+        ⟨_, List.getElem?_eq_getElem hpos⟩
+      by_cases hw : TieBefore wv kv z x
+      · -- The element at `j1` is before its parent: the two are exchanged and `up` moves on.
+        obtain ⟨s', i1, hb, hi1, hsE, hk', hn'⟩ := up_body_go s1 j1 hpos0 hpos hz hx hw
+        rw [hb]
+        refine (WP.spec_ok _).2 ?_
+        show UpState s (s', i1) ∧ i1.val < j1.val
+        have hperm' : s'.elems.val.Perm s.elems.val := by
+          rw [hsE]
+          exact (swapL_perm (default : heap.Elem Std.U32 Std.I64) s1.elems.val
+            ((j1.val - 1) / 2) j1.val (by omega) hpos).trans hperm
+        have hlen' : s'.elems.val.length = s.elems.val.length := hperm'.length_eq
+        have hl1 : s1.elems.val.length = s.elems.val.length := hperm.length_eq
+        have hI' : UpInv s'.elems.val i1.val := by
+          rw [hsE, hi1]
+          exact upInv_swap rfl hpos0 hpos hI1 hz hx hw
+        exact ⟨⟨by omega, hperm', hk'.trans hk, hn'.trans hn, hI'⟩, by omega⟩
+      · -- The element at `j1` is not before its parent: `up` stops and the heap is in order.
+        rw [up_body_stop s1 j1 hpos0 hpos hz hx hw]
+        refine (WP.spec_ok _).2 ?_
+        show UpPost s s1
+        have hexit : j1.val = 0 ∨ ∀ z' x', s1.elems.val[(j1.val - 1) / 2]? = some z' →
+            s1.elems.val[j1.val]? = some x' → G z' x' := by
+          right
+          intro z' x' hz' hx'
+          have e1 : z = z' := Option.some.inj (hz.symm.trans hz')
+          have e2 : x = x' := Option.some.inj (hx.symm.trans hx')
+          rw [← e1, ← e2]
+          exact hw
+        exact ⟨upInv_exit hI1 hexit, hperm, hperm.length_eq, hk, hn⟩
+  have hInv : UpState s (s, j) := ⟨hjl, List.Perm.refl _, rfl, rfl, hI⟩
+  have hspec : WP.spec
+      (loop (fun q => heap.TopKFilter.up_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 q.1 q.2)
+        (s, j))
+      (UpPost s) :=
+    loop.spec_decr_nat (fun p => p.2.val) (UpState s) (UpPost s)
+      (fun q => heap.TopKFilter.up_loop.body core.cmp.OrdU32 core.cmp.PartialOrdI64 q.1 q.2)
+      (s, j) hBody hInv
+  obtain ⟨s', hs', hP⟩ := exists_ok_of_spec hspec
+  exact ⟨s', by unfold heap.TopKFilter.up_loop; exact hs', hP⟩
 
 end Refine
