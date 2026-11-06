@@ -47,7 +47,6 @@ theorem slice_index_eq {E' : Type} (s : Slice E') (i : Usize) (h : i.val < s.val
   obtain ⟨x, hx, hxv⟩ := exists_ok_of_spec (Slice.index_usize_spec s i h)
   refine ⟨x, hx, ?_⟩
   rw [List.getElem?_eq_getElem h, hxv]
-  rfl
 
 /-- The state of the wrapper loop after `i` items: the heap has the `k` it was built with, and
 it holds the model's top-k of the first `i` items, in heap order. -/

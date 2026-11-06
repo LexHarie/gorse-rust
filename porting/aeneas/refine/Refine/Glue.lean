@@ -51,7 +51,6 @@ theorem vec_index_eq {E' : Type} (v : alloc.vec.Vec E') (i : Usize) (h : i.val <
   obtain ⟨x, hx, hxv⟩ := exists_ok_of_spec (Slice.index_usize_spec v.slice i h)
   refine ⟨x, hx, ?_⟩
   rw [List.getElem?_eq_getElem h, hxv]
-  rfl
 
 /-- `Vec::push` on a vector shorter than `usize::MAX` appends the element. -/
 theorem vec_push_eq {E' : Type} (v : alloc.vec.Vec E') (x : E') (h : v.val.length < Usize.max) :
