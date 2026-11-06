@@ -1,0 +1,164 @@
+import Refine.PopAll
+
+/-!
+# The `TopKFilter` wrapper and the final theorem (P3-2 refinement, D-331)
+
+`top_k_u32_i64` pushes the items one by one, then pops the heap into a sorted vector. The loop
+keeps the model's list of the items so far: after `i` items the heap holds `topKModel k
+(take i items)` and is in heap order. The final theorem says that the extracted function
+returns the model's list of all the items, best first.
+-/
+
+open Aeneas Aeneas.Std Result ControlFlow Error
+open aeneas_spike_topk Gorse.Spec.TopK
+
+namespace Refine
+
+/-- The empty list is in heap order. -/
+theorem heapOrd_nil (n : ℕ) : HeapOrdN [] n := fun c a q _ _ ha _ => by simp at ha
+
+/-- The model of an empty input is empty. -/
+theorem topKModel_nil_eq (kn : ℕ) : topKModel wv kv kn [] = [] := rfl
+
+/-- The model of one more item is one more push onto the model of the prefix. -/
+theorem topKModel_snoc (kn : ℕ) (xs : List E) (x : E) :
+    topKModel wv kv kn (xs ++ [x]) = pushStep wv kv kn (topKModel wv kv kn xs) x := by
+  unfold topKModel
+  simp only [List.foldl_append, List.foldl_cons, List.foldl_nil]
+
+/-- The model's list is in D-329 order. -/
+theorem topKModel_sorted (kn : ℕ) (xs : List E) : SortedBest wv kv (topKModel wv kv kn xs) := by
+  have hT0 : IsTopK wv kn ([] : List E) [] := by
+    unfold IsTopK
+    exact ⟨by simp, by simp, by simp [List.Sorted], by simp⟩
+  have hO0 : SortedBest wv kv ([] : List E) := by simp [SortedBest]
+  unfold topKModel
+  exact (topKModel_inv wv kv (k := kn) xs [] [] hT0 hO0).2
+
+/-- The model's list has at most `k` elements, and at most as many as its input. -/
+theorem topK_length_le (kn : ℕ) (xs : List E) :
+    (topKModel wv kv kn xs).length ≤ min kn xs.length := by
+  obtain ⟨-, hlen, -, -⟩ := topKFilter_correct wv kv kn xs
+  exact hlen.le
+
+/-- Indexing a slice inside its length returns the element there. -/
+theorem slice_index_eq {E' : Type} (s : Slice E') (i : Usize) (h : i.val < s.val.length) :
+    ∃ e, Slice.index_usize s i = ok e ∧ s.val[i.val]? = some e := by
+  obtain ⟨x, hx, hxv⟩ := exists_ok_of_spec (Slice.index_usize_spec s i h)
+  refine ⟨x, hx, ?_⟩
+  rw [List.getElem?_eq_getElem h, hxv]
+  rfl
+
+/-- The state of the wrapper loop after `i` items: the heap has the `k` it was built with, and
+it holds the model's top-k of the first `i` items, in heap order. -/
+abbrev TopState (kn : ℕ) (items : List E) (p : heap.TopKFilter Std.U32 Std.I64 × Std.Usize) :
+    Prop :=
+  p.2.val ≤ items.length ∧ p.1.k.val = kn ∧
+    p.1.elems.val.Perm (topKModel wv kv kn (items.take p.2.val)) ∧
+    HeapOrdN p.1.elems.val p.1.elems.val.length
+
+/-- What the wrapper loop leaves behind: the heap holds the model's top-k of all the items, in
+heap order. -/
+abbrev TopPost (kn : ℕ) (items : List E) (y : heap.TopKFilter Std.U32 Std.I64) : Prop :=
+  y.elems.val.Perm (topKModel wv kv kn items) ∧ HeapOrdN y.elems.val y.elems.val.length
+
+/-- The wrapper loop ends with the model's top-k of the items. -/
+theorem top_k_loop_eq (kn : ℕ) (items : Slice (heap.Elem Std.U32 Std.I64))
+    (hL : items.val.length < 2 ^ 59)
+    (f0 : heap.TopKFilter Std.U32 Std.I64) (i0 : Std.Usize)
+    (hI : TopState kn items.val (f0, i0)) :
+    ∃ f, top_k_u32_i64_loop items f0 i0 = ok f ∧ TopPost kn items.val f := by
+  have hBody : ∀ p : heap.TopKFilter Std.U32 Std.I64 × Std.Usize, TopState kn items.val p →
+      WP.spec (top_k_u32_i64_loop.body items p.1 p.2)
+        (fun r => match r with
+          | ControlFlow.done y => TopPost kn items.val y
+          | ControlFlow.cont x' => TopState kn items.val x' ∧
+              items.val.length - x'.2.val < items.val.length - p.2.val) := by
+    rintro ⟨f, i⟩ ⟨hi, hk, hperm, hH⟩
+    show WP.spec (top_k_u32_i64_loop.body items f i) _
+    unfold top_k_u32_i64_loop.body
+    dsimp only
+    have hsl : (Slice.len items).val = items.val.length := Slice.len_val items
+    by_cases hlt : i.val < items.val.length
+    · have hgt : i < Slice.len items := by scalar_tac
+      rw [if_pos hgt]
+      obtain ⟨e, he, hee⟩ := slice_index_eq items i hlt
+      rw [he]
+      simp only [bind_ok]
+      have hbl : (topKModel wv kv kn (items.val.take i.val)).length ≤ i.val := by
+        have h1 := topK_length_le wv kv kn (items.val.take i.val)
+        rw [List.length_take] at h1
+        omega
+      have hlen_le : (topKModel wv kv kn (items.val.take i.val)).length ≤ kn :=
+        (topK_length_le wv kv kn _).trans (min_le_left _ _)
+      have hflen : f.elems.val.length = (topKModel wv kv kn (items.val.take i.val)).length :=
+        hperm.length_eq
+      have hLf : f.elems.val.length + 1 < 2 ^ 59 := by omega
+      obtain ⟨f1, hpush, hperm1, hH1, hk1, _⟩ :=
+        push_eq f kn (topKModel wv kv kn (items.val.take i.val)) e.value e.weight hk
+          (topKModel_sorted wv kv kn _) hperm hH hlen_le hLf
+      rw [hpush]
+      simp only [bind_ok]
+      obtain ⟨i2, hi2, hi2v⟩ := usize_add1_eq i (by scalar_tac)
+      rw [hi2]
+      simp only [bind_ok]
+      have hT : items.val.take (i.val + 1) = items.val.take i.val ++ [e] := by
+        simp [List.take_succ, hee]
+      have hstep : topKModel wv kv kn (items.val.take (i.val + 1)) =
+          pushStep wv kv kn (topKModel wv kv kn (items.val.take i.val)) ⟨e.value, e.weight⟩ := by
+        rw [hT, topKModel_snoc]
+      have hperm' : f1.elems.val.Perm (topKModel wv kv kn (items.val.take i2.val)) := by
+        rw [show items.val.take i2.val = items.val.take (i.val + 1) by rw [hi2v], hstep]
+        exact hperm1
+      have hk2 : f1.k.val = kn := by
+        rw [hk1]
+        exact hk
+      refine (WP.spec_ok _).2 ?_
+      refine ⟨⟨?_, hk2, hperm', hH1⟩, ?_⟩
+      · show i2.val ≤ items.val.length
+        omega
+      · show items.val.length - i2.val < items.val.length - i.val
+        omega
+    · have hge : ¬ (i < Slice.len items) := by scalar_tac
+      rw [if_neg hge]
+      refine (WP.spec_ok _).2 ?_
+      show TopPost kn items.val f
+      have htake : items.val.take i.val = items.val := List.take_of_length_le (by omega)
+      rw [htake] at hperm
+      exact ⟨hperm, hH⟩
+  obtain ⟨p, hp, hpost⟩ := exists_ok_of_spec (loop.spec_decr_nat
+    (fun p => items.val.length - p.2.val) (TopState kn items.val) (TopPost kn items.val)
+    (fun q => top_k_u32_i64_loop.body items q.1 q.2) (f0, i0) hBody hI)
+  exact ⟨p, by unfold top_k_u32_i64_loop; exact hp, hpost⟩
+
+/-- The extracted `top_k_u32_i64` returns the model's top-k of its items, best first, for any
+`k` and any input shorter than `2^59`. -/
+theorem top_k_u32_i64_eq (k : Std.Usize) (items : Slice (heap.Elem Std.U32 Std.I64))
+    (hL : items.val.length < 2 ^ 59) :
+    ∃ v, top_k_u32_i64 k items = ok v ∧ v.val = topKModel wv kv k.val items.val := by
+  have hnew : heap.TopKFilter.new core.cmp.OrdU32 core.cmp.PartialOrdI64 k =
+      ok { elems := alloc.vec.Vec.new (heap.Elem Std.U32 Std.I64), k := k, nan := 0#usize } :=
+    rfl
+  have h0 : (0#usize).val = 0 := by scalar_tac
+  have hI0 : TopState k.val items.val
+      ({ elems := alloc.vec.Vec.new (heap.Elem Std.U32 Std.I64), k := k, nan := 0#usize },
+        0#usize) := by
+    refine ⟨?_, rfl, ?_, ?_⟩
+    · show (0#usize).val ≤ items.val.length
+      omega
+    · show (alloc.vec.Vec.new (heap.Elem Std.U32 Std.I64)).val.Perm
+        (topKModel wv kv k.val (items.val.take (0#usize).val))
+      simp only [h0, List.take_zero, topKModel_nil_eq, vec_new_val, List.Perm.refl]
+    · exact heapOrd_nil _
+  obtain ⟨f, hf, hfP⟩ := top_k_loop_eq k.val items hL _ 0#usize hI0
+  have hbuf : (topKModel wv kv k.val items.val).length < 2 ^ 59 := by
+    have h1 := topK_length_le wv kv k.val items.val
+    have h2 : min k.val items.val.length ≤ items.val.length := min_le_right _ _
+    omega
+  obtain ⟨v, self', hpa, hv⟩ := pop_all_eq f (topKModel wv kv k.val items.val) hbuf hfP.1
+    (topKModel_sorted wv kv k.val items.val) hfP.2
+  refine ⟨v, ?_, hv⟩
+  unfold top_k_u32_i64
+  simp only [hnew, bind_ok, hf, hpa]
+
+end Refine
