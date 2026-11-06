@@ -94,7 +94,10 @@ theorem pop_all_loop_eq (buf : List E) (hbuf : buf.length < 2 ^ 59)
       rw [hpw]
       simp only [bind_ok]
       obtain ⟨res1, hpush, hres1⟩ := vec_push_eq res r (by omega)
-      simp only [hpush, bind_tc_ok, bind_ok]
+      -- reduce the `let (o, self1) := (some r, h2)` match first, so that `res.push` is visible
+      first
+        | (dsimp only; simp only [hpush, bind_tc_ok, bind_ok])
+        | (dsimp only [hpush]; simp only [bind_tc_ok, bind_ok])
       -- the popped element is the last of `rem`
       have hrmem : r ∈ rem := hperm.mem_iff.1 (List.mem_iff_getElem?.2 ⟨0, hr⟩)
       have hwmem : ∀ y ∈ rem, ¬ TieBefore wv kv r y :=
