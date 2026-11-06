@@ -36,7 +36,8 @@ weight (`filter.go:43-50`). `PopAll` does the same and keeps the weights
 
 namespace Gorse.Spec.TopK
 
-variable {α W : Type} [LinearOrder W] (w : α → W)
+-- Multiset subtraction needs `DecidableEq α`. The port's elements are `i32` ids, which have it.
+variable {α W : Type} [DecidableEq α] [LinearOrder W] (w : α → W)
 
 /-- The tie-break of P3-3 (D-329): `TieBefore w key a b` says that `a` comes before `b`,
 a higher weight first and, between equal weights, the smaller `key` first. Go has no such
@@ -144,7 +145,7 @@ theorem isTopK_weights_unique {k : ℕ} {xs r r' : List α}
     have h2 := hlt v
     omega
   have hmap : (r : Multiset α).map w = (r' : Multiset α).map w := Multiset.ext.2 hcount
-  have hperm : r.map w ~ r'.map w := by
+  have hperm : List.Perm (r.map w) (r'.map w) := by
     rw [← Multiset.coe_eq_coe, ← Multiset.map_coe, ← Multiset.map_coe]
     exact hmap
   haveI : IsAntisymm W (· ≥ ·) := ⟨fun _ _ h1 h2 => le_antisymm h2 h1⟩
