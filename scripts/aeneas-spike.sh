@@ -163,7 +163,8 @@ stage_charon() {
 # Translates one crate. Returns non-zero when Charon or Aeneas fails, and says
 # where, so the caller can record the outcome. Needs $charon, $aeneas, $nightly.
 translate() { # name crate-dir [charon options...]
-  local name="$1" crate="$ROOT/$2" out="$work/out-$1"
+  local name="$1" dir="$2" out="$work/out-$1"
+  local crate="$ROOT/$dir"
   shift 2
   local -a extra=("$@")
   rm -rf "$out"
@@ -171,7 +172,7 @@ translate() { # name crate-dir [charon options...]
   # -L dereferences symbolic links, so a crate may link a source file of another
   # crate (the TopKFilter spike links heap.rs) and Charon reads the file itself.
   cp -rL "$crate" "$out/crate"
-  echo "== charon: $name ($2)"
+  echo "== charon: $name ($dir)"
   echo "disk before charon: $(df -h / | tail -n 1)"
   (cd "$out/crate" && RUSTUP_TOOLCHAIN="$nightly" CARGO_TARGET_DIR="$out/target" \
     "$charon" cargo --preset=aeneas ${extra[@]+"${extra[@]}"}) || { echo "charon failed on $name"; return 1; }
