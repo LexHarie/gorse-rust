@@ -202,9 +202,9 @@ theorem pop_worst_eq (s : heap.TopKFilter Std.U32 Std.I64) (r : E)
     simp only [core.option.Option.Insts.CoreOpsTry_traitTry.branch, bind_ok]
     simp only [alloc.vec.Vec.deref_mut, lift_eq, bind_ok]
     show (core.slice.Slice.swap s.elems.slice 0#usize val >>= _) = _
-    simp only [hsl]
-    unfold heap.TopKFilter.down
-    simp only [hs2, hw]
+    -- rewrite the swap, the sift and the pop in place: unfolding `down` would hide `hs2`
+    simp only [hsl, bind_ok, hs2, hw]
+    all_goals (first | with_unfolding_all rfl | simp)
   refine ⟨{ s2 with elems := w }, hpw, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · show (r :: w.val).Perm s.elems.val
     rw [hwv]
@@ -318,7 +318,7 @@ theorem push_eq (s : heap.TopKFilter Std.U32 Std.I64) (k : Nat) (buf : List E)
       rw [hLA, ← hAl]
       simp
     refine ⟨s2, ?_, ?_, hHo2, hk2.trans hks1, hnan2.trans hnan1⟩
-    · rw [if_pos hcond, hpw] <;> rfl
+    · rw [if_pos hcond, hpw] <;> (first | with_unfolding_all rfl | simp)
     · rw [hpush]
       have hX : (ins wv kv ⟨item, weight⟩ buf).Perm (r :: A) := by
         rw [hLA]
