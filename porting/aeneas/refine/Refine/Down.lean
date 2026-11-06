@@ -231,7 +231,11 @@ theorem down_body_swap (s : heap.TopKFilter Std.U32 Std.I64) (n i j : Usize)
   · simp only [alloc.vec.Vec.deref_mut, lift_eq, bind_ok]
     show (core.slice.Slice.swap s.elems.slice i j >>= fun s1 =>
         ok (cont ({ s with elems := { slice := s1 } }, j))) = _
-    simp only [hs1, bind_ok]
+    simp only [hs1]
+    first
+      | with_unfolding_all rfl
+      | simp
+      | skip
   · exact hs1v
 
 /-! ## The loop of `down` -/

@@ -109,7 +109,11 @@ theorem up_body_go (s : heap.TopKFilter Std.U32 Std.I64) (j : Usize) (hj0 : 0 < 
   refine ⟨{ s with elems := { slice := s1 } }, i1, ?_, hi1p, ?_, rfl, rfl⟩
   · show (core.slice.Slice.swap s.elems.slice i1 j >>= fun s1 =>
         ok (cont ({ s with elems := { slice := s1 } }, i1))) = _
-    simp only [hs1, bind_ok]
+    simp only [hs1]
+    first
+      | with_unfolding_all rfl
+      | simp
+      | skip
   · show s1.val = _
     rw [hs1v, hi1p] <;> rfl
 
