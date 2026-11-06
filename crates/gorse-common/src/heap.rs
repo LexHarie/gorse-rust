@@ -3,9 +3,12 @@
 //! Binary heaps: [`PriorityQueue`], used by the vector indexes, and
 //! [`TopKFilter`], which keeps the k heaviest of a stream of elements.
 //!
-//! Both are the Go types step for step, down to the sift-up and sift-down of
-//! Go's `container/heap`, so that equal weights come out in the same order as
-//! in Go and [`PriorityQueue::elems`] exposes the same heap array.
+//! [`PriorityQueue`] is the Go type step for step, down to the sift-up and
+//! sift-down of Go's `container/heap`, so that equal weights come out in the
+//! same order as in Go and [`PriorityQueue::elems`] exposes the same heap
+//! array. [`TopKFilter`] departs from Go in two places, both recorded in
+//! `PORTING.md` as D-330: it orders equal weights by ascending value, and it
+//! rejects NaN weights.
 
 use std::collections::HashSet;
 use std::io::{Read, Write};
@@ -250,49 +253,70 @@ impl PriorityQueue {
 }
 
 /// Keeps the `k` heaviest of the elements pushed into it (Go
-/// `TopKFilter[T, W]`).
+/// `TopKFilter[T, W]`), in the order of D-329: weight descending, then value
+/// ascending. Go breaks ties in heap order, so this departs from Go on equal
+/// weights (D-330).
 ///
-/// Weights compare with `<`, as Go's do, so a NaN weight is neither lighter
-/// nor heavier than any other and stays wherever the heap puts it.
+/// A NaN weight has no place in that order, so [`TopKFilter::push`] rejects it
+/// and counts it ([`TopKFilter::nan_rejected`]). Go keeps it, and its result
+/// then depends on the order of the pushes (A5, D-330).
 #[derive(Debug)]
 pub struct TopKFilter<T, W> {
-    heap: GoHeap<T, W>,
+    /// A heap whose root is the worst element held: the lightest, and among
+    /// equal weights the one with the largest value.
+    elems: Vec<Elem<T, W>>,
     k: usize,
+    nan: usize,
 }
 
-impl<T, W: PartialOrd> TopKFilter<T, W> {
+impl<T: Ord, W: PartialOrd> TopKFilter<T, W> {
     /// `NewTopKFilter`. Go takes an `int`, and a negative `k` keeps nothing,
     /// as `k = 0` does; a caller holding a signed value passes
     /// `usize::try_from(k).unwrap_or(0)`.
     #[must_use]
     pub fn new(k: usize) -> Self {
         Self {
-            heap: GoHeap::new(false),
+            elems: Vec::new(),
             k,
+            nan: 0,
         }
     }
 
     /// The number of elements held.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.heap.elems.len()
+        self.elems.len()
     }
 
     /// Whether no element is held.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.heap.elems.is_empty()
+        self.elems.is_empty()
     }
 
-    /// `Push`: adds the element, then drops the lightest if more than `k` are
-    /// held.
+    /// The number of NaN weights that [`TopKFilter::push`] has rejected since
+    /// this filter was made. [`TopKFilter::pop_all`] does not reset it.
+    #[must_use]
+    pub fn nan_rejected(&self) -> usize {
+        self.nan
+    }
+
+    /// `Push`: adds the element, then drops the worst if more than `k` are
+    /// held. A NaN weight is not added; it is counted by
+    /// [`TopKFilter::nan_rejected`] instead.
     pub fn push(&mut self, item: T, weight: W) {
-        self.heap.push(Elem {
+        if is_nan(&weight) {
+            self.nan += 1;
+            return;
+        }
+        self.elems.push(Elem {
             value: item,
             weight,
         });
+        let last = self.elems.len() - 1;
+        self.up(last);
         if self.len() > self.k {
-            self.heap.pop();
+            self.pop_worst();
         }
     }
 
@@ -302,16 +326,74 @@ impl<T, W: PartialOrd> TopKFilter<T, W> {
         self.pop_all().into_iter().map(|e| e.value).collect()
     }
 
-    /// `PopAll`: empties the filter and returns the elements, heaviest first.
+    /// `PopAll`: empties the filter and returns the elements, heaviest first,
+    /// with equal weights in ascending value order.
     pub fn pop_all(&mut self) -> Vec<Elem<T, W>> {
-        // Pops come out lightest first; Go fills its result from the back.
+        // Pops come out worst first; reversing them gives the D-329 order.
         let mut results = Vec::with_capacity(self.len());
-        while let Some(e) = self.heap.pop() {
+        while let Some(e) = self.pop_worst() {
             results.push(e);
         }
         results.reverse();
         results
     }
+
+    /// Removes the worst element, the root of the heap.
+    fn pop_worst(&mut self) -> Option<Elem<T, W>> {
+        let n = self.elems.len().checked_sub(1)?;
+        self.elems.swap(0, n);
+        self.down(0, n);
+        self.elems.pop()
+    }
+
+    /// Whether the element at `i` is worse than the one at `j`.
+    fn worse_at(&self, i: usize, j: usize) -> bool {
+        worse(&self.elems[i], &self.elems[j])
+    }
+
+    /// Sift-up, as `container/heap.up`, on the order of [`worse`].
+    fn up(&mut self, mut j: usize) {
+        while j > 0 {
+            let i = (j - 1) / 2; // parent
+            if !self.worse_at(j, i) {
+                break;
+            }
+            self.elems.swap(i, j);
+            j = i;
+        }
+    }
+
+    /// Sift-down, as `container/heap.down`, on the order of [`worse`].
+    fn down(&mut self, i0: usize, n: usize) {
+        let mut i = i0;
+        loop {
+            let j1 = 2 * i + 1;
+            if j1 >= n {
+                break;
+            }
+            let mut j = j1; // left child
+            let j2 = j1 + 1;
+            if j2 < n && self.worse_at(j2, j1) {
+                j = j2; // right child
+            }
+            if !self.worse_at(j, i) {
+                break;
+            }
+            self.elems.swap(i, j);
+            i = j;
+        }
+    }
+}
+
+/// Whether `a` is worse than `b` in the order of D-329: lighter, or equally
+/// weighted with a larger value. Neither weight may be NaN.
+fn worse<T: Ord, W: PartialOrd>(a: &Elem<T, W>, b: &Elem<T, W>) -> bool {
+    a.weight < b.weight || (a.weight == b.weight && a.value > b.value)
+}
+
+/// Whether `w` is NaN: the one weight that is not equal to itself.
+fn is_nan<W: PartialOrd>(w: &W) -> bool {
+    w.partial_cmp(w).is_none()
 }
 
 #[cfg(test)]
@@ -476,6 +558,41 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_top_k_filter_rejects_nan() {
+        let mut a = TopKFilter::<i32, f32>::new(2);
+        a.push(1, 1.0);
+        a.push(2, 2.0);
+        // A NaN neither enters the filter nor evicts an element.
+        a.push(3, f32::NAN);
+        assert_eq!(1, a.nan_rejected());
+        assert_eq!(2, a.len());
+        a.push(4, f32::NAN);
+        assert_eq!(2, a.nan_rejected());
+        // A light element is evicted, not a NaN, and none comes out.
+        a.push(5, 0.5);
+        assert_eq!(2, a.nan_rejected());
+        assert_eq!(vec![2, 1], a.pop_all_values());
+    }
+
+    #[test]
+    fn test_top_k_filter_tie_break() {
+        // Equal weights come out in ascending value order, and the cut keeps
+        // the smaller values.
+        let mut a = TopKFilter::<i32, f32>::new(3);
+        for value in [9, 3, 7, 1] {
+            a.push(value, 1.0);
+        }
+        a.push(5, 2.0);
+        assert_eq!(vec![5, 1, 3], a.pop_all_values());
+
+        let mut a = TopKFilter::<i32, f32>::new(2);
+        a.push(8, 1.0);
+        a.push(2, 1.0);
+        a.push(5, 1.0);
+        assert_eq!(vec![2, 5], a.pop_all_values());
+    }
+
     // Behaviour the Go tests leave out.
 
     #[test]
@@ -526,7 +643,10 @@ mod golden_tests {
     //! Replays the cases of `tests/data/heap_golden.json`, written by Go with
     //! `go run ./contracts/tools/heapgolden -out
     //! crates/gorse-common/tests/data/heap_golden.json`, and compares every
-    //! result and every heap array with Go's.
+    //! result and every heap array with Go's, except the top-k cases that
+    //! D-330 changes: those expect the result in
+    //! `tests/data/heap_topk_d329_overrides.json`, which
+    //! `scripts/topk_d329_overrides.py` writes from the D-329 rule.
     use serde_json::Value as Json;
 
     use super::*;
@@ -640,14 +760,20 @@ mod golden_tests {
         parse_weight: impl Fn(&Json) -> W,
         bits: impl Fn(&W) -> u64,
     ) where
-        T: PartialEq + std::fmt::Debug,
+        T: Ord + std::fmt::Debug,
         W: PartialOrd,
     {
         let k = usize::try_from(case["k"].as_i64().expect("k")).unwrap_or(0);
         let mut filter = TopKFilter::<T, W>::new(k);
+        let mut nan_pushes = 0;
         for p in list(&case["pushes"]) {
-            filter.push(parse_value(&p[0]), parse_weight(&p[1]));
+            let weight = parse_weight(&p[1]);
+            if is_nan(&weight) {
+                nan_pushes += 1;
+            }
+            filter.push(parse_value(&p[0]), weight);
         }
+        assert_eq!(nan_pushes, filter.nan_rejected(), "{name}: NaN rejected");
         let result = list(&case["result"]);
         match str_of(&case["method"]) {
             "pop_all" => {
@@ -674,18 +800,52 @@ mod golden_tests {
         assert!(filter.is_empty(), "{name}: emptied");
     }
 
+    /// The D-330 overrides, by index into `top_k`: the cases whose expected
+    /// result is the D-329 result instead of Go's.
+    fn top_k_overrides() -> std::collections::BTreeMap<usize, Json> {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/data/heap_topk_d329_overrides.json"
+        );
+        let text = std::fs::read_to_string(path).expect("overrides file");
+        let file: Json = serde_json::from_str(&text).expect("overrides JSON");
+        assert_eq!(str_of(&file["decision"]), "D-330", "overrides file");
+        file["cases"]
+            .as_array()
+            .expect("cases")
+            .iter()
+            .map(|c| {
+                let index = usize::try_from(c["index"].as_u64().expect("index")).expect("index");
+                (index, c.clone())
+            })
+            .collect()
+    }
+
     #[test]
     fn heap_golden_top_k() {
         let g = golden();
-        for case in cases(&g, "top_k") {
+        let overrides = top_k_overrides();
+        // D-330 names exactly these 39 cases; every one must be applied.
+        assert_eq!(overrides.len(), 39, "cases that D-330 overrides");
+        let mut applied = 0;
+        for (index, case) in cases(&g, "top_k").iter().enumerate() {
+            let mut case = case.clone();
+            if let Some(over) = overrides.get(&index) {
+                assert_eq!(
+                    over["name"], case["name"],
+                    "override {index} names its case"
+                );
+                case["result"] = over["result"].clone();
+                applied += 1;
+            }
             let name = format!("{} {}", str_of(&case["name"]), str_of(&case["kind"]));
             match str_of(&case["kind"]) {
-                "int32/float32" => check_top_k(&name, case, i32_of, f32_bits, |w: &f32| {
+                "int32/float32" => check_top_k(&name, &case, i32_of, f32_bits, |w: &f32| {
                     u64::from(w.to_bits())
                 }),
                 "string/float64" => check_top_k(
                     &name,
-                    case,
+                    &case,
                     |v| str_of(v).to_owned(),
                     f64_bits,
                     |w: &f64| w.to_bits(),
@@ -693,6 +853,7 @@ mod golden_tests {
                 other => panic!("unknown kind {other}"),
             }
         }
+        assert_eq!(applied, overrides.len(), "every override is applied");
     }
 
     #[test]
