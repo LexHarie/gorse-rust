@@ -202,8 +202,13 @@ theorem pop_worst_eq (s : heap.TopKFilter Std.U32 Std.I64) (r : E)
     simp only [core.option.Option.Insts.CoreOpsTry_traitTry.branch, bind_ok]
     simp only [alloc.vec.Vec.deref_mut, lift_eq, bind_ok]
     show (core.slice.Slice.swap s.elems.slice 0#usize val >>= _) = _
-    -- rewrite the swap, the sift and the pop in place: unfolding `down` would hide `hs2`
-    simp only [hsl, bind_ok, hs2, hw]
+    simp only [hsl, bind_ok]
+    -- `down` wraps `down_loop`, whose result is `hs2` (the arguments come in the other order)
+    have hdown : heap.TopKFilter.down core.cmp.OrdU32 core.cmp.PartialOrdI64
+        { elems := { slice := sl }, k := s.k, nan := s.nan } 0#usize val = ok s2 := by
+      unfold heap.TopKFilter.down
+      first | exact hs2 | simp only [hs2, bind_ok] | simpa using hs2
+    simp only [hdown, bind_ok, hw]
     all_goals (first | with_unfolding_all rfl | simp)
   refine ⟨{ s2 with elems := w }, hpw, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · show (r :: w.val).Perm s.elems.val
