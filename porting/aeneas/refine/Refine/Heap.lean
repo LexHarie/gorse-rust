@@ -273,7 +273,7 @@ theorem root_last {L : List E} {r : E} (hL : SortedBest wv kv L) (hr : r ∈ L)
       rcases tb_total (Ne.symm hc) with h | h
       · exact h2 h
       · exact h1 h
-    · exact List.mem_singleton.1 hz
+    · exact (List.mem_singleton.1 hz).symm
   refine ⟨L.dropLast, ?_⟩
   rw [hzr] at hsplit
   exact hsplit

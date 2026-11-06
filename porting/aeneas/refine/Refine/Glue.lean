@@ -19,17 +19,15 @@ namespace Refine
 satisfies `P`. -/
 theorem exists_ok_of_spec {α : Type _} {m : Result α} {P : α → Prop}
     (h : WP.spec m P) : ∃ v, m = ok v ∧ P v := by
-  cases m with
-  | ok v => exact ⟨v, rfl, (WP.spec_ok v).1 h⟩
-  | fail e => simp [WP.spec_fail] at h
-  | div => simp [WP.spec_div] at h
-  | vis e k => simp [WP.spec_vis] at h
+  first
+    | exact WP.spec_imp_exists h
+    | (cases m <;> first | exact ⟨_, rfl, (WP.spec_ok _).1 h⟩ | simp_all)
 
 /-! ## `usize` arithmetic -/
 
 theorem usize_sub_eq (x y : Usize) (h : y.val ≤ x.val) :
     ∃ z : Usize, x - y = ok z ∧ z.val = x.val - y.val :=
-  exists_ok_of_spec (Usize.sub_spec h)
+  exists_ok_of_spec (m := x - y) (P := fun z => z.val = x.val - y.val) (Usize.sub_spec h)
 
 theorem usize_div2_eq (x : Usize) : ∃ z : Usize, x / 2#usize = ok z ∧ z.val = x.val / 2 :=
   exists_ok_of_spec (Usize.div_spec x (by decide))
@@ -51,6 +49,7 @@ theorem vec_index_eq {E' : Type} (v : alloc.vec.Vec E') (i : Usize) (h : i.val <
   obtain ⟨x, hx, hxv⟩ := exists_ok_of_spec (Slice.index_usize_spec v.slice i h)
   refine ⟨x, hx, ?_⟩
   rw [List.getElem?_eq_getElem h, hxv]
+  rfl
 
 /-- `Vec::push` on a vector shorter than `usize::MAX` appends the element. -/
 theorem vec_push_eq {E' : Type} (v : alloc.vec.Vec E') (x : E') (h : v.val.length < Usize.max) :
@@ -61,7 +60,7 @@ theorem vec_push_eq {E' : Type} (v : alloc.vec.Vec E') (x : E') (h : v.val.lengt
 theorem vec_pop_some {E' : Type} (A : Type) (v : alloc.vec.Vec E') (L : List E') (x : E')
     (hv : v.val = L ++ [x]) :
     ∃ w, alloc.vec.Vec.pop A v = ok (some x, w) ∧ w.val = L := by
-  refine ⟨alloc.vec.Vec.from L (by have := v.property; rw [hv] at this; simpa using this), ?_, ?_⟩
+  refine ⟨alloc.vec.Vec.from L (by have h1 := v.property; rw [hv] at h1; simp at h1; omega), ?_, ?_⟩
   · unfold aeneas_spike_topk.alloc.vec.Vec.pop
     rw [hv]
     simp
@@ -71,8 +70,7 @@ theorem vec_pop_some {E' : Type} (A : Type) (v : alloc.vec.Vec E') (L : List E')
 theorem vec_pop_none {E' : Type} (A : Type) (v : alloc.vec.Vec E') (hv : v.val = []) :
     aeneas_spike_topk.alloc.vec.Vec.pop A v = ok (none, v) := by
   unfold aeneas_spike_topk.alloc.vec.Vec.pop
-  rw [hv]
-  simp
+  simp [hv]
 
 /-- `core::slice::swap`: the exchange of two in-range entries. -/
 theorem swap_eq {E' : Type} [Inhabited E'] (s : Slice E') (a b : Usize)
@@ -87,18 +85,25 @@ theorem swap_eq {E' : Type} [Inhabited E'] (s : Slice E') (a b : Usize)
   by_cases hka : k = a.val
   · subst hka
     simp only [if_pos rfl]
-    rw [List.getElem?_eq_getElem (by omega), List.getElem?_eq_getElem hb]
-    simp_all
+    have hl : a.val < s'.val.length := by rw [hlen]; exact ha
+    rw [List.getElem?_eq_getElem hl, List.getElem?_eq_getElem hb]
+    exact congrArg some hA
   · by_cases hkb : k = b.val
     · subst hkb
       simp only [if_neg hka, if_pos rfl]
-      rw [List.getElem?_eq_getElem (by omega), List.getElem?_eq_getElem ha]
-      simp_all
+      have hl : b.val < s'.val.length := by rw [hlen]; exact hb
+      rw [List.getElem?_eq_getElem hl, List.getElem?_eq_getElem ha]
+      exact congrArg some hB
     · simp only [if_neg hka, if_neg hkb]
       by_cases hk : k < s.val.length
-      · rw [List.getElem?_eq_getElem hk, List.getElem?_eq_getElem (by omega)]
-        simp_all
-      · rw [List.getElem?_eq_none (by omega), List.getElem?_eq_none (by omega)]
+      · have hk' : k < s'.val.length := by rw [hlen]; exact hk
+        have e := hO k hka hkb
+        rw [List.getElem?_eq_getElem hk', List.getElem?_eq_getElem hk]
+        rw [List.getElem?_eq_getElem hk', List.getElem?_eq_getElem hk] at e
+        simpa using e
+      · have h1 : s'.val[k]? = none := List.getElem?_eq_none (by rw [hlen]; omega)
+        have h2 : s.val[k]? = none := List.getElem?_eq_none (by omega)
+        rw [h1, h2]
 
 /-! ## Monadic helpers -/
 
