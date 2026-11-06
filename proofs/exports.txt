@@ -10,3 +10,5 @@ Gorse.Spec.Metrics.ndcg_gt_one_of_dup
 Gorse.Spec.Metrics.ndcg_mem_unitInterval
 Gorse.Spec.Metrics.ndcg_eq_one_iff
 Gorse.Spec.Metrics.ap_le_one
+Gorse.Spec.TopK.isTopK_weights_unique
+Gorse.Spec.TopK.isTopK_merge
