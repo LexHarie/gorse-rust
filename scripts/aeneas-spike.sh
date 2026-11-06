@@ -162,21 +162,33 @@ stage_charon() {
 
 # Translates one crate. Returns non-zero when Charon or Aeneas fails, and says
 # where, so the caller can record the outcome. Needs $charon, $aeneas, $nightly.
-translate() { # name crate-dir
+translate() { # name crate-dir [charon options...]
   local name="$1" crate="$ROOT/$2" out="$work/out-$1"
+  shift 2
+  local -a extra=("$@")
   rm -rf "$out"
   mkdir -p "$out"
-  cp -r "$crate" "$out/crate"
+  # -L dereferences symbolic links, so a crate may link a source file of another
+  # crate (the TopKFilter spike links heap.rs) and Charon reads the file itself.
+  cp -rL "$crate" "$out/crate"
   echo "== charon: $name ($2)"
   echo "disk before charon: $(df -h / | tail -n 1)"
   (cd "$out/crate" && RUSTUP_TOOLCHAIN="$nightly" CARGO_TARGET_DIR="$out/target" \
-    "$charon" cargo --preset=aeneas) || { echo "charon failed on $name"; return 1; }
+    "$charon" cargo --preset=aeneas ${extra[@]+"${extra[@]}"}) || { echo "charon failed on $name"; return 1; }
   ls -l "$out/crate"/*.llbc || { echo "charon wrote no .llbc for $name"; return 1; }
 
   echo "== aeneas: $name"
   "$aeneas" -backend lean -dest "$out/lean" "$out/crate"/*.llbc || { echo "aeneas failed on $name"; return 1; }
   echo "--- generated Lean for $name"
   find "$out/lean" -name '*.lean' | sort
+  if [ "$name" = topk_i64 ]; then
+    # Printed so the CI log carries the translation itself (brief 4, cycle 1).
+    find "$out/lean" -name '*.lean' | sort | while read -r f; do
+      echo "===== BEGIN $f"
+      cat "$f"
+      echo "===== END $f"
+    done
+  fi
   return 0
 }
 
@@ -233,7 +245,9 @@ stage_aeneas() {
   # The TopKFilter attempt (D-331): the heap loops on an integer weight, the
   # shape the P3-2 keystone would need extracted. Reported, not required: the
   # outcome, and the stage that failed if it did, goes into D-331.
-  if translate topk_i64 porting/aeneas/spike-topk; then
+  # The entry point is the only start, so Charon translates the filter and its heap
+  # loops and nothing else in heap.rs (the f32 PriorityQueue, the Go heap, encoding).
+  if translate topk_i64 porting/aeneas/spike-topk --start-from=crate::top_k_u32_i64; then
     echo translated > "$work/topk.translate"
     echo "topk (topk_i64): translated"
   else
