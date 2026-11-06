@@ -51,6 +51,7 @@ theorem up_body_stop (s : heap.TopKFilter Std.U32 Std.I64) (j : Usize) (hj0 : 0 
   have hgt : j > 0#usize := by scalar_tac
   rw [if_pos hgt]
   obtain ⟨i, hi, hiv⟩ := usize_sub_eq j 1#usize (by scalar_tac)
+  have h1v : (1#usize).val = 1 := by scalar_tac
   rw [hi]
   simp only [bind_ok]
   obtain ⟨i1, hi1, hi1v⟩ := usize_div2_eq i
@@ -85,6 +86,7 @@ theorem up_body_go (s : heap.TopKFilter Std.U32 Std.I64) (j : Usize) (hj0 : 0 < 
   have hgt : j > 0#usize := by scalar_tac
   rw [if_pos hgt]
   obtain ⟨i, hi, hiv⟩ := usize_sub_eq j 1#usize (by scalar_tac)
+  have h1v : (1#usize).val = 1 := by scalar_tac
   rw [hi]
   simp only [bind_ok]
   obtain ⟨i1, hi1, hi1v⟩ := usize_div2_eq i
@@ -103,12 +105,10 @@ theorem up_body_go (s : heap.TopKFilter Std.U32 Std.I64) (j : Usize) (hj0 : 0 < 
   rw [if_pos (decide_eq_true hw)]
   obtain ⟨s1, hs1, hs1v⟩ := swap_eq s.elems.slice i1 j
     (by show i1.val < s.elems.val.length; omega) (by show j.val < s.elems.val.length; omega)
-  simp only [alloc.vec.Vec.deref_mut, lift_eq, bind_ok]
-  rw [hs1]
-  simp only [bind_ok]
+  simp only [alloc.vec.Vec.deref_mut, lift_eq, bind_ok, hs1]
   refine ⟨{ s with elems := { slice := s1 } }, i1, rfl, hi1p, ?_, rfl, rfl⟩
   show s1.val = _
-  rw [hs1v, hi1p]
+  rw [hs1v, hi1p] <;> rfl
 
 /-- The state of the `up` loop, the heap with the position it sifts from, keeps the invariant:
 the position is in the array, the array is a permutation of the input, `k` and `nan` are
@@ -125,6 +125,7 @@ abbrev UpPost (s y : heap.TopKFilter Std.U32 Std.I64) : Prop :=
     y.elems.val.length = s.elems.val.length ∧ y.k = s.k ∧ y.nan = s.nan
 
 /-- The invariant of `up` is kept while it runs, and at the end the heap is in order. -/
+set_option maxHeartbeats 1000000 in
 theorem up_loop_eq (s : heap.TopKFilter Std.U32 Std.I64) (j : Usize)
     (hjl : j.val < s.elems.val.length) (hI : UpInv s.elems.val j.val) :
     ∃ s' : heap.TopKFilter Std.U32 Std.I64,
@@ -166,7 +167,8 @@ theorem up_loop_eq (s : heap.TopKFilter Std.U32 Std.I64) (j : Usize)
         have hI' : UpInv s'.elems.val i1.val := by
           rw [hsE, hi1]
           exact upInv_swap rfl hpos0 hpos hI1 hz hx hw
-        exact ⟨⟨by omega, hperm', hk'.trans hk, hn'.trans hn, hI'⟩, by omega⟩
+        exact ⟨⟨(by show i1.val < s'.elems.val.length; omega), hperm', hk'.trans hk,
+          hn'.trans hn, hI'⟩, by omega⟩
       · -- The element at `j1` is not before its parent: `up` stops and the heap is in order.
         rw [up_body_stop s1 j1 hpos0 hpos hz hx hw]
         refine (WP.spec_ok _).2 ?_
