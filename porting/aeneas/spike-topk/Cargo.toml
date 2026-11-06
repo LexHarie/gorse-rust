@@ -1,0 +1,10 @@
+[package]
+name = "aeneas-spike-topk"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "The TopKFilter attempt of the Aeneas spike (P3-2, D-331): the heap loops on an integer weight."
+license = "Apache-2.0"
+
+# Not a member of the root workspace: it is translated by Charon and Aeneas in CI.
+[workspace]
