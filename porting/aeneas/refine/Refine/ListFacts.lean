@@ -86,9 +86,13 @@ theorem swapL_getElem? {α : Type} (d : α) (l : List α) (i j : Nat)
   obtain ⟨y, hy⟩ : ∃ y, l[j]? = some y := ⟨l[j], List.getElem?_eq_getElem hj⟩
   have hgi : l.getD i d = x := by simp [List.getD_eq_getElem?_getD, hx]
   have hgj : l.getD j d = y := by simp [List.getD_eq_getElem?_getD, hy]
+  have hxy : i = j → x = y := by
+    intro e
+    subst e
+    exact Option.some.inj (hx.symm.trans hy)
   unfold swapL
   rw [hgi, hgj, hx, hy]
   simp only [List.getElem?_set, List.length_set, hi, hj]
-  split_ifs <;> simp_all
+  split_ifs <;> first | rfl | omega | exact congrArg some (hxy (by omega))
 
 end Refine

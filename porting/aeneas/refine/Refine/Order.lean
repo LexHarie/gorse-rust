@@ -86,8 +86,8 @@ theorem worse_eq (a b : E) :
   unfold heap.worse TieBefore wv kv
   simp only [core.cmp.PartialOrdI64, core.cmp.OrdU32, liftFun2, bind_ok]
   split_ifs <;> simp_all [core.cmp.impls.PartialOrdI64.lt, core.cmp.impls.PartialOrdU32.gt,
-    decide_eq_true_eq, decide_eq_false_iff_not] <;>
-    first | omega | scalar_tac
+    decide_eq_true_eq] <;>
+    first | omega | scalar_tac | exact decide_eq_false (by omega) | exact decide_eq_true (by omega)
 
 /-- `is_nan` on an `i64` weight is false: the partial comparison of a weight with itself is
 `some` of an ordering, and `is_none` of that is `false`. -/
