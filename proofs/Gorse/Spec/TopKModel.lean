@@ -75,6 +75,7 @@ theorem ins_perm (x : α) (L : List α) : List.Perm (ins w key x L) (x :: L) := 
     · simp only [ins, if_neg h]
       exact (ih.cons b).trans (List.Perm.swap x b l)
 
+omit [DecidableEq α] in
 /-- Insertion into a list in D-329 order keeps it in D-329 order. -/
 theorem ins_sorted (x : α) (L : List α) (hL : SortedBest w key L) :
     SortedBest w key (ins w key x L) := by

@@ -27,6 +27,9 @@
 #                              build; this is the spike's pass condition.
 #   porting/aeneas/spike-f32   dot_f32. Its outcome is the f32 verdict and is
 #                              reported, not required to pass.
+#   porting/aeneas/spike-topk  the TopKFilter heap loops on an integer weight (D-331).
+#                              Its outcome is the D-331 record and is reported, not
+#                              required to pass.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -226,6 +229,17 @@ stage_aeneas() {
     echo "not translated" > "$work/f32probe.translate"
     echo "f32 probe (dot_f32_from) did not translate; see the log above"
   fi
+
+  # The TopKFilter attempt (D-331): the heap loops on an integer weight, the
+  # shape the P3-2 keystone would need extracted. Reported, not required: the
+  # outcome, and the stage that failed if it did, goes into D-331.
+  if translate topk_i64 porting/aeneas/spike-topk; then
+    echo translated > "$work/topk.translate"
+    echo "topk (topk_i64): translated"
+  else
+    echo "not translated" > "$work/topk.translate"
+    echo "topk (topk_i64) did not translate; see the log above"
+  fi
 }
 
 # Module names of the generated Lean files under a directory, as a lakefile list.
@@ -241,6 +255,7 @@ stage_lean() {
   # Both crates go into one Lake project, so Mathlib is fetched and built once.
   # Each crate is its own library, so the f32 build cannot fail the loop build.
   local proj="$work/lean-proj" loop_mods f32_mods="" f32_block="" f32_built="no"
+  local topk_mods="" topk_block="" topk_built="no"
   rm -rf "$proj"
   mkdir -p "$proj"
   cp "$work/aeneas/backends/lean/lean-toolchain" "$proj/lean-toolchain"
@@ -250,6 +265,11 @@ stage_lean() {
     cp -r "$work/out-dot_f32/lean"/. "$proj/"
     f32_mods="$(modules_of "$work/out-dot_f32/lean")"
     f32_block=$(printf '\n[[lean_lib]]\nname = "SpikeF32"\nsrcDir = "."\nroots = [%s]\n' "$f32_mods")
+  fi
+  if [ "$(cat "$work/topk.translate" 2>/dev/null)" = "translated" ]; then
+    cp -r "$work/out-topk_i64/lean"/. "$proj/"
+    topk_mods="$(modules_of "$work/out-topk_i64/lean")"
+    topk_block=$(printf '\n[[lean_lib]]\nname = "SpikeTopK"\nsrcDir = "."\nroots = [%s]\n' "$topk_mods")
   fi
 
   cat > "$proj/lakefile.toml" <<EOF
@@ -264,6 +284,7 @@ name = "SpikeLoop"
 srcDir = "."
 roots = [$loop_mods]
 $f32_block
+$topk_block
 EOF
 
   # Mathlib is a dependency of the Aeneas Lean library. Its prebuilt files come
@@ -286,6 +307,20 @@ EOF
     echo "f32 (dot_f32): translated and built"
   else
     echo "f32 (dot_f32): not built; see the log above"
+  fi
+
+  # The TopKFilter attempt (D-331). Reported, not required: a failure here is
+  # recorded in D-331 with the failing stage and its error, and does not fail CI.
+  if [ -n "$topk_mods" ]; then
+    echo "== lake build SpikeTopK (modules: $topk_mods)"
+    if (cd "$proj" && lake build SpikeTopK); then
+      topk_built="yes"
+    fi
+  fi
+  if [ "$topk_built" = "yes" ]; then
+    echo "topk (topk_i64): extracted to Lean and built"
+  else
+    echo "topk (topk_i64): not built; see the log above"
   fi
 }
 
