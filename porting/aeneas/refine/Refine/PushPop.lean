@@ -202,28 +202,15 @@ theorem pop_worst_eq (s : heap.TopKFilter Std.U32 Std.I64) (r : E)
     simp only [core.option.Option.Insts.CoreOpsTry_traitTry.branch, bind_ok]
     simp only [alloc.vec.Vec.deref_mut, lift_eq, bind_ok]
     show (core.slice.Slice.swap s.elems.slice 0#usize val >>= _) = _
-    simp only [hsl, bind_ok]
+    simp only [hsl, bind_tc_ok, bind_ok]
     -- `down` wraps `down_loop`, whose result is `hs2` (the arguments come in the other order)
     have hdown : heap.TopKFilter.down core.cmp.OrdU32 core.cmp.PartialOrdI64
         { elems := { slice := sl }, k := s.k, nan := s.nan } 0#usize val = ok s2 := by
       unfold heap.TopKFilter.down
       first | exact hs2 | simp only [hs2, bind_ok] | simpa using hs2
-    -- `bind_ok` does not fire on these binds, so each step restates the goal by definitional
-    -- unfolding of `ok` binds, with the struct types given, and rewrites with the equations
-    show (heap.TopKFilter.down core.cmp.OrdU32 core.cmp.PartialOrdI64
-        ({ elems := { slice := sl }, k := s.k, nan := s.nan } : heap.TopKFilter Std.U32 Std.I64)
-        0#usize val >>= fun self1 =>
-          (alloc.vec.Vec.pop alloc.alloc.Global self1.elems >>= fun p =>
-            ok (p.1, ({ elems := p.2, k := self1.k, nan := self1.nan } :
-              heap.TopKFilter Std.U32 Std.I64)))) = _
-    rw [hdown]
-    show (alloc.vec.Vec.pop alloc.alloc.Global s2.elems >>= fun p =>
-        ok (p.1, ({ elems := p.2, k := s2.k, nan := s2.nan } :
-          heap.TopKFilter Std.U32 Std.I64))) = _
-    rw [hw]
-    show ok (some r, ({ elems := w, k := s2.k, nan := s2.nan } :
-      heap.TopKFilter Std.U32 Std.I64)) = _
-    rfl
+    -- the do-notation binds are `Bind.bind`, which `bind_tc_ok` rewrites; `bind_ok` is for `bind`
+    simp only [hdown, bind_tc_ok, bind_ok, hw]
+    all_goals (first | with_unfolding_all rfl | simp)
   refine ⟨{ s2 with elems := w }, hpw, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · show (r :: w.val).Perm s.elems.val
     rw [hwv]
