@@ -229,8 +229,9 @@ theorem down_body_swap (s : heap.TopKFilter Std.U32 Std.I64) (n i j : Usize)
     (by show i.val < s.elems.val.length; omega) (by show j.val < s.elems.val.length; omega)
   refine ⟨{ s with elems := { slice := s1 } }, ?_, ?_, rfl, rfl⟩
   · simp only [alloc.vec.Vec.deref_mut, lift_eq, bind_ok]
-    rw [hs1]
-    simp only [bind_ok]
+    show (core.slice.Slice.swap s.elems.slice i j >>= fun s1 =>
+        ok (cont ({ s with elems := { slice := s1 } }, j))) = _
+    rw [hs1] <;> rfl
   · exact hs1v
 
 /-! ## The loop of `down` -/
