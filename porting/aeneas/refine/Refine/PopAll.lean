@@ -94,8 +94,7 @@ theorem pop_all_loop_eq (buf : List E) (hbuf : buf.length < 2 ^ 59)
       rw [hpw]
       simp only [bind_ok]
       obtain ⟨res1, hpush, hres1⟩ := vec_push_eq res r (by omega)
-      rw [hpush]
-      simp only [bind_ok]
+      simp only [hpush, bind_tc_ok, bind_ok]
       -- the popped element is the last of `rem`
       have hrmem : r ∈ rem := hperm.mem_iff.1 (List.mem_iff_getElem?.2 ⟨0, hr⟩)
       have hwmem : ∀ y ∈ rem, ¬ TieBefore wv kv r y :=
@@ -139,6 +138,7 @@ theorem pop_all_eq (self : heap.TopKFilter Std.U32 Std.I64) (buf : List E)
         (alloc.vec.Vec.len self.elems) = alloc.vec.Vec.new (heap.Elem Std.U32 Std.I64) := rfl
     unfold heap.TopKFilter.pop_all
     simp only [hlen, bind_ok, hwc, hp, lift_eq, alloc.vec.Vec.deref_mut]
+    all_goals (first | with_unfolding_all rfl | simp)
   · have hr : (core.slice.Slice.reverse res1.slice).val = res1.val.reverse := by
       unfold core.slice.Slice.reverse
       simp [alloc.vec.Vec.val, Slice.from_val]
