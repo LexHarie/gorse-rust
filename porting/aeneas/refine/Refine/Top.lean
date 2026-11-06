@@ -45,6 +45,8 @@ theorem top_k_u32_i64_eq (k : Std.Usize) (items : Slice (heap.Elem Std.U32 Std.I
     (topKModel_sorted k.val items.val) hfP.2 hplat
   refine ⟨v, ?_, hv⟩
   unfold top_k_u32_i64
-  simp only [hnew, bind_tc_ok, bind_ok, hf, hpa]
+  -- simp reduces the binds but leaves the pattern `let (v, _) := (v, self')`, which is
+  -- definitionally `ok v`, so `rfl` closes what remains
+  simp only [hnew, bind_ok, hf, hpa] <;> rfl
 
 end Refine
