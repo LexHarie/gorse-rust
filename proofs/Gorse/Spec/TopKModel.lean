@@ -24,6 +24,7 @@ variable {α W ι : Type} [DecidableEq α] [LinearOrder W] [LinearOrder ι]
 def SortedBest (L : List α) : Prop :=
   List.Pairwise (fun a c => ¬ TieBefore w key c a) L
 
+omit [DecidableEq α] in
 /-- `TieBefore` is asymmetric. -/
 theorem tieBefore_asymm {a b : α} (h : TieBefore w key a b) : ¬ TieBefore w key b a := by
   unfold TieBefore at h ⊢
@@ -36,6 +37,7 @@ theorem tieBefore_asymm {a b : α} (h : TieBefore w key a b) : ¬ TieBefore w ke
     exact lt_irrefl _ hb
   · exact lt_asymm h2 hb2
 
+omit [DecidableEq α] in
 /-- `TieBefore` is transitive. -/
 theorem tieBefore_trans {a b c : α} (h1 : TieBefore w key a b) (h2 : TieBefore w key b c) :
     TieBefore w key a c := by
@@ -61,6 +63,7 @@ first. -/
 noncomputable def topKModel (k : ℕ) (xs : List α) : List α :=
   xs.foldl (pushStep w key k) []
 
+omit [DecidableEq α] in
 /-- Insertion keeps the elements, and only permutes them. -/
 theorem ins_perm (x : α) (L : List α) : List.Perm (ins w key x L) (x :: L) := by
   induction L with
@@ -114,7 +117,7 @@ theorem isTopK_take {k : ℕ} {L : List α} (hL : SortedBest w key L) :
       ((L.drop k : List α) : Multiset α) := by
     have e : (L : Multiset α) =
         ((L.take k : List α) : Multiset α) + ((L.drop k : List α) : Multiset α) := by
-      rw [← Multiset.coe_add, List.take_append_drop]
+      rw [Multiset.coe_add, List.take_append_drop]
     rw [e, add_tsub_cancel_left]
   unfold IsTopK
   refine ⟨?_, ?_, ?_, ?_⟩
