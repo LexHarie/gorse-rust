@@ -208,13 +208,22 @@ theorem pop_worst_eq (s : heap.TopKFilter Std.U32 Std.I64) (r : E)
         { elems := { slice := sl }, k := s.k, nan := s.nan } 0#usize val = ok s2 := by
       unfold heap.TopKFilter.down
       first | exact hs2 | simp only [hs2, bind_ok] | simpa using hs2
-    -- restate the goal in `>>=` form, so that `hdown` matches the term syntactically
+    -- `bind_ok` does not fire on these binds, so each step restates the goal by definitional
+    -- unfolding of `ok` binds, with the struct types given, and rewrites with the equations
     show (heap.TopKFilter.down core.cmp.OrdU32 core.cmp.PartialOrdI64
-        { elems := { slice := sl }, k := s.k, nan := s.nan } 0#usize val >>= fun self1 =>
+        ({ elems := { slice := sl }, k := s.k, nan := s.nan } : heap.TopKFilter Std.U32 Std.I64)
+        0#usize val >>= fun self1 =>
           (alloc.vec.Vec.pop alloc.alloc.Global self1.elems >>= fun p =>
-            ok (p.1, { elems := p.2, k := self1.k, nan := self1.nan }))) = _
-    rw [hdown] <;> simp only [bind_ok, hw]
-    all_goals (first | with_unfolding_all rfl | simp)
+            ok (p.1, ({ elems := p.2, k := self1.k, nan := self1.nan } :
+              heap.TopKFilter Std.U32 Std.I64)))) = _
+    rw [hdown]
+    show (alloc.vec.Vec.pop alloc.alloc.Global s2.elems >>= fun p =>
+        ok (p.1, ({ elems := p.2, k := s2.k, nan := s2.nan } :
+          heap.TopKFilter Std.U32 Std.I64))) = _
+    rw [hw]
+    show ok (some r, ({ elems := w, k := s2.k, nan := s2.nan } :
+      heap.TopKFilter Std.U32 Std.I64)) = _
+    rfl
   refine ⟨{ s2 with elems := w }, hpw, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · show (r :: w.val).Perm s.elems.val
     rw [hwv]
