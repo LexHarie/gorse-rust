@@ -20,3 +20,4 @@ Gorse.Spec.Float32.rn_zero
 Gorse.Spec.Float32.ulpExp_ge
 Gorse.Spec.Float32.rn_of_grid
 Gorse.Spec.Float32.rn_sub_le
+Gorse.Spec.Float32.rn_model
