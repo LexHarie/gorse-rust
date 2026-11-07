@@ -31,3 +31,6 @@ jobs:
 
       - name: Run the mutants on the T1 metrics
         run: scripts/check-mutants.sh "$RUNNER_TEMP/mutants"
+
+      - name: Run the mutants on the top-k code of heap.rs (G10, D-336)
+        run: scripts/check-mutants-topk.sh "$RUNNER_TEMP/mutants-topk"
