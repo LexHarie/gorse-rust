@@ -96,3 +96,14 @@ Gorse.Spec.DotAvx.sum_shift_abs
 Gorse.Spec.DotAvx.sum_shift_fe
 Gorse.Spec.DotAvx.tailA_cert
 Gorse.Spec.DotAvx.tailA_zero_start
+Gorse.Spec.DotNeon.grid_laneN
+Gorse.Spec.DotNeon.rn_laneN
+Gorse.Spec.DotNeon.reduce4N_eq
+Gorse.Spec.DotNeon.sum_regroup4
+Gorse.Spec.DotNeon.depthNeon_le
+Gorse.Spec.DotNeon.laneN_cert
+Gorse.Spec.DotNeon.reduce4N_cert
+Gorse.Spec.DotNeon.dotCoreN_cert_pos
+Gorse.Spec.DotNeon.dotCoreN_cert_zero
+Gorse.Spec.DotNeon.dotNeon_cert
+Gorse.Spec.DotNeon.dotNeon_err
