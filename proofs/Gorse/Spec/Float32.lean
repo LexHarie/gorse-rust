@@ -77,4 +77,55 @@ theorem rn_sub_le {x : ℝ} (hx : x ≠ 0) : |rn x - x| ≤ (2 : ℝ) ^ ulpExp x
   rw [key, abs_mul, abs_of_pos hpos]
   linarith
 
+/-- Exactness of subnormal addition (Higham 2002 §2.2; plan §2.2 item 1). A value on the
+binary32 grid is an integer multiple of the subnormal unit `2^-149`. So when `a` and `b` are
+on the grid and their sum lies in the subnormal range, the sum is on the grid too, and `rn`
+leaves it unchanged. -/
+theorem rn_add_subnormal {a b : ℝ} (ha : rn a = a) (hb : rn b = b)
+    (hs : |a + b| < (2 : ℝ) ^ (-126 : ℤ)) : rn (a + b) = a + b := by
+  -- Every grid point is an integer multiple of the subnormal unit.
+  have hmul : ∀ x : ℝ, rn x = x → ∃ k : ℤ, x = (k : ℝ) * (2 : ℝ) ^ (-149 : ℤ) := by
+    intro x hx
+    by_cases hx0 : x = 0
+    · exact ⟨0, by simp [hx0]⟩
+    · have hdef : rn x = (roundEven (x / 2 ^ ulpExp x) : ℝ) * 2 ^ ulpExp x := by
+        unfold rn
+        rw [if_neg hx0]
+      obtain ⟨R, hR⟩ : ∃ R : ℤ, roundEven (x / 2 ^ ulpExp x) = R := ⟨_, rfl⟩
+      rw [hR] at hdef
+      obtain ⟨n, hn⟩ : ∃ n : ℕ, (n : ℤ) = ulpExp x + 149 :=
+        ⟨(ulpExp x + 149).toNat, Int.toNat_of_nonneg (by linarith [ulpExp_ge x])⟩
+      have he : (2 : ℝ) ^ ulpExp x = (2 : ℝ) ^ n * (2 : ℝ) ^ (-149 : ℤ) := by
+        rw [← zpow_natCast, ← zpow_add₀ (by norm_num : (2 : ℝ) ≠ 0)]
+        congr 1
+        omega
+      have hx2 : (R : ℝ) * 2 ^ ulpExp x = x := by
+        rw [← hdef]
+        exact hx
+      refine ⟨R * 2 ^ n, ?_⟩
+      push_cast
+      rw [← hx2, he]
+      ring
+  rcases eq_or_ne (a + b) 0 with hz | hz
+  · rw [hz, rn_zero]
+  · obtain ⟨ka, hka⟩ := hmul a ha
+    obtain ⟨kb, hkb⟩ := hmul b hb
+    have hsum : a + b = ((ka + kb : ℤ) : ℝ) * (2 : ℝ) ^ (-149 : ℤ) := by
+      rw [hka, hkb]
+      push_cast
+      ring
+    have hlo : (2 : ℝ) ^ Int.log 2 |a + b| ≤ |a + b| := by
+      exact_mod_cast Int.zpow_log_le_self (by norm_num : 1 < 2) (abs_pos.mpr hz)
+    have hL : Int.log 2 |a + b| < -126 := by
+      by_contra hc
+      push_neg at hc
+      have h1 : (2 : ℝ) ^ (-126 : ℤ) ≤ (2 : ℝ) ^ Int.log 2 |a + b| :=
+        zpow_le_zpow_right₀ (by norm_num) hc
+      linarith
+    have hu : ulpExp (a + b) = -149 := by
+      unfold ulpExp
+      rw [max_eq_right hL.le]
+      norm_num
+    exact rn_of_grid (ka + kb) (by rw [hu]; exact hsum)
+
 end Gorse.Spec.Float32
