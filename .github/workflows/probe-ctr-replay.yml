@@ -1,0 +1,54 @@
+name: probe ctr replay host
+
+# Diagnostic only (D-319): runs the pinned CTR replay on this runner and compares
+# it with the committed golden, with the default and with cpu.fma=off. Manual.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository with history
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Host and toolchain
+        run: |
+          grep -m1 "model name" /proc/cpuinfo
+          grep -m1 flags /proc/cpuinfo | tr ' ' '\n' | grep -E '^(fma|avx2|avx512f)$' | sort -u
+          which go || true
+          go version || true
+
+      - name: Replay with the pinned Go, default and cpu.fma=off
+        env:
+          GOTOOLCHAIN: go1.27.0
+          GOPROXY: https://proxy.golang.org
+          GOFLAGS: -mod=readonly
+        run: |
+          set -euo pipefail
+          P="$RUNNER_TEMP/pinned"
+          rm -rf "$P" && mkdir -p "$P"
+          git archive 2e9c969 | tar -x -C "$P"
+          cd "$P"
+          go version
+          go build -o "$RUNNER_TEMP/modelreplay" ./contracts/tools/modelreplay
+          for mode in default fma-off; do
+            out="$RUNNER_TEMP/replay-$mode"; mkdir -p "$out"
+            if [ "$mode" = fma-off ]; then G="randautoseed=0,cpu.fma=off"; else G="randautoseed=0"; fi
+            GODEBUG="$G" "$RUNNER_TEMP/modelreplay" -mode ctr -epochs 5 -out "$out" >/dev/null 2>&1 || echo "exit $? ($mode)"
+            if cmp -s "$out/afm_replay.json" crates/gorse-model/testdata/ctr/afm_replay.json; then
+              echo "$mode: IDENTICAL to golden"
+            else
+              echo "$mode: DIFFERS from golden"
+              diff <(sed -n 2150,2154p crates/gorse-model/testdata/ctr/afm_replay.json) <(sed -n 2150,2154p "$out/afm_replay.json") || true
+              diff crates/gorse-model/testdata/ctr/afm_replay.json "$out/afm_replay.json" | grep -c '^<' || true
+            fi
+          done
