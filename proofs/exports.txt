@@ -22,3 +22,7 @@ Gorse.Spec.Float32.rn_of_grid
 Gorse.Spec.Float32.rn_sub_le
 Gorse.Spec.Float32.rn_model
 Gorse.Spec.Float32.rn_add_subnormal
+Gorse.Spec.Float32.rat_cast_zpow
+Gorse.Spec.Float32.int_log_ratCast
+Gorse.Spec.Float32.roundEven_ratCast
+Gorse.Spec.Float32.rn_ratCast
