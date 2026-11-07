@@ -133,3 +133,4 @@ Gorse.Spec.DotRat.reduce4N_cast
 Gorse.Spec.DotRat.dotCoreN_cast
 Gorse.Spec.DotRat.dotNeon_cast
 Gorse.Spec.DotRat.laneA_pair
+Gorse.Spec.DotLevels.dot_levels_close
