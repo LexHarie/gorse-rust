@@ -1,0 +1,34 @@
+name: probe ctr golden select
+
+# Diagnostic only, not for merge (D-319). Samples CI hosts and runs the CTR replay
+# suite through scripts/parity.sh on each, so both CPU kernel classes are seen with
+# the per-kernel golden selection in place. Prints the host CPU and the suite result.
+
+on:
+  push:
+    branches: [claude/probe-ctr-golden-select]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ctr-replay:
+    strategy:
+      fail-fast: false
+      matrix:
+        sample: [1, 2, 3, 4, 5, 6]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out the repository with history
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Host CPU
+        run: |
+          grep -m1 "model name" /proc/cpuinfo
+          grep -m1 flags /proc/cpuinfo | tr ' ' '\n' | grep -E '^(avx|avx2|fma|avx512f)$' | tr '\n' ' '; echo
+      - name: CTR replay suite through the parity script
+        run: scripts/parity.sh run ctr_replay
