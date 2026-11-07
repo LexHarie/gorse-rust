@@ -7,8 +7,8 @@ name: parity
 # scripts/backends.env and the containers from storage/docker-compose.yml.
 #
 # Each suite is its own step with a 45-minute limit, so a hang shows as the
-# suite that is stuck, except pinterest_20_bpr, which has a 120-minute step of its
-# own (D-320). A failed or timed-out suite does not stop the next one.
+# suite that is stuck. pinterest_20_bpr runs in a job of its own, with a 120-minute
+# step (D-320). A failed or timed-out suite does not stop the next one.
 
 on:
   release:
@@ -99,19 +99,13 @@ jobs:
         timeout-minutes: 45
         run: scripts/parity.sh run master_http_surface
 
-      # The metrics suite is split. pinterest_20_bpr has a step of its own below, and
-      # this step runs the other metrics tests with the 45-minute limit.
+      # pinterest_20_bpr runs in the pinterest job, below. This step runs the other
+      # metrics tests. Its 45-minute limit is about 1.65 times the 27.2 min the step
+      # took without pinterest_20_bpr in run 42031247822 (job 127257963992, success).
       - name: "suite metrics"
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 45
         run: scripts/parity.sh run metrics:except=pinterest_20_bpr
-
-      # D-320: a debug run of pinterest_20_bpr alone took 85 min (run 42356303389, job
-      # 128355030247). The limit is 120 min, the ceiling the President set.
-      - name: "suite metrics pinterest_20_bpr"
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        timeout-minutes: 120
-        run: scripts/parity.sh run metrics:only=pinterest_20_bpr
 
       - name: "suite mixed_cli"
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
@@ -212,3 +206,36 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 45
         run: scripts/parity.sh run vector_cross_read
+
+  # pinterest_20_bpr in a job of its own (D-320), so the parity job's step limits
+  # stay under its 360-minute cap. It takes the same backends and dumps as the parity job.
+  pinterest:
+    name: pinterest_20_bpr against the Go oracle
+    runs-on: ubuntu-24.04
+    # A backstop for the job. The step limit below is the one that applies.
+    timeout-minutes: 180
+    steps:
+      - name: Check out the repository with history
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          # The oracle commit 2e9c969 is an ancestor of master, so the full history is needed.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Start the backends
+        run: docker compose -f storage/docker-compose.yml up -d
+
+      - name: Place the playground dumps the suites read
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          GORSE_DATASETS=iris GORSE_DUMPS="ml-100k.bin.gz github.bin.gz" scripts/setup-datasets.sh
+          sudo mkdir -p /mnt/project-files/datasets
+          sudo cp "$HOME/.gorse/dataset/ml-100k.bin.gz" "$HOME/.gorse/dataset/github.bin.gz" /mnt/project-files/datasets/
+
+      # D-320: a debug run of pinterest_20_bpr alone took 85.1 min (run 42356303389, job
+      # 128355030247). The limit is 120 min, the ceiling the President set. The build of
+      # the Go oracle and the pinned tree runs inside this step, as in the suite steps.
+      - name: "suite metrics pinterest_20_bpr"
+        timeout-minutes: 120
+        run: scripts/parity.sh run metrics:only=pinterest_20_bpr
