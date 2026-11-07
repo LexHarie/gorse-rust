@@ -1,0 +1,76 @@
+name: probe ctr replay v3
+
+# Diagnostic only, not for merge (D-319). Shows which Go CPU-feature paths change the
+# pinned CTR replay on this runner, and whether Go's math.Exp/Log/Pow bits move with them.
+
+on:
+  push:
+    branches: [claude/probe-ctr-replay-v3]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  variants:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Host and pinned Go
+        run: |
+          grep -m1 "model name" /proc/cpuinfo
+          grep -m1 flags /proc/cpuinfo | tr ' ' '\n' | grep -E '^(fma|avx|avx2|sse4_1|avx512f)$' | tr '\n' ' '; echo
+      - name: Replay under each CPU-feature setting, against the golden
+        env:
+          GOTOOLCHAIN: go1.27.0
+          GOPROXY: https://proxy.golang.org
+          GOFLAGS: -mod=readonly
+        run: |
+          set -uo pipefail
+          P="$RUNNER_TEMP/pinned"; rm -rf "$P" && mkdir -p "$P"
+          git archive 2e9c969 | tar -x -C "$P"
+          cd "$P"
+          go build -o "$RUNNER_TEMP/modelreplay" ./contracts/tools/modelreplay
+          for g in "" "cpu.fma=off" "cpu.avx2=off" "cpu.avx=off" "cpu.sse41=off" "cpu.all=off"; do
+            name="${g:-default}"; out="$RUNNER_TEMP/rep-${name//[=.,]/_}"; mkdir -p "$out"
+            GODEBUG="randautoseed=0${g:+,$g}" "$RUNNER_TEMP/modelreplay" -mode ctr -epochs 5 -out "$out" >/dev/null 2>&1 || echo "exit $? ($name)"
+            if cmp -s "$out/afm_replay.json" crates/gorse-model/testdata/ctr/afm_replay.json; then echo "VARIANT $name: IDENTICAL to golden"; else echo "VARIANT $name: DIFFERS from golden at line $(cmp "$out/afm_replay.json" crates/gorse-model/testdata/ctr/afm_replay.json | awk '{print $NF}')"; fi
+          done
+      - name: Go math bits under each CPU-feature setting
+        env:
+          GOTOOLCHAIN: go1.27.0
+          GOFLAGS: -mod=readonly
+        run: |
+          set -uo pipefail
+          D="$RUNNER_TEMP/mathprobe"; mkdir -p "$D"
+          cat > "$D/main.go" <<'GO'
+          package main
+
+          import (
+          	"fmt"
+          	"math"
+          	"math/rand"
+          )
+
+          func main() {
+          	r := rand.New(rand.NewSource(7))
+          	h := [3]uint64{1469598103934665603, 1469598103934665603, 1469598103934665603}
+          	for i := 0; i < 2000000; i++ {
+          		x := (r.Float64() - 0.5) * 40
+          		v := [3]float64{math.Exp(x), math.Log(math.Abs(x) + 1e-3), math.Pow(1.0001, x)}
+          		for k := range v {
+          			h[k] ^= math.Float64bits(v[k])
+          			h[k] *= 1099511628211
+          		}
+          	}
+          	fmt.Printf("exp=%x log=%x pow=%x\n", h[0], h[1], h[2])
+          }
+          GO
+          cd "$D" && printf 'module mathprobe\n\ngo 1.27.0\n' > go.mod && go build -o probe . 
+          for g in "" "cpu.fma=off" "cpu.avx2=off" "cpu.avx=off" "cpu.sse41=off" "cpu.all=off"; do
+            echo "MATH ${g:-default}: $(GODEBUG="cpu.x=0${g:+,$g}" ./probe)"
+          done
