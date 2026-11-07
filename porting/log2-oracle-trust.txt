@@ -1,0 +1,46 @@
+# The trust listing of oracle_log2 (D-354, P4-10).
+# Source: CI run 42418357263 (job 128541284793), the g9 job on head e74fb16. The lines are the output of scripts/log2-trust.lean, with the CI timestamps removed.
+# Each line names a constant that the walk from main reaches and that is implemented_by, extern or csimp. The last line is the number of constants visited.
+# To regenerate: from proofs/, run lake build oracle_log2, then lake env lean ../scripts/log2-trust.lean.
+# The listing names no Mathlib constant: oracle_log2 imports only Lean's core library, so D-321 does not cover it. It is a snapshot, as the map and dot listings are.
+extern UInt32.ofNat
+extern Nat.pow
+extern Nat.mul
+extern Nat.add
+csimp Nat.rec _private.Init.Data.Nat.Basic.0.Nat.recCompiled
+extern Nat.mod
+extern Nat.modCore
+extern Nat.sub
+extern Nat.pred
+extern Nat.decLe
+extern Nat.ble
+extern Nat.decLt
+extern Nat.modCore._unary
+extern UInt32.mk
+extern Char.ofNatAux
+extern String.push
+csimp List.append List.appendTR
+extern String.mk
+extern IO.getStderr
+extern Nat.div
+extern Nat.div._unary
+csimp List.map List.mapTR
+implemented_by Nat.repr _private.Init.Data.Repr.0.Nat.reprFast
+extern Nat.decEq
+extern Nat.beq
+extern USize.ofNatCore
+extern System.Platform.getNumBits
+extern USize.mk
+extern USize.repr
+extern USize.toNat
+extern USize.toBitVec
+extern USize.ofNat
+extern Array.mk
+extern Array.get
+csimp List.length List.lengthTR
+extern Array.toList
+extern Array.size
+extern String.append
+extern IO.getStdout
+extern Nat.log2
+constants visited: 427

@@ -118,11 +118,61 @@ pub fn ndcg(target_set: &HashSet<i32>, rank_list: &[i32]) -> Option<f32> {
     Some(dcg / idcg)
 }
 
-/// Go's `math32.Log2`, which is `float32(math.Log2(float64(x)))`. The float64
-/// logarithm here is the standard library's, not Go's `math.Log` (O-3 in
+/// The binary32 values of log2 k for k = 2..=65, as bit patterns, entry k - 2. Each entry is the
+/// single rounding of the exact logarithm to binary32, which equals `f32(f64::log2(k))` (D-354).
+/// The Lean lemmas of Gorse.Spec.Log2Table prove the entries, and the G9 check of `oracle_log2`
+/// compares them bit for bit.
+pub const LOG2_TABLE: [u32; 64] = [
+    0x3F800000, 0x3FCAE00D, 0x40000000, 0x40149A78, 0x40257007, 0x4033ABB4, 0x40400000, 0x404AE00D,
+    0x40549A78, 0x405D6754, 0x40657007, 0x406CD401, 0x4073ABB4, 0x407A0A7F, 0x40800000, 0x4082CC7F,
+    0x40857007, 0x4087EF06, 0x408A4D3C, 0x408C8DDD, 0x408EB3AA, 0x4090C105, 0x4092B803, 0x40949A78,
+    0x40966A01, 0x4098280A, 0x4099D5DA, 0x409B7495, 0x409D053F, 0x409E88C7, 0x40A00000, 0x40A16BAD,
+    0x40A2CC7F, 0x40A42316, 0x40A57007, 0x40A6B3D8, 0x40A7EF06, 0x40A92204, 0x40AA4D3C, 0x40AB7111,
+    0x40AC8DDD, 0x40ADA3F6, 0x40AEB3AA, 0x40AFBD43, 0x40B0C105, 0x40B1BF31, 0x40B2B803, 0x40B3ABB4,
+    0x40B49A78, 0x40B58482, 0x40B66A01, 0x40B74B20, 0x40B8280A, 0x40B900E6, 0x40B9D5DA, 0x40BAA709,
+    0x40BB7495, 0x40BC3E9D, 0x40BD053F, 0x40BDC89A, 0x40BE88C7, 0x40BF45E1, 0x40C00000, 0x40C0B73D,
+];
+
+/// Go's `math32.Log2`, which is `float32(math.Log2(float64(x)))`. For the integers 2 to 65, which
+/// are the only arguments `ndcg` passes for rank lists of up to 64 entries, the value is read from
+/// `LOG2_TABLE`; it is the same value as the float64 logarithm rounded, checked by a unit test. Other
+/// arguments use the standard library's float64 logarithm, not Go's `math.Log` (O-3 in
 /// `PORTING_NOTES.md`); the rounding to float32 hides the difference.
 fn log2(x: f32) -> f32 {
+    if x.fract() == 0.0 && (2.0..=65.0).contains(&x) {
+        return f32::from_bits(LOG2_TABLE[x as usize - 2]);
+    }
     f64::from(x).log2() as f32
+}
+
+#[cfg(test)]
+mod log2_table_tests {
+    use super::{LOG2_TABLE, log2};
+
+    /// The table holds `f32(f64::log2(k))` for every k in 2..=65 (D-354), and `log2` reads it.
+    #[test]
+    fn test_log2_table_matches_float64_logarithm() {
+        for k in 2..=65u32 {
+            let libm = (k as f64).log2() as f32;
+            assert_eq!(
+                f32::from_bits(LOG2_TABLE[k as usize - 2]).to_bits(),
+                libm.to_bits(),
+                "table entry for k = {k}"
+            );
+            assert_eq!(log2(k as f32).to_bits(), libm.to_bits(), "log2({k})");
+        }
+    }
+
+    /// Arguments outside the table take the float64 logarithm. The guard of `log2` must send a
+    /// non-integer in range, and an integer outside it, to that path: a guard that reads `||` for
+    /// `&&`, or `!=` for `==`, reads the table for one of these and fails here.
+    #[test]
+    fn test_log2_outside_table_uses_float64_logarithm() {
+        for x in [1.0f32, 1.5, 2.5, 3.7, 65.5, 66.0, 100.0] {
+            let expected = (x as f64).log2() as f32;
+            assert_eq!(log2(x).to_bits(), expected.to_bits(), "log2({x})");
+        }
+    }
 }
 
 /// Go's `Precision`, written `P@|L|` (D-315, A3): the fraction of recommended items that

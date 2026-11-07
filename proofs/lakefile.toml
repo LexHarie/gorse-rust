@@ -39,3 +39,10 @@ root = "Oracle.Dot"
 [[lean_exe]]
 name = "oracle_map"
 root = "Oracle.Map"
+
+# The G9 oracle for the ndcg log table (D-354, P4-10). Built by `lake build oracle_log2`, and run by
+# scripts/check-oracle-log2.sh. It imports Lean's core library only, so the build does not compile
+# Mathlib.
+[[lean_exe]]
+name = "oracle_log2"
+root = "Oracle.Log2"

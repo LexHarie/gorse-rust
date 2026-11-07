@@ -82,6 +82,11 @@ jobs:
             scripts/check-statements.sh
           fi
 
+      - name: Check that the ndcg log table's Lean file is the generated file (D-354)
+        # scripts/gen-log2-table/gen.py writes proofs/Gorse/Spec/Log2Table.lean from the table of
+        # LOG2_TABLE in the Rust source, and --check fails when the committed file differs.
+        run: python3 scripts/gen-log2-table/gen.py --check
+
       - name: Run the independent kernels on the proofs (G2)
         timeout-minutes: 60
         run: scripts/check-kernels.sh
@@ -149,15 +154,20 @@ jobs:
         working-directory: proofs
         run: lake env lean ../scripts/dot-trust.lean
 
-      - name: Check the dot kernels against the oracle (G9, D-349)
+      - name: Check the dot kernels seq and avx against the oracle (G9, D-349)
         # The Rust kernels run at the levels the runner's CPU has, and the oracle runs in chunks.
+        # The avx512 model is checked by the g9-avx512 job, on the cases and the oracle output that
+        # this job uploads, so this runner may lack AVX-512 (D-351, P4-10).
+        env:
+          G9_DOT_MODELS: seq,avx
         run: scripts/check-oracle-dot.sh "$RUNNER_TEMP/g9-dot"
 
-      - name: Check that the AVX-512 kernel lies within the bound of dot_levels_close (P4-8, D-351)
-        # The AVX-512 kernel and the scalar loop must agree within the bound of the Lean theorem
-        # Gorse.Spec.DotLevels.dot_levels_close, on the pairs of the dot check above. The check fails
-        # on a CPU without AVX-512, so it cannot pass silently.
-        run: cargo run --release -q -p gorse-model --example g9_dot -- levels 4000
+      - name: Upload the dot cases and the oracle output for the g9-avx512 job (D-351, P4-10)
+        uses: actions/upload-artifact@v4
+        with:
+          name: g9-dot-results
+          path: ${{ runner.temp }}/g9-dot/
+          retention-days: 1
 
       - name: Check map against the oracle (G9, D-352)
         # The Rust map and the Lean twin Gorse.Spec.MapRat.mapQ on 100,000 seeded cases, in chunks of
@@ -170,3 +180,53 @@ jobs:
         # every proof source, and this file only lists them.
         working-directory: proofs
         run: lake env lean ../scripts/map-trust.lean
+
+      - name: Check the ndcg log table against the oracle (G9, D-354)
+        # The table LOG2_TABLE of the ndcg evaluator, for k = 2..65, against the oracle_log2 executable
+        # of the core library. Its build does not compile Mathlib.
+        run: scripts/check-oracle-log2.sh "$RUNNER_TEMP/g9-log2"
+
+      - name: List the trust base of the log2 oracle (D-354)
+        # Prints each implemented_by, extern and csimp target reached from main, the root of oracle_log2.
+        # The file is in scripts/, not in proofs/, because the G1 step 1 scan forbids those names in
+        # every proof source, and this file only lists them.
+        working-directory: proofs
+        run: lake env lean ../scripts/log2-trust.lean
+
+  g9-avx512:
+    name: The AVX-512 dot kernel against the oracle (G9, D-351)
+    # The AVX-512 steps of the g9 job, split out (the P4-10 ruling). A runner without AVX-512 costs a
+    # re-run of this job alone. It compares the cases and the oracle output that the g9 job uploads,
+    # so it needs no Lean toolchain and does not rebuild the oracle. The hard fail stays: a runner
+    # without AVX-512 fails the check, as D-351 requires. The emulated mode (Intel SDE) is pending a
+    # license decision and is not in this job.
+    needs: g9
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Download the dot cases and the oracle output from the g9 job
+        uses: actions/download-artifact@v4
+        with:
+          name: g9-dot-results
+          path: ${{ runner.temp }}/g9-dot
+
+      - name: Build the dot example
+        run: cargo build --release -q -p gorse-model --example g9_dot
+
+      - name: Check the avx512 model against the oracle (G9, D-349)
+        # The avx512 model on the cases of the g9 job. The check fails when this runner has no
+        # AVX-512 (D-351), and then the job reports the failure in its log.
+        run: |
+          target/release/examples/g9_dot check \
+            "$RUNNER_TEMP/g9-dot/cases.jsonl" "$RUNNER_TEMP/g9-dot/results.txt" avx512
+
+      - name: Check that the AVX-512 kernel lies within the bound of dot_levels_close (P4-8, D-351)
+        # The AVX-512 kernel and the scalar loop must agree within the bound of the Lean theorem
+        # Gorse.Spec.DotLevels.dot_levels_close, on the pairs of the dot check above. The check fails
+        # on a CPU without AVX-512, so it cannot pass silently.
+        run: target/release/examples/g9_dot levels 4000

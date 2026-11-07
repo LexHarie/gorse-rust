@@ -298,7 +298,7 @@ fn is_listed(model: &str, number: u64) -> bool {
         .any(|(n, m, _)| *n == number && *m == model)
 }
 
-fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
+fn check(cases_path: &str, results_path: &str, models: &[&str]) -> Result<bool, String> {
     let cases = BufReader::new(File::open(cases_path).map_err(|e| format!("{cases_path}: {e}"))?);
     let results =
         BufReader::new(File::open(results_path).map_err(|e| format!("{results_path}: {e}"))?);
@@ -329,6 +329,10 @@ fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
             .iter()
             .position(|m| *m == model)
             .ok_or_else(|| format!("unknown model {model}"))?;
+        // A model that is not in this run's list is not compared, and its line is not printed.
+        if !models.contains(&model) {
+            continue;
+        }
         let (feature, supported) = match model {
             "seq" => (Feature::NONE, true),
             "avx" => (Feature::AVX, avx),
@@ -368,6 +372,9 @@ fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
     }
     let mut clean = true;
     for (model, (compared, mismatches)) in MODELS.iter().zip(counts) {
+        if !models.contains(model) {
+            continue;
+        }
         let reason = match *model {
             "seq" => None,
             "avx" if !avx => Some("the CPU lacks AVX"),
@@ -388,7 +395,7 @@ fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
     }
     // The listed signed zeros are the whole check of the sign of a zero. On a runner with AVX-512,
     // every one of them must be compared and must match.
-    if avx512 {
+    if avx512 && models.contains(&"avx512") {
         println!(
             "signed zeros: {listed_matched} of {} listed cases matched",
             SIGNED_ZEROS.len()
@@ -509,7 +516,16 @@ fn run(args: &[String]) -> Result<bool, String> {
         Some("check") => {
             let cases = args.get(2).ok_or("check needs the cases path")?;
             let results = args.get(3).ok_or("check needs the results path")?;
-            check(cases, results)
+            // The models to compare, as a comma-separated list. All of them when none is given.
+            // The AVX-512 job checks `avx512` alone, and the main job checks `seq,avx` (D-351).
+            let models: Vec<&str> = match args.get(4) {
+                Some(list) => list.split(',').collect(),
+                None => MODELS.to_vec(),
+            };
+            if let Some(m) = models.iter().find(|m| !MODELS.contains(m)) {
+                return Err(format!("unknown model {m} in the model list"));
+            }
+            check(cases, results, &models)
         }
         Some("levels") => {
             let count = match args.get(2) {
