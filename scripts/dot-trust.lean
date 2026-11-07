@@ -4,7 +4,9 @@ import Oracle.Dot
 /-!
 # The trust listing of `oracle_dot` (D-349)
 
-Run in CI by `lake env lean Oracle/Trust.lean`, after `lake build oracle_dot`. The walk starts at
+Run in CI from `proofs/` by `lake env lean ../scripts/dot-trust.lean`, after `lake build oracle_dot`.
+It lives in `scripts/`, outside the proof tree, because it names the trust attributes it lists, and
+the G1 step 1 scan forbids those names in every file under `proofs/`. The walk starts at
 `Oracle.Dot.main` and follows the values of the definitions it reaches. It prints each constant
 whose code does not come from its own definition:
 

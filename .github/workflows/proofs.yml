@@ -135,9 +135,11 @@ jobs:
           printf '8388608 -23\n1 -149\n' | cmp - "$RUNNER_TEMP/dot-smoke.txt"
 
       - name: List the trust base of the dot oracle (D-349)
-        # Prints each implemented_by, extern and csimp target reached from Oracle.Dot.main.
+        # Prints each implemented_by, extern and csimp target reached from Oracle.Dot.main. The
+        # file is in scripts/, not in proofs/, because the G1 step 1 scan forbids those names in
+        # every proof source, and this file only lists them.
         working-directory: proofs
-        run: lake env lean Oracle/Trust.lean
+        run: lake env lean ../scripts/dot-trust.lean
 
       - name: Check the T1 metrics against the oracle (G9)
         run: scripts/check-oracle.sh "$RUNNER_TEMP/g9"
