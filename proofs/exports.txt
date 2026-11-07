@@ -14,3 +14,9 @@ Gorse.Spec.TopK.isTopK_weights_unique
 Gorse.Spec.TopK.isTopK_merge
 Gorse.Spec.TopK.topKFilter_correct
 Gorse.Oracle.TopKMirror.topK_eq
+Gorse.Spec.Float32.roundEven_sub_le
+Gorse.Spec.Float32.roundEven_intCast
+Gorse.Spec.Float32.rn_zero
+Gorse.Spec.Float32.ulpExp_ge
+Gorse.Spec.Float32.rn_of_grid
+Gorse.Spec.Float32.rn_sub_le
