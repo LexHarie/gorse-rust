@@ -206,7 +206,9 @@ theorem cert_fma {x y c e A : ℝ} {d N : ℕ} (hd : 2 * ((d : ℝ) + 1) * unitR
     mul_le_mul_of_nonneg_right hu_le (abs_nonneg _)
   have F5 : subnormalError ≤ (1 + unitRoundoff) ^ (d + 1) * subnormalError := by
     nlinarith [one_le_pow_unit (d + 1), eta_nonneg]
-  linarith
+  refine ⟨?_, ?_, add_nonneg hA (abs_nonneg _)⟩
+  · linarith
+  · exact le_trans (dot_abs_add_le e (x * y)) (by linarith)
 
 /-- Adding two grid values: the rounding adds `u` times the sum and no `η`. The inputs have
 depths at most `d`, and the output has depth `d + 1`. -/
@@ -265,7 +267,9 @@ theorem cert_add {c₁ c₂ e₁ e₂ A₁ A₂ : ℝ} {d₁ d₂ d N₁ N₂ : 
     ring
   have F3 : ((1 + unitRoundoff) * γ d + unitRoundoff) * (A₁ + A₂) ≤ γ (d + 1) * (A₁ + A₂) :=
     mul_le_mul_of_nonneg_right hsucc (by linarith)
-  linarith
+  refine ⟨?_, ?_, add_nonneg hA₁ hA₂⟩
+  · linarith
+  · exact le_trans (dot_abs_add_le e₁ e₂) (by linarith)
 
 theorem grid_rn (x : ℝ) : Grid (rn x) := rn_multiple x
 
