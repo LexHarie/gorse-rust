@@ -139,7 +139,7 @@ theorem lt_logb_of_exp_lt {k t : ℝ} (hk : 0 < k) (h : Real.exp (Real.log 2 * t
   nlinarith
 
 /-- The degree-11 Taylor sum of `exp y`, less its error bound, is below `exp y` on `[0, 1]`. -/
-theorem exp_lower {y : ℝ} (h0 : 0 ≤ y) (h1 : y ≤ 1) :
+theorem exp_lower (y : ℝ) (h0 : 0 ≤ y) (h1 : y ≤ 1) :
     (∑ i ∈ Finset.range 12, y ^ i / (Nat.factorial i : ℝ))
       - y ^ 12 * (13 / ((Nat.factorial 12 : ℝ) * 12)) ≤ Real.exp y := by
   have h := Real.exp_bound (x := y) (abs_le.mpr ⟨by linarith, h1⟩) (n := 12) (by norm_num)
@@ -149,7 +149,7 @@ theorem exp_lower {y : ℝ} (h0 : 0 ≤ y) (h1 : y ≤ 1) :
   linarith
 
 /-- The degree-11 Taylor sum of `exp y`, plus its error bound, is above `exp y` on `[0, 1]`. -/
-theorem exp_upper {y : ℝ} (h0 : 0 ≤ y) (h1 : y ≤ 1) :
+theorem exp_upper (y : ℝ) (h0 : 0 ≤ y) (h1 : y ≤ 1) :
     Real.exp y ≤
       (∑ i ∈ Finset.range 12, y ^ i / (Nat.factorial i : ℝ))
         + y ^ 12 * (13 / ((Nat.factorial 12 : ℝ) * 12)) := by
