@@ -1,5 +1,5 @@
 # The trust listing of oracle_dot (D-349, P4-7b).
-# Source: CI run 42373976570 (job 128407680756), the g9 job on head 41aefe2. The lines are the output of scripts/dot-trust.lean, with the CI timestamps removed.
+# Source: CI run 42379000564 (job 128422441530), the g9 job on head cddfd68. The lines are the output of scripts/dot-trust.lean, with the CI timestamps removed.
 # Each line names a constant that the walk from main reaches and that is implemented_by, extern or csimp. The last line is the number of constants visited.
 # To regenerate: from proofs/, run lake build oracle_dot, then lake env lean ../scripts/dot-trust.lean.
 extern UInt32.ofNat
@@ -120,4 +120,4 @@ csimp Nat.repeat Nat.repeatTR
 extern String.prev
 extern IO.getStdout
 extern IO.getStdin
-constants visited: 1938
+constants visited: 1940
