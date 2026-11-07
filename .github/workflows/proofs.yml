@@ -158,3 +158,15 @@ jobs:
         # Gorse.Spec.DotLevels.dot_levels_close, on the pairs of the dot check above. The check fails
         # on a CPU without AVX-512, so it cannot pass silently.
         run: cargo run --release -q -p gorse-model --example g9_dot -- levels 4000
+
+      - name: Check map against the oracle (G9, D-352)
+        # The Rust map and the Lean twin Gorse.Spec.MapRat.mapQ on 100,000 seeded cases, in chunks of
+        # 1,000 lines. The oracle builds with Mathlib from the cache, as the dot oracle does.
+        run: scripts/check-oracle-map.sh "$RUNNER_TEMP/g9-map"
+
+      - name: List the trust base of the map oracle (D-352)
+        # Prints each implemented_by, extern and csimp target reached from main, the root of oracle_map.
+        # The file is in scripts/, not in proofs/, because the G1 step 1 scan forbids those names in
+        # every proof source, and this file only lists them.
+        working-directory: proofs
+        run: lake env lean ../scripts/map-trust.lean

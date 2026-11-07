@@ -32,3 +32,10 @@ root = "Oracle.TopK"
 [[lean_exe]]
 name = "oracle_dot"
 root = "Oracle.Dot"
+
+# The G9 oracle for `map` (D-352, P4-9). Built by `lake build oracle_map`, and run by
+# scripts/check-oracle-map.sh. It imports Gorse.Spec.MapRat, which imports Float32Q and so builds
+# Mathlib from the cache, as oracle_dot does.
+[[lean_exe]]
+name = "oracle_map"
+root = "Oracle.Map"
