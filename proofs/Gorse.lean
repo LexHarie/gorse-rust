@@ -8,3 +8,4 @@ import Gorse.Spec.Float32Model
 import Gorse.Spec.Float32Q
 import Gorse.Spec.Dot
 import Gorse.Spec.DotAvx512
+import Gorse.Spec.DotAvx
