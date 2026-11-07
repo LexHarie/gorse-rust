@@ -111,3 +111,8 @@ jobs:
 
       - name: Check the T1 metrics against the oracle (G9)
         run: scripts/check-oracle.sh "$RUNNER_TEMP/g9"
+
+      - name: Check the top-k filter against the oracle (G9, D-335)
+        # The oracle_topk executable imports the computable mirror only, which is Lean's core
+        # library, so this build does not build Mathlib either.
+        run: scripts/check-oracle-topk.sh "$RUNNER_TEMP/g9-topk"

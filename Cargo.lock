@@ -1906,6 +1906,7 @@ dependencies = [
  "hex",
  "indexmap 2.14.2",
  "md-5 0.11.0",
+ "proptest",
  "prost",
  "regex",
  "reqwest 0.13.5",

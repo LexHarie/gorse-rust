@@ -18,3 +18,10 @@ name = "Gorse"
 [[lean_exe]]
 name = "oracle"
 root = "Oracle.Main"
+
+# The G9 oracle for the top-k filter (D-335). Built by `lake build oracle_topk`, and run by
+# scripts/check-oracle-topk.sh. It imports Gorse.Oracle.TopKMirror, which is Lean's core
+# library only, so the build does not compile Mathlib.
+[[lean_exe]]
+name = "oracle_topk"
+root = "Oracle.TopK"
