@@ -152,3 +152,9 @@ jobs:
       - name: Check the dot kernels against the oracle (G9, D-349)
         # The Rust kernels run at the levels the runner's CPU has, and the oracle runs in chunks.
         run: scripts/check-oracle-dot.sh "$RUNNER_TEMP/g9-dot"
+
+      - name: Check that the AVX-512 kernel lies within the bound of dot_levels_close (P4-8, D-351)
+        # The AVX-512 kernel and the scalar loop must agree within the bound of the Lean theorem
+        # Gorse.Spec.DotLevels.dot_levels_close, on the pairs of the dot check above. The check fails
+        # on a CPU without AVX-512, so it cannot pass silently.
+        run: cargo run --release -q -p gorse-model --example g9_dot -- levels 4000

@@ -9,6 +9,8 @@
 //!   g9_dot selftest                       check the decomposition of binary32 values
 //!   g9_dot gen <cases.jsonl> [count]      write `count` vector pairs, three cases for each
 //!   g9_dot check <cases.jsonl> <results>  compare the oracle's output with the Rust kernels
+//!   g9_dot levels [count] [scale]         the AVX-512 kernel against the scalar loop, within the
+//!                                         bound of `dot_levels_close` (P4-8, D-351)
 //!
 //! Each vector pair is written three times, for the models `seq` (the scalar loop, which is
 //! `Feature::NONE`), `avx` and `avx512`. The oracle computes each model's result, and the Rust
@@ -424,6 +426,71 @@ fn selftest() -> Result<(), String> {
     Ok(())
 }
 
+/// The depth of `dotAvx512` on `n` elements, as `depthAvx512` in Gorse.Spec.DotAvx512 (D-344).
+fn depth_avx512(n: u64) -> u64 {
+    let (epochs, rest) = (n / 16, n % 16);
+    if rest >= 8 {
+        (if epochs == 0 { 4 } else { epochs + 4 }) + 1 + (rest - 8)
+    } else {
+        (if epochs == 0 { 0 } else { epochs + 4 }) + rest
+    }
+}
+
+/// The bound of `Gorse.Spec.DotLevels.dot_levels_close` (P4-8, D-351) on the pair `(xs, ys)`:
+/// `(γ(depthAvx512 n) + γ n) · Σ|xᵢyᵢ| + 4 n η`, with `u = 2^-24`, `η = 2^-150` and `γ d = d u /
+/// (1 - d u)`. The products of binary32 values are exact in f64, so the sum is the only rounding
+/// here, and it is far below the slack of the bound. `scale` multiplies the bound.
+fn levels_bound(xs: &[f32], ys: &[f32], scale: f64) -> f64 {
+    let n = xs.len() as u64;
+    let u = 2f64.powi(-24);
+    let eta = 2f64.powi(-150);
+    let gamma = |d: u64| d as f64 * u / (1.0 - d as f64 * u);
+    let abs_sum: f64 = xs
+        .iter()
+        .zip(ys)
+        .map(|(x, y)| (f64::from(*x) * f64::from(*y)).abs())
+        .sum();
+    scale * ((gamma(depth_avx512(n)) + gamma(n)) * abs_sum + 4.0 * n as f64 * eta)
+}
+
+/// `levels <count> [scale]`: the AVX-512 kernel against the scalar loop, on the pairs that `gen`
+/// writes, with each gap within `levels_bound` (P4-8, D-351). A CPU without AVX-512 is not run, and
+/// that fails the check. `scale` multiplies the bound: CI uses 1, and a smaller scale shows that the
+/// check can fail.
+fn levels(count: u64, scale: f64) -> Result<bool, String> {
+    let cpu = Feature::detect(None);
+    if !cpu.contains(Feature::AVX512) {
+        println!("levels: not run, the CPU lacks AVX-512F, FMA or AVX");
+        return Ok(false);
+    }
+    let mut rng = Rng(SEED);
+    let mut over = 0u64;
+    let mut worst = 0f64;
+    for _ in 0..count {
+        let (xs, ys) = vector_pair(&mut rng);
+        let seq = Feature::NONE.dot(&xs, &ys);
+        let avx512 = Feature::AVX512.dot(&xs, &ys);
+        let bound = levels_bound(&xs, &ys, scale);
+        let gap = (f64::from(avx512) - f64::from(seq)).abs();
+        if bound > 0.0 {
+            worst = worst.max(gap / bound);
+        }
+        if gap > bound {
+            over += 1;
+            if over <= 10 {
+                eprintln!(
+                    "over the bound: {} elements, gap {gap:e}, bound {bound:e}",
+                    xs.len()
+                );
+            }
+        }
+    }
+    println!(
+        "levels: {count} pairs, avx512 against seq: {over} over the bound, largest gap {worst:.3} of the bound"
+    );
+    Ok(count > 0 && over == 0)
+}
+
 fn run(args: &[String]) -> Result<bool, String> {
     match args.get(1).map(String::as_str) {
         Some("selftest") => selftest().map(|()| true),
@@ -440,13 +507,38 @@ fn run(args: &[String]) -> Result<bool, String> {
             let results = args.get(3).ok_or("check needs the results path")?;
             check(cases, results)
         }
-        _ => Err("usage: g9_dot selftest | gen <cases> [count] | check <cases> <results>".into()),
+        Some("levels") => {
+            let count = match args.get(2) {
+                Some(c) => c.parse::<u64>().map_err(|e| format!("count: {e}"))?,
+                None => DEFAULT_COUNT,
+            };
+            let scale = match args.get(3) {
+                Some(s) => s.parse::<f64>().map_err(|e| format!("scale: {e}"))?,
+                None => 1.0,
+            };
+            levels(count, scale)
+        }
+        _ => Err(
+            "usage: g9_dot selftest | gen <cases> [count] | check <cases> <results> | levels [count] [scale]"
+                .into(),
+        ),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{SIGNED_ZEROS, expected_bits, is_listed};
+    use super::{SIGNED_ZEROS, depth_avx512, expected_bits, is_listed};
+
+    #[test]
+    fn the_depth_matches_the_lean_definition() {
+        // `depthAvx512` in Gorse.Spec.DotAvx512; the plan gives d = 5 for n = 16.
+        assert_eq!(depth_avx512(0), 0);
+        assert_eq!(depth_avx512(1), 1);
+        assert_eq!(depth_avx512(8), 5);
+        assert_eq!(depth_avx512(16), 5);
+        assert_eq!(depth_avx512(24), 6);
+        assert_eq!(depth_avx512(31), 13);
+    }
 
     #[test]
     fn an_unlisted_zero_expects_positive_zero_and_other_values_match_exactly() {
