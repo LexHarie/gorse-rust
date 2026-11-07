@@ -100,7 +100,9 @@ jobs:
 
       - name: "suite metrics"
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        timeout-minutes: 45
+        # D-320: a debug run of pinterest_20_bpr alone took 85 min (run 42356303389, job
+        # 128355030247). The limit is 120 min, the ceiling the President set.
+        timeout-minutes: 120
         run: scripts/parity.sh run metrics
 
       - name: "suite mixed_cli"

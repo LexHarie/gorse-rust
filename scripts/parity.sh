@@ -141,15 +141,6 @@ case "$cmd" in
           if [ "$name" = ctr_replay ]; then
             select_ctr_golden
           fi
-          # pinterest_20_bpr hung in run 42016135511 (job 127207028365): its
-          # output stopped after pinterest_20_als at 11:30:22Z, and the suite
-          # reached its 45-minute limit at 12:03:40Z with no result. It is
-          # skipped here until its cause is found. Exact match, so
-          # pinterest_20_bpr_one_job still runs. Recorded as D-320 in PORTING.md.
-          skip_args=()
-          if [ "$name" = metrics ]; then
-            skip_args=(--exact --skip pinterest_20_bpr)
-          fi
           # The pinned mixed_server test appends only the database name to MONGO_URI,
           # so the auth source is added for that suite alone. The subshell keeps the
           # change local, as run_golden does for MYSQL_URI.
@@ -158,7 +149,7 @@ case "$cmd" in
               export MONGO_URI="$MONGO_URI?authSource=admin"
             fi
             cargo_in_pinned_tree test -p gorse-conformance --test "$name" -- \
-              --include-ignored --test-threads=1 "${skip_args[@]}"
+              --include-ignored --test-threads=1
           ) || status=$?
         fi
       done
