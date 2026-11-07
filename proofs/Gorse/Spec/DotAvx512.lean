@@ -5,7 +5,7 @@ import Gorse.Spec.Dot
 `dotCore` models `dot` in common/floats/src/floats_avx512.c:306-366. Lane `j` of the 16-lane
 accumulator takes the elements `16 k + j` for `k < E`, where `E = n / 16`. The first epoch is
 `rn (x*y + 0) = rn (x*y)`, so every epoch is one fused step `rn (x*y + s)`. The 16 lanes are
-reduced by the tree 16 → 8 → 4 → 2 → 1 (floats_avx512.c:322-336). If `r = n % 16 ≥ 8`, an 8-block
+reduced by the tree 16 → 8 → 4 → 2 → 1 (floats_avx512.c:327-338). If `r = n % 16 ≥ 8`, an 8-block
 of products is reduced by the tree 8 → 4 → 2 → 1 and added. The rest is a scalar tail of fused
 steps (`-ffp-contract=on`, crates/gorse-kernels/build.rs).
 
@@ -27,36 +27,36 @@ noncomputable def elem (v : List (ℝ × ℝ)) (i : ℕ) : ℝ × ℝ := v.getD 
 noncomputable def fe (v : List (ℝ × ℝ)) (i : ℕ) : ℝ := (elem v i).1 * (elem v i).2
 
 /-- Lane `j` after `k` vector epochs: `s ← rn (x*y + s)` with the element `16 i + j`
-(floats_avx512.c:314-321). -/
+(floats_avx512.c:311-326). -/
 noncomputable def lane (v : List (ℝ × ℝ)) (j : ℕ) : ℕ → ℝ
   | 0 => 0
   | k + 1 => rn (fe v (16 * k + j) + lane v j k)
 
-/-- Lanes `j` and `j + 8` are added (floats_avx512.c:322-326). -/
+/-- Lanes `j` and `j + 8` are added (floats_avx512.c:327-329). -/
 noncomputable def red8 (s : ℕ → ℝ) (j : ℕ) : ℝ := rn (s j + s (j + 8))
 
-/-- Then `j` and `j + 4` (floats_avx512.c:327-330). -/
+/-- Then `j` and `j + 4` (floats_avx512.c:330-332). -/
 noncomputable def red4 (s : ℕ → ℝ) (j : ℕ) : ℝ := rn (red8 s j + red8 s (j + 4))
 
 /-- The horizontal reduction of 16 lanes: `(0,2)` and `(1,3)`, then their sum
-(floats_avx512.c:331-336). -/
+(floats_avx512.c:333-338). -/
 noncomputable def reduce16 (s : ℕ → ℝ) : ℝ :=
   rn (rn (red4 s 0 + red4 s 2) + rn (red4 s 1 + red4 s 3))
 
 /-- The rounded product of element `i`. -/
 noncomputable def prodR (v : List (ℝ × ℝ)) (i : ℕ) : ℝ := rn (fe v i)
 
-/-- Products `b + j` and `b + j + 4` are added (floats_avx512.c:343-347). -/
+/-- Products `b + j` and `b + j + 4` are added (floats_avx512.c:346-351). -/
 noncomputable def bl4 (v : List (ℝ × ℝ)) (b j : ℕ) : ℝ :=
   rn (prodR v (b + j) + prodR v (b + (j + 4)))
 
-/-- Then `j` and `j + 2` (floats_avx512.c:348-352). -/
+/-- Then `j` and `j + 2` (floats_avx512.c:352-354). -/
 noncomputable def bl2 (v : List (ℝ × ℝ)) (b j : ℕ) : ℝ := rn (bl4 v b j + bl4 v b (j + 2))
 
-/-- The 8-block: `bl2 0 + bl2 1` (floats_avx512.c:353-357). -/
+/-- The 8-block: `bl2 0 + bl2 1` (floats_avx512.c:355-358). -/
 noncomputable def block8 (v : List (ℝ × ℝ)) (b : ℕ) : ℝ := rn (bl2 v b 0 + bl2 v b 1)
 
-/-- The scalar tail: `m` fused steps from element `i` (floats_avx512.c:358-361). -/
+/-- The scalar tail: `m` fused steps from element `i` (floats_avx512.c:362-365). -/
 noncomputable def tailAux (v : List (ℝ × ℝ)) : ℕ → ℕ → ℝ → ℝ
   | _, 0, s => s
   | i, m + 1, s => tailAux v (i + 1) m (rn (fe v i + s))
