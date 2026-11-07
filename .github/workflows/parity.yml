@@ -7,7 +7,8 @@ name: parity
 # scripts/backends.env and the containers from storage/docker-compose.yml.
 #
 # Each suite is its own step with a 45-minute limit, so a hang shows as the
-# suite that is stuck. A failed or timed-out suite does not stop the next one.
+# suite that is stuck, except pinterest_20_bpr, which has a 120-minute step of its
+# own (D-320). A failed or timed-out suite does not stop the next one.
 
 on:
   release:
@@ -98,12 +99,19 @@ jobs:
         timeout-minutes: 45
         run: scripts/parity.sh run master_http_surface
 
+      # The metrics suite is split. pinterest_20_bpr has a step of its own below, and
+      # this step runs the other metrics tests with the 45-minute limit.
       - name: "suite metrics"
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        # D-320: a debug run of pinterest_20_bpr alone took 85 min (run 42356303389, job
-        # 128355030247). The limit is 120 min, the ceiling the President set.
+        timeout-minutes: 45
+        run: scripts/parity.sh run metrics:except=pinterest_20_bpr
+
+      # D-320: a debug run of pinterest_20_bpr alone took 85 min (run 42356303389, job
+      # 128355030247). The limit is 120 min, the ceiling the President set.
+      - name: "suite metrics pinterest_20_bpr"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 120
-        run: scripts/parity.sh run metrics
+        run: scripts/parity.sh run metrics:only=pinterest_20_bpr
 
       - name: "suite mixed_cli"
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
