@@ -1,0 +1,54 @@
+name: probe ctr replay v4
+
+# Diagnostic only, not for merge (D-319). Tests whether the pinned Go oracle's CTR replay
+# depends on the AVX-512 kernel selected in common/floats (floats_amd64.go reads CPUID through
+# golang.org/x/sys/cpu, which GODEBUG cpu.* toggles do not change). The "forced-avx" variant
+# disables only the AVX512F bit on the same host, so the AVX (AVX2) kernel runs.
+
+on:
+  push:
+    branches: [claude/probe-ctr-replay-v4]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  avx512-switch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Host
+        run: |
+          grep -m1 "model name" /proc/cpuinfo
+          grep -m1 flags /proc/cpuinfo | tr ' ' '\n' | grep -E '^(fma|avx|avx2|avx512f)$' | tr '\n' ' '; echo
+      - name: Replay with the natural and the forced-AVX kernel, against the golden
+        env:
+          GOTOOLCHAIN: go1.27.0
+          GOPROXY: https://proxy.golang.org
+          GOFLAGS: -mod=readonly
+        run: |
+          set -uo pipefail
+          for v in natural forced-avx; do
+            P="$RUNNER_TEMP/pinned-$v"; rm -rf "$P" && mkdir -p "$P"
+            git archive 2e9c969 | tar -x -C "$P"
+            if [ "$v" = forced-avx ]; then
+              sed -i 's/if cpu.X86.HasAVX512F {/if false \&\& cpu.X86.HasAVX512F {/' "$P/common/floats/floats_amd64.go"
+              echo "patched lines: $(grep -c 'if false && cpu.X86.HasAVX512F' "$P/common/floats/floats_amd64.go")"
+            fi
+            (cd "$P" && go build -o "$RUNNER_TEMP/modelreplay-$v" ./contracts/tools/modelreplay)
+            out="$RUNNER_TEMP/rep-$v"; mkdir -p "$out"
+            golden="$P/crates/gorse-model/testdata/ctr/afm_replay.json"
+            (cd "$P" && GODEBUG="randautoseed=0" "$RUNNER_TEMP/modelreplay-$v" -mode ctr -epochs 5 -out "$out" >/dev/null 2>&1) || echo "exit $? ($v)"
+            if cmp -s "$out/afm_replay.json" "$golden"; then
+              echo "VARIANT $v: IDENTICAL to golden"
+            else
+              echo "VARIANT $v: DIFFERS from golden at line $(cmp "$out/afm_replay.json" "$golden" | awk '{print $NF}')"
+            fi
+            echo "VARIANT $v sha256: $(sha256sum "$out/afm_replay.json" | cut -c1-16)"
+            echo "VARIANT $v differing bytes: $(cmp -l "$out/afm_replay.json" "$golden" 2>/dev/null | wc -l)"
+          done
