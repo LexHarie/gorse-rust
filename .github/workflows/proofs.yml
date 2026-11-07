@@ -86,6 +86,13 @@ jobs:
         timeout-minutes: 60
         run: scripts/check-kernels.sh
 
+      - name: Check the fusion of the dot kernels (D-344, D-345, D-346, D-347)
+        # scripts/check-disasm.sh compiles the three dot kernels with clang and the build.rs
+        # flags, and checks the fused operations each model assumes.
+        run: |
+          command -v clang >/dev/null || sudo apt-get install -y clang
+          scripts/check-disasm.sh
+
   g9:
     name: Lean oracle for the T1 metrics (G9)
     runs-on: ubuntu-24.04
