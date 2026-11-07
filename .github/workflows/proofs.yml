@@ -181,6 +181,18 @@ jobs:
         working-directory: proofs
         run: lake env lean ../scripts/map-trust.lean
 
+      - name: Check ndcg against the oracle (G9, D-356)
+        # The Rust ndcg and the Lean twin Gorse.Spec.NdcgRat.ndcgQ on 100,000 seeded cases, in chunks of
+        # 1,000 lines. The oracle builds with Mathlib from the cache, as the map oracle does.
+        run: scripts/check-oracle-ndcg.sh "$RUNNER_TEMP/g9-ndcg"
+
+      - name: List the trust base of the ndcg oracle (D-356)
+        # Prints each implemented_by, extern and csimp target reached from main, the root of oracle_ndcg.
+        # The file is in scripts/, not in proofs/, because the G1 step 1 scan forbids those names in
+        # every proof source, and this file only lists them.
+        working-directory: proofs
+        run: lake env lean ../scripts/ndcg-trust.lean
+
       - name: Check the ndcg log table against the oracle (G9, D-354)
         # The table LOG2_TABLE of the ndcg evaluator, for k = 2..65, against the oracle_log2 executable
         # of the core library. Its build does not compile Mathlib.
