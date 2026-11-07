@@ -1,7 +1,10 @@
 name: probe ctr replay host
 
-# Diagnostic only (D-319): runs the pinned CTR replay on this runner and compares
-# it with the committed golden, with the default and with cpu.fma=off. Manual.
+# Diagnostic only, not for merge (D-319 and D-320). Runs on push to its own branch.
+#   host-replay: the pinned CTR replay with the default and cpu.fma=off, outside cargo.
+#   ctr-parity: the parity path for ctr_replay, exactly as the parity job runs it.
+#   pinterest-bpr: pinterest_20_bpr alone, unskipped, in the debug profile the
+#     parity job uses, with its wall time. The step limit there is 45 minutes.
 
 on:
   push:
@@ -12,23 +15,16 @@ permissions:
   contents: read
 
 jobs:
-  probe:
+  host-replay:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - name: Check out the repository with history
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
           persist-credentials: false
-
-      - name: Host and toolchain
-        run: |
-          grep -m1 "model name" /proc/cpuinfo
-          grep -m1 flags /proc/cpuinfo | tr ' ' '\n' | grep -E '^(fma|avx2|avx512f)$' | sort -u
-          which go || true
-          go version || true
-
+      - name: Host
+        run: grep -m1 "model name" /proc/cpuinfo
       - name: Replay with the pinned Go, default and cpu.fma=off
         env:
           GOTOOLCHAIN: go1.27.0
@@ -36,21 +32,47 @@ jobs:
           GOFLAGS: -mod=readonly
         run: |
           set -euo pipefail
-          P="$RUNNER_TEMP/pinned"
-          rm -rf "$P" && mkdir -p "$P"
+          P="$RUNNER_TEMP/pinned"; rm -rf "$P" && mkdir -p "$P"
           git archive 2e9c969 | tar -x -C "$P"
           cd "$P"
-          go version
           go build -o "$RUNNER_TEMP/modelreplay" ./contracts/tools/modelreplay
           for mode in default fma-off; do
             out="$RUNNER_TEMP/replay-$mode"; mkdir -p "$out"
-            if [ "$mode" = fma-off ]; then G="randautoseed=0,cpu.fma=off"; else G="randautoseed=0"; fi
+            G="randautoseed=0"; [ "$mode" = fma-off ] && G="randautoseed=0,cpu.fma=off"
             GODEBUG="$G" "$RUNNER_TEMP/modelreplay" -mode ctr -epochs 5 -out "$out" >/dev/null 2>&1 || echo "exit $? ($mode)"
-            if cmp -s "$out/afm_replay.json" crates/gorse-model/testdata/ctr/afm_replay.json; then
-              echo "$mode: IDENTICAL to golden"
-            else
-              echo "$mode: DIFFERS from golden"
-              diff <(sed -n 2150,2154p crates/gorse-model/testdata/ctr/afm_replay.json) <(sed -n 2150,2154p "$out/afm_replay.json") || true
-              diff crates/gorse-model/testdata/ctr/afm_replay.json "$out/afm_replay.json" | grep -c '^<' || true
-            fi
+            if cmp -s "$out/afm_replay.json" crates/gorse-model/testdata/ctr/afm_replay.json; then echo "$mode: IDENTICAL to golden"; else echo "$mode: DIFFERS"; fi
           done
+
+  ctr-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Host
+        run: grep -m1 "model name" /proc/cpuinfo
+      - name: Build the Go oracle and run the ctr_replay suite as the parity job does
+        timeout-minutes: 50
+        run: scripts/parity.sh run ctr_replay
+
+  pinterest-bpr:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Host
+        run: grep -m1 "model name" /proc/cpuinfo
+      - name: pinterest_20_bpr alone, debug profile, unskipped, timed
+        run: |
+          set -euo pipefail
+          P="$RUNNER_TEMP/pinned"; rm -rf "$P" && mkdir -p "$P"
+          git archive 2e9c969 | tar -x -C "$P"
+          cd "$P"
+          start=$(date +%s)
+          cargo test -p gorse-conformance --test metrics -- --exact pinterest_20_bpr --nocapture --test-threads=1 || echo "exit $?"
+          echo "wall seconds for the test step: $(( $(date +%s) - start ))"
