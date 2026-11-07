@@ -1,0 +1,27 @@
+name: probe ctr replay v2
+
+# Diagnostic only, not for merge (D-319). Runs the ctr_replay parity suite exactly as
+# the parity job runs it, on the default branch's parity script, on push to this branch.
+
+on:
+  push:
+    branches: [claude/probe-ctr-replay-v2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ctr-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Host
+        run: grep -m1 "model name" /proc/cpuinfo
+      - name: Build the Go oracle and run the ctr_replay suite as the parity job does
+        timeout-minutes: 50
+        run: scripts/parity.sh run ctr_replay
