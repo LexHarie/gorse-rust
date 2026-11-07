@@ -12,7 +12,9 @@
 #   scripts/parity.sh dry-run         build, compile the suites, list them; starts no backend
 #   scripts/parity.sh run [NAME...]   build, then run the named suites (default: all), with
 #                                     ignored tests included; needs the backends of
-#                                     storage/docker-compose.yml
+#                                     storage/docker-compose.yml. A NAME may carry one test
+#                                     filter: SUITE:only=TEST runs that test alone, and
+#                                     SUITE:except=TEST runs the rest of SUITE (D-320)
 #
 # Environment:
 #   PARITY_DIR   scratch root (default: target/parity)
@@ -138,27 +140,29 @@ case "$cmd" in
         if [ "$name" = bench_golden ]; then
           run_golden || status=$?
         else
-          if [ "$name" = ctr_replay ]; then
+          # A NAME may carry one test filter after a colon. SUITE:only=TEST runs the test
+          # TEST alone; SUITE:except=TEST runs the rest of SUITE. Both match the name
+          # exactly, so pinterest_20_bpr_one_job is not caught by pinterest_20_bpr. D-320
+          # runs pinterest_20_bpr in a CI step of its own, with its own limit.
+          suite="${name%%:*}"
+          test_args=()
+          case "$name" in
+            *:only=*) test_args=(--exact "${name#*:only=}") ;;
+            *:except=*) test_args=(--exact --skip "${name#*:except=}") ;;
+            *:*) echo "parity: unknown filter in $name; use SUITE:only=TEST or SUITE:except=TEST" >&2; status=2; continue ;;
+          esac
+          if [ "$suite" = ctr_replay ]; then
             select_ctr_golden
-          fi
-          # pinterest_20_bpr hung in run 42016135511 (job 127207028365): its
-          # output stopped after pinterest_20_als at 11:30:22Z, and the suite
-          # reached its 45-minute limit at 12:03:40Z with no result. It is
-          # skipped here until its cause is found. Exact match, so
-          # pinterest_20_bpr_one_job still runs. Recorded as D-320 in PORTING.md.
-          skip_args=()
-          if [ "$name" = metrics ]; then
-            skip_args=(--exact --skip pinterest_20_bpr)
           fi
           # The pinned mixed_server test appends only the database name to MONGO_URI,
           # so the auth source is added for that suite alone. The subshell keeps the
           # change local, as run_golden does for MYSQL_URI.
           (
-            if [ "$name" = mixed_server ]; then
+            if [ "$suite" = mixed_server ]; then
               export MONGO_URI="$MONGO_URI?authSource=admin"
             fi
-            cargo_in_pinned_tree test -p gorse-conformance --test "$name" -- \
-              --include-ignored --test-threads=1 "${skip_args[@]}"
+            cargo_in_pinned_tree test -p gorse-conformance --test "$suite" -- \
+              --include-ignored --test-threads=1 "${test_args[@]}"
           ) || status=$?
         fi
       done
