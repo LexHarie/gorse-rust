@@ -43,12 +43,12 @@ theorem int_log_ratCast {q : ℚ} (hq : q ≠ 0) :
   have hA' : ((2 : ℕ) : ℝ) ^ Int.log 2 |q| ≤ |(q : ℝ)| := by
     have h : ((((2 : ℕ) : ℚ) ^ Int.log 2 |q| : ℚ) : ℝ) ≤ ((|q| : ℚ) : ℝ) := Rat.cast_le.mpr hA
     rw [rat_cast_zpow] at h
-    exact_mod_cast h
+    simpa using h
   have hB' : |(q : ℝ)| < ((2 : ℕ) : ℝ) ^ (Int.log 2 |q| + 1) := by
     have h : ((|q| : ℚ) : ℝ) < ((((2 : ℕ) : ℚ) ^ (Int.log 2 |q| + 1) : ℚ) : ℝ) :=
       Rat.cast_lt.mpr hB
     rw [rat_cast_zpow] at h
-    exact_mod_cast h
+    simpa using h
   have h1 : Int.log 2 |q| ≤ Int.log 2 |(q : ℝ)| :=
     (Int.zpow_le_iff_le_log (by norm_num) hpos).mp hA'
   have h2 : Int.log 2 |(q : ℝ)| < Int.log 2 |q| + 1 :=
@@ -60,7 +60,11 @@ rational is the floor of the same rational as a real, and each comparison of the
 rule holds over `ℚ` exactly when it holds over `ℝ`. -/
 theorem roundEven_ratCast (r : ℚ) : roundEven (r : ℝ) = roundEvenQ r := by
   have hf : ⌊(r : ℝ)⌋ = ⌊r⌋ := Rat.floor_cast r
-  have e : (r : ℝ) - ((⌊r⌋ : ℤ) : ℝ) = ((r - (⌊r⌋ : ℚ) : ℚ) : ℝ) := by norm_num
+  have e : (r : ℝ) - ((⌊r⌋ : ℤ) : ℝ) = ((r - (⌊r⌋ : ℚ) : ℚ) : ℝ) := by
+    first
+    | (simp only [Rat.cast_sub, Rat.cast_intCast]; done)
+    | (norm_cast; done)
+    | (push_cast; ring)
   have h12 : (1 / 2 : ℝ) = ((1 / 2 : ℚ) : ℝ) := by norm_num
   have c1 : (r : ℝ) - ((⌊r⌋ : ℤ) : ℝ) < 1 / 2 ↔ r - (⌊r⌋ : ℚ) < 1 / 2 := by
     rw [e, h12, Rat.cast_lt]
