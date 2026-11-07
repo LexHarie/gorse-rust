@@ -14,7 +14,8 @@ Each case is computed by the ℚ twin of the model (`Gorse.Spec.DotRat`, D-348).
 `m e`, which means the result is `m * 2^e`, with `e = ulpExpQ` (the unit in the last place) and `m`
 an integer below 2^24 in size. A result of zero is written as `0 0`, so the sign of zero is not
 written. A result that is not a multiple of its unit cannot come from `rnQ`, so the run stops with
-an error if one appears.
+an error if one appears. A result beyond the largest finite binary32 is an overflow, and the run
+also stops with an error. The overflow check looks at the final result only (see D-349).
 -/
 
 namespace Oracle.Dot
@@ -36,9 +37,16 @@ def parseList (j : Json) (field : String) : Except String (Array (Int × Int)) :
 /-- The rational value `m * 2^e` of an element. -/
 def valQ (p : Int × Int) : ℚ := (p.1 : ℚ) * (2 : ℚ) ^ p.2
 
+/-- The largest finite binary32 value, `(2 - 2^-23) * 2^127 = 2^128 - 2^104`. `rnQ` has no upper
+bound, so a result beyond this is an overflow, and the oracle refuses it rather than print it. -/
+def maxFiniteQ : ℚ := (2 : ℚ) ^ 128 - (2 : ℚ) ^ 104
+
 /-- The output of a result `q`: `m e` with `q = m * 2^e` and `e = ulpExpQ q`. A result that is
-not an integer multiple of its unit is refused, because it is not a binary32 value. -/
+not an integer multiple of its unit is refused, because it is not a binary32 value. A result
+beyond the largest finite binary32 is refused as an overflow. -/
 def fmtQ (q : ℚ) : Except String String := do
+  if q < -maxFiniteQ ∨ maxFiniteQ < q then
+    throw s!"overflow: {q} is beyond the largest finite binary32"
   if q = 0 then
     return "0 0"
   let e := ulpExpQ q
