@@ -116,6 +116,29 @@ jobs:
         working-directory: proofs
         run: lake build oracle
 
+      - name: Fetch the Mathlib cache for the dot oracle (D-349)
+        # oracle_dot imports Gorse.Spec.DotRat, which imports Mathlib (D-340). This is the fetch
+        # the g1 job does, so the build below does not compile Mathlib from source.
+        working-directory: proofs
+        run: lake exe cache get
+
+      - name: Build the dot oracle and smoke-test it (D-349)
+        # The computability test of D-349: the executable must build, and it must print the
+        # two expected lines. 8388608 -23 is 1.0 and 1 -149 is the least subnormal.
+        working-directory: proofs
+        run: |
+          lake build oracle_dot
+          printf '%s\n' \
+            '{"model":"seq","xs":[[1,0]],"ys":[[1,0]]}' \
+            '{"model":"seq","xs":[[1,-149]],"ys":[[1,0]]}' \
+            | .lake/build/bin/oracle_dot > "$RUNNER_TEMP/dot-smoke.txt"
+          printf '8388608 -23\n1 -149\n' | cmp - "$RUNNER_TEMP/dot-smoke.txt"
+
+      - name: List the trust base of the dot oracle (D-349)
+        # Prints each implemented_by, extern and csimp target reached from Oracle.Dot.main.
+        working-directory: proofs
+        run: lake env lean Oracle/Trust.lean
+
       - name: Check the T1 metrics against the oracle (G9)
         run: scripts/check-oracle.sh "$RUNNER_TEMP/g9"
 

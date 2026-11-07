@@ -25,3 +25,10 @@ root = "Oracle.Main"
 [[lean_exe]]
 name = "oracle_topk"
 root = "Oracle.TopK"
+
+# The G9 oracle for the dot kernels (D-349, P4-7). Built by `lake build oracle_dot`, and run by
+# scripts/check-oracle-dot.sh (P4-7d). It imports Gorse.Spec.DotRat, so it builds Mathlib from the
+# cache, as the g1 job does. The trust listing of the executable is run by `lake env lean Oracle/Trust.lean`.
+[[lean_exe]]
+name = "oracle_dot"
+root = "Oracle.Dot"
