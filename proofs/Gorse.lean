@@ -10,3 +10,4 @@ import Gorse.Spec.Dot
 import Gorse.Spec.DotAvx512
 import Gorse.Spec.DotAvx
 import Gorse.Spec.DotNeon
+import Gorse.Spec.DotRat
