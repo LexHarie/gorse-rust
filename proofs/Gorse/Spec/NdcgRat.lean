@@ -130,6 +130,7 @@ theorem decodeQ_cast (b : ℕ) : ((decodeQ b : ℚ) : ℝ) = decodeBits b := by
   rw [Rat.cast_mul, rat_cast_zpow]
   norm_num
 
+set_option maxHeartbeats 4000000 in
 /-- For each `k` of the table, `log2Q k` is the rounding of the exact logarithm, `rn (Real.logb 2 k)`,
 which the entry lemmas of `Gorse.Spec.Log2Table` prove. -/
 theorem log2Q_cast {k : ℕ} (h2 : 2 ≤ k) (h65 : k ≤ 65) :
