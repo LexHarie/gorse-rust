@@ -1,0 +1,101 @@
+# The trust listing of oracle_map (D-352, P4-9).
+# Source: CI run 42397656219 (job 128486702803), attempt 2 of the g9 job, on head a431a6d. The lines are the output of scripts/map-trust.lean, with the CI timestamps removed.
+# Each line names a constant that the walk from main reaches and that is implemented_by, extern or csimp. The last line is the number of constants visited.
+# To regenerate: from proofs/, run lake build oracle_map, then lake env lean ../scripts/map-trust.lean.
+# This listing is the trust base of the map oracle for D-321, as porting/dot-oracle-trust.txt is for the dot oracle (D-349).
+extern UInt32.ofNat
+extern Nat.pow
+extern Nat.mul
+extern Nat.add
+csimp Nat.rec _private.Init.Data.Nat.Basic.0.Nat.recCompiled
+csimp Nat.brecOn Nat.brecOn._@.Mathlib.Util.CompileInductive._hyg.3261
+extern Nat.mod
+extern Nat.modCore
+extern Nat.sub
+extern Nat.pred
+extern Nat.decLe
+csimp Bool.rec Bool.rec._@.Mathlib.Util.CompileInductive._hyg.3331
+extern Nat.ble
+extern Nat.decLt
+extern Nat.modCore._unary
+csimp WellFounded.fix _private.Batteries.WF.0.WellFounded.fixC
+csimp WellFounded.fixF _private.Batteries.WF.0.WellFounded.fixFC
+csimp Acc.rec _private.Batteries.WF.0.Acc.recC
+extern UInt32.mk
+implemented_by Nat.repr _private.Init.Data.Repr.0.Nat.reprFast
+extern Nat.decEq
+extern Nat.beq
+extern Nat.div
+extern Nat.div._unary
+extern Char.ofNatAux
+extern String.mk
+extern USize.ofNatCore
+extern System.Platform.getNumBits
+extern USize.mk
+extern USize.repr
+extern USize.toNat
+extern USize.toBitVec
+extern USize.ofNat
+csimp List.map List.mapTR
+csimp List.rec List.rec._@.Mathlib.Util.CompileInductive._hyg.3273
+csimp List.brecOn List.brecOn._@.Mathlib.Util.CompileInductive._hyg.3277
+extern Array.mk
+extern Array.get
+csimp List.length List.lengthTR
+extern Array.toList
+csimp False.rec False.rec._@.Mathlib.Util.CompileInductive._hyg.3321
+csimp Fin.rec Fin.rec._@.Mathlib.Util.CompileInductive._hyg.3776
+extern Array.size
+extern String.append
+csimp List.append List.appendTR
+csimp String.rec String.rec._@.Mathlib.Util.CompileInductive._hyg.3869
+extern String.push
+extern IO.getStderr
+csimp Empty.rec Empty.rec._@.Mathlib.Util.CompileInductive._hyg.3326
+extern String.utf8ByteSize
+extern UInt32.decLe
+extern UInt32.toBitVec
+extern UInt32.ofNatCore
+extern Int.decEq
+extern Int.negSucc
+extern Int.ofNat
+extern Int.natAbs
+extern Nat.gcd
+extern Nat.gcd._unary
+extern Int.mul
+extern Int.decLe
+extern Int.sub
+extern Int.neg
+extern Int.add
+extern _private.Init.Data.Int.Basic.0.Int.decNonneg
+extern Int.decLt
+extern Int.tdiv
+extern Int.ediv
+extern Int.emod
+csimp Option.rec Option.rec._@.Mathlib.Data.Option.Basic._hyg.3032
+extern String.decEq
+extern UInt32.decEq
+csimp BitVec.rec BitVec.rec._@.Mathlib.Util.CompileInductive._hyg.3772
+csimp UInt32.rec UInt32.rec._@.Mathlib.Util.CompileInductive._hyg.3814
+extern String.decLt
+extern String.data
+extern UInt32.decLt
+extern String.get'
+extern String.atEnd
+extern String.next'
+extern String.get
+extern String.next
+extern UInt32.sub
+extern UInt32.toNat
+csimp Prod.rec Prod.rec._@.Mathlib.Util.CompileInductive._hyg.3264
+extern String.length
+extern String.extract
+extern UInt32.add
+extern Array.push
+extern Array.mkEmpty
+csimp Nat.repeat Nat.repeatTR
+extern panicCore
+extern String.prev
+extern IO.getStdout
+extern IO.getStdin
+constants visited: 1774
