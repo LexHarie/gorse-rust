@@ -2,8 +2,8 @@
 //!
 //! The Lean executable (proofs/Oracle/Dot.lean) computes each dot product with the rounding of
 //! the model, over the rationals (the twins in Gorse.Spec.DotRat, D-348), and prints the binary32
-//! result as `m e`, meaning `m * 2^e`. `0 0` is +0.0. This example writes the cases, and compares
-//! the Rust kernels with the oracle's results bit for bit.
+//! result as `m e`, meaning `m * 2^e`, and `0 0` for every zero. This example writes the cases, and
+//! compares the Rust kernels with the oracle's results bit for bit, apart from the sign of a zero.
 //!
 //! Usage:
 //!   g9_dot selftest                       check the decomposition of binary32 values
@@ -20,7 +20,10 @@
 //! operands, and zeros. The lengths run from 0 to 64. The generator keeps every partial sum
 //! finite (see `MAX_ABS_SUM`), so the oracle never refuses an overflow.
 //!
-//! The kernels start from +0.0, so a negative zero from the Rust side is a mismatch.
+//! The sign of a zero is not compared. The oracle's rounding has no negative zero, so a negative
+//! product that underflows to zero comes out as +0 there. IEEE keeps that sign, and the fused
+//! AVX-512 tail adds the product to +0.0 and gives -0.0 (D-350). The negative zeros are counted and
+//! reported instead of compared.
 
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
@@ -259,6 +262,17 @@ fn oracle_bits(line: &str) -> Result<u32, String> {
     Ok(if m == 0 { 0 } else { f32_of(m, e).to_bits() })
 }
 
+/// Whether the Rust kernel's bits `rust` agree with the oracle's bits `oracle`. The oracle writes
+/// every zero as `0 0`, so it agrees with either zero from Rust. Any other value must match bit for
+/// bit.
+fn agrees(oracle: u32, rust: u32) -> bool {
+    if oracle == 0 {
+        (rust & 0x7fff_ffff) == 0
+    } else {
+        rust == oracle
+    }
+}
+
 fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
     let cases = BufReader::new(File::open(cases_path).map_err(|e| format!("{cases_path}: {e}"))?);
     let results =
@@ -273,8 +287,8 @@ fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
         yes_no(cpu.contains(Feature::FMA)),
         yes_no(avx512),
     );
-    // Per model: (cases compared, mismatches).
-    let mut counts = [(0u64, 0u64); MODELS.len()];
+    // Per model: (cases compared, mismatches, negative zeros that agreed with the oracle's zero).
+    let mut counts = [(0u64, 0u64, 0u64); MODELS.len()];
     let mut shown = 0;
     for (number, case) in cases.lines().enumerate() {
         let case = case.map_err(|e| e.to_string())?;
@@ -305,7 +319,11 @@ fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
         }
         let rust = feature.dot(&xs, &ys).to_bits();
         counts[index].0 += 1;
-        if rust != oracle {
+        if agrees(oracle, rust) {
+            if rust == 0x8000_0000 {
+                counts[index].2 += 1;
+            }
+        } else {
             counts[index].1 += 1;
             if shown < 20 {
                 eprintln!(
@@ -321,7 +339,7 @@ fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
         return Err("results have more lines than cases".to_string());
     }
     let mut clean = true;
-    for (model, (compared, mismatches)) in MODELS.iter().zip(counts) {
+    for (model, (compared, mismatches, negative_zeros)) in MODELS.iter().zip(counts) {
         let reason = match *model {
             "seq" => None,
             "avx" if !avx => Some("the CPU lacks AVX"),
@@ -331,7 +349,9 @@ fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
         match reason {
             Some(reason) => println!("{model}: not run, {reason}"),
             None => {
-                println!("{model}: {compared} cases, {mismatches} mismatches");
+                println!(
+                    "{model}: {compared} cases, {mismatches} mismatches, {negative_zeros} negative zeros"
+                );
                 clean &= compared > 0 && mismatches == 0;
             }
         }
@@ -388,6 +408,22 @@ fn run(args: &[String]) -> Result<bool, String> {
             check(cases, results)
         }
         _ => Err("usage: g9_dot selftest | gen <cases> [count] | check <cases> <results>".into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::agrees;
+
+    #[test]
+    fn a_zero_from_the_oracle_agrees_with_either_zero() {
+        assert!(agrees(0, 0));
+        assert!(agrees(0, 0x8000_0000));
+        assert!(agrees(0x3f80_0000, 0x3f80_0000));
+        assert!(!agrees(0x3f80_0000, 0x8000_0000));
+        assert!(!agrees(0x3f80_0000, 0));
+        assert!(!agrees(0, 0x3f80_0000));
+        assert!(!agrees(0, 1));
     }
 }
 
