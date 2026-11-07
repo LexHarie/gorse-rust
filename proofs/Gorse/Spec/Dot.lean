@@ -8,8 +8,9 @@ from 0, and for each pair it rounds the product, then rounds the sum. The operan
 
 This file has the definitions and four lemmas about `rn` on grid values. A grid value is an
 integer multiple of the subnormal unit `2^-149`. Every value of `rn` is a grid value, so
-partial sums and rounded products are grid values. The error induction and `dotSeq_err` are
-in later PRs (D-342, D-343). Decision D-341. -/
+partial sums and rounded products are grid values. `rn_idem` and the bounds on `rn x - x` are
+in D-342. The error bound `dotSeq_err` and its induction are at the end of this file (D-343).
+Decisions D-341, D-342 and D-343. -/
 
 namespace Gorse.Spec.Dot
 
@@ -336,5 +337,212 @@ theorem rn_idem (x : ℝ) : rn (rn x) = rn x := by
         · exact grid_of_le hdef hf
         · exact grid_of_gt hx hdef hy0 hsub hf
       exact rn_of_grid K hK
+
+/-! ### The error bound of the sequential dot product (P4-4 part 3, D-343)
+
+`dotSeq` satisfies `dotSeq (v ++ [p]) = rn (dotSeq v + rn (p.1 * p.2))` (`dotSeq_append`), so
+the induction runs over `List.reverseRecOn`. The first step is special: `rn (0 + rn p) = rn p`
+by `rn_idem`, which gives the constant `γ₁`. Later steps use `(1+u)γₘ + u ≤ γₘ₊₁` and
+`2u + u² ≤ γₘ₊₁` for `m ≥ 1`. -/
+
+/-- The sequential sum satisfies the append recursion: the last pair is processed last. -/
+theorem dotAux_append (v : List (ℝ × ℝ)) (s : ℝ) (p : ℝ × ℝ) :
+    dotAux (v ++ [p]) s = rn (dotAux v s + rn (p.1 * p.2)) := by
+  induction v generalizing s with
+  | nil => simp [dotAux]
+  | cons a w ih =>
+    simp only [List.cons_append, dotAux]
+    exact ih _
+
+/-- The append recursion of `dotSeq`. -/
+theorem dotSeq_append (v : List (ℝ × ℝ)) (p : ℝ × ℝ) :
+    dotSeq (v ++ [p]) = rn (dotSeq v + rn (p.1 * p.2)) :=
+  dotAux_append v 0 p
+
+/-- Every partial sum of `dotAux`, from a grid start, is a grid value. -/
+theorem dotAux_grid (v : List (ℝ × ℝ)) :
+    ∀ s : ℝ, (∃ k : ℤ, s = (k : ℝ) * (2 : ℝ) ^ (-149 : ℤ)) →
+      ∃ k : ℤ, dotAux v s = (k : ℝ) * (2 : ℝ) ^ (-149 : ℤ) := by
+  induction v with
+  | nil =>
+    intro s hs
+    simpa [dotAux] using hs
+  | cons a w ih =>
+    intro s _
+    simp only [dotAux]
+    exact ih _ (rn_multiple _)
+
+/-- The sequential dot product is a grid value. -/
+theorem dotSeq_grid (v : List (ℝ × ℝ)) :
+    ∃ k : ℤ, dotSeq v = (k : ℝ) * (2 : ℝ) ^ (-149 : ℤ) :=
+  dotAux_grid v 0 ⟨0, by simp⟩
+
+/-- The absolute value of a sum is at most the sum of the absolute values. -/
+theorem dot_abs_add_le (x y : ℝ) : |x + y| ≤ |x| + |y| :=
+  abs_le.mpr ⟨by linarith [neg_abs_le x, neg_abs_le y], by linarith [le_abs_self x, le_abs_self y]⟩
+
+/-- The exact dot product is at most the sum of the absolute products. -/
+theorem abs_exactSum_le (v : List (ℝ × ℝ)) :
+    |(v.map fun p => p.1 * p.2).sum| ≤ (v.map fun p => |p.1 * p.2|).sum := by
+  induction v with
+  | nil => simp
+  | cons a w ih =>
+    simp only [List.map_cons, List.sum_cons]
+    exact le_trans (dot_abs_add_le _ _) (by linarith [ih])
+
+/-- The sum of the absolute products is nonnegative. -/
+theorem sum_abs_nonneg (v : List (ℝ × ℝ)) : 0 ≤ (v.map fun p => |p.1 * p.2|).sum := by
+  induction v with
+  | nil => simp
+  | cons a w ih =>
+    simp only [List.map_cons, List.sum_cons]
+    exact add_nonneg (abs_nonneg _) ih
+
+/-- The constant `γ₁ = u / (1 - u)` is at least `u`. -/
+theorem unit_le_gamma_one : unitRoundoff ≤ γ 1 := by
+  have hu0 : (0 : ℝ) < unitRoundoff := by unfold unitRoundoff; positivity
+  have hu1 : unitRoundoff < 1 := by
+    unfold unitRoundoff
+    rw [zpow_neg]
+    norm_num
+  have hD : (0 : ℝ) < 1 - unitRoundoff := by linarith
+  have hγ : γ 1 = unitRoundoff / (1 - unitRoundoff) := by
+    unfold γ <;> push_cast <;> ring
+  rw [hγ]
+  first
+    | rw [le_div_iff₀ hD]
+    | rw [le_div_iff hD]
+  nlinarith [sq_nonneg unitRoundoff]
+
+/-- The step of the γ recursion: `(1+u)γₘ + u ≤ γₘ₊₁` when `2(m+1)u ≤ 1`. -/
+theorem gamma_succ_ge {m : ℕ} (hm : 2 * ((m : ℝ) + 1) * unitRoundoff ≤ 1) :
+    (1 + unitRoundoff) * γ m + unitRoundoff ≤ γ (m + 1) := by
+  have hu0 : (0 : ℝ) < unitRoundoff := by unfold unitRoundoff; positivity
+  have hmu : (0 : ℝ) ≤ (m : ℝ) * unitRoundoff := mul_nonneg (Nat.cast_nonneg m) hu0.le
+  have ha : (0 : ℝ) ≤ ((m : ℝ) + 1) * unitRoundoff := mul_nonneg (by positivity) hu0.le
+  have hD1 : (0 : ℝ) < 1 - (m : ℝ) * unitRoundoff := by nlinarith
+  have hD2 : (0 : ℝ) < 1 - ((m : ℝ) + 1) * unitRoundoff := by nlinarith
+  have hD12 : 1 - ((m : ℝ) + 1) * unitRoundoff ≤ 1 - (m : ℝ) * unitRoundoff := by nlinarith
+  have hD1ne : 1 - (m : ℝ) * unitRoundoff ≠ 0 := hD1.ne'
+  have e1 : (1 + unitRoundoff) * γ m + unitRoundoff
+      = ((m : ℝ) + 1) * unitRoundoff / (1 - (m : ℝ) * unitRoundoff) := by
+    unfold γ <;> field_simp <;> ring
+  have e2 : γ (m + 1) = ((m : ℝ) + 1) * unitRoundoff / (1 - ((m : ℝ) + 1) * unitRoundoff) := by
+    unfold γ <;> push_cast <;> ring
+  rw [e1, e2]
+  first
+    | exact div_le_div_of_nonneg_left ha hD2 hD12
+    | exact div_le_div_of_le_left ha hD2 hD12
+    | (rw [div_le_div_iff hD1 hD2]; nlinarith)
+
+/-- The second step of the γ recursion: `2u + u² ≤ γₘ₊₁` for `m ≥ 1`. -/
+theorem gamma_two_u {m : ℕ} (hm1 : 1 ≤ m) (hm : 2 * ((m : ℝ) + 1) * unitRoundoff ≤ 1) :
+    2 * unitRoundoff + unitRoundoff ^ 2 ≤ γ (m + 1) := by
+  have hu0 : (0 : ℝ) < unitRoundoff := by unfold unitRoundoff; positivity
+  have hm1R : (1 : ℝ) ≤ (m : ℝ) := by exact_mod_cast hm1
+  have hc0 : (0 : ℝ) ≤ ((m : ℝ) + 1) * unitRoundoff := mul_nonneg (by positivity) hu0.le
+  have hc2 : 2 * unitRoundoff ≤ ((m : ℝ) + 1) * unitRoundoff := by nlinarith
+  have hcu : unitRoundoff ≤ ((m : ℝ) + 1) * unitRoundoff := by linarith
+  have hcD : (0 : ℝ) < 1 - ((m : ℝ) + 1) * unitRoundoff := by linarith
+  have hγ : γ (m + 1) = ((m : ℝ) + 1) * unitRoundoff / (1 - ((m : ℝ) + 1) * unitRoundoff) := by
+    unfold γ <;> push_cast <;> ring
+  have hlow : ((m : ℝ) + 1) * unitRoundoff + (((m : ℝ) + 1) * unitRoundoff) ^ 2
+      ≤ ((m : ℝ) + 1) * unitRoundoff / (1 - ((m : ℝ) + 1) * unitRoundoff) := by
+    first
+      | rw [le_div_iff₀ hcD]
+      | rw [le_div_iff hcD]
+    nlinarith [pow_nonneg hc0 3]
+  have hsq : unitRoundoff ^ 2 ≤ (((m : ℝ) + 1) * unitRoundoff) ^ 2 := by
+    first
+      | exact pow_le_pow_left hu0.le hcu 2
+      | nlinarith
+  rw [hγ]
+  linarith [hlow, hc2, hsq]
+
+/-- The one-step error combination. Writing `s` for the computed sum, `q` for the rounded
+product, `S` and `A` for the exact sum and the sum of absolute products of the earlier pairs,
+the new error is at most `γn (A + |P|) + 2(m+1)e0`, given the γ facts and the η count. -/
+theorem dot_step_bound {u e0 m γm γn s q P S A r : ℝ} (hu : 0 ≤ u) (he0 : 0 ≤ e0) (hA : 0 ≤ A)
+    (hS : |S| ≤ A) (hq : |q - P| ≤ u * |P| + e0) (hr : |r - (s + q)| ≤ u * |s + q|)
+    (hE : |s - S| ≤ γm * A + 2 * m * e0) (hγA : (1 + u) * γm + u ≤ γn)
+    (hγP : 2 * u + u ^ 2 ≤ γn) (hm : (1 + u) * (2 * m + 1) ≤ 2 * (m + 1)) :
+    |r - (S + P)| ≤ γn * (A + |P|) + 2 * (m + 1) * e0 := by
+  have hP0 : 0 ≤ |P| := abs_nonneg P
+  have h1 : |s| ≤ |S| + |s - S| := by
+    have h := dot_abs_add_le S (s - S)
+    rwa [show S + (s - S) = s by ring] at h
+  have h2 : |q| ≤ |P| + |q - P| := by
+    have h := dot_abs_add_le P (q - P)
+    rwa [show P + (q - P) = q by ring] at h
+  have hsq : |s + q| ≤ A + |s - S| + (1 + u) * |P| + e0 := by
+    have h3 := dot_abs_add_le s q
+    nlinarith [hq, hS, h1, h2, h3]
+  have hdec : |r - (S + P)| ≤ |r - (s + q)| + |s - S| + |q - P| := by
+    have e1 : r - (S + P) = (r - (s + q)) + (s - S) + (q - P) := by ring
+    rw [e1]
+    have h4 := dot_abs_add_le ((r - (s + q)) + (s - S)) (q - P)
+    have h5 := dot_abs_add_le (r - (s + q)) (s - S)
+    linarith
+  have h3 : u * |s + q| ≤ u * (A + |s - S| + (1 + u) * |P| + e0) :=
+    mul_le_mul_of_nonneg_left hsq hu
+  have h4 : (1 + u) * |s - S| ≤ (1 + u) * (γm * A + 2 * m * e0) :=
+    mul_le_mul_of_nonneg_left hE (by linarith)
+  have hA' : ((1 + u) * γm + u) * A ≤ γn * A := mul_le_mul_of_nonneg_right hγA hA
+  have hP' : (2 * u + u ^ 2) * |P| ≤ γn * |P| := mul_le_mul_of_nonneg_right hγP hP0
+  have hη' : (1 + u) * (2 * m + 1) * e0 ≤ 2 * (m + 1) * e0 :=
+    mul_le_mul_of_nonneg_right hm he0
+  nlinarith [hdec, hr, hq, h3, h4, hA', hP', hη']
+
+/-- The induction for `dotSeq_err`, on the append form of `dotSeq`. -/
+theorem dotSeq_err_aux (v : List (ℝ × ℝ)) :
+    2 * (v.length : ℝ) * unitRoundoff ≤ 1 →
+      |dotSeq v - (v.map fun p => p.1 * p.2).sum|
+        ≤ γ v.length * (v.map fun p => |p.1 * p.2|).sum + 2 * v.length * subnormalError := by
+  induction v using List.reverseRecOn
+  · intro _
+    simp [dotSeq, dotAux, γ]
+  · rename_i v p ih
+    intro hn
+    have hL : (v ++ [p]).length = v.length + 1 := by simp
+    rw [hL] at hn ⊢
+    push_cast at hn ⊢
+    have hS : ((v ++ [p]).map fun q => q.1 * q.2).sum
+        = (v.map fun q => q.1 * q.2).sum + p.1 * p.2 := by simp
+    have hA : ((v ++ [p]).map fun q => |q.1 * q.2|).sum
+        = (v.map fun q => |q.1 * q.2|).sum + |p.1 * p.2| := by simp
+    rw [hS, hA, dotSeq_append]
+    have hu0 : (0 : ℝ) < unitRoundoff := by unfold unitRoundoff; positivity
+    have he0 : (0 : ℝ) ≤ subnormalError := by unfold subnormalError; positivity
+    by_cases hv : v = []
+    · subst hv
+      have hd : dotSeq [] = 0 := by simp [dotSeq, dotAux]
+      rw [hd, zero_add, rn_idem]
+      have h1 := rn_err_all (p.1 * p.2)
+      have h2 : unitRoundoff * |p.1 * p.2| ≤ γ 1 * |p.1 * p.2| :=
+        mul_le_mul_of_nonneg_right unit_le_gamma_one (abs_nonneg _)
+      simp only [List.map_nil, List.sum_nil, List.length_nil, zero_add, Nat.cast_zero]
+      linarith [h1, h2, he0]
+    · have hm1 : 1 ≤ v.length := by
+        cases v with
+        | nil => exact absurd rfl hv
+        | cons a w => simp
+      have hm1R : (1 : ℝ) ≤ (v.length : ℝ) := by exact_mod_cast hm1
+      have hn' : 2 * (v.length : ℝ) * unitRoundoff ≤ 1 := by nlinarith
+      have hE := ih hn'
+      have hr := rn_add_grid_err (dotSeq_grid v) (rn_multiple (p.1 * p.2))
+      have hP := rn_err_all (p.1 * p.2)
+      have hγA := gamma_succ_ge (m := v.length) hn
+      have hγP := gamma_two_u hm1 hn
+      have hm' : (1 + unitRoundoff) * (2 * (v.length : ℝ) + 1) ≤ 2 * ((v.length : ℝ) + 1) := by
+        nlinarith
+      exact dot_step_bound hu0.le he0 (sum_abs_nonneg v) (abs_exactSum_le v) hP hr hE hγA hγP hm'
+
+/-- The sequential dot product error bound: for a list of pairs with `2 n u ≤ 1`, where `n` is
+the length, the computed sum differs from the exact sum by at most `γₙ Σ|xᵢyᵢ| + 2 n η`. No
+overflow hypothesis is used, since `rn` is defined on an unbounded grid (D-337). -/
+theorem dotSeq_err (v : List (ℝ × ℝ)) (hn : 2 * (v.length : ℝ) * unitRoundoff ≤ 1) :
+    |dotSeq v - (v.map fun p => p.1 * p.2).sum|
+      ≤ γ v.length * (v.map fun p => |p.1 * p.2|).sum + 2 * v.length * subnormalError :=
+  dotSeq_err_aux v hn
 
 end Gorse.Spec.Dot

@@ -34,3 +34,16 @@ Gorse.Spec.Dot.rn_err_all
 Gorse.Spec.Dot.grid_of_le
 Gorse.Spec.Dot.grid_of_gt
 Gorse.Spec.Dot.rn_idem
+Gorse.Spec.Dot.dotAux_append
+Gorse.Spec.Dot.dotSeq_append
+Gorse.Spec.Dot.dotAux_grid
+Gorse.Spec.Dot.dotSeq_grid
+Gorse.Spec.Dot.dot_abs_add_le
+Gorse.Spec.Dot.abs_exactSum_le
+Gorse.Spec.Dot.sum_abs_nonneg
+Gorse.Spec.Dot.unit_le_gamma_one
+Gorse.Spec.Dot.gamma_succ_ge
+Gorse.Spec.Dot.gamma_two_u
+Gorse.Spec.Dot.dot_step_bound
+Gorse.Spec.Dot.dotSeq_err_aux
+Gorse.Spec.Dot.dotSeq_err
