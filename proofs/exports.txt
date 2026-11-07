@@ -30,3 +30,7 @@ Gorse.Spec.Dot.rn_multiple
 Gorse.Spec.Dot.rn_add_grid_subnormal
 Gorse.Spec.Dot.rn_err_normal
 Gorse.Spec.Dot.rn_add_grid_err
+Gorse.Spec.Dot.rn_err_all
+Gorse.Spec.Dot.grid_of_le
+Gorse.Spec.Dot.grid_of_gt
+Gorse.Spec.Dot.rn_idem
