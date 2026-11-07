@@ -162,6 +162,17 @@ mod log2_table_tests {
             assert_eq!(log2(k as f32).to_bits(), libm.to_bits(), "log2({k})");
         }
     }
+
+    /// Arguments outside the table take the float64 logarithm. The guard of `log2` must send a
+    /// non-integer in range, and an integer outside it, to that path: a guard that reads `||` for
+    /// `&&`, or `!=` for `==`, reads the table for one of these and fails here.
+    #[test]
+    fn test_log2_outside_table_uses_float64_logarithm() {
+        for x in [1.0f32, 1.5, 2.5, 3.7, 65.5, 66.0, 100.0] {
+            let expected = (x as f64).log2() as f32;
+            assert_eq!(log2(x).to_bits(), expected.to_bits(), "log2({x})");
+        }
+    }
 }
 
 /// Go's `Precision`, written `P@|L|` (D-315, A3): the fraction of recommended items that
