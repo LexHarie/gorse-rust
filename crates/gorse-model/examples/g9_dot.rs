@@ -20,10 +20,11 @@
 //! operands, and zeros. The lengths run from 0 to 64. The generator keeps every partial sum
 //! finite (see `MAX_ABS_SUM`), so the oracle never refuses an overflow.
 //!
-//! The sign of a zero is not compared. The oracle's rounding has no negative zero, so a negative
-//! product that underflows to zero comes out as +0 there. IEEE keeps that sign, and the fused
-//! AVX-512 tail adds the product to +0.0 and gives -0.0 (D-350). The negative zeros are counted and
-//! reported instead of compared.
+//! The sign of a zero. The oracle prints every zero as `0 0`, because its rounding `rnQ` has no
+//! negative zero. So the oracle does not say which sign IEEE gives. The check compares every result
+//! bit for bit with the oracle's bits, except for the four cases in `SIGNED_ZEROS`. Those expect
+//! -0.0, and each sign is derived by hand from IEEE round-to-nearest (D-350). So G9 checks the sign
+//! of a zero only on those listed cases.
 
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
@@ -262,15 +263,37 @@ fn oracle_bits(line: &str) -> Result<u32, String> {
     Ok(if m == 0 { 0 } else { f32_of(m, e).to_bits() })
 }
 
-/// Whether the Rust kernel's bits `rust` agree with the oracle's bits `oracle`. The oracle writes
-/// every zero as `0 0`, so it agrees with either zero from Rust. Any other value must match bit for
-/// bit.
-fn agrees(oracle: u32, rust: u32) -> bool {
-    if oracle == 0 {
-        (rust & 0x7fff_ffff) == 0
-    } else {
-        rust == oracle
+/// The cases whose expected result is -0.0, although the oracle prints `0 0`: the case number
+/// (1-based, in the cases file), the model, and the expected bits. Each sign is derived by hand from
+/// IEEE round-to-nearest, not from the Rust output (D-350).
+const SIGNED_ZEROS: [(u64, &str, u32); 4] = [
+    (2799, "avx512", 0x8000_0000),
+    (3012, "avx512", 0x8000_0000),
+    (4608, "avx512", 0x8000_0000),
+    (7032, "avx512", 0x8000_0000),
+];
+
+/// The bits that case `number` (1-based) of `model` must produce, given the oracle's bits. A listed
+/// case must be a zero in the oracle, and its bits come from `SIGNED_ZEROS`. Every other case must
+/// match the oracle bit for bit.
+fn expected_bits(model: &str, number: u64, oracle: u32) -> Result<u32, String> {
+    match SIGNED_ZEROS
+        .iter()
+        .find(|(n, m, _)| *n == number && *m == model)
+    {
+        Some((_, _, bits)) if oracle == 0 => Ok(*bits),
+        Some(_) => Err(format!(
+            "case {number} is listed as a signed zero, but the oracle prints a nonzero result"
+        )),
+        None => Ok(oracle),
     }
+}
+
+/// Whether case `number` (1-based) of `model` is one of the listed signed zeros.
+fn is_listed(model: &str, number: u64) -> bool {
+    SIGNED_ZEROS
+        .iter()
+        .any(|(n, m, _)| *n == number && *m == model)
 }
 
 fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
@@ -287,8 +310,10 @@ fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
         yes_no(cpu.contains(Feature::FMA)),
         yes_no(avx512),
     );
-    // Per model: (cases compared, mismatches, negative zeros that agreed with the oracle's zero).
-    let mut counts = [(0u64, 0u64, 0u64); MODELS.len()];
+    // Per model: (cases compared, mismatches).
+    let mut counts = [(0u64, 0u64); MODELS.len()];
+    // The listed signed zeros that matched.
+    let mut listed_matched = 0u64;
     let mut shown = 0;
     for (number, case) in cases.lines().enumerate() {
         let case = case.map_err(|e| e.to_string())?;
@@ -309,6 +334,8 @@ fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
             other => return Err(format!("unknown model {other}")),
         };
         let oracle = oracle_bits(result.trim())?;
+        let case_number = number as u64 + 1;
+        let expected = expected_bits(model, case_number, oracle)?;
         if !supported {
             continue;
         }
@@ -319,16 +346,15 @@ fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
         }
         let rust = feature.dot(&xs, &ys).to_bits();
         counts[index].0 += 1;
-        if agrees(oracle, rust) {
-            if rust == 0x8000_0000 {
-                counts[index].2 += 1;
+        if rust == expected {
+            if is_listed(model, case_number) {
+                listed_matched += 1;
             }
         } else {
             counts[index].1 += 1;
             if shown < 20 {
                 eprintln!(
-                    "mismatch {model} case {}: oracle {oracle:#010x} rust {rust:#010x} ({} elements)",
-                    number + 1,
+                    "mismatch {model} case {case_number}: expected {expected:#010x} rust {rust:#010x} ({} elements)",
                     xs.len()
                 );
                 shown += 1;
@@ -339,7 +365,7 @@ fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
         return Err("results have more lines than cases".to_string());
     }
     let mut clean = true;
-    for (model, (compared, mismatches, negative_zeros)) in MODELS.iter().zip(counts) {
+    for (model, (compared, mismatches)) in MODELS.iter().zip(counts) {
         let reason = match *model {
             "seq" => None,
             "avx" if !avx => Some("the CPU lacks AVX"),
@@ -349,12 +375,19 @@ fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
         match reason {
             Some(reason) => println!("{model}: not run, {reason}"),
             None => {
-                println!(
-                    "{model}: {compared} cases, {mismatches} mismatches, {negative_zeros} negative zeros"
-                );
+                println!("{model}: {compared} cases, {mismatches} mismatches");
                 clean &= compared > 0 && mismatches == 0;
             }
         }
+    }
+    // The listed signed zeros are the whole check of the sign of a zero. On a runner with AVX-512,
+    // every one of them must be compared and must match.
+    if avx512 {
+        println!(
+            "signed zeros: {listed_matched} of {} listed cases matched",
+            SIGNED_ZEROS.len()
+        );
+        clean &= listed_matched == SIGNED_ZEROS.len() as u64;
     }
     Ok(clean)
 }
@@ -413,17 +446,30 @@ fn run(args: &[String]) -> Result<bool, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::agrees;
+    use super::{SIGNED_ZEROS, expected_bits, is_listed};
 
     #[test]
-    fn a_zero_from_the_oracle_agrees_with_either_zero() {
-        assert!(agrees(0, 0));
-        assert!(agrees(0, 0x8000_0000));
-        assert!(agrees(0x3f80_0000, 0x3f80_0000));
-        assert!(!agrees(0x3f80_0000, 0x8000_0000));
-        assert!(!agrees(0x3f80_0000, 0));
-        assert!(!agrees(0, 0x3f80_0000));
-        assert!(!agrees(0, 1));
+    fn an_unlisted_zero_expects_positive_zero_and_other_values_match_exactly() {
+        // A negative zero where the oracle prints 0 0 is a mismatch, because it is not listed.
+        assert_eq!(expected_bits("avx512", 1, 0), Ok(0));
+        assert_ne!(expected_bits("avx512", 1, 0), Ok(0x8000_0000));
+        assert_eq!(expected_bits("seq", 2799, 0), Ok(0));
+        assert_eq!(expected_bits("avx512", 2800, 0x3f80_0000), Ok(0x3f80_0000));
+    }
+
+    #[test]
+    fn the_four_listed_cases_expect_negative_zero() {
+        assert_eq!(SIGNED_ZEROS.len(), 4);
+        for case in [2799, 3012, 4608, 7032] {
+            assert!(is_listed("avx512", case));
+            assert_eq!(expected_bits("avx512", case, 0), Ok(0x8000_0000));
+            assert!(!is_listed("seq", case));
+        }
+    }
+
+    #[test]
+    fn a_listed_case_must_be_a_zero_in_the_oracle() {
+        assert!(expected_bits("avx512", 2799, 0x3f80_0000).is_err());
     }
 }
 
