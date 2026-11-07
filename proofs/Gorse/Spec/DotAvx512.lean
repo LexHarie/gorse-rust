@@ -137,7 +137,7 @@ theorem gamma_nonneg {d : ℕ} (hd : 2 * ((d : ℝ) + 1) * unitRoundoff ≤ 1) :
 theorem gamma_mono {d e : ℕ} (hde : d ≤ e) (he : 2 * ((e : ℝ) + 1) * unitRoundoff ≤ 1) :
     γ d ≤ γ e := by
   have hdu : (d : ℝ) * unitRoundoff ≤ (e : ℝ) * unitRoundoff := by
-    apply mul_le_mul_of_nonneg_right _ u_nonneg
+    refine mul_le_mul_of_nonneg_right ?_ u_nonneg
     exact_mod_cast hde
   have heu : 2 * ((e : ℝ) * unitRoundoff) ≤ 1 := by nlinarith [u_nonneg]
   have hD1 : (0 : ℝ) < 1 - (d : ℝ) * unitRoundoff := by linarith
