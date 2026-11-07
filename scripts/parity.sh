@@ -74,6 +74,32 @@ cargo_in_pinned_tree() {
   (cd "$SRC" && CARGO_TARGET_DIR="$SCRATCH/target" cargo "$@")
 }
 
+# The CTR replay golden depends on the CPU (D-319). The pinned Go oracle's float
+# kernels (common/floats) use the AVX-512 kernels when the CPU has AVX-512F, AVX and
+# FMA, and the AVX kernels otherwise, and the two round differently. The pinned
+# golden, afm_replay.json, records the AVX-512 kernels. afm_replay.avx.json records
+# the AVX kernels: it is the pinned oracle's output with AVX-512F masked, as the D-319
+# probes ran it. The pinned test reads its golden from its own tree and compares it
+# byte for byte, so the golden for this host is copied into the extracted tree first.
+# GODEBUG cpu options are refused here, because they change the kernel path without
+# changing which golden applies.
+select_ctr_golden() {
+  local golden=crates/gorse-model/testdata/ctr/afm_replay.json
+  if [[ "${GODEBUG:-}" == *cpu.* ]]; then
+    echo "parity: ctr_replay refuses GODEBUG cpu options ($GODEBUG); they change the kernel path" >&2
+    return 2
+  fi
+  local flags
+  flags=" $(sed -n 's/^flags[[:space:]]*:[[:space:]]*//p' /proc/cpuinfo | head -1) "
+  if [[ "$flags" == *" avx512f "* && "$flags" == *" avx "* && "$flags" == *" fma "* ]]; then
+    git -C "$ROOT" show "$PIN:$golden" > "$SRC/$golden"
+    echo "parity: ctr_replay golden for AVX-512 kernels: $golden (pinned)"
+  else
+    cp "$ROOT/crates/gorse-model/testdata/ctr/afm_replay.avx.json" "$SRC/$golden"
+    echo "parity: ctr_replay golden for AVX kernels: afm_replay.avx.json"
+  fi
+}
+
 # The golden test seeds the database that MYSQL_URI names, so it gets the
 # database-level DSN from backends.env. The subshell keeps the variable local.
 run_golden() {
@@ -112,6 +138,9 @@ case "$cmd" in
         if [ "$name" = bench_golden ]; then
           run_golden || status=$?
         else
+          if [ "$name" = ctr_replay ]; then
+            select_ctr_golden
+          fi
           # pinterest_20_bpr hung in run 42016135511 (job 127207028365): its
           # output stopped after pinterest_20_als at 11:30:22Z, and the suite
           # reached its 45-minute limit at 12:03:40Z with no result. It is
