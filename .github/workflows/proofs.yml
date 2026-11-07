@@ -148,3 +148,7 @@ jobs:
         # every proof source, and this file only lists them.
         working-directory: proofs
         run: lake env lean ../scripts/dot-trust.lean
+
+      - name: Check the dot kernels against the oracle (G9, D-349)
+        # The Rust kernels run at the levels the runner's CPU has, and the oracle runs in chunks.
+        run: scripts/check-oracle-dot.sh "$RUNNER_TEMP/g9-dot"
