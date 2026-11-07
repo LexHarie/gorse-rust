@@ -1,0 +1,123 @@
+# The trust listing of oracle_dot (D-349, P4-7b).
+# Source: CI run 42379000564 (job 128422441530), the g9 job on head cddfd68. The lines are the output of scripts/dot-trust.lean, with the CI timestamps removed.
+# Each line names a constant that the walk from main reaches and that is implemented_by, extern or csimp. The last line is the number of constants visited.
+# To regenerate: from proofs/, run lake build oracle_dot, then lake env lean ../scripts/dot-trust.lean.
+extern UInt32.ofNat
+extern Nat.pow
+extern Nat.mul
+extern Nat.add
+csimp Nat.rec _private.Init.Data.Nat.Basic.0.Nat.recCompiled
+csimp Nat.brecOn Nat.brecOn._@.Mathlib.Util.CompileInductive._hyg.3261
+extern Nat.mod
+extern Nat.modCore
+extern Nat.sub
+extern Nat.pred
+extern Nat.decLe
+csimp Bool.rec Bool.rec._@.Mathlib.Util.CompileInductive._hyg.3331
+extern Nat.ble
+extern Nat.decLt
+extern Nat.modCore._unary
+csimp WellFounded.fix _private.Batteries.WF.0.WellFounded.fixC
+csimp WellFounded.fixF _private.Batteries.WF.0.WellFounded.fixFC
+csimp Acc.rec _private.Batteries.WF.0.Acc.recC
+extern UInt32.mk
+implemented_by Nat.repr _private.Init.Data.Repr.0.Nat.reprFast
+extern Nat.decEq
+extern Nat.beq
+extern Nat.div
+extern Nat.div._unary
+extern Char.ofNatAux
+extern String.mk
+extern USize.ofNatCore
+extern System.Platform.getNumBits
+extern USize.mk
+extern USize.repr
+extern USize.toNat
+extern USize.toBitVec
+extern USize.ofNat
+csimp List.map List.mapTR
+csimp List.rec List.rec._@.Mathlib.Util.CompileInductive._hyg.3273
+csimp List.brecOn List.brecOn._@.Mathlib.Util.CompileInductive._hyg.3277
+extern Array.mk
+extern Array.get
+csimp List.length List.lengthTR
+extern Array.toList
+csimp False.rec False.rec._@.Mathlib.Util.CompileInductive._hyg.3321
+csimp Fin.rec Fin.rec._@.Mathlib.Util.CompileInductive._hyg.3776
+extern Array.size
+extern String.append
+csimp List.append List.appendTR
+csimp String.rec String.rec._@.Mathlib.Util.CompileInductive._hyg.3869
+extern String.push
+extern IO.getStderr
+csimp Empty.rec Empty.rec._@.Mathlib.Util.CompileInductive._hyg.3326
+extern String.utf8ByteSize
+extern UInt32.decLe
+extern UInt32.toBitVec
+extern UInt32.ofNatCore
+extern Int.ofNat
+csimp Option.rec Option.rec._@.Mathlib.Data.Option.Basic._hyg.3032
+extern Int.tdiv
+extern Int.neg
+extern Int.negSucc
+extern Int.mul
+extern Int.natAbs
+extern Nat.gcd
+extern Nat.gcd._unary
+extern Int.add
+extern Int.sub
+extern Int.decEq
+extern Int.decLe
+extern _private.Init.Data.Int.Basic.0.Int.decNonneg
+extern Int.decLt
+extern Int.ediv
+extern Int.emod
+extern String.decEq
+extern UInt32.decEq
+csimp BitVec.rec BitVec.rec._@.Mathlib.Util.CompileInductive._hyg.3772
+csimp UInt32.rec UInt32.rec._@.Mathlib.Util.CompileInductive._hyg.3814
+extern Array.push
+csimp Prod.rec Prod.rec._@.Mathlib.Util.CompileInductive._hyg.3264
+extern panicCore
+implemented_by Array.mapM Array.mapMUnsafe
+extern Array.mkEmpty
+extern USize.add
+extern Array.uset
+extern Array.set
+csimp List.set List.setTR
+implemented_by Array.foldrM Array.foldrMUnsafe
+extern USize.sub
+extern Array.uget
+extern USize.decEq
+csimp USize.rec USize.rec._@.Mathlib.Util.CompileInductive._hyg.3844
+implemented_by Lean.Name.anonymous Lean.Name.anonymous._override
+implemented_by Lean.Name.str Lean.Name.str._override
+extern String.hash
+implemented_by Lean.Name.hash Lean.Name.hash._override
+implemented_by Lean.Name.num Lean.Name.num._override
+extern UInt64.ofNatCore
+extern UInt64.mk
+extern mixHash
+implemented_by Lean.Name.casesOn Lean.Name.casesOn._override
+csimp Lean.Name.rec Lean.Name.rec._@.Mathlib.Util.CompileInductive._hyg.3886
+csimp Lean.Name.brecOn Lean.Name.brecOn._@.Mathlib.Util.CompileInductive._hyg.3890
+extern USize.decLt
+extern Array.usize
+extern String.decLt
+extern String.data
+extern UInt32.decLt
+extern String.get'
+extern String.atEnd
+extern String.next'
+extern String.get
+extern String.next
+extern UInt32.sub
+extern UInt32.toNat
+extern String.length
+extern String.extract
+extern UInt32.add
+csimp Nat.repeat Nat.repeatTR
+extern String.prev
+extern IO.getStdout
+extern IO.getStdin
+constants visited: 1940

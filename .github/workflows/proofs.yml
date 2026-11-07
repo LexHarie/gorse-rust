@@ -123,3 +123,28 @@ jobs:
         # The oracle_topk executable imports the computable mirror only, which is Lean's core
         # library, so this build does not build Mathlib either.
         run: scripts/check-oracle-topk.sh "$RUNNER_TEMP/g9-topk"
+
+      - name: Fetch the Mathlib cache for the dot oracle (D-349)
+        # oracle_dot imports Gorse.Spec.DotRat, which imports Mathlib (D-340). This is the fetch
+        # the g1 job does, so the build below does not compile Mathlib from source.
+        working-directory: proofs
+        run: lake exe cache get
+
+      - name: Build the dot oracle and smoke-test it (D-349)
+        # The computability test of D-349: the executable must build, and it must print the
+        # two expected lines. 8388608 -23 is 1.0 and 1 -149 is the least subnormal.
+        working-directory: proofs
+        run: |
+          lake build oracle_dot
+          printf '%s\n' \
+            '{"model":"seq","xs":[[1,0]],"ys":[[1,0]]}' \
+            '{"model":"seq","xs":[[1,-149]],"ys":[[1,0]]}' \
+            | .lake/build/bin/oracle_dot > "$RUNNER_TEMP/dot-smoke.txt"
+          printf '8388608 -23\n1 -149\n' | cmp - "$RUNNER_TEMP/dot-smoke.txt"
+
+      - name: List the trust base of the dot oracle (D-349)
+        # Prints each implemented_by, extern and csimp target reached from main, the root of oracle_dot. The
+        # file is in scripts/, not in proofs/, because the G1 step 1 scan forbids those names in
+        # every proof source, and this file only lists them.
+        working-directory: proofs
+        run: lake env lean ../scripts/dot-trust.lean
