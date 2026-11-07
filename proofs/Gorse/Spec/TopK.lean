@@ -39,12 +39,6 @@ namespace Gorse.Spec.TopK
 -- Multiset subtraction needs `DecidableEq α`. The port's elements are `i32` ids, which have it.
 variable {α W : Type} [DecidableEq α] [LinearOrder W] (w : α → W)
 
-/-- The tie-break of P3-3 (D-329): `TieBefore w key a b` says that `a` comes before `b`,
-a higher weight first and, between equal weights, the smaller `key` first. Go has no such
-order: its equal weights come out in heap order (`common/heap/pq.go:42-48`). -/
-def TieBefore {ι : Type} [LinearOrder ι] (key : α → ι) (a b : α) : Prop :=
-  w b < w a ∨ (w a = w b ∧ key a < key b)
-
 /-- `IsTopK w k xs r`: `r` is a top-k of the list `xs` under the weights `w` (D-329). It
 is a sub-multiset of `xs` of length `min k |xs|`, its weights are in decreasing order, and
 every dropped element weighs at most every kept one. Go's `TopKFilter` output satisfies it

@@ -162,21 +162,34 @@ stage_charon() {
 
 # Translates one crate. Returns non-zero when Charon or Aeneas fails, and says
 # where, so the caller can record the outcome. Needs $charon, $aeneas, $nightly.
-translate() { # name crate-dir
-  local name="$1" crate="$ROOT/$2" out="$work/out-$1"
+translate() { # name crate-dir [charon options...]
+  local name="$1" dir="$2" out="$work/out-$1"
+  local crate="$ROOT/$dir"
+  shift 2
+  local -a extra=("$@")
   rm -rf "$out"
   mkdir -p "$out"
-  cp -r "$crate" "$out/crate"
-  echo "== charon: $name ($2)"
+  # -L dereferences symbolic links, so a crate may link a source file of another
+  # crate (the TopKFilter spike links heap.rs) and Charon reads the file itself.
+  cp -rL "$crate" "$out/crate"
+  echo "== charon: $name ($dir)"
   echo "disk before charon: $(df -h / | tail -n 1)"
   (cd "$out/crate" && RUSTUP_TOOLCHAIN="$nightly" CARGO_TARGET_DIR="$out/target" \
-    "$charon" cargo --preset=aeneas) || { echo "charon failed on $name"; return 1; }
+    "$charon" cargo --preset=aeneas ${extra[@]+"${extra[@]}"}) || { echo "charon failed on $name"; return 1; }
   ls -l "$out/crate"/*.llbc || { echo "charon wrote no .llbc for $name"; return 1; }
 
   echo "== aeneas: $name"
   "$aeneas" -backend lean -dest "$out/lean" "$out/crate"/*.llbc || { echo "aeneas failed on $name"; return 1; }
   echo "--- generated Lean for $name"
   find "$out/lean" -name '*.lean' | sort
+  if [ "$name" = topk_i64 ]; then
+    # Printed so the CI log carries the translation itself (brief 4, cycle 1).
+    find "$out/lean" -name '*.lean' | sort | while read -r f; do
+      echo "===== BEGIN $f"
+      cat "$f"
+      echo "===== END $f"
+    done
+  fi
   return 0
 }
 
@@ -233,13 +246,89 @@ stage_aeneas() {
   # The TopKFilter attempt (D-331): the heap loops on an integer weight, the
   # shape the P3-2 keystone would need extracted. Reported, not required: the
   # outcome, and the stage that failed if it did, goes into D-331.
-  if translate topk_i64 porting/aeneas/spike-topk; then
+  # The entry point is the only start, so Charon translates the filter and its heap
+  # loops and nothing else in heap.rs (the f32 PriorityQueue, the Go heap, encoding).
+  if translate topk_i64 porting/aeneas/spike-topk --start-from=crate::top_k_u32_i64; then
     echo translated > "$work/topk.translate"
     echo "topk (topk_i64): translated"
   else
     echo "not translated" > "$work/topk.translate"
     echo "topk (topk_i64) did not translate; see the log above"
   fi
+}
+
+# The refinement uses the core of the model: the lines between the BEGIN and END markers in
+# proofs/Gorse/Spec/TopKModel.lean (D-331). The copy must match those lines byte for byte, after
+# its one import line. The core is core Lean plus the Mathlib order classes, and the refinement
+# never imports the rest of the spec, which needs the older toolchain (D-331).
+check_refine_copies() {
+  local src="$ROOT/proofs/Gorse/Spec/TopKModel.lean"
+  local copy="$ROOT/porting/aeneas/refine/Gorse/Spec/TopKRegion.lean"
+  [ "$(head -n 1 "$copy" 2>/dev/null)" = "import Mathlib" ] \
+    || die "porting/aeneas/refine/Gorse/Spec/TopKRegion.lean must start with import Mathlib"
+  cmp -s <(tail -n +2 "$copy") \
+    <(sed -n '/^-- BEGIN refinement region (D-331)/,/^-- END refinement region (D-331)/p' "$src" | sed '1d;$d') \
+    || die "porting/aeneas/refine/Gorse/Spec/TopKRegion.lean differs from the BEGIN/END region of proofs/Gorse/Spec/TopKModel.lean"
+  echo "refinement copy: TopKRegion.lean matches the proofs/ region byte for byte"
+}
+
+# The refinement uses no sorry, and each theorem that carries a scope depends only on the
+# standard axioms (propext, Classical.choice, Quot.sound). The std axioms Aeneas emits are
+# removed and replaced by their models (StdModels.lean), so a leftover axiom fails here (D-331).
+check_topk_axioms() { # proj
+  local proj="$1" out="$1/axioms.out"
+  if grep -rn -w sorry "$ROOT/porting/aeneas/refine"; then
+    die "a sorry remains in porting/aeneas/refine"
+  fi
+  cat > "$proj/AxiomsCheck.lean" <<'LEAN'
+import Refine.Top
+#print axioms Refine.pop_worst_eq
+#print axioms Refine.push_eq
+#print axioms Refine.pop_all_eq
+#print axioms Refine.top_k_u32_i64_eq
+LEAN
+  (cd "$proj" && lake env lean AxiomsCheck.lean) > "$out" 2>&1 \
+    || { cat "$out"; die "the axioms check did not run"; }
+  cat "$out"
+  if grep -q "sorryAx" "$out"; then
+    die "a checked theorem depends on sorry"
+  fi
+  python3 - "$out" <<'PY' || die "a checked theorem depends on a non-standard axiom"
+import re, sys
+std = {"propext", "Classical.choice", "Quot.sound"}
+text = open(sys.argv[1]).read()
+hits = re.findall(r"'([^']+)' depends on axioms: \[([^\]]*)\]", text)
+if len(hits) != 4:
+    sys.exit("expected 4 axiom reports, got %d" % len(hits))
+for name, axs in hits:
+    extra = sorted({a.strip() for a in axs.split(",") if a.strip()} - std)
+    if extra:
+        sys.exit("%s depends on %s" % (name, ", ".join(extra)))
+print("axioms: %d theorems checked, standard axioms only" % len(hits))
+PY
+  echo "refinement: no sorry, and the checked theorems use only the standard axioms"
+}
+
+# Removes the three std axioms that Aeneas emits for functions the library does not model,
+# and imports their models (porting/aeneas/refine/Refine/StdModels.lean) in their place.
+strip_std_axioms() { # file
+  python3 -c '
+import re
+import sys
+
+path = sys.argv[1]
+text = open(path).read()
+blocks = text.split("\n\n")
+kept = [b for b in blocks if not re.search(r"^axiom\b", b, re.M)]
+if len(blocks) - len(kept) != 3:
+    sys.exit("expected three std axioms in the generated file, found %d" % (len(blocks) - len(kept)))
+header = "public import Aeneas\n"
+if text.count(header) != 1:
+    sys.exit("expected one `public import Aeneas` line in the generated file")
+text = "\n\n".join(kept).replace(header, header + "public import Refine.StdModels\n")
+open(path, "w").write(text)
+print("std axioms removed: 3; Refine.StdModels imported in their place")
+' "$1"
 }
 
 # Module names of the generated Lean files under a directory, as a lakefile list.
@@ -267,9 +356,12 @@ stage_lean() {
     f32_block=$(printf '\n[[lean_lib]]\nname = "SpikeF32"\nsrcDir = "."\nroots = [%s]\n' "$f32_mods")
   fi
   if [ "$(cat "$work/topk.translate" 2>/dev/null)" = "translated" ]; then
+    check_refine_copies
     cp -r "$work/out-topk_i64/lean"/. "$proj/"
-    topk_mods="$(modules_of "$work/out-topk_i64/lean")"
-    topk_block=$(printf '\n[[lean_lib]]\nname = "SpikeTopK"\nsrcDir = "."\nroots = [%s]\n' "$topk_mods")
+    strip_std_axioms "$proj/AeneasSpikeTopk.lean"
+    cp -r "$ROOT/porting/aeneas/refine"/. "$proj/"
+    topk_mods="\"AeneasSpikeTopk\",$(modules_of "$ROOT/porting/aeneas/refine")"
+    topk_block=$(printf '\n[[lean_lib]]\nname = "TopKRefine"\nsrcDir = "."\nroots = [%s]\n' "$topk_mods")
   fi
 
   cat > "$proj/lakefile.toml" <<EOF
@@ -309,18 +401,23 @@ EOF
     echo "f32 (dot_f32): not built; see the log above"
   fi
 
-  # The TopKFilter attempt (D-331). Reported, not required: a failure here is
-  # recorded in D-331 with the failing stage and its error, and does not fail CI.
+  # The TopKFilter refinement (D-331). Required: the extracted heap loops and their proofs
+  # against topKModel must build, with no sorry and no axiom beyond the standard three.
   if [ -n "$topk_mods" ]; then
-    echo "== lake build SpikeTopK (modules: $topk_mods)"
-    if (cd "$proj" && lake build SpikeTopK); then
-      topk_built="yes"
-    fi
-  fi
-  if [ "$topk_built" = "yes" ]; then
-    echo "topk (topk_i64): extracted to Lean and built"
+    echo "== lake build TopKRefine (modules: $topk_mods)"
+    # Build each module on its own and go on after a failure, so one run reports every
+    # remaining error. This Lake has no keep-going flag (`lake build -k` is an unknown option).
+    # A module that does not import a failed one still builds (TopLoop does not import PopAll).
+    topk_failed=""
+    for m in $(echo "$topk_mods" | tr -d '"' | tr ',' ' '); do
+      echo "== lake build $m"
+      (cd "$proj" && lake build "$m") || topk_failed="$topk_failed $m"
+    done
+    [ -z "$topk_failed" ] || die "the TopKFilter refinement did not build:$topk_failed"
+    check_topk_axioms "$proj"
+    echo "topk (topk_i64): extracted to Lean, refinement built"
   else
-    echo "topk (topk_i64): not built; see the log above"
+    echo "topk (topk_i64): not translated, so the refinement was not built"
   fi
 }
 
