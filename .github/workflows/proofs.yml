@@ -82,6 +82,11 @@ jobs:
             scripts/check-statements.sh
           fi
 
+      - name: Check that the ndcg log table's Lean file is the generated file (D-354)
+        # scripts/gen-log2-table/gen.py writes proofs/Gorse/Spec/Log2Table.lean from the table of
+        # LOG2_TABLE in the Rust source, and --check fails when the committed file differs.
+        run: python3 scripts/gen-log2-table/gen.py --check
+
       - name: Run the independent kernels on the proofs (G2)
         timeout-minutes: 60
         run: scripts/check-kernels.sh
