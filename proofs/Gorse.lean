@@ -5,3 +5,4 @@ import Gorse.Spec.TopKModel
 import Gorse.Oracle.TopKLink
 import Gorse.Spec.Float32
 import Gorse.Spec.Float32Model
+import Gorse.Spec.Float32Q
