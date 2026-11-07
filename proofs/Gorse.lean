@@ -12,3 +12,4 @@ import Gorse.Spec.DotAvx
 import Gorse.Spec.DotNeon
 import Gorse.Spec.DotRat
 import Gorse.Spec.DotLevels
+import Gorse.Spec.MapRat

@@ -371,11 +371,15 @@ fn check(cases_path: &str, results_path: &str) -> Result<bool, String> {
         let reason = match *model {
             "seq" => None,
             "avx" if !avx => Some("the CPU lacks AVX"),
-            "avx512" if !avx512 => Some("the CPU lacks AVX-512F, FMA or AVX"),
+            "avx512" if !avx512 => Some("no AVX-512 on this runner, re-run"),
             _ => None,
         };
         match reason {
-            Some(reason) => println!("{model}: not run, {reason}"),
+            // AVX-512 is never skipped: a runner without it fails the check (D-351).
+            Some(reason) => {
+                println!("{model}: not run, {reason}");
+                clean &= *model != "avx512";
+            }
             None => {
                 println!("{model}: {compared} cases, {mismatches} mismatches");
                 clean &= compared > 0 && mismatches == 0;
@@ -460,7 +464,7 @@ fn levels_bound(xs: &[f32], ys: &[f32], scale: f64) -> f64 {
 fn levels(count: u64, scale: f64) -> Result<bool, String> {
     let cpu = Feature::detect(None);
     if !cpu.contains(Feature::AVX512) {
-        println!("levels: not run, the CPU lacks AVX-512F, FMA or AVX");
+        println!("levels: not run, no AVX-512 on this runner, re-run");
         return Ok(false);
     }
     let mut rng = Rng(SEED);
