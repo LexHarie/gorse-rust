@@ -7,7 +7,7 @@ import Oracle.Dot
 Run in CI from `proofs/` by `lake env lean ../scripts/dot-trust.lean`, after `lake build oracle_dot`.
 It lives in `scripts/`, outside the proof tree, because it names the trust attributes it lists, and
 the G1 step 1 scan forbids those names in every file under `proofs/`. The walk starts at
-`Oracle.Dot.main` and follows the values of the definitions it reaches. It prints each constant
+`main` (the root of the executable `oracle_dot`) and follows the values of the definitions it reaches. It prints each constant
 whose code does not come from its own definition:
 
 - `implemented_by n m`: the code of `n` is the code of `m`, and the walk follows `m`;
@@ -24,7 +24,10 @@ open Lean Elab Command
 
 #eval show CommandElabM Unit from do
   let env ← getEnv
-  let mut stack : Array Name := #[`Oracle.Dot.main]
+  -- `main` is declared outside `namespace Oracle.Dot` in Dot.lean, so its name is just `main`.
+  unless env.contains `main do
+    throwError "dot-trust: the constant main is not in the environment"
+  let mut stack : Array Name := #[`main]
   let mut seen : NameSet := {}
   let mut count := 0
   while stack.size > 0 do
