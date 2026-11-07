@@ -12,7 +12,7 @@
 #      compared bit for bit with the oracle's. The levels that were run, and the levels that
 #      were skipped, are printed. Any mismatch fails the check.
 #
-# Usage: scripts/check-oracle-dot.sh [work-directory] [vector-pairs]
+# Usage: [G9_DOT_MODELS=seq,avx] scripts/check-oracle-dot.sh [work-directory] [vector-pairs]
 #
 # The oracle reads its cases in chunks of CHUNK lines, one process per chunk, as
 # scripts/check-oracle.sh does: its loop recurses once per line, and a bounded chunk keeps the
@@ -45,4 +45,7 @@ oracle="$PWD/proofs/.lake/build/bin/oracle_dot"
 : >"$results"
 split -l "$CHUNK" --filter="\"$oracle\" >>\"$results\"" "$cases"
 
-"${example[@]}" check "$cases" "$results"
+# The models to compare. The g9 job checks seq and avx, and the g9-avx512 job checks avx512 on the
+# same cases and results (D-351, P4-10). A local run checks all three.
+models="${G9_DOT_MODELS:-seq,avx,avx512}"
+"${example[@]}" check "$cases" "$results" "$models"
