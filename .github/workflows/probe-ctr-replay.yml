@@ -4,6 +4,8 @@ name: probe ctr replay host
 # it with the committed golden, with the default and with cpu.fma=off. Manual.
 
 on:
+  push:
+    branches: [claude/probe-ctr-replay-host]
   workflow_dispatch:
 
 permissions:
