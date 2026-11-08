@@ -1,36 +1,137 @@
-# G10, cargo-mutants on the verified T1 metric code (scripts/check-mutants.sh, D-327).
+# D-327, the crate-level cargo-mutants baseline of gorse-model (the President's ruling of
+# 2026-11-08, option (a)). Scratch-branch run, dispatched by hand only.
+#
+# First pass: each mutant runs its module's tests (cf::, ctr::, tpe::), and the mutants of a
+# module are split with --shard k/n: cf 10 shards, ctr 10, tpe 2.
+# Second pass: every mutant the first pass missed or timed out is re-run against the full
+# lib suite with no test filter. The re-run must select exactly those mutants.
 name: mutants
 
 on:
-  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# A new push to a pull request cancels the runs still going for the previous push.
-# Runs for pushes to a branch, and manual runs, always finish.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
-  g10:
-    name: cargo-mutants on the T1 metrics (G10)
+  first-pass:
+    name: first pass ${{ matrix.module }} ${{ matrix.shard }}/${{ matrix.total }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        include:
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 0 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 1 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 2 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 3 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 4 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 5 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 6 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 7 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 8 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 9 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 0 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 1 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 2 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 3 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 4 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 5 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 6 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 7 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 8 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 9 }
+          - { module: tpe, glob: "crates/gorse-model/src/tpe{.rs,/**}", filter: "tpe::", total: 2, shard: 0 }
+          - { module: tpe, glob: "crates/gorse-model/src/tpe{.rs,/**}", filter: "tpe::", total: 2, shard: 1 }
     steps:
       - name: Check out the repository
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
       - name: Install cargo-mutants
-        # Pinned, so a new release cannot change which mutants are generated.
+        # Pinned, as in the existing G10 job, so the mutants generated are the same.
         run: cargo install cargo-mutants --locked --version 27.1.0
 
-      - name: Run the mutants on the T1 metrics
-        run: scripts/check-mutants.sh "$RUNNER_TEMP/mutants"
+      - name: Run this shard's mutants against the module's tests
+        env:
+          GLOB: ${{ matrix.glob }}
+          FILTER: ${{ matrix.filter }}
+          SHARD: ${{ matrix.shard }}/${{ matrix.total }}
+        run: |
+          out="$RUNNER_TEMP/out"
+          mkdir -p "$out"
+          status=0
+          cargo mutants --package gorse-model --file "$GLOB" --shard "$SHARD" --output "$out" -- --lib "$FILTER" || status=$?
+          echo "cargo-mutants exit=$status"
+          # 0: all caught. 2: some missed. 3: some timed out. These outcomes are the record, so
+          # the shard keeps them and the second pass re-runs them. Any other status is a failure.
+          case "$status" in 0|2|3) ;; *) exit "$status" ;; esac
 
-      - name: Run the mutants on the top-k code of heap.rs (G10, D-336)
-        run: scripts/check-mutants-topk.sh "$RUNNER_TEMP/mutants-topk"
+      - name: Upload this shard's outcomes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-pass-${{ matrix.module }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/out
+          if-no-files-found: warn
+
+  survivors:
+    name: re-run the survivors against the full lib suite
+    needs: first-pass
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked --version 27.1.0
+
+      - name: Download the first-pass outcomes
+        uses: actions/download-artifact@v4
+        with:
+          pattern: first-pass-*
+          path: ${{ runner.temp }}/first
+
+      - name: Gather the first-pass outcomes and the survivors
+        run: |
+          count() { find "$RUNNER_TEMP/first" -name "$1" -exec cat {} + 2>/dev/null | grep -c . || true; }
+          echo "first pass: caught=$(count caught.txt) missed=$(count missed.txt) timeout=$(count timeout.txt) unviable=$(count unviable.txt)"
+          find "$RUNNER_TEMP/first" \( -name missed.txt -o -name timeout.txt \) -exec cat {} + 2>/dev/null | sort -u > "$RUNNER_TEMP/survivors.txt" || true
+          echo "survivors to re-run: $(grep -c . "$RUNNER_TEMP/survivors.txt" || true)"
+
+      - name: Re-run each survivor against the full lib suite
+        run: |
+          out="$RUNNER_TEMP/rerun"
+          mkdir -p "$out"
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            grep -F "$f:" "$RUNNER_TEMP/survivors.txt" > "$RUNNER_TEMP/s.txt"
+            expected=$(grep -c . "$RUNNER_TEMP/s.txt")
+            # --re matches the full list line (path, line, column and description), so this
+            # anchored alternation selects exactly the survivors of this file.
+            re=$(python3 -I -c 'import re,sys; esc=lambda s: re.sub(r"([\\.+*?()|\[\]{}^$#&~-])", r"\\\1", s); print("^(" + "|".join(esc(l.rstrip(chr(10))) for l in sys.stdin) + ")$")' < "$RUNNER_TEMP/s.txt")
+            listed=$(cargo mutants --package gorse-model --file "$f" --re "$re" --list | grep -c . || true)
+            if [ "$listed" != "$expected" ]; then
+              echo "::error::$f: the re-run selects $listed mutants, but there are $expected survivors"
+              exit 1
+            fi
+            status=0
+            cargo mutants --package gorse-model --file "$f" --re "$re" --output "$out/$(echo "$f" | tr / _)" -- --lib || status=$?
+            echo "$f: $expected survivors re-run against the full lib suite, cargo-mutants exit=$status"
+            case "$status" in 0|2|3) ;; *) exit "$status" ;; esac
+          done < <(cut -d: -f1 "$RUNNER_TEMP/survivors.txt" | sort -u)
+          caught=$(find "$out" -name caught.txt -exec cat {} + 2>/dev/null | grep -c . || true)
+          missed=$(find "$out" -name missed.txt -exec cat {} + 2>/dev/null | grep -c . || true)
+          timeouts=$(find "$out" -name timeout.txt -exec cat {} + 2>/dev/null | grep -c . || true)
+          echo "full-suite re-run: caught=$caught missed=$missed timeout=$timeouts"
+          if [ "$missed" != 0 ] || [ "$timeouts" != 0 ]; then
+            find "$out" \( -name missed.txt -o -name timeout.txt \) -exec cat {} + 2>/dev/null
+            exit 1
+          fi
