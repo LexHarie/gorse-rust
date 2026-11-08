@@ -21,7 +21,6 @@ permissions:
 jobs:
   first-pass:
     name: first pass ${{ matrix.module }} ${{ matrix.shard }}/${{ matrix.total }}
-    if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
@@ -53,6 +52,7 @@ jobs:
           - { module: tpe, glob: "crates/gorse-model/src/tpe{.rs,/**}", filter: "tpe::", total: 2, shard: 1 }
     steps:
       - name: Check out the repository
+        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
         uses: actions/checkout@v5
         with:
           persist-credentials: false
@@ -60,15 +60,17 @@ jobs:
       - name: Place the frappe dataset the ctr tests read (D-327)
         # The ctr baseline loads frappe (ctr::data::tests::load_data_from_built_in_frappe). Without
         # this step the shard's unmutated baseline fails, so no mutant in it is measured.
-        if: ${{ matrix.module == 'ctr' }}
+        if: ${{ ( inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard))) && matrix.module == 'ctr' }}
         timeout-minutes: 15
         run: GORSE_DATASETS=frappe scripts/setup-datasets.sh
 
       - name: Install cargo-mutants
+        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
         # Pinned, as in the existing G10 job, so the mutants generated are the same.
         run: cargo install cargo-mutants --locked --version 27.1.0
 
       - name: Run this shard's mutants against the module's tests
+        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
         env:
           GLOB: ${{ matrix.glob }}
           FILTER: ${{ matrix.filter }}
@@ -84,6 +86,7 @@ jobs:
           case "$status" in 0|2|3) ;; *) exit "$status" ;; esac
 
       - name: Upload this shard's outcomes
+        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
         if: always()
         uses: actions/upload-artifact@v4
         with:
