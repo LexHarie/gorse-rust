@@ -33,6 +33,7 @@ http-body-util = { workspace = true }
 tower = { workspace = true, features = ["util"] }
 
 [dev-dependencies]
+flate2 = { workspace = true }
 gorse-storage = { workspace = true, features = ["mysql", "postgres", "sqlite"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

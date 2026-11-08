@@ -20,3 +20,5 @@ import Gorse.Spec.UserSum
 import Gorse.Spec.Bpr
 import Gorse.Spec.SolveRow
 import Gorse.Spec.Eals
+import Gorse.Spec.InflateCap
+import Gorse.Spec.RequestOffset

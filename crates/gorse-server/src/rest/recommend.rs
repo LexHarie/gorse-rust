@@ -90,6 +90,24 @@ fn default_n(query: &Query, config: &Config) -> Result<i64, ApiError> {
     parse_int(query, "n", config.server.default_n)
 }
 
+/// The `offset` parameter must not be negative. A negative offset was cast to a huge `usize`
+/// for the skip, so the page came back empty (audit S4, D-363).
+fn check_offset(offset: i64) -> Result<i64, ApiError> {
+    if offset < 0 {
+        return Err(ApiError::BadRequest(
+            "invalid offset parameter: must not be negative".to_owned(),
+        ));
+    }
+    Ok(offset)
+}
+
+/// `a + b` for an offset and a count, refused when it overflows `i64` (audit S5, D-363). The
+/// sum is not saturated: a saturated count would give the handlers an enormous capacity.
+fn checked_sum(a: i64, b: i64) -> Result<i64, ApiError> {
+    a.checked_add(b)
+        .ok_or_else(|| ApiError::BadRequest("offset and n are out of range".to_owned()))
+}
+
 /// Go's `filterVisibleItemsByCategories`: keeps the scores whose item is not
 /// hidden and has every one of `categories`. The result is never nil.
 pub async fn filter_visible_items_by_categories(
@@ -156,13 +174,13 @@ async fn search_documents(
     query: &Query,
 ) -> Result<Response, ApiError> {
     let config = rest.config();
-    let offset = parse_int(query, "offset", 0)?;
+    let offset = check_offset(parse_int(query, "offset", 0)?)?;
     let n = default_n(query, &config)?;
     let user_id = query.get("user-id");
     let read = read_items(rest, user_id).await?;
-    let mut end = offset + n;
+    let mut end = checked_sum(offset, n)?;
     if end > 0 && !read.is_empty() {
-        end += read.len() as i64;
+        end = checked_sum(end, read.len() as i64)?;
     }
     let items = rest
         .cache()
@@ -199,17 +217,17 @@ pub(crate) async fn get_latest(
 ) -> Result<Response, ApiError> {
     let query = Query::parse(raw.as_deref());
     let config = rest.config();
-    let offset = parse_int(&query, "offset", 0).map_err(|err| {
+    let offset = check_offset(parse_int(&query, "offset", 0).map_err(|err| {
         ApiError::BadRequest(format!("invalid offset parameter: {}", err.message()))
-    })?;
+    })?)?;
     let n = parse_int(&query, "n", config.server.default_n)
         .map_err(|err| ApiError::BadRequest(format!("invalid n parameter: {}", err.message())))?;
     let categories = read_categories(&params, &query, &[]);
     let user_id = query.get("user-id");
     let read = read_items(&rest, user_id).await?;
-    let mut limit = offset + n;
+    let mut limit = checked_sum(offset, n)?;
     if !read.is_empty() {
-        limit += read.len() as i64;
+        limit = checked_sum(limit, read.len() as i64)?;
     }
     let after = if config.recommend.data_source.item_ttl > 0 {
         Some(gotime::now().add_date(
@@ -228,7 +246,9 @@ pub(crate) async fn get_latest(
     if !read.is_empty() {
         items.retain(|item| !read.contains(&item.item_id));
     }
-    let skip = usize::try_from(offset).unwrap_or(0).min(items.len());
+    let skip = usize::try_from(offset)
+        .unwrap_or(usize::MAX)
+        .min(items.len());
     items.drain(..skip);
     if n > 0 && items.len() as i64 > n {
         items.truncate(n as usize);
@@ -292,10 +312,11 @@ async fn search_item_to_item(
     query: &Query,
 ) -> Result<Response, ApiError> {
     let config = rest.config();
-    let offset = parse_int(query, "offset", 0)?;
+    let offset = check_offset(parse_int(query, "offset", 0)?)?;
     let n = default_n(query, &config)?;
     let read = read_items(rest, query.get("user-id")).await?;
-    let wanted = (offset + n + read.len() as i64).max(config.recommend.cache_size);
+    let wanted =
+        checked_sum(checked_sum(offset, n)?, read.len() as i64)?.max(config.recommend.cache_size);
     let results = query_item_to_item(
         &Context::background(),
         rest.vectors().as_ref(),
@@ -357,9 +378,9 @@ async fn search_user_to_user(
     query: &Query,
 ) -> Result<Response, ApiError> {
     let config = rest.config();
-    let offset = parse_int(query, "offset", 0)?;
+    let offset = check_offset(parse_int(query, "offset", 0)?)?;
     let n = default_n(query, &config)?;
-    let wanted = usize::try_from(offset + n).unwrap_or(0);
+    let wanted = usize::try_from(checked_sum(offset, n)?).unwrap_or(0);
     let mut results = query_user_to_user(
         &Context::background(),
         rest.vectors().as_ref(),
@@ -470,7 +491,7 @@ pub(crate) async fn get_recommend(
     let query = Query::parse(raw.as_deref());
     let n = default_n(&query, &config)?;
     let categories = read_categories(&params, &query, &[]);
-    let offset = parse_int(&query, "offset", 0)?;
+    let offset = check_offset(parse_int(&query, "offset", 0)?)?;
     let write_back_type = query.get("write-back-type").to_owned();
     let write_back_delay = parse_duration(&query, "write-back-delay")?;
     let mut recommender = Recommender::new(
@@ -485,7 +506,7 @@ pub(crate) async fn get_recommend(
     .await
     .map_err(ApiError::internal)?;
     let scores = recommender
-        .recommend(&ctx, n + offset)
+        .recommend(&ctx, checked_sum(n, offset)?)
         .await
         .map_err(ApiError::internal)?;
     let scores: Vec<Score> = if scores.len() as i64 > offset {
@@ -553,7 +574,7 @@ pub(crate) async fn session_recommend(
     } else {
         vec![category.to_owned()]
     };
-    let offset = parse_int(&query, "offset", 0)?;
+    let offset = check_offset(parse_int(&query, "offset", 0)?)?;
 
     let mut data_feedback = Vec::with_capacity(feedbacks.len());
     for feedback in &feedbacks {
@@ -609,7 +630,7 @@ pub(crate) async fn session_recommend(
         }
     }
 
-    let k = usize::try_from(n + offset).unwrap_or(0);
+    let k = usize::try_from(checked_sum(n, offset)?).unwrap_or(0);
     let mut filter = TopKFilter::new(k);
     for (id, score) in candidates {
         filter.push(id, score);
@@ -626,7 +647,7 @@ pub(crate) async fn session_recommend(
     );
     // Go's `result[offset:]` is nil when the offset reaches the end, and a
     // nil list stays nil through the truncation to `n`.
-    let offset = usize::try_from(offset).unwrap_or(0);
+    let offset = usize::try_from(offset).unwrap_or(usize::MAX);
     result = match result {
         Some(mut list) if list.len() > offset => {
             list.drain(..offset);

@@ -1350,3 +1350,20 @@ async fn visibility() {
 fn hide_patch(is_hidden: Option<bool>) -> Value {
     json!({"IsHidden": is_hidden, "Categories": null, "Timestamp": null, "Labels": null, "Comment": null})
 }
+
+/// The `offset` parameter is checked at the request boundary (audit S4 and S5, D-363). A
+/// negative offset is rejected rather than read as a huge skip, and an offset whose sum with `n`
+/// overflows `i64` is rejected rather than wrapped. Before the fix, the overflow request panics
+/// in a debug build and the negative one returns an empty page.
+#[tokio::test]
+async fn offset_is_checked() {
+    let suite = Suite::default_suite().await;
+    suite
+        .send(get("/api/recommend/0?n=3&offset=-1").key())
+        .await
+        .status(StatusCode::BAD_REQUEST);
+    suite
+        .send(get("/api/recommend/0?n=9223372036854775807&offset=1").key())
+        .await
+        .status(StatusCode::BAD_REQUEST);
+}
