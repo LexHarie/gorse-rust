@@ -344,16 +344,26 @@ theorem roundEven_rn_mem {x : ℝ} (hx : 89 ≤ x) (hx2 : x ≤ 1048576) :
     have h2 : (2 : ℝ) ^ Int.log 2 (LOG2E32 * x) ≤ LOG2E32 * x := by
       exact_mod_cast Int.zpow_log_le_self (by norm_num : 1 < 2) hpos
     have h21 : (2 : ℝ) ^ (21 : ℤ) = 2097152 := by norm_num
-    linarith
+    have h3 : (2097152 : ℝ) ≤ (2 : ℝ) ^ Int.log 2 (LOG2E32 * x) := by
+      rw [← h21]
+      exact h1
+    exact absurd (le_trans h3 h2) (not_le.mpr hw2)
   have hu : ulpExp (LOG2E32 * x) ≤ -3 := by
     unfold ulpExp
     linarith [max_le hlog (by norm_num : (-126 : ℤ) ≤ 20)]
   have hpow : (2 : ℝ) ^ ulpExp (LOG2E32 * x) ≤ (2 : ℝ) ^ (-3 : ℤ) :=
     zpow_le_zpow_right₀ (by norm_num) hu
   have h8 : (2 : ℝ) ^ (-3 : ℤ) = 1 / 8 := by norm_num
-  have herr : |rn (LOG2E32 * x) - LOG2E32 * x| ≤ 1 / 16 := by
-    have := rn_sub_le hw0
-    linarith
+  -- The unit is at most 1/8 here, so the error bound `unit / 2` is at most 1/16. No `linarith`
+  -- on the zpow terms: `gcongr` closes the division step from `hpow'`.
+  have hpow' : (2 : ℝ) ^ ulpExp (LOG2E32 * x) ≤ 1 / 8 := by
+    rw [← h8]
+    exact hpow
+  have hdiv : (2 : ℝ) ^ ulpExp (LOG2E32 * x) / 2 ≤ 1 / 16 := by
+    have h16 : (1 : ℝ) / 16 = (1 / 8) / 2 := by norm_num
+    rw [h16]
+    gcongr
+  have herr : |rn (LOG2E32 * x) - LOG2E32 * x| ≤ 1 / 16 := le_trans (rn_sub_le hw0) hdiv
   obtain ⟨hlo, hhi⟩ := abs_le.mp herr
   constructor
   · exact roundEven_ge_of_le (by push_cast; linarith)
