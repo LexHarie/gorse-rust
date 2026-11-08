@@ -1914,3 +1914,73 @@ async fn test_load_dataset_sets_memory_gauges() {
         assert!(after > before, "{label} did not grow: {before} to {after}");
     }
 }
+
+/// Two positive feedback types on one (user, item) pair load as one record (audit S3, D-366).
+/// Before the fix, the dataset held both rows, so a split could hold out a pair that training
+/// still saw.
+#[tokio::test]
+async fn test_load_dataset_keeps_one_record_per_pair() {
+    let _serial = SERIAL.lock().await;
+    let (_dir, master) = setup(Config::default()).await;
+    let ctx = Context::background();
+    let data = master.data();
+    let timestamp = gotime::date(2000, Month::JANUARY, 1, 1, 1, 0, 0, &gotime::utc());
+    data.batch_insert_items(
+        &ctx,
+        &[
+            Item {
+                item_id: "1".to_owned(),
+                timestamp: timestamp.clone(),
+                ..Default::default()
+            },
+            Item {
+                item_id: "2".to_owned(),
+                timestamp: timestamp.clone(),
+                ..Default::default()
+            },
+        ],
+    )
+    .await
+    .expect("insert the items");
+    data.batch_insert_users(
+        &ctx,
+        &[User {
+            user_id: "1".to_owned(),
+            ..Default::default()
+        }],
+    )
+    .await
+    .expect("insert the users");
+    let now = gotime::now();
+    data.batch_insert_feedback(
+        &ctx,
+        &[
+            feedback("positive", "1", "1", now.clone()),
+            feedback("click", "1", "1", now.clone()),
+            feedback("positive", "1", "2", now.clone()),
+        ],
+        false,
+        false,
+        true,
+    )
+    .await
+    .expect("insert the feedback");
+
+    // Three rows and two pairs: the pair (1, 1) is one record in the dataset.
+    let cfg = master.config();
+    let positive = [expression("positive"), expression("click")];
+    let sources = Sources {
+        positive: &positive,
+        negative: &[],
+        read: &[],
+        item_ttl: 0,
+        positive_feedback_ttl: 0,
+    };
+    let evaluator = Mutex::new(metrics::new_online_evaluator(Vec::new(), Vec::new()));
+    let (_, dataset, _) = master
+        .load_data_from_database(&ctx, &*data, &cfg, &sources, &evaluator, &[])
+        .await
+        .expect("load the dataset");
+    assert_eq!(dataset.count_feedback(), 2);
+    assert_eq!(dataset.get_user_feedback()[0].len(), 2);
+}

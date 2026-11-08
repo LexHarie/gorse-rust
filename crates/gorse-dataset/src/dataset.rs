@@ -318,6 +318,28 @@ impl Dataset {
         self.num_feedback += 1;
     }
 
+    /// Keeps one record for a (user, item) pair that already has one: the timestamp becomes
+    /// the later of the two, as the loader's `positive_feedback` map keeps it (audit S3,
+    /// D-366). Returns whether the pair was present. The loader calls this for a repeated pair
+    /// instead of `add_feedback`, so a split cannot hold out a pair that the train set still has.
+    pub fn keep_latest_timestamp(
+        &mut self,
+        user_index: usize,
+        item_index: i32,
+        timestamp: &Time,
+    ) -> bool {
+        let Some(position) = self.user_feedback[user_index]
+            .iter()
+            .position(|&item| item == item_index)
+        else {
+            return false;
+        };
+        if timestamp.after(&self.timestamps[user_index][position]) {
+            self.timestamps[user_index][position] = timestamp.clone();
+        }
+        true
+    }
+
     /// A dataset with the users, items and dictionaries of this one, and no
     /// feedback. The splits start from it.
     fn empty_split(&self) -> Dataset {
