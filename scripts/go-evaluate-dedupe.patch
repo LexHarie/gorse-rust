@@ -1,0 +1,21 @@
+--- a/model/cf/evaluator.go
++++ b/model/cf/evaluator.go
+@@ -48,9 +48,16 @@
+ 			// Sample negative samples
+ 			//userTrainSet := NewSet(trainSet.UserFeedback[userIndex])
+ 			negativeSample := negatives[userIndex]
++			// D-368 derive-only patch: repeated candidates are skipped, first seen first, as
++			// Rust's candidate_list does. The patch is applied only in the derive copy.
+ 			candidates := make([]int32, 0, targetSet.Cardinality()+len(negativeSample))
+-			candidates = append(candidates, testSet.GetUserFeedback()[userIndex]...)
+-			candidates = append(candidates, negativeSample...)
++			seenCandidate := make(map[int32]struct{}, targetSet.Cardinality()+len(negativeSample))
++			for _, itemId := range append(append([]int32{}, testSet.GetUserFeedback()[userIndex]...), negativeSample...) {
++				if _, ok := seenCandidate[itemId]; !ok {
++					seenCandidate[itemId] = struct{}{}
++					candidates = append(candidates, itemId)
++				}
++			}
+ 			// Find top-n ItemFeedback in predictions
+ 			rankList := Rank(estimator, int32(userIndex), candidates, topK)
+ 			partCount[workerId]++

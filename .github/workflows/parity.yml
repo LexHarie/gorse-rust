@@ -277,9 +277,9 @@ jobs:
           sudo mkdir -p /mnt/project-files/datasets
           sudo cp "$HOME/.gorse/dataset/ml-100k.bin.gz" "$HOME/.gorse/dataset/github.bin.gz" /mnt/project-files/datasets/
 
-      # D-368: the derived references (scripts/derive_dedup_negatives.py). The Go oracle fits
-      # three configurations with one job on test files whose candidate lists have no repeats.
-      # The step copies the original test files back before it ends.
+      # D-368: the derived references. The pinned Go oracle fits three configurations with one
+      # job, with its Evaluate patched in the derive copy only (scripts/go-evaluate-dedupe.patch),
+      # on the original test and training files.
       - name: "head derive overrides (D-368)"
         timeout-minutes: 90
         run: PARITY_TREE=head scripts/parity.sh derive-overrides "$PARITY_DERIVED_DIR"

@@ -237,24 +237,16 @@ run_golden() {
 }
 
 # The derived references (D-368). For the three head configurations, the pinned Go oracle
-# fits the same configuration with one job on a test file whose candidate lists have no
-# repeats (scripts/derive_dedup_negatives.py). Its metrics are the expected values that the
-# head overlay reads through PARITY_DERIVED_DIR. The training files are not changed. The two
-# original test.txt files are copied back before the function returns, also when a step
-# fails: the EXIT trap does it.
-DERIVED_SWAPPED=()
-restore_derived_tests() {
-  local ds
-  for ds in ${DERIVED_SWAPPED[@]+"${DERIVED_SWAPPED[@]}"}; do
-    cp -- "$SCRATCH/derive-orig/$ds.test.txt" "$HOME/.gorse/dataset/$ds/test.txt"
-    cmp -s -- "$SCRATCH/derive-orig/$ds.test.txt" "$HOME/.gorse/dataset/$ds/test.txt" \
-      || { echo "parity: could not restore $ds/test.txt" >&2; return 1; }
-  done
-  DERIVED_SWAPPED=()
-}
+# fits the configuration with one job, and its metrics are the expected values that the head
+# overlay reads through PARITY_DERIVED_DIR. The oracle's Evaluate is patched in the head tree
+# for the length of this step only: scripts/go-evaluate-dedupe.patch skips repeated candidates,
+# first seen first, as Rust's candidate_list does. The test and training files stay the
+# original ones. The patch is reversed before the function returns, and SHA256SUMS records
+# its digest with the input digests.
+GO_EVALUATE_PATCH="$ROOT/scripts/go-evaluate-dedupe.patch"
 
 derive_overrides() {
-  local dir="${1:-}" ds cfg testfile
+  local dir="${1:-}" ds f cfg rc
   if [ "$PARITY_TREE" != head ]; then
     echo "parity: derive-overrides runs in head mode only (PARITY_TREE=head)" >&2
     return 2
@@ -263,47 +255,51 @@ derive_overrides() {
     /*) ;;
     *) echo "parity: derive-overrides needs an absolute DIR, not '$dir'" >&2; return 2 ;;
   esac
-  mkdir -p "$dir" "$SCRATCH/derive-orig"
+  mkdir -p "$dir"
   rm -f -- "$dir"/*.json "$dir"/SHA256SUMS
-  trap restore_derived_tests EXIT
-  GORSE_DATASETS="ml-1m pinterest-20" scripts/setup-datasets.sh
+  GORSE_DATASETS="ml-1m pinterest-20" "$ROOT/scripts/setup-datasets.sh"
+  for ds in ml-1m pinterest-20; do
+    for f in train.txt test.txt; do
+      if [ ! -f "$HOME/.gorse/dataset/$ds/$f" ]; then
+        echo "parity: $HOME/.gorse/dataset/$ds/$f is missing after setup-datasets" >&2
+        return 2
+      fi
+    done
+  done
+  # The patch is applied to the head tree for these three runs only. It is reversed on every
+  # path out of the loop, so the frozen suite's own oracle calls later run the unpatched Go.
   # Information only: how many training rows repeat a (user, item) pair. The Go loader and
   # the Rust test loader both keep every training row (add_feedback), so the count does not
   # change the training set of either side.
   for ds in ml-1m pinterest-20; do
     train="$HOME/.gorse/dataset/$ds/train.txt"
-    if [ -f "$train" ]; then
-      total=$(wc -l < "$train")
-      distinct=$(cut -f1,2 "$train" | sort -u | wc -l)
-      echo "parity: $ds train.txt: $total rows, $((total - distinct)) rows repeat a (user,item) pair"
-    fi
+    total=$(wc -l < "$train")
+    distinct=$(cut -f1,2 "$train" | sort -u | wc -l)
+    echo "parity: $ds train.txt: $total rows, $((total - distinct)) rows repeat a (user,item) pair"
   done
-  for ds in ml-1m pinterest-20; do
-    testfile="$HOME/.gorse/dataset/$ds/test.txt"
-    if [ ! -f "$testfile" ]; then
-      echo "parity: $testfile is missing after setup-datasets" >&2
-      return 2
-    fi
-    cp -- "$testfile" "$SCRATCH/derive-orig/$ds.test.txt"
-    python3 -I scripts/derive_dedup_negatives.py "$testfile" "$SCRATCH/derive-orig/$ds.derived.txt" \
-      --label "$ds" --manifest "$dir/$ds.manifest.json" > /dev/null
-    DERIVED_SWAPPED+=("$ds")
-    cp -- "$SCRATCH/derive-orig/$ds.derived.txt" "$testfile"
-  done
+  patch -d "$HEAD" -p1 < "$GO_EVALUATE_PATCH" || return 2
+  rc=0
   for cfg in bpr-ml-1m als-ml-1m bpr-pinterest-20; do
-    echo "parity: derive $cfg, one job, on the derived test file"
+    echo "parity: derive $cfg, one job, with the candidate-dedupe Evaluate (D-368)"
     # The flags and GODEBUG match oracle_with_jobs in the frozen suite.
     (cd "$HEAD" && GODEBUG=randautoseed=0 go run ./conformance/oracle/metrics \
-      -config "$cfg" -jobs 1 -out "$dir/$cfg.json")
+      -config "$cfg" -jobs 1 -out "$dir/$cfg.json") || { rc=$?; break; }
   done
-  restore_derived_tests
-  trap - EXIT
-  (cd "$dir" && sha256sum -- *.json *.manifest.json > SHA256SUMS)
+  patch -d "$HEAD" -p1 -R < "$GO_EVALUATE_PATCH" || return 2
+  [ "$rc" -eq 0 ] || return "$rc"
+  (
+    cd "$dir"
+    sha256sum -- *.json > SHA256SUMS
+    sha256sum "$GO_EVALUATE_PATCH" \
+      "$HOME/.gorse/dataset/ml-1m/train.txt" "$HOME/.gorse/dataset/ml-1m/test.txt" \
+      "$HOME/.gorse/dataset/pinterest-20/train.txt" "$HOME/.gorse/dataset/pinterest-20/test.txt" \
+      >> SHA256SUMS
+  )
   cat "$dir/SHA256SUMS"
   for cfg in bpr-ml-1m als-ml-1m bpr-pinterest-20; do
     echo "parity: $cfg: $(cat "$dir/$cfg.json")"
   done
-  echo "parity: derived references written to $dir; the original test files are restored"
+  echo "parity: derived references written to $dir; the Go patch is reversed"
 }
 
 extract_pinned_tree
