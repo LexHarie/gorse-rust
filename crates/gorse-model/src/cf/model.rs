@@ -715,6 +715,8 @@ impl<'a> Interactions<'a> {
 /// non-positive arguments, so it cannot overflow to +∞ and turn `∞ / ∞` into NaN, which
 /// the old `exp(x) / (1 + exp(x))` did for `x ≥ 89`. The two branches agree with σ(x)
 /// in exact arithmetic (`Gorse.Spec.Sigmoid.sigStable_eq`) and differ in the last bits.
+/// The bug is `Gorse.Spec.Sigmoid.oldB_nan_of_ge` and the fix is `Gorse.Spec.Sigmoid.newB_mem`,
+/// both over the binary32 model with overflow.
 fn stable_sigmoid(x: f32) -> f32 {
     if x >= 0.0 {
         1.0 / (1.0 + math32::exp(-x))
