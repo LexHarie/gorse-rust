@@ -46,3 +46,10 @@ root = "Oracle.Map"
 [[lean_exe]]
 name = "oracle_log2"
 root = "Oracle.Log2"
+
+# The G9 oracle for `ndcg` (D-356, P4-11). Built by `lake build oracle_ndcg`, and run by
+# scripts/check-oracle-ndcg.sh. It imports Gorse.Spec.NdcgRat, which imports Float32Q and so builds
+# Mathlib from the cache, as oracle_map does.
+[[lean_exe]]
+name = "oracle_ndcg"
+root = "Oracle.Ndcg"
