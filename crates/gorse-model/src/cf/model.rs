@@ -685,12 +685,40 @@ struct Interactions<'a> {
     n_users: usize,
     /// The number of items.
     n_items: usize,
+    /// Whether some user can be sampled: it has feedback and has not interacted with
+    /// every item (A7, D-357). When false, `bpr_update` does nothing.
+    sampleable: bool,
+}
+
+impl<'a> Interactions<'a> {
+    fn new(
+        user_feedback: &'a [Vec<i32>],
+        user_sets: &'a [HashSet<i32>],
+        n_users: usize,
+        n_items: usize,
+    ) -> Self {
+        let sampleable = user_feedback
+            .iter()
+            .zip(user_sets)
+            .any(|(items, set)| !items.is_empty() && set.len() < n_items);
+        Self {
+            user_feedback,
+            user_sets,
+            n_users,
+            n_items,
+            sampleable,
+        }
+    }
 }
 
 /// One pairwise update of BPR (the body of Go's epoch job): samples a user with
 /// feedback, one of that user's items as the positive, and an item the user has
 /// not interacted with as the negative, then moves the three factors along the
 /// gradient of the pairwise loss.
+///
+/// The user is drawn uniformly from the users that can be sampled (A6, D-357). That
+/// is Go's sampling and this port's, and it is a stated parameter. Rendle's BPR draws
+/// uniformly over the pairs `(u, i)` instead, which weights users by their feedback.
 fn bpr_update(
     user_factor: &mut [Vec<f32>],
     item_factor: &mut [Vec<f32>],
@@ -699,11 +727,17 @@ fn bpr_update(
     reg: f32,
     lr: f32,
 ) {
-    // Select a user
+    // No user has a non-interacted item to draw as the negative (A7): the draws below
+    // would never end, so there is nothing to update.
+    if !data.sampleable {
+        return;
+    }
+    // Select a user. A user with every item is rejected like a user with no feedback,
+    // so the negative draw below always finds an item (A7, D-357).
     let (user, rating_count) = loop {
         let user = rng.int31n(data.n_users as i32) as usize;
         let rating_count = data.user_feedback[user].len();
-        if rating_count > 0 {
+        if rating_count > 0 && data.user_sets[user].len() < data.n_items {
             break (user, rating_count);
         }
     };
@@ -951,12 +985,7 @@ impl Model for BPR {
             .iter()
             .map(|items| items.iter().copied().collect())
             .collect();
-        let data = Interactions {
-            user_feedback: feedback,
-            user_sets: &user_sets,
-            n_users,
-            n_items,
-        };
+        let data = Interactions::new(feedback, &user_sets, n_users, n_items);
         let (reg, lr) = (self.reg, self.lr);
 
         let eval_start = Instant::now();
@@ -1666,5 +1695,69 @@ mod tests {
         // test clear
         m.clear();
         assert!(m.invalid());
+    }
+}
+
+#[cfg(test)]
+mod sampling_tests {
+    // A7 and A6 (D-357): BPR's sampler must terminate for every input, and a user with
+    // every item is never sampled.
+
+    use super::*;
+
+    fn sets(feedback: &[Vec<i32>]) -> Vec<HashSet<i32>> {
+        feedback
+            .iter()
+            .map(|items| items.iter().copied().collect())
+            .collect()
+    }
+
+    #[test]
+    fn bpr_update_terminates_when_a_user_has_every_item() {
+        // User 0 has all three items, so it is never sampled. User 1 has item 0 only.
+        let feedback = vec![vec![0, 1, 2], vec![0]];
+        let user_sets = sets(&feedback);
+        let data = Interactions::new(&feedback, &user_sets, 2, 3);
+        assert!(data.sampleable);
+        let mut user_factor = vec![vec![0.1f32; 4]; 2];
+        let mut item_factor = vec![vec![0.2f32; 4]; 3];
+        let mut rng = RandomGenerator::new(7);
+        for _ in 0..10_000 {
+            bpr_update(
+                &mut user_factor,
+                &mut item_factor,
+                &mut rng,
+                &data,
+                0.01,
+                0.05,
+            );
+        }
+        assert_eq!(user_factor[0], vec![0.1f32; 4]);
+        assert_ne!(user_factor[1], vec![0.1f32; 4]);
+        assert!(item_factor.iter().flatten().all(|x| x.is_finite()));
+    }
+
+    #[test]
+    fn bpr_update_does_nothing_when_no_user_can_be_sampled() {
+        // Each user has both items of a two-item catalogue, so no negative exists.
+        let feedback = vec![vec![0, 1], vec![1, 0]];
+        let user_sets = sets(&feedback);
+        let data = Interactions::new(&feedback, &user_sets, 2, 2);
+        assert!(!data.sampleable);
+        let mut user_factor = vec![vec![0.1f32; 4]; 2];
+        let mut item_factor = vec![vec![0.2f32; 4]; 2];
+        let before = (user_factor.clone(), item_factor.clone());
+        let mut rng = RandomGenerator::new(7);
+        for _ in 0..1_000 {
+            bpr_update(
+                &mut user_factor,
+                &mut item_factor,
+                &mut rng,
+                &data,
+                0.01,
+                0.05,
+            );
+        }
+        assert_eq!((user_factor, item_factor), before);
     }
 }
