@@ -180,3 +180,9 @@ Gorse.Spec.Eals.ealsCode_all_items
 Gorse.Spec.Eals.ealsCode_all_items_min
 Gorse.Spec.Eals.ealsCode_all_items_unique
 Gorse.Spec.Eals.ealsCode_feedback_not_min
+Gorse.Spec.RequestOffset.preLimit_wraps
+Gorse.Spec.RequestOffset.checkedAdd_overflow
+Gorse.Spec.RequestOffset.checkedAdd_sound
+Gorse.Spec.RequestOffset.preSkip_neg_empty
+Gorse.Spec.RequestOffset.parseOffset_neg
+Gorse.Spec.RequestOffset.parseOffset_some
