@@ -4,3 +4,8 @@
 # Mathlib-dependent theorems in proofs/exports.txt are checked by lean4checker alone.
 Gorse.scaffold_true
 Gorse.scaffold_or_comm
+Gorse.Spec.Metrics.hits_le_card
+Gorse.Spec.Metrics.precision_le_one
+Gorse.Spec.Metrics.recall_le_one
+Gorse.Spec.Metrics.ndcg_gt_one_of_dup
+Real.log_one

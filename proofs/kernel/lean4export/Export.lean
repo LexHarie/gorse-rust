@@ -174,9 +174,10 @@ partial def dumpConstant (c : Name) : M Unit := do
       dumpDeps ((← read).env.find? ctor |>.get!.type)
     let indNameIdxs ← val.all.mapM dumpName
     let ctorNameIdxs ← val.ctors.mapM (fun ctor => dumpName ctor)
+    let isReflexive := if val.isReflexive then 1 else 0
     let isRec := if val.isRec then 1 else 0
     let isNested := if val.isNested then 1 else 0
-    IO.println s!"#IND {← dumpName c} {← dumpExpr val.type} {isRec} {isNested} {val.numParams} {val.numIndices} {indNameIdxs.length} {seq indNameIdxs} {val.numCtors} {seq ctorNameIdxs} {← seq <$> val.levelParams.mapM dumpName}"
+    IO.println s!"#IND {← dumpName c} {← dumpExpr val.type} {isReflexive} {isRec} {isNested} {val.numParams} {val.numIndices} {indNameIdxs.length} {seq indNameIdxs} {val.numCtors} {seq ctorNameIdxs} {← seq <$> val.levelParams.mapM dumpName}"
   | .ctorInfo val =>
     if val.isUnsafe then
       return
