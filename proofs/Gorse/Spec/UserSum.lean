@@ -85,7 +85,7 @@ theorem rn_one_add_of_lt {x : ℝ} (h0 : 0 ≤ x) (h1 : x < (2 : ℝ) ^ (-24 : �
   have ht' : (2 : ℝ) ^ 23 * x < 1 / 2 := by
     have := mul_lt_mul_of_pos_left h1 (show (0 : ℝ) < 2 ^ 23 by norm_num)
     have e : (2 : ℝ) ^ 23 * (2 : ℝ) ^ (-24 : ℤ) = 1 / 2 := by norm_num [zpow_neg]
-    linarith
+    exact this.trans_eq e
   have hm := roundEven_add_of_lt_half (2 ^ 23) ht ht'
   unfold rn
   rw [if_neg hpos.ne', hu, hscale, hm]
@@ -107,7 +107,7 @@ theorem rn_one_add_of_gt {x : ℝ} (h1 : (2 : ℝ) ^ (-24 : ℤ) < x) (h2 : x < 
   have ht1 : 1 / 2 < (2 : ℝ) ^ 23 * x := by
     have := mul_lt_mul_of_pos_left h1 (show (0 : ℝ) < 2 ^ 23 by norm_num)
     have e : (2 : ℝ) ^ 23 * (2 : ℝ) ^ (-24 : ℤ) = 1 / 2 := by norm_num [zpow_neg]
-    linarith
+    exact e.symm.trans_lt this
   have ht2 : (2 : ℝ) ^ 23 * x < 1 := by
     have := mul_lt_mul_of_pos_left h2 (show (0 : ℝ) < 2 ^ 23 by norm_num)
     have e : (2 : ℝ) ^ 23 * (2 : ℝ) ^ (-23 : ℤ) = 1 := by norm_num [zpow_neg]
