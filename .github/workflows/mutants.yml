@@ -86,8 +86,7 @@ jobs:
           case "$status" in 0|2|3) ;; *) exit "$status" ;; esac
 
       - name: Upload this shard's outcomes
-        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
-        if: always()
+        if: ${{ always() && (inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard))) }}
         uses: actions/upload-artifact@v4
         with:
           name: first-pass-${{ matrix.module }}-${{ matrix.shard }}
