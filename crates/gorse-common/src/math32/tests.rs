@@ -744,15 +744,3 @@ fn go_conversions() {
         assert_eq!(go_f32_to_i64(-9.223_372e18), -9_223_372_036_854_775_808);
     }
 }
-
-/// On x86-64, `exp` is the amd64 assembly. It overflows where `k = CVTSS2SL(LOG2E · x)` reaches 128
-/// (about 88.40), and gives 0 once `cvtss2sl` saturates (about 1.49e9). The binary32 model
-/// `fexpAmd` in `proofs/Gorse/Spec/Sigmoid.lean` takes these two decisions (D-359).
-#[cfg(target_arch = "x86_64")]
-#[test]
-fn exp_decisions_match_the_amd64_model() {
-    assert!(super::exp(88.3_f32).is_finite());
-    assert_eq!(super::exp(88.4_f32), f32::INFINITY);
-    assert_eq!(super::exp(89.0_f32), f32::INFINITY);
-    assert_eq!(super::exp(1.5e9_f32), 0.0);
-}

@@ -1824,4 +1824,16 @@ mod stable_sigmoid_tests {
         // The gradient is σ(89) = 1, so the positive item moves by lr · u = 0.05.
         assert!((item_factor[0][0] - (-89.0 + 0.05 - 0.01 * -89.0 * 0.05)).abs() < 1e-3);
     }
+
+    /// On x86-64, `math32::exp` overflows where `k = CVTSS2SL(LOG2E · x)` reaches 128 (about 88.40),
+    /// and gives 0 once `cvtss2sl` saturates (about 1.49e9). The binary32 model `fexpAmd` in
+    /// `proofs/Gorse/Spec/Sigmoid.lean` takes these two decisions (D-359).
+    #[test]
+    #[cfg(target_arch = "x86_64")]
+    fn exp_decisions_match_the_amd64_model() {
+        assert!(math32::exp(88.3_f32).is_finite());
+        assert_eq!(math32::exp(88.4_f32), f32::INFINITY);
+        assert_eq!(math32::exp(89.0_f32), f32::INFINITY);
+        assert_eq!(math32::exp(1.5e9_f32), 0.0);
+    }
 }
