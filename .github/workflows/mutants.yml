@@ -69,3 +69,28 @@ jobs:
           echo "baseline exit=$status seconds=$(( $(date +%s) - start ))"
           grep -E '^test result|FAILED|panicked' "$RUNNER_TEMP/baseline.log" | head -20
           exit "$status"
+
+  # Per-module timing for D-327 (dispatch only, scratch branch): one unmutated run of each
+  # module's test set, to size the first pass of the sharded crate baseline.
+  modules:
+    name: time the unmutated module test sets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Build the gorse-model lib tests
+        run: cargo test -p gorse-model --lib --no-run
+
+      - name: Time one unmutated run of each module's tests
+        run: |
+          for m in cf ctr tpe; do
+            start=$(date +%s)
+            status=0
+            cargo test -p gorse-model --lib "$m::" > "$RUNNER_TEMP/$m.log" 2>&1 || status=$?
+            echo "module $m exit=$status seconds=$(( $(date +%s) - start ))"
+            grep -E '^test result|FAILED|panicked' "$RUNNER_TEMP/$m.log" | head -5
+          done
