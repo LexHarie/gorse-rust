@@ -9,6 +9,11 @@ name: mutants
 
 on:
   workflow_dispatch:
+    inputs:
+      only:
+        description: "First-pass shards to run, as module:shard,... (for example ctr:3,ctr:5). Empty runs them all, and the survivor re-run runs only then."
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -16,6 +21,7 @@ permissions:
 jobs:
   first-pass:
     name: first pass ${{ matrix.module }} ${{ matrix.shard }}/${{ matrix.total }}
+    if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
@@ -51,6 +57,13 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Place the frappe dataset the ctr tests read (D-327)
+        # The ctr baseline loads frappe (ctr::data::tests::load_data_from_built_in_frappe). Without
+        # this step the shard's unmutated baseline fails, so no mutant in it is measured.
+        if: ${{ matrix.module == 'ctr' }}
+        timeout-minutes: 15
+        run: GORSE_DATASETS=frappe scripts/setup-datasets.sh
+
       - name: Install cargo-mutants
         # Pinned, as in the existing G10 job, so the mutants generated are the same.
         run: cargo install cargo-mutants --locked --version 27.1.0
@@ -81,7 +94,7 @@ jobs:
   survivors:
     name: re-run the survivors against the full lib suite
     needs: first-pass
-    if: ${{ always() }}
+    if: ${{ always() && inputs.only == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     steps:
@@ -92,6 +105,11 @@ jobs:
 
       - name: Install cargo-mutants
         run: cargo install cargo-mutants --locked --version 27.1.0
+
+      - name: Place the frappe dataset the full lib suite reads (D-327)
+        # The second pass runs the whole lib suite, which includes the frappe baseline test.
+        timeout-minutes: 15
+        run: GORSE_DATASETS=frappe scripts/setup-datasets.sh
 
       - name: Download the first-pass outcomes
         uses: actions/download-artifact@v4
