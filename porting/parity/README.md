@@ -16,3 +16,12 @@ run from an extracted copy of that commit, and this tree gains no test:
   (`.github/workflows/parity.yml`), per release and on demand.
 
 Environment limits are recorded in `PORTING.md`.
+
+## Head mode (D-325)
+
+`PARITY_TREE=head scripts/parity.sh run metrics:except=pinterest_20_bpr` (and `metrics:only=pinterest_20_bpr`) runs the metrics suites against this checkout's Rust crates. The Go oracle is still built from `2e9c969`.
+
+- The Rust side is an overlay at `target/parity/head`. It is the pinned tree, which keeps the Go module, `conformance/` and `contracts/`, with this checkout's `crates/`, `third_party/`, `Cargo.toml`, `Cargo.lock` and `rust-toolchain.toml` in its place. The overlay's `Cargo.toml` adds `conformance` to the workspace members. Nothing is written into this tree.
+- Head mode takes only the metrics suites. The other suites stay on the pinned snapshot, and `ctr_replay` is refused, because its golden depends on the CPU path (D-319).
+- CI runs head mode on release and on dispatch only (`metrics-head` and `metrics-head-pinterest` in `.github/workflows/parity.yml`), so it does not run per PR.
+- The frozen metrics suite is not edited. The overlay's copy reads the head's `Option` metrics (`ndcg`, `precision`, `recall`) through a small adapter, `head_metric` (D-367). A `None` fails the test, and a recorded override is the only way past one. Where the suite does not compile, or a result differs, the result is recorded in `PORTING.md`.
