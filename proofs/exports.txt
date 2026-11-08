@@ -162,3 +162,8 @@ Gorse.Spec.Sigmoid.oldB_nan_of_mem
 Gorse.Spec.Sigmoid.oldB_nan_at_margin_minus_89
 Gorse.Spec.Sigmoid.oldB_not_spec
 Gorse.Spec.Sigmoid.newB_mem
+Gorse.Spec.Bpr.bprStep_user
+Gorse.Spec.Bpr.bprStep_pos
+Gorse.Spec.Bpr.bprStep_neg
+Gorse.Spec.SolveRow.coordStep_inv
+Gorse.Spec.SolveRow.solveRow_invariant
