@@ -408,6 +408,7 @@ In plain English:
    He et al. use all items. The theorem holds for both, and the ruling picks one.
 4. Loop invariant: after each coordinate update, `predictions[i]` equals
    `⟨row, others[i]⟩` (exactly over ℝ, and within a stated drift bound in f32).
+   **Status (D-361):** proved over ℝ (`Gorse.Spec.SolveRow.solveRow_invariant`). The f32 drift bound stays open under D-328 and D-361.
 
 ```lean
 namespace Gorse.Spec.CF
@@ -480,6 +481,8 @@ The bounded-load half is not taken: Gorse never calls it (`worker.rs:611-621`).
 | A13 | `unified_index` length is a sum of i32 values that can overflow; the direct index orders label ranges differently from the map index | `unified_index.rs:316-322, 344-372, 453-466` | Checked arithmetic; document that the direct index is for tests only. |
 | A14 | The feedback-type expression text form does not round-trip at ≥ 1e6 | `expression.rs:11-14` | Round-trip contract (fix). |
 | A15 | Results depend on the architecture (F7) | `floats.rs:8-13`, `math32.rs:251-260` | Tier II bound per level. Determinism holds only per level. |
+
+**T4 item 4 status (D-361).** The `solve_row` loop invariant `predictions[i] = ⟨row, others[i]⟩` is proved over ℝ (`Gorse.Spec.SolveRow.solveRow_invariant`). The f32 drift bound stays open under D-328 and D-361.
 
 ---
 
