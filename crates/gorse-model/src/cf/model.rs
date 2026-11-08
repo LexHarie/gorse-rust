@@ -1148,8 +1148,10 @@ impl MatrixFactorization for BPR {
     }
 }
 
-/// Alternating least squares, the eALS of Go's `ALS` (weighted matrix
-/// factorization with the whole-data update of Hu, Koren and Volinsky).
+/// Alternating least squares: the element-wise ALS (eALS) of He, Zhang, Kan and Chua 2016, §4,
+/// with the uniform missing-data weight `cᵢ = α`. It is not Hu, Koren and Volinsky's whole-data
+/// update (F6). The missing-data term sums over all items (A9, D-360), where Go's `ALS` sums
+/// over the rows with feedback.
 ///
 /// Hyper-parameters:
 ///
@@ -1268,7 +1270,8 @@ struct Phase<'a> {
     others: &'a [Vec<f32>],
     /// The feedback of each row: the other-side indices it interacted with.
     feedback: &'a [Vec<i32>],
-    /// The gram matrix of the other side, `sum of x x^T` over the rows with feedback.
+    /// The gram matrix of the other side, `sum of x x^T` over all of its rows (A9, He et al.
+    /// 2016: the missing-data term sums over all items).
     s: &'a [Vec<f32>],
 }
 
@@ -1314,25 +1317,18 @@ fn solve_row(
     }
 }
 
-/// The gram matrix Go builds for one ALS sweep: `sum over the rows with
-/// feedback of x x^T`, where `x` is the row's factor. `None` when `ctx` is done.
-fn gram(
-    ctx: &Context,
-    factors: &[Vec<f32>],
-    feedback: &[Vec<i32>],
-    n_factors: usize,
-) -> Option<Vec<Vec<f32>>> {
+/// The gram matrix of one ALS sweep: `sum over all rows of x x^T`, where `x` is the row's factor
+/// (A9, He et al. 2016: the missing-data term sums over all items, not only the items with
+/// feedback). `None` when `ctx` is done.
+fn gram(ctx: &Context, factors: &[Vec<f32>], n_factors: usize) -> Option<Vec<Vec<f32>>> {
     let mut s = util::new_matrix32(n_factors, n_factors);
-    for (index, items) in feedback.iter().enumerate() {
+    for factor in factors {
         if ctx.err().is_some() {
             return None;
         }
-        if !items.is_empty() {
-            let factor = &factors[index];
-            for (s_row, &x_i) in s.iter_mut().zip(factor) {
-                for (cell, &x_j) in s_row.iter_mut().zip(factor) {
-                    *cell += x_i * x_j;
-                }
+        for (s_row, &x_i) in s.iter_mut().zip(factor) {
+            for (cell, &x_j) in s_row.iter_mut().zip(factor) {
+                *cell += x_i * x_j;
             }
         }
     }
@@ -1432,12 +1428,7 @@ impl Model for ALS {
             let fit_start = Instant::now();
             // Update user factors
             // S^q <- \sum^N_{itemIndex=1} c_i q_i q_i^T
-            let Some(s) = gram(
-                ctx,
-                &self.base.fitted().item_factor,
-                item_feedback,
-                self.n_factors,
-            ) else {
+            let Some(s) = gram(ctx, &self.base.fitted().item_factor, self.n_factors) else {
                 tracing::info!(epoch, "fit als canceled");
                 return Score::default();
             };
@@ -1463,12 +1454,7 @@ impl Model for ALS {
 
             // Update item factors
             // S^p <- P^T P
-            let Some(s) = gram(
-                ctx,
-                &self.base.fitted().user_factor,
-                user_feedback,
-                self.n_factors,
-            ) else {
+            let Some(s) = gram(ctx, &self.base.fitted().user_factor, self.n_factors) else {
                 tracing::info!(epoch, "fit als canceled");
                 return Score::default();
             };
@@ -1835,5 +1821,48 @@ mod stable_sigmoid_tests {
         assert_eq!(math32::exp(88.4_f32), f32::INFINITY);
         assert_eq!(math32::exp(89.0_f32), f32::INFINITY);
         assert_eq!(math32::exp(1.5e9_f32), 0.0);
+    }
+}
+
+/// A9 (D-360): the missing-data term of eALS sums over all items (He et al. 2016, §4). The
+/// Lean counterexample `Gorse.Spec.Eals.ealsCode_feedback_not_min` is the second test here: one
+/// factor, two items, the user's only item is item 0, `Q = 1`, `α = 1/2`, `λ = 1`. The update over
+/// all items is `2/5`, and the Gram over the items with feedback gave `1/2`.
+#[cfg(test)]
+mod eals_all_items_tests {
+    use super::*;
+
+    #[test]
+    fn gram_sums_every_row() {
+        let factors = vec![vec![1.0f32], vec![2.0f32], vec![3.0f32]];
+        let s = gram(&Context::background(), &factors, 1).expect("not canceled");
+        assert_eq!(s, vec![vec![14.0f32]]);
+    }
+
+    #[test]
+    fn coordinate_update_is_the_minimizer_over_all_items() {
+        // Item 1 has no feedback, so it is in the missing-data set only. The Gram over all
+        // items has s = 1 + 1 = 2. The objective (1 − t)² + (1/2)t² + t² is least at 2/5.
+        let others = vec![vec![1.0f32], vec![1.0f32]];
+        let feedback = [0i32];
+        let s = gram(&Context::background(), &others, 1).expect("not canceled");
+        let mut row = vec![0.0f32];
+        let mut scratch = Scratch {
+            predictions: vec![0.0; others.len()],
+            res: vec![0.0; others.len()],
+        };
+        solve_row(
+            &mut row,
+            &others,
+            &feedback,
+            &s,
+            &mut scratch,
+            AlsHyper {
+                n_factors: 1,
+                reg: 1.0,
+                weight: 0.5,
+            },
+        );
+        assert!((row[0] - 0.4).abs() < 1e-6, "row = {}", row[0]);
     }
 }
