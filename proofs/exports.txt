@@ -167,3 +167,16 @@ Gorse.Spec.Bpr.bprStep_pos
 Gorse.Spec.Bpr.bprStep_neg
 Gorse.Spec.SolveRow.coordStep_inv
 Gorse.Spec.SolveRow.solveRow_invariant
+Gorse.Spec.Eals.sum_update_mul
+Gorse.Spec.Eals.sum_update_sq
+Gorse.Spec.Eals.ealsJ_update
+Gorse.Spec.Eals.sum_sq_add
+Gorse.Spec.Eals.sum_sq_sub
+Gorse.Spec.Eals.ealsJ_quad
+Gorse.Spec.Eals.quad_complete
+Gorse.Spec.Eals.quad_min_at
+Gorse.Spec.Eals.quad_unique_at
+Gorse.Spec.Eals.ealsCode_all_items
+Gorse.Spec.Eals.ealsCode_all_items_min
+Gorse.Spec.Eals.ealsCode_all_items_unique
+Gorse.Spec.Eals.ealsCode_feedback_not_min
