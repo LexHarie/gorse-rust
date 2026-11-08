@@ -137,3 +137,5 @@ Gorse.Spec.DotLevels.dot_levels_close
 Gorse.Spec.NdcgRat.decodeQ_cast
 Gorse.Spec.NdcgRat.log2Q_cast
 Gorse.Spec.NdcgRat.ndcgQ_eq_none_iff
+Gorse.Spec.Sigmoid.sigStable_eq
+Gorse.Spec.Sigmoid.sigStable_mem_Icc

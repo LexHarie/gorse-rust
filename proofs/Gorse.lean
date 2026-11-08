@@ -15,3 +15,4 @@ import Gorse.Spec.DotLevels
 import Gorse.Spec.MapRat
 import Gorse.Spec.Log2Table
 import Gorse.Spec.NdcgRat
+import Gorse.Spec.Sigmoid

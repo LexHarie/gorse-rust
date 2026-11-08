@@ -711,6 +711,19 @@ impl<'a> Interactions<'a> {
     }
 }
 
+/// The logistic function, evaluated without overflow (A8, D-358). `exp` sees only
+/// non-positive arguments, so it cannot overflow to +∞ and turn `∞ / ∞` into NaN, which
+/// the old `exp(x) / (1 + exp(x))` did for `x ≥ 89`. The two branches agree with σ(x)
+/// in exact arithmetic (`Gorse.Spec.Sigmoid.sigStable_eq`) and differ in the last bits.
+fn stable_sigmoid(x: f32) -> f32 {
+    if x >= 0.0 {
+        1.0 / (1.0 + math32::exp(-x))
+    } else {
+        let e = math32::exp(x);
+        e / (1.0 + e)
+    }
+}
+
 /// One pairwise update of BPR (the body of Go's epoch job): samples a user with
 /// feedback, one of that user's items as the positive, and an item the user has
 /// not interacted with as the negative, then moves the three factors along the
@@ -751,7 +764,7 @@ fn bpr_update(
     };
     let diff = floats::dot(&user_factor[user], &item_factor[pos])
         - floats::dot(&user_factor[user], &item_factor[neg]);
-    let grad = math32::exp(-diff) / (1.0 + math32::exp(-diff));
+    let grad = stable_sigmoid(-diff);
     // Pairwise update
     let user_copy = user_factor[user].clone();
     let pos_copy = item_factor[pos].clone();
@@ -1759,5 +1772,54 @@ mod sampling_tests {
             );
         }
         assert_eq!((user_factor, item_factor), before);
+    }
+}
+
+#[cfg(test)]
+mod stable_sigmoid_tests {
+    // A8 (D-358): the stable sigmoid is finite and in [0, 1] everywhere, and BPR's update
+    // stays finite at margin −89, where the old `exp(x) / (1 + exp(x))` gave NaN.
+
+    use super::*;
+
+    #[test]
+    fn stable_sigmoid_is_exact_at_its_landmarks() {
+        assert_eq!(stable_sigmoid(0.0), 0.5);
+        assert_eq!(stable_sigmoid(89.0), 1.0);
+        assert_eq!(stable_sigmoid(-89.0), 0.0);
+    }
+
+    #[test]
+    fn stable_sigmoid_is_finite_and_in_unit_interval() {
+        for step in -2_000..=2_000 {
+            let x = step as f32 * 0.05;
+            let y = stable_sigmoid(x);
+            assert!(y.is_finite(), "x = {x}: {y}");
+            assert!((0.0..=1.0).contains(&y), "x = {x}: {y}");
+        }
+    }
+
+    #[test]
+    fn bpr_update_stays_finite_at_margin_minus_89() {
+        // One user with item 0 only, in a two-item catalogue, so the negative is always
+        // item 1. The margin is ⟨u, h_0⟩ − ⟨u, h_1⟩ = −89 − 0 = −89.
+        let feedback = vec![vec![0]];
+        let user_sets: Vec<HashSet<i32>> = vec![[0].into_iter().collect()];
+        let data = Interactions::new(&feedback, &user_sets, 1, 2);
+        let mut user_factor = vec![vec![1.0f32]];
+        let mut item_factor = vec![vec![-89.0f32], vec![0.0f32]];
+        let mut rng = RandomGenerator::new(7);
+        bpr_update(
+            &mut user_factor,
+            &mut item_factor,
+            &mut rng,
+            &data,
+            0.01,
+            0.05,
+        );
+        assert!(user_factor.iter().flatten().all(|x| x.is_finite()));
+        assert!(item_factor.iter().flatten().all(|x| x.is_finite()));
+        // The gradient is σ(89) = 1, so the positive item moves by lr · u = 0.05.
+        assert!((item_factor[0][0] - (-89.0 + 0.05 - 0.01 * -89.0 * 0.05)).abs() < 1e-3);
     }
 }
