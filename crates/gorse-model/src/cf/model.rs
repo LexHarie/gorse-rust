@@ -1866,3 +1866,57 @@ mod eals_all_items_tests {
         assert!((row[0] - 0.4).abs() < 1e-6, "row = {}", row[0]);
     }
 }
+
+#[cfg(test)]
+mod solve_row_invariant_tests {
+    use super::*;
+
+    /// After a sweep, each feedback `predictions[i]` equals the dot product of the solved row with
+    /// `others[i]`. This is the loop invariant of `solve_row` (Lean:
+    /// `Gorse.Spec.SolveRow.solveRow_invariant`, T4 item 4, P5-4, D-361). The patch is done in f32,
+    /// so the check allows `1e-5` times the largest term `Σ_g |row_g · o_ig|` (or 1). That tolerance
+    /// is set for this new test. It is not a band on a pinned value.
+    #[test]
+    fn solve_row_predictions_equal_the_dot_products() {
+        let n_factors = 3;
+        let others = vec![
+            vec![0.5f32, -1.0, 0.25],
+            vec![1.5, 0.75, -0.5],
+            vec![-0.25, 2.0, 1.0],
+            vec![0.1, 0.2, 0.3],
+        ];
+        let feedback = [0i32, 2, 3];
+        // The Gram matrix over all items. The invariant does not depend on which items it sums.
+        let s: Vec<Vec<f32>> = (0..n_factors)
+            .map(|a| {
+                (0..n_factors)
+                    .map(|b| others.iter().map(|x| x[a] * x[b]).sum::<f32>())
+                    .collect()
+            })
+            .collect();
+        let mut row = vec![0.3f32, -0.2, 0.6];
+        let mut scratch = Scratch {
+            predictions: vec![0.0; others.len()],
+            res: vec![0.0; others.len()],
+        };
+        let hyper = AlsHyper {
+            n_factors,
+            reg: 0.1,
+            weight: 0.05,
+        };
+        solve_row(&mut row, &others, &feedback, &s, &mut scratch, hyper);
+        for &i in &feedback {
+            let i = i as usize;
+            let terms: Vec<f64> = (0..n_factors)
+                .map(|f| f64::from(row[f]) * f64::from(others[i][f]))
+                .collect();
+            let dot: f64 = terms.iter().sum();
+            let scale = terms.iter().map(|t| t.abs()).sum::<f64>().max(1.0);
+            let prediction = f64::from(scratch.predictions[i]);
+            assert!(
+                (prediction - dot).abs() <= 1e-5 * scale,
+                "index {i}: prediction {prediction} differs from the dot product {dot}"
+            );
+        }
+    }
+}
