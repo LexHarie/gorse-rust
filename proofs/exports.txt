@@ -182,6 +182,15 @@ Gorse.Spec.Eals.ealsCode_all_items_unique
 Gorse.Spec.Eals.ealsCode_feedback_not_min
 Gorse.Spec.UserSum.preFix_not_schedule_independent
 Gorse.Spec.UserSum.postFix_eq_one
+Gorse.Spec.InflateCap.preOut_exceeds_cap
+Gorse.Spec.InflateCap.decodeCapped_le
+Gorse.Spec.InflateCap.outLen_replicate_copy
+Gorse.Spec.RequestOffset.preLimit_wraps
+Gorse.Spec.RequestOffset.checkedAdd_overflow
+Gorse.Spec.RequestOffset.checkedAdd_sound
+Gorse.Spec.RequestOffset.preSkip_neg_empty
+Gorse.Spec.RequestOffset.parseOffset_neg
+Gorse.Spec.RequestOffset.parseOffset_some
 Gorse.Spec.LoadPairs.preSplit_leaks
 Gorse.Spec.LoadPairs.loaded_no_leak_example
 Gorse.Spec.LoadPairs.loadAll_nodup
