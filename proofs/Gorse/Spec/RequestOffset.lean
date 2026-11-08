@@ -58,7 +58,6 @@ theorem checkedAdd_sound {a b s : Int} (h : checkedAdd a b = some s) : s = a + b
   unfold checkedAdd at h
   split_ifs at h with hr
   · exact (Option.some.inj h).symm
-  · cases h
 
 /-! ## S4: a negative offset empties the page, and the parse rejects it -/
 
@@ -69,6 +68,7 @@ theorem preSkip_neg_empty {α : Type} (xs : List α) (hlen : xs.length ≤ 18446
   unfold preSkip
   have h : ((-1 : Int) % 18446744073709551616).toNat = 18446744073709551615 := by
     norm_num
+    rfl
   rw [h]
   exact List.drop_eq_nil_of_le hlen
 
