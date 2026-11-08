@@ -267,6 +267,17 @@ derive_overrides() {
   rm -f -- "$dir"/*.json "$dir"/SHA256SUMS
   trap restore_derived_tests EXIT
   GORSE_DATASETS="ml-1m pinterest-20" scripts/setup-datasets.sh
+  # Information only: how many training rows repeat a (user, item) pair. The Go loader and
+  # the Rust test loader both keep every training row (add_feedback), so the count does not
+  # change the training set of either side.
+  for ds in ml-1m pinterest-20; do
+    train="$HOME/.gorse/dataset/$ds/train.txt"
+    if [ -f "$train" ]; then
+      total=$(wc -l < "$train")
+      distinct=$(cut -f1,2 "$train" | sort -u | wc -l)
+      echo "parity: $ds train.txt: $total rows, $((total - distinct)) rows repeat a (user,item) pair"
+    fi
+  done
   for ds in ml-1m pinterest-20; do
     testfile="$HOME/.gorse/dataset/$ds/test.txt"
     if [ ! -f "$testfile" ]; then
