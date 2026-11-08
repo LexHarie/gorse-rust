@@ -22,3 +22,4 @@ import Gorse.Spec.SolveRow
 import Gorse.Spec.Eals
 import Gorse.Spec.InflateCap
 import Gorse.Spec.RequestOffset
+import Gorse.Spec.LoadPairs
