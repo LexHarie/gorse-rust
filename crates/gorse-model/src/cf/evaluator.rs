@@ -18,11 +18,11 @@ use super::model::MatrixFactorization;
 /// the metric is undefined for the list, as A1 requires (D-315).
 pub type Metric = fn(&HashSet<i32>, &[i32]) -> Option<f32>;
 
-/// The per-job partial results of [`evaluate`]: for each metric, the sum of its defined
-/// values and the number of users it was defined for.
+/// The per-job results of [`evaluate`]: for each user the job ranked, the user's value of each
+/// metric (`None` where it is undefined). The values are kept by user index and summed in user
+/// order afterwards, so the split of users across jobs does not change the mean (D-353).
 struct Partial {
-    sum: Vec<f32>,
-    count: Vec<f32>,
+    users: Vec<(usize, Vec<Option<f32>>)>,
 }
 
 /// Go's `Evaluate`: the mean of each metric over the test users for whom it is defined,
@@ -48,12 +48,7 @@ pub fn evaluate(
     let num_users = test_set.count_users();
     let feedback = test_set.get_user_feedback();
     let partials: Vec<Mutex<Partial>> = (0..n_jobs)
-        .map(|_| {
-            Mutex::new(Partial {
-                sum: vec![0.0; scorers.len()],
-                count: vec![0.0; scorers.len()],
-            })
-        })
+        .map(|_| Mutex::new(Partial { users: Vec::new() }))
         .collect();
     // Go ignores the error: a background context is never done.
     let _ = parallel::parallel::<ContextError, _>(
@@ -68,27 +63,32 @@ pub fn evaluate(
                 let candidates = candidate_list(&feedback[user_index], &negatives[user_index]);
                 // Find top-n ItemFeedback in predictions
                 let rank_list = rank(estimator, user_index as i32, &candidates, top_k);
-                let mut partial = lock(&partials[worker_id]);
-                let Partial { sum, count } = &mut *partial;
-                for ((total, n), metric) in sum.iter_mut().zip(count.iter_mut()).zip(scorers) {
-                    if let Some(value) = metric(&target_set, &rank_list) {
-                        *total += value;
-                        *n += 1.0;
-                    }
-                }
+                let values: Vec<Option<f32>> = scorers
+                    .iter()
+                    .map(|metric| metric(&target_set, &rank_list))
+                    .collect();
+                lock(&partials[worker_id]).users.push((user_index, values));
             }
             Ok(())
         },
     );
-    let mut sum = vec![0f32; scorers.len()];
-    let mut count = vec![0f32; scorers.len()];
+    // Sum each metric over the users in user order, so the mean does not depend on how the users
+    // were split across jobs (D-353). With one job this is the order the code always used.
+    let mut by_user: Vec<Option<Vec<Option<f32>>>> = vec![None; num_users];
     for partial in partials {
         let partial = partial.into_inner().unwrap_or_else(|e| e.into_inner());
-        for (total, part) in sum.iter_mut().zip(&partial.sum) {
-            *total += part;
+        for (user_index, values) in partial.users {
+            by_user[user_index] = Some(values);
         }
-        for (n, part) in count.iter_mut().zip(&partial.count) {
-            *n += part;
+    }
+    let mut sum = vec![0f32; scorers.len()];
+    let mut count = vec![0f32; scorers.len()];
+    for values in by_user.iter().flatten() {
+        for ((total, n), value) in sum.iter_mut().zip(count.iter_mut()).zip(values) {
+            if let Some(value) = value {
+                *total += value;
+                *n += 1.0;
+            }
         }
     }
     sum.iter()
@@ -520,6 +520,71 @@ mod tests {
         let s = evaluate(&m, &mut test, &train, 4, num_candidates, 4, &[precision]);
         assert_eq!(1, s.len());
         assert_eq!(Some(0.625), s[0]);
+    }
+
+    /// D-353: the mean over users must not depend on how the users are split across jobs. The
+    /// metric values are `1 / (3 + item)`, which are not exact in binary32, so a sum taken in a
+    /// different order gives different bits. Every `n_jobs` must give the bits of one job.
+    #[test]
+    fn test_evaluate_mean_is_bitwise_independent_of_n_jobs() {
+        const USERS: usize = 97;
+        let mut train = Dataset::new(gotime::now(), 0, 0);
+        let mut test = Dataset::new(gotime::now(), 0, 0);
+        for u in 0..USERS {
+            train.add_user(data::User {
+                user_id: u.to_string(),
+                ..Default::default()
+            });
+            test.add_user(data::User {
+                user_id: u.to_string(),
+                ..Default::default()
+            });
+        }
+        for i in 0..3 * USERS {
+            test.add_item(data::Item {
+                item_id: i.to_string(),
+                ..Default::default()
+            });
+            test.add_feedback(
+                &(i / 3).to_string(),
+                &i.to_string(),
+                gotime::Time::default(),
+            );
+        }
+        let m = MockMatrixFactorizationForEval {
+            positive: vec![HashSet::new(); USERS],
+            negative: vec![HashSet::new(); USERS],
+            ..Default::default()
+        };
+        fn inverse_of_first(_: &HashSet<i32>, rank_list: &[i32]) -> Option<f32> {
+            rank_list.first().map(|&item| 1.0 / (3.0 + item as f32))
+        }
+        let num_candidates = test.count_items();
+        let one_job = evaluate(
+            &m,
+            &mut test,
+            &train,
+            3,
+            num_candidates,
+            1,
+            &[inverse_of_first],
+        )[0];
+        for n_jobs in [2, 3, 4, 8] {
+            let s = evaluate(
+                &m,
+                &mut test,
+                &train,
+                3,
+                num_candidates,
+                n_jobs,
+                &[inverse_of_first],
+            )[0];
+            assert_eq!(
+                s.map(f32::to_bits),
+                one_job.map(f32::to_bits),
+                "n_jobs = {n_jobs}"
+            );
+        }
     }
 
     /// A4 (D-315), confirmed: a repeated candidate enters the ranked list twice, and NDCG

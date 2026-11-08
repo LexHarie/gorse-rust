@@ -175,3 +175,5 @@ Gorse.Spec.Eals.ealsCode_all_items
 Gorse.Spec.Eals.ealsCode_all_items_min
 Gorse.Spec.Eals.ealsCode_all_items_unique
 Gorse.Spec.Eals.ealsCode_feedback_not_min
+Gorse.Spec.UserSum.preFix_not_schedule_independent
+Gorse.Spec.UserSum.postFix_eq_one
