@@ -14,8 +14,13 @@ on:
         description: "First-pass shards to run, as module:shard,... (for example ctr:3,ctr:5). Empty runs them all, and the survivor re-run runs only then."
         type: string
         default: ""
+      survivors_from:
+        description: "Survivor re-run only: run ids (comma-separated) whose first-pass artifacts are re-run. Set only to none:0 with it, so no first-pass shard runs."
+        type: string
+        default: ""
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
@@ -96,7 +101,7 @@ jobs:
   survivors:
     name: re-run the survivors against the full lib suite
     needs: first-pass
-    if: ${{ always() && inputs.only == '' }}
+    if: ${{ always() && (inputs.only == '' || inputs.survivors_from != '') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     steps:
@@ -114,10 +119,23 @@ jobs:
         run: GORSE_DATASETS=frappe scripts/setup-datasets.sh
 
       - name: Download the first-pass outcomes
+        if: ${{ inputs.survivors_from == '' }}
         uses: actions/download-artifact@v4
         with:
           pattern: first-pass-*
           path: ${{ runner.temp }}/first
+
+      - name: Download the first-pass outcomes of the earlier runs
+        # A survivor-only dispatch reads the artifacts of the runs named in survivors_from, so a
+        # shard that ran in another dispatch (ctr 3/10 and ctr 5/10) is re-run here too.
+        if: ${{ inputs.survivors_from != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNS: ${{ inputs.survivors_from }}
+        run: |
+          for r in ${RUNS//,/ }; do
+            gh run download "$r" --repo "$GITHUB_REPOSITORY" --pattern 'first-pass-*' --dir "$RUNNER_TEMP/first/$r"
+          done
 
       - name: Gather the first-pass outcomes and the survivors
         run: |
