@@ -246,7 +246,9 @@ pub(crate) async fn get_latest(
     if !read.is_empty() {
         items.retain(|item| !read.contains(&item.item_id));
     }
-    let skip = usize::try_from(offset).unwrap_or(0).min(items.len());
+    let skip = usize::try_from(offset)
+        .unwrap_or(usize::MAX)
+        .min(items.len());
     items.drain(..skip);
     if n > 0 && items.len() as i64 > n {
         items.truncate(n as usize);
@@ -645,7 +647,7 @@ pub(crate) async fn session_recommend(
     );
     // Go's `result[offset:]` is nil when the offset reaches the end, and a
     // nil list stays nil through the truncation to `n`.
-    let offset = usize::try_from(offset).unwrap_or(0);
+    let offset = usize::try_from(offset).unwrap_or(usize::MAX);
     result = match result {
         Some(mut list) if list.len() > offset => {
             list.drain(..offset);
