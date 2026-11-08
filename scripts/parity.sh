@@ -93,6 +93,39 @@ extract_head_tree() {
     exit 2
   fi
   sed -i 's|^members = \["crates/\*"\]$|members = ["crates/*", "conformance"]|' "$HEAD/Cargo.toml"
+  # The adapter (D-325; President ruling 2026-11-08, 15:16Z). The head's CF Score returns
+  # ndcg, precision and recall as Option<f32> (D-324), and the frozen suite reads f32. The
+  # frozen file is not edited. The overlay's copy reads each metric through head_metric: a
+  # value passes through, and a None fails with the metric's name. A None case gets an exact
+  # expected-value override only with attribution in PORTING.md, never a skip or a wider
+  # band. No override is recorded yet.
+  local suite="$HEAD/conformance/tests/metrics.rs"
+  sed -i -E 's/(^|[^A-Za-z0-9_])score\.(ndcg|precision|recall)\b/\1head_metric(score.\2, "\2")/g' "$suite"
+  cat >> "$suite" <<'EOF'
+
+// Head-mode adapter (D-325, scripts/parity.sh). Not part of the frozen suite.
+trait HeadMetric {
+    fn value(self, name: &str) -> f32;
+}
+
+impl HeadMetric for f32 {
+    fn value(self, _name: &str) -> f32 {
+        self
+    }
+}
+
+impl HeadMetric for Option<f32> {
+    fn value(self, name: &str) -> f32 {
+        self.unwrap_or_else(|| {
+            panic!("head metric {name} is undefined (D-324); a None case needs a recorded override")
+        })
+    }
+}
+
+fn head_metric<M: HeadMetric>(value: M, name: &str) -> f32 {
+    value.value(name)
+}
+EOF
   echo "parity: head overlay built at $HEAD (pinned conformance, this checkout's crates)"
 }
 
