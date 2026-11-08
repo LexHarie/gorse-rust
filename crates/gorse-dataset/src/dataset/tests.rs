@@ -408,3 +408,36 @@ fn load_test_rejects_a_line_without_parentheses() {
     let err = super::load_test(&mut train, &test_path).expect_err("the line has no parentheses");
     assert!(matches!(err, crate::Error::WrongFormat(_)));
 }
+
+/// A repeated (user, item) pair keeps one record, with the later timestamp (audit S3, D-366).
+#[test]
+fn keep_latest_timestamp_keeps_one_record_per_pair() {
+    let earlier = gotime::date(2000, Month::JANUARY, 1, 0, 0, 0, 0, &gotime::utc());
+    let later = gotime::date(2001, Month::JANUARY, 1, 0, 0, 0, 0, &gotime::utc());
+    let mut data_set = Dataset::new(gotime::now(), 1, 2);
+    data_set.add_user(data::User {
+        user_id: "0".to_owned(),
+        ..data::User::default()
+    });
+    for item in ["0", "1"] {
+        data_set.add_item(data::Item {
+            item_id: item.to_owned(),
+            ..data::Item::default()
+        });
+    }
+    data_set.add_feedback("0", "0", earlier.clone());
+    data_set.add_feedback("0", "1", earlier.clone());
+
+    // A later record for the pair (0, 0) updates its timestamp and adds no record.
+    assert!(data_set.keep_latest_timestamp(0, 0, &later));
+    assert_eq!(data_set.count_feedback(), 2);
+    assert_eq!(data_set.timestamps[0][0], later);
+
+    // An earlier record does not replace the later timestamp.
+    assert!(data_set.keep_latest_timestamp(0, 0, &earlier));
+    assert_eq!(data_set.timestamps[0][0], later);
+
+    // A pair with no record is not added here.
+    assert!(!data_set.keep_latest_timestamp(0, 5, &later));
+    assert_eq!(data_set.count_feedback(), 2);
+}

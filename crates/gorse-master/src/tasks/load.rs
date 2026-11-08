@@ -554,6 +554,8 @@ async fn load(
                         {
                             continue;
                         }
+                        // a repeated pair keeps one record in the dataset (audit S3, D-366)
+                        let repeated = state.positive_feedback[user].contains_key(&item_index);
                         // insert feedback to positive map, and to the evaluator
                         keep_latest(&mut state.positive_feedback[user], item_index, &f.timestamp);
                         state.positive_count += 1;
@@ -591,11 +593,17 @@ async fn load(
                             item_feedback.push(f.clone());
                         }
                         item_group_index = item_positions[item_index as usize];
-                        state.dataset.add_feedback(
-                            &f.feedback_key.user_id,
-                            &f.feedback_key.item_id,
-                            f.timestamp.clone(),
-                        );
+                        if repeated {
+                            state
+                                .dataset
+                                .keep_latest_timestamp(user, item_index, &f.timestamp);
+                        } else {
+                            state.dataset.add_feedback(
+                                &f.feedback_key.user_id,
+                                &f.feedback_key.item_id,
+                                f.timestamp.clone(),
+                            );
+                        }
                     }
                     span.add(feedback.len() as i64);
                 }
