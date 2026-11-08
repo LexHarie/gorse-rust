@@ -77,6 +77,5 @@ theorem decodeCapped_le (cap : ℕ) (ss : List Sym) :
     simp only [decodeCapped] at h
     split_ifs at h with hs
     · exact ih (acc + symLen s) hs n h
-    · cases h
 
 end Gorse.Spec.InflateCap
