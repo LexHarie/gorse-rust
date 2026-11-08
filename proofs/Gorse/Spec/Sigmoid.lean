@@ -18,18 +18,23 @@ Over the reals the old formula is correct, so the bug is an f32 fact. The file h
 1. **The ℝ statements.** `sigStable` is the stable form: `exp` is applied only at non-positive
    arguments. `sigStable_eq` shows it equals σ for every real `x`, and `sigStable_mem_Icc` shows it
    lies in `[0, 1]`.
-2. **An overflow-aware binary32 model (`Bin32`).** A finite result is the rounding `rn` of a real
-   (Gorse.Spec.Float32). A result at or above `ovfThreshold` is `+∞`, which is IEEE's rounding to
-   nearest: the midpoint above the largest finite value rounds to ∞ with ties to even. `fexp`, `fadd1`
-   and `fdiv` round once each, and `∞ / ∞` is NaN. `oldB` is the code before the fix, and `newB` is
-   the stable form, both over this model.
-3. **The bug and the fix, in that model.** `oldB_nan_of_ge`: for `x ≥ 89` the old formula is NaN,
-   which breaks "finite and in [0, 1]" (`oldB_not_spec`). `newB_mem`: the stable form is finite and
-   in `[0, 1]` for every real `x`, and each `exp` in it has a non-positive argument.
+2. **A binary32 model of `math32::exp` on x86-64 (`Bin32`, `fexpAmd`).** A finite result is the
+   rounding `rn` of a real (Gorse.Spec.Float32). `math32::exp` is Go's `exp_amd64.s`, and its two
+   decisions are modelled exactly: with `k = CVTSS2SL(LOG2E · x)`, the result is `+∞` when
+   `k ≥ 128` and `0` when `k ≤ −127`, and `cvtss2sl` saturates to `i32::MIN` for large `x`. A finite
+   result is the correctly rounded `exp`, which stands in for the assembly's polynomial (a stated gap).
+   `fadd1` and `fdiv` round once each, and `∞ / ∞` is NaN. `oldB` is the code before the fix, and
+   `newB` is the stable form, both over this model.
+3. **The bug and the fix, in that model.** `oldB_nan_of_mem`: for `89 ≤ x ≤ 2^20` the old formula is
+   NaN, because `k ≥ 128` there (`amdK_overflow`), which breaks "finite and in [0, 1]"
+   (`oldB_not_spec`). `newB_mem`: the stable form is finite and in `[0, 1]` for every real `x`, and
+   each `exp` in it has a non-positive argument, where `amdK` is at most `0` (`amdK_le_zero`).
 
-The model is IEEE's. The Rust `exp` (`math32::exp`) is Go's amd64 assembly, not a correctly rounded
-function, and the Rust regression test (`bpr_update_stays_finite_at_margin_minus_89`) shows the same
-NaN at margin −89. The tier II error bound of the stable form is still open (D-328).
+The Rust `exp` is not correctly rounded, and the model follows the amd64 code, not IEEE's overflow
+rule. The IEEE rule would overflow from 88.72, but the amd64 code overflows from `k = 128`, about
+88.40, and returns `0` from about 1.49e9 on. The bug theorem is stated only on `[89, 2^20]`, where
+both decisions are as modelled. The Rust regression test (`bpr_update_stays_finite_at_margin_minus_89`)
+shows the same NaN at margin −89. The tier II error bound of the stable form is still open (D-328).
 -/
 
 namespace Gorse.Spec.Sigmoid
@@ -222,44 +227,40 @@ noncomputable def fdiv : Bin32 → Bin32 → Bin32
   | .pinf, .nan => .nan
   | .nan, _ => .nan
 
-/-- The code before the fix: `exp(−diff) / (1 + exp(−diff))`, with `x = −diff`. -/
-noncomputable def oldB (x : ℝ) : Bin32 := fdiv (fexp x) (fadd1 (fexp x))
+/-- The f32 constant `LOG2E` of `exp_amd64.s`. The decimal is exactly a binary32 value, so it is the
+constant the Rust code holds. -/
+def LOG2E32 : ℝ := 1.44269502162933349609375
+
+/-- The integer `k` of `exp_amd64.s`: `CVTSS2SL` of the binary32 product `rn(LOG2E32 · x)`, rounded
+to an integer with ties to even, and `i32::MIN` when that integer is outside the `i32` range. -/
+noncomputable def amdK (x : ℝ) : ℤ :=
+  if -2147483648 ≤ roundEven (rn (LOG2E32 * x)) ∧ roundEven (rn (LOG2E32 * x)) < 2147483648 then
+    roundEven (rn (LOG2E32 * x))
+  else -2147483648
+
+/-- `math32::exp` on x86-64, in the binary32 model. Its two decisions are exact: `e = k + 127`, so
+`e ≥ 255` gives `+∞` (`k ≥ 128`) and `e ≤ 0` gives `0` (`k ≤ −127`). A finite result is the correctly
+rounded `exp`, which stands in for the assembly's polynomial (a stated gap). -/
+noncomputable def fexpAmd (x : ℝ) : Bin32 :=
+  if 128 ≤ amdK x then Bin32.pinf
+  else if amdK x ≤ -127 then Bin32.ofReal 0
+  else fexp x
+
+/-- The code before the fix: `exp(−diff) / (1 + exp(−diff))`, with `x = −diff`, and `exp` is
+`math32::exp`. -/
+noncomputable def oldB (x : ℝ) : Bin32 := fdiv (fexpAmd x) (fadd1 (fexpAmd x))
 
 /-- The stable form, as `stable_sigmoid(x)` computes it, over the same model. Every `exp` is
 applied at a non-positive argument. -/
 noncomputable def newB (x : ℝ) : Bin32 :=
-  if 0 ≤ x then fdiv (Bin32.ofReal 1) (fadd1 (fexp (-x)))
-  else fdiv (fexp x) (fadd1 (fexp x))
+  if 0 ≤ x then fdiv (Bin32.ofReal 1) (fadd1 (fexpAmd (-x)))
+  else fdiv (fexpAmd x) (fadd1 (fexpAmd x))
 
 /-! ## Facts about the model -/
-
-theorem ovfThreshold_le_two_pow : ovfThreshold ≤ (2 : ℝ) ^ 128 := by
-  unfold ovfThreshold
-  norm_num [zpow_neg]
 
 theorem four_le_ovfThreshold : (4 : ℝ) ≤ ovfThreshold := by
   unfold ovfThreshold
   norm_num [zpow_neg]
-
-/-- `exp 89` is at least `2^128`, which is above the overflow threshold. The bound uses
-`e > 2.7182818283`, and `2.7182818283^89 ≥ 2^128` is checked by `norm_num`. -/
-theorem two_pow_128_le_exp_89 : (2 : ℝ) ^ 128 ≤ Real.exp 89 := by
-  have h1 : (2.7182818283 : ℝ) ≤ Real.exp 1 := le_of_lt Real.exp_one_gt_d9
-  have h2 : Real.exp 89 = Real.exp 1 ^ 89 := by
-    rw [← Real.exp_nat_mul]
-    norm_num
-  rw [h2]
-  have h3 : (2.7182818283 : ℝ) ^ 89 ≤ Real.exp 1 ^ 89 := pow_le_pow_left (by norm_num) h1 89
-  have h4 : (2 : ℝ) ^ 128 ≤ (2.7182818283 : ℝ) ^ 89 := by norm_num
-  exact le_trans h4 h3
-
-/-- `exp` in binary32 overflows to `+∞` from `x = 89` on. -/
-theorem fexp_pinf_of_ge {x : ℝ} (hx : 89 ≤ x) : fexp x = Bin32.pinf := by
-  have h1 : (2 : ℝ) ^ 128 ≤ Real.exp x :=
-    le_trans two_pow_128_le_exp_89 (Real.exp_le_exp.mpr hx)
-  have h2 : ovfThreshold ≤ Real.exp x := le_trans ovfThreshold_le_two_pow h1
-  unfold fexp fround
-  rw [if_pos h2]
 
 /-- `exp` of a non-positive argument is finite and at most one. -/
 theorem fexp_ofReal_of_nonpos {y : ℝ} (hy : y ≤ 0) :
@@ -271,6 +272,107 @@ theorem fexp_ofReal_of_nonpos {y : ℝ} (hy : y ≤ 0) :
     linarith [four_le_ovfThreshold]
   unfold fexp fround
   rw [if_neg (not_le.mpr h2)]
+
+/-! ## The amd64 `exp` of `math32::exp`: its two decisions -/
+
+/-- `rn` is nonpositive on the nonpositive reals. -/
+theorem rn_nonpos {w : ℝ} (h0 : w ≤ 0) : rn w ≤ 0 := by
+  by_cases hw : w = 0
+  · subst hw
+    simp [rn_zero]
+  · have hp : (0 : ℝ) < 2 ^ ulpExp w := by positivity
+    have hd : w / 2 ^ ulpExp w ≤ 0 := by
+      rw [div_le_iff₀ hp]
+      simpa using h0
+    have hr : roundEven (w / 2 ^ ulpExp w) ≤ 0 := roundEven_le_of_le (by simpa using hd)
+    have hr' : ((roundEven (w / 2 ^ ulpExp w) : ℤ) : ℝ) ≤ 0 := by exact_mod_cast hr
+    unfold rn
+    rw [if_neg hw]
+    simpa using mul_le_mul_of_nonneg_right hr' hp.le
+
+/-- For a nonpositive argument, `k ≤ 0`, so `e = k + 127` never overflows. -/
+theorem amdK_le_zero {y : ℝ} (hy : y ≤ 0) : amdK y ≤ 0 := by
+  have hL : LOG2E32 * y ≤ 0 := by
+    unfold LOG2E32
+    linarith
+  have hr : roundEven (rn (LOG2E32 * y)) ≤ 0 :=
+    roundEven_le_of_le (by simpa using rn_nonpos hL)
+  unfold amdK
+  split_ifs with h
+  · exact hr
+  · norm_num
+
+/-- `math32::exp` of a nonpositive argument is finite, in `[0, 1]`: the overflow branch is never
+taken, and the underflow branch gives `0`. -/
+theorem fexpAmd_ofReal_of_nonpos {y : ℝ} (hy : y ≤ 0) :
+    ∃ r ∈ Set.Icc (0 : ℝ) 1, fexpAmd y = Bin32.ofReal r := by
+  have hk : amdK y ≤ 0 := amdK_le_zero hy
+  have e1 : 0 ≤ Real.exp y := (Real.exp_pos y).le
+  have e2 : Real.exp y ≤ 1 := by
+    have := Real.exp_le_exp.mpr hy
+    rwa [Real.exp_zero] at this
+  unfold fexpAmd
+  by_cases h1 : 128 ≤ amdK y
+  · exact absurd (le_trans h1 hk) (by norm_num)
+  · by_cases h2 : amdK y ≤ -127
+    · rw [if_neg h1, if_pos h2]
+      exact ⟨0, ⟨le_refl (0 : ℝ), zero_le_one⟩, rfl⟩
+    · rw [if_neg h1, if_neg h2]
+      exact ⟨rn (Real.exp y), ⟨rn_nonneg e1, rn_le_one_of_le_one e1 e2⟩,
+        fexp_ofReal_of_nonpos hy⟩
+
+/-- For `89 ≤ x ≤ 2^20` the binary32 product `rn(LOG2E32 · x)` lies in `[128, 2^31 − 1]`. Its
+error is at most `1/16`, from `rn_sub_le` and the unit `2^-3` (the value is below `2^21`). -/
+theorem roundEven_rn_mem {x : ℝ} (hx : 89 ≤ x) (hx2 : x ≤ 1048576) :
+    128 ≤ roundEven (rn (LOG2E32 * x)) ∧ roundEven (rn (LOG2E32 * x)) ≤ 2147483647 := by
+  have hL : (1.44 : ℝ) ≤ LOG2E32 := by
+    unfold LOG2E32
+    norm_num
+  have hL2 : LOG2E32 ≤ (1.45 : ℝ) := by
+    unfold LOG2E32
+    norm_num
+  have hw1 : (128.1 : ℝ) ≤ LOG2E32 * x := by nlinarith
+  have hw2 : LOG2E32 * x < (2097152 : ℝ) := by nlinarith
+  have hpos : (0 : ℝ) < LOG2E32 * x := by linarith
+  have hw0 : LOG2E32 * x ≠ 0 := hpos.ne'
+  have hlog : Int.log 2 |LOG2E32 * x| ≤ 20 := by
+    rw [abs_of_pos hpos]
+    by_contra hc
+    push_neg at hc
+    have h1 : (2 : ℝ) ^ (21 : ℤ) ≤ (2 : ℝ) ^ Int.log 2 (LOG2E32 * x) :=
+      zpow_le_zpow_right₀ (by norm_num) (by omega)
+    have h2 : (2 : ℝ) ^ Int.log 2 (LOG2E32 * x) ≤ LOG2E32 * x := by
+      exact_mod_cast Int.zpow_log_le_self (by norm_num : 1 < 2) hpos
+    have h21 : (2 : ℝ) ^ (21 : ℤ) = 2097152 := by norm_num
+    linarith
+  have hu : ulpExp (LOG2E32 * x) ≤ -3 := by
+    unfold ulpExp
+    linarith [max_le hlog (by norm_num : (-126 : ℤ) ≤ 20)]
+  have hpow : (2 : ℝ) ^ ulpExp (LOG2E32 * x) ≤ (2 : ℝ) ^ (-3 : ℤ) :=
+    zpow_le_zpow_right₀ (by norm_num) hu
+  have h8 : (2 : ℝ) ^ (-3 : ℤ) = 1 / 8 := by norm_num
+  have herr : |rn (LOG2E32 * x) - LOG2E32 * x| ≤ 1 / 16 := by
+    have := rn_sub_le hw0
+    linarith
+  obtain ⟨hlo, hhi⟩ := abs_le.mp herr
+  constructor
+  · exact roundEven_ge_of_le (by push_cast; linarith)
+  · exact roundEven_le_of_le (by push_cast; linarith)
+
+/-- For `89 ≤ x ≤ 2^20`, `math32::exp` takes the overflow branch: `k ≥ 128`, so `e ≥ 255`. -/
+theorem amdK_overflow {x : ℝ} (hx : 89 ≤ x) (hx2 : x ≤ 1048576) : 128 ≤ amdK x := by
+  obtain ⟨h1, h2⟩ := roundEven_rn_mem hx hx2
+  have hc : -2147483648 ≤ roundEven (rn (LOG2E32 * x)) ∧
+      roundEven (rn (LOG2E32 * x)) < 2147483648 := ⟨by omega, by omega⟩
+  unfold amdK
+  rw [if_pos hc]
+  exact h1
+
+/-- For `89 ≤ x ≤ 2^20`, `math32::exp` returns `+∞`. -/
+theorem fexpAmd_pinf_of_mem {x : ℝ} (hx : 89 ≤ x) (hx2 : x ≤ 1048576) :
+    fexpAmd x = Bin32.pinf := by
+  unfold fexpAmd
+  rw [if_pos (amdK_overflow hx hx2)]
 
 /-- `1 + r` in binary32 for `0 ≤ r ≤ 1` is finite, and it is the rounding of `1 + r`. -/
 theorem fadd1_ofReal {r : ℝ} (hr : r ≤ 1) :
@@ -308,53 +410,41 @@ theorem fdiv_fadd1_mem {a r : ℝ} (ha0 : 0 ≤ a) (ha1 : a ≤ 1) (hr0 : 0 ≤ 
 
 /-! ## The bug (A8) and the fix, in the model -/
 
-/-- **Bug.** For `x ≥ 89` the code before the fix gives NaN: `exp` overflows to `+∞`, and
-`∞ / (1 + ∞)` is `∞ / ∞`. -/
-theorem oldB_nan_of_ge {x : ℝ} (hx : 89 ≤ x) : oldB x = Bin32.nan := by
-  simp [oldB, fexp_pinf_of_ge hx, fadd1, fdiv]
+/-- **Bug.** For `89 ≤ x ≤ 2^20` the code before the fix gives NaN: `math32::exp` returns `+∞`
+(`fexpAmd_pinf_of_mem`), and `∞ / (1 + ∞)` is `∞ / ∞`. -/
+theorem oldB_nan_of_mem {x : ℝ} (hx : 89 ≤ x) (hx2 : x ≤ 1048576) : oldB x = Bin32.nan := by
+  simp [oldB, fexpAmd_pinf_of_mem hx hx2, fadd1, fdiv]
 
 /-- **Bug, at the margin of the regression test.** The margin `d = −89` gives `x = −d = 89`, and
 the code before the fix gives NaN there, as the Rust test `bpr_update_stays_finite_at_margin_minus_89`
 shows on the old formula. -/
 theorem oldB_nan_at_margin_minus_89 : oldB (-(-89 : ℝ)) = Bin32.nan :=
-  oldB_nan_of_ge (by norm_num)
+  oldB_nan_of_mem (by norm_num) (by norm_num)
 
 /-- **Bug, as a counterexample to the spec.** The spec needs every value to be finite and in
 `[0, 1]`. The code before the fix is not: at `x = 89` it is NaN. -/
 theorem oldB_not_spec : ¬ ∀ x : ℝ, ∃ r ∈ Set.Icc (0 : ℝ) 1, oldB x = Bin32.ofReal r := by
   intro h
   obtain ⟨r, _, hr⟩ := h 89
-  rw [oldB_nan_of_ge (le_refl (89 : ℝ))] at hr
+  rw [oldB_nan_of_mem (le_refl (89 : ℝ)) (by norm_num)] at hr
   cases hr
 
 /-- **Fix.** For every real `x`, the stable form is finite and in `[0, 1]`, in the binary32 model. -/
 theorem newB_mem (x : ℝ) : ∃ r ∈ Set.Icc (0 : ℝ) 1, newB x = Bin32.ofReal r := by
   by_cases hx : 0 ≤ x
   · have hnp : -x ≤ 0 := by linarith
-    have e1 : 0 ≤ Real.exp (-x) := (Real.exp_pos _).le
-    have e2 : Real.exp (-x) ≤ 1 := by
-      have := Real.exp_le_exp.mpr hnp
-      rwa [Real.exp_zero] at this
-    have hr0 : 0 ≤ rn (Real.exp (-x)) := rn_nonneg e1
-    have hr1 : rn (Real.exp (-x)) ≤ 1 := rn_le_one_of_le_one e1 e2
-    have hnb : newB x
-        = fdiv (Bin32.ofReal 1) (fadd1 (Bin32.ofReal (rn (Real.exp (-x))))) := by
+    obtain ⟨r, hrI, he⟩ := fexpAmd_ofReal_of_nonpos hnp
+    have hnb : newB x = fdiv (Bin32.ofReal 1) (fadd1 (Bin32.ofReal r)) := by
       unfold newB
-      rw [if_pos hx, fexp_ofReal_of_nonpos hnp]
+      rw [if_pos hx, he]
     rw [hnb]
-    exact fdiv_fadd1_mem (by norm_num) (by norm_num) hr0 hr1
+    exact fdiv_fadd1_mem (by norm_num) (by norm_num) hrI.1 hrI.2
   · have hxn : x ≤ 0 := le_of_lt (not_le.mp hx)
-    have e1 : 0 ≤ Real.exp x := (Real.exp_pos _).le
-    have e2 : Real.exp x ≤ 1 := by
-      have := Real.exp_le_exp.mpr hxn
-      rwa [Real.exp_zero] at this
-    have hr0 : 0 ≤ rn (Real.exp x) := rn_nonneg e1
-    have hr1 : rn (Real.exp x) ≤ 1 := rn_le_one_of_le_one e1 e2
-    have hnb : newB x
-        = fdiv (Bin32.ofReal (rn (Real.exp x))) (fadd1 (Bin32.ofReal (rn (Real.exp x)))) := by
+    obtain ⟨r, hrI, he⟩ := fexpAmd_ofReal_of_nonpos hxn
+    have hnb : newB x = fdiv (Bin32.ofReal r) (fadd1 (Bin32.ofReal r)) := by
       unfold newB
-      rw [if_neg hx, fexp_ofReal_of_nonpos hxn]
+      rw [if_neg hx, he]
     rw [hnb]
-    exact fdiv_fadd1_mem hr0 hr1 hr0 hr1
+    exact fdiv_fadd1_mem hrI.1 hrI.2 hrI.1 hrI.2
 
 end Gorse.Spec.Sigmoid
