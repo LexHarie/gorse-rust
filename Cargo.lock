@@ -2100,6 +2100,7 @@ name = "gorse-server"
 version = "0.0.0"
 dependencies = [
  "axum",
+ "flate2",
  "gorse-common",
  "gorse-config",
  "gorse-logics",

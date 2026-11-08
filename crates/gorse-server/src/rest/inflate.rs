@@ -17,10 +17,20 @@ pub(crate) struct Inflated {
     /// The text of the error the reader returned after `output`, when there was
     /// one, as Go's error reports it.
     pub(crate) failure: Option<String>,
+    /// Whether the body went over `MAX_DECOMPRESSED_BODY`, which is refused with 413.
+    pub(crate) too_large: bool,
 }
 
 /// The longest window: `maxMatchOffset` in Go's `compress/flate`.
 const MAX_MATCH_OFFSET: usize = 1 << 15;
+
+/// The most a request body may inflate to: 32 MiB, which is 16 times axum's 2 MiB limit on the
+/// compressed body. DEFLATE can expand by about 1032 to 1, so without a cap a 2 MiB body could
+/// produce about 2 GiB (audit S6, D-364).
+pub(crate) const MAX_DECOMPRESSED_BODY: usize = 1 << 25;
+
+/// The text of the error for a body over `MAX_DECOMPRESSED_BODY`. Go has no such limit.
+pub(crate) const TOO_LARGE_TEXT: &str = "request body exceeds the decompressed size limit";
 
 /// The order in which a dynamic block's code-length code lengths are sent.
 const CODE_ORDER: [usize; 19] = [
@@ -36,6 +46,8 @@ enum Failure {
     Corrupt(usize),
     /// A state Go's decoder cannot reach.
     Internal(&'static str),
+    /// The output would go over `MAX_DECOMPRESSED_BODY`. Go has no such limit.
+    TooLarge,
 }
 
 impl Failure {
@@ -45,6 +57,7 @@ impl Failure {
             Failure::UnexpectedEof => "unexpected EOF".to_owned(),
             Failure::Corrupt(offset) => format!("flate: corrupt input before offset {offset}"),
             Failure::Internal(what) => format!("flate: internal error: {what}"),
+            Failure::TooLarge => TOO_LARGE_TEXT.to_owned(),
         }
     }
 }
@@ -153,6 +166,8 @@ struct Inflater<'a> {
     /// Where the current stream's output starts. A stream's history starts
     /// there, since Go resets its window for each member.
     start: usize,
+    /// The most output the body may produce, across all its members.
+    limit: usize,
 }
 
 impl<'a> Inflater<'a> {
@@ -164,6 +179,7 @@ impl<'a> Inflater<'a> {
             bits: 0,
             nb: 0,
             start: output.len(),
+            limit: MAX_DECOMPRESSED_BODY,
             output,
         }
     }
@@ -172,6 +188,14 @@ impl<'a> Inflater<'a> {
     /// read so far.
     fn offset(&self) -> usize {
         self.pos - self.origin
+    }
+
+    /// Refuses `count` more output bytes when they would take the body past its limit.
+    fn reserve(&self, count: usize) -> Result<(), Failure> {
+        if self.output.len().saturating_add(count) > self.limit {
+            return Err(Failure::TooLarge);
+        }
+        Ok(())
     }
 
     /// Reads one byte into the bit buffer: Go's `moreBits`.
@@ -265,6 +289,7 @@ impl<'a> Inflater<'a> {
         }
         let data = self.input.get(self.pos..).unwrap_or_default();
         let copied = data.len().min(length);
+        self.reserve(copied)?;
         self.output.extend_from_slice(&data[..copied]);
         self.pos += copied;
         if copied < length {
@@ -344,6 +369,7 @@ impl<'a> Inflater<'a> {
         loop {
             let value = self.symbol(literal)?;
             if value < 256 {
+                self.reserve(1)?;
                 self.output.push(value as u8);
                 continue;
             }
@@ -386,6 +412,7 @@ impl<'a> Inflater<'a> {
             if distance > history {
                 return Err(Failure::Corrupt(self.offset()));
             }
+            self.reserve(length)?;
             for _ in 0..length {
                 let byte = self.output[self.output.len() - distance];
                 self.output.push(byte);
@@ -454,12 +481,14 @@ pub(crate) fn gzip(body: &[u8]) -> Inflated {
             Err(None) => {
                 return Inflated {
                     output,
+                    too_large: false,
                     failure: None,
                 };
             }
             Err(Some(text)) => {
                 return Inflated {
                     output,
+                    too_large: false,
                     failure: Some(text),
                 };
             }
@@ -471,6 +500,7 @@ pub(crate) fn gzip(body: &[u8]) -> Inflated {
         if let Some(failure) = failure {
             return Inflated {
                 output,
+                too_large: failure == Failure::TooLarge,
                 failure: Some(failure.text()),
             };
         }
@@ -478,6 +508,7 @@ pub(crate) fn gzip(body: &[u8]) -> Inflated {
         let Some(trailer) = body.get(end..end + 8) else {
             return Inflated {
                 output,
+                too_large: false,
                 failure: Some("unexpected EOF".to_owned()),
             };
         };
@@ -486,6 +517,7 @@ pub(crate) fn gzip(body: &[u8]) -> Inflated {
         if digest != crc32_update(0, member) || size != member.len() as u32 {
             return Inflated {
                 output,
+                too_large: false,
                 failure: Some("gzip: invalid checksum".to_owned()),
             };
         }
@@ -574,23 +606,73 @@ pub(crate) fn zlib(body: &[u8]) -> Result<Inflated, String> {
     if let Some(failure) = failure {
         return Ok(Inflated {
             output,
+            too_large: failure == Failure::TooLarge,
             failure: Some(failure.text()),
         });
     }
     let Some(check) = body.get(inflater.pos..inflater.pos + 4) else {
         return Ok(Inflated {
             output,
+            too_large: false,
             failure: Some("unexpected EOF".to_owned()),
         });
     };
     if u32::from_be_bytes([check[0], check[1], check[2], check[3]]) != adler32(&output) {
         return Ok(Inflated {
             output,
+            too_large: false,
             failure: Some("zlib: invalid checksum".to_owned()),
         });
     }
     Ok(Inflated {
         output,
+        too_large: false,
         failure: None,
     })
+}
+
+#[cfg(test)]
+mod cap_tests {
+    use std::io::Write;
+
+    use flate2::Compression;
+    use flate2::write::GzEncoder;
+
+    use super::{MAX_DECOMPRESSED_BODY, TOO_LARGE_TEXT, gzip};
+
+    /// The decompressed size is capped (audit S6, D-364). 33 MiB of zeros compresses to about
+    /// 33 KB, which is far under the 2 MiB compressed limit, and inflates past the cap.
+    #[test]
+    fn decompressed_size_is_capped() {
+        let zeros = vec![0u8; 33 << 20];
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::best());
+        encoder.write_all(&zeros).expect("compress");
+        let bomb = encoder.finish().expect("finish");
+        assert!(
+            bomb.len() < (2 << 20),
+            "the bomb is under the compressed limit"
+        );
+
+        let inflated = gzip(&bomb);
+        assert!(inflated.too_large, "the body passes the cap");
+        assert!(
+            inflated.output.len() <= MAX_DECOMPRESSED_BODY,
+            "the output stays under the cap"
+        );
+        assert_eq!(inflated.failure.as_deref(), Some(TOO_LARGE_TEXT));
+    }
+
+    /// A small valid body is inflated whole and is not flagged.
+    #[test]
+    fn small_body_is_not_capped() {
+        let text = b"{\"item_id\":\"1\"}";
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(text).expect("compress");
+        let body = encoder.finish().expect("finish");
+
+        let inflated = gzip(&body);
+        assert!(!inflated.too_large);
+        assert_eq!(inflated.failure, None);
+        assert_eq!(inflated.output, text.to_vec());
+    }
 }

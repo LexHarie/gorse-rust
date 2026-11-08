@@ -10,13 +10,13 @@
 //! and the first type error in document order is the one reported.
 
 use axum::body::Bytes;
-use axum::http::{HeaderMap, header};
+use axum::http::{HeaderMap, StatusCode, header};
 use gorse_common::gotime::{self, Time};
 use gorse_storage::data::types::{ItemPatch, Labels, User, UserPatch};
 use indexmap::IndexMap;
 
 use super::gojson::{Kind, Member, Node, is_blank, scan};
-use super::inflate::{Inflated, gzip, zlib};
+use super::inflate::{Inflated, TOO_LARGE_TEXT, gzip, zlib};
 use super::response::ApiError;
 use super::xml::XmlEntity;
 
@@ -142,8 +142,10 @@ pub(crate) fn read_entity<T: GoEntity + XmlEntity>(
         .get(header::CONTENT_ENCODING)
         .map(|value| value.as_bytes())
     {
-        Some(b"gzip") => Decoded::from(gzip(body)),
-        Some(b"deflate") => Decoded::from(zlib(body).map_err(ApiError::BadRequest)?),
+        Some(b"gzip") => Decoded::from(refuse_too_large(gzip(body))?),
+        Some(b"deflate") => {
+            Decoded::from(refuse_too_large(zlib(body).map_err(ApiError::BadRequest)?)?)
+        }
         _ => Decoded {
             bytes: body.to_vec(),
             failure: None,
@@ -163,6 +165,18 @@ pub(crate) fn read_entity<T: GoEntity + XmlEntity>(
             "[ServiceError:400] Unable to unmarshal content of type:{content_type}"
         )))
     }
+}
+
+/// A body that inflates past `MAX_DECOMPRESSED_BODY` is refused with 413 before it is decoded
+/// (audit S6, D-364).
+fn refuse_too_large(inflated: Inflated) -> Result<Inflated, ApiError> {
+    if inflated.too_large {
+        return Err(ApiError::Status(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            TOO_LARGE_TEXT.to_owned(),
+        ));
+    }
+    Ok(inflated)
 }
 
 /// The bytes an entity reader sees: the body, or what a decompressor gave
