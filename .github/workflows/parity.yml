@@ -14,6 +14,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      head_only:
+        description: "Run only the head-mode jobs (D-325), not the pinned suites"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -21,6 +26,7 @@ permissions:
 jobs:
   parity:
     name: parity suites against the Go oracle
+    if: ${{ !inputs.head_only }}
     runs-on: ubuntu-24.04
     # A backstop for the whole job. The per-suite limits are the ones that apply.
     timeout-minutes: 360
@@ -211,6 +217,7 @@ jobs:
   # stay under its 360-minute cap. It takes the same backends and dumps as the parity job.
   pinterest:
     name: pinterest_20_bpr against the Go oracle
+    if: ${{ !inputs.head_only }}
     runs-on: ubuntu-24.04
     # A backstop for the job. The step limit below is the one that applies.
     timeout-minutes: 180
