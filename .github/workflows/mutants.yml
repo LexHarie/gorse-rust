@@ -98,9 +98,82 @@ jobs:
           path: ${{ runner.temp }}/out
           if-no-files-found: warn
 
+  # Split first pass for cf shards 5 and 6 of 10, which reached the 360-minute job limit in the
+  # full run (D-327). Each shard is listed with the same --shard the first pass used, then cut into
+  # `parts` pieces with split -n l/part/parts. A part's regex must select exactly the part's lines
+  # before the part runs, so the four parts of a shard cover exactly that shard's mutants.
+  first-pass-split:
+    name: first pass ${{ matrix.module }} ${{ matrix.shard }}/10, part ${{ matrix.part }} of ${{ matrix.parts }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        include:
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 5, part: 1, parts: 4 }
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 5, part: 2, parts: 4 }
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 5, part: 3, parts: 4 }
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 5, part: 4, parts: 4 }
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 6, part: 1, parts: 4 }
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 6, part: 2, parts: 4 }
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 6, part: 3, parts: 4 }
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 6, part: 4, parts: 4 }
+    steps:
+      - name: Check out the repository
+        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install cargo-mutants
+        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
+        run: cargo install cargo-mutants --locked --version 27.1.0
+
+      - name: Select this part of the shard
+        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
+        env:
+          GLOB: ${{ matrix.glob }}
+          SHARD: ${{ matrix.shard }}/10
+          PART: ${{ matrix.part }}
+          PARTS: ${{ matrix.parts }}
+        run: |
+          cargo mutants --package gorse-model --file "$GLOB" --shard "$SHARD" --list > "$RUNNER_TEMP/shard.txt"
+          split -n "l/$PART/$PARTS" "$RUNNER_TEMP/shard.txt" > "$RUNNER_TEMP/part.txt"
+          echo "shard $SHARD has $(grep -c . "$RUNNER_TEMP/shard.txt") mutants; part $PART of $PARTS has $(grep -c . "$RUNNER_TEMP/part.txt")"
+          test "$(grep -c . "$RUNNER_TEMP/part.txt")" -gt 0
+
+      - name: Run this part's mutants against the module's tests
+        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
+        env:
+          GLOB: ${{ matrix.glob }}
+          FILTER: ${{ matrix.filter }}
+        run: |
+          out="$RUNNER_TEMP/out"
+          mkdir -p "$out"
+          re=$(python3 -I -c 'import re,sys; esc=lambda s: re.sub(r"([\\.+*?()|\[\]{}^$#&~-])", r"\\\1", s); print("^(" + "|".join(esc(l.rstrip(chr(10))) for l in sys.stdin) + ")$")' < "$RUNNER_TEMP/part.txt")
+          expected=$(grep -c . "$RUNNER_TEMP/part.txt")
+          listed=$(cargo mutants --package gorse-model --file "$GLOB" --re "$re" --list | grep -c . || true)
+          if [ "$listed" != "$expected" ]; then
+            echo "::error::the part's regex selects $listed mutants, but the part has $expected"
+            exit 1
+          fi
+          status=0
+          cargo mutants --package gorse-model --file "$GLOB" --re "$re" --output "$out" -- --lib "$FILTER" || status=$?
+          echo "cargo-mutants exit=$status"
+          case "$status" in 0|2|3) ;; *) exit "$status" ;; esac
+
+      - name: Upload this part's outcomes
+        if: ${{ always() && (inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard))) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-pass-${{ matrix.module }}-${{ matrix.shard }}-part${{ matrix.part }}
+          path: ${{ runner.temp }}/out
+          if-no-files-found: warn
+
   survivors:
     name: re-run the survivors against the full lib suite
-    needs: first-pass
+    needs: [first-pass, first-pass-split]
     if: ${{ always() && (inputs.only == '' || inputs.survivors_from != '') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 360
