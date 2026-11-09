@@ -178,7 +178,8 @@ jobs:
   survivors:
     name: re-run the survivors against the full lib suite
     needs: [first-pass, first-pass-split]
-    if: ${{ always() && (inputs.only == '' || inputs.survivors_from != '') }}
+    # Only the full dispatch runs this one-job re-run. A survivor-only dispatch uses survivor-parts.
+    if: ${{ always() && inputs.only == '' && inputs.survivors_from == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     steps:
@@ -256,3 +257,95 @@ jobs:
             find "$out" \( -name missed.txt -o -name timeout.txt \) -exec cat {} + 2>/dev/null
             exit 1
           fi
+
+  # Survivor re-run for a survivor-only dispatch, cut into 24 parts so that no job reaches the
+  # 360-minute limit. The one-job re-run above timed out after six hours with its outcomes unsaved.
+  # Each part is a slice of the sorted survivor list of survivors_from, so every survivor lands in
+  # exactly one part, and each part uploads its own outcomes.
+  survivor-parts:
+    name: re-run survivor part ${{ matrix.part }} of 24 against the full lib suite
+    needs: [first-pass, first-pass-split]
+    if: ${{ always() && inputs.survivors_from != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
+    env:
+      PARTS: 24
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked --version 27.1.0
+
+      - name: Place the frappe dataset the full lib suite reads (D-327)
+        timeout-minutes: 15
+        run: GORSE_DATASETS=frappe scripts/setup-datasets.sh
+
+      - name: Download the first-pass outcomes of the earlier runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNS: ${{ inputs.survivors_from }}
+          SKIP: ${{ inputs.skip_artifacts }}
+        run: |
+          for r in ${RUNS//,/ }; do
+            gh run download "$r" --repo "$GITHUB_REPOSITORY" --pattern 'first-pass-*' --dir "$RUNNER_TEMP/first/$r"
+          done
+          for a in ${SKIP//,/ }; do
+            find "$RUNNER_TEMP/first" -mindepth 2 -type d -name "$a" -prune -exec rm -rf {} +
+            echo "left out $a"
+          done
+
+      - name: Cut the survivors into parts and take this part
+        env:
+          PART: ${{ matrix.part }}
+        run: |
+          find "$RUNNER_TEMP/first" \( -name missed.txt -o -name timeout.txt \) -exec cat {} + 2>/dev/null | sort -u > "$RUNNER_TEMP/survivors.txt" || true
+          split -n "l/$PART/$PARTS" "$RUNNER_TEMP/survivors.txt" > "$RUNNER_TEMP/part.txt"
+          echo "survivors: $(grep -c . "$RUNNER_TEMP/survivors.txt" || true); part $PART of $PARTS: $(grep -c . "$RUNNER_TEMP/part.txt" || true)"
+
+      - name: Re-run this part's survivors against the full lib suite
+        run: |
+          out="$RUNNER_TEMP/rerun"
+          mkdir -p "$out"
+          if [ ! -s "$RUNNER_TEMP/part.txt" ]; then
+            echo "this part has no survivors"
+            exit 0
+          fi
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            grep -F "$f:" "$RUNNER_TEMP/part.txt" > "$RUNNER_TEMP/s.txt"
+            expected=$(grep -c . "$RUNNER_TEMP/s.txt")
+            # --re matches the full list line, so this anchored alternation selects exactly this part's survivors of the file.
+            re=$(python3 -I -c 'import re,sys; esc=lambda s: re.sub(r"([\\.+*?()|\[\]{}^$#&~-])", r"\\\1", s); print("^(" + "|".join(esc(l.rstrip(chr(10))) for l in sys.stdin) + ")$")' < "$RUNNER_TEMP/s.txt")
+            listed=$(cargo mutants --package gorse-model --file "$f" --re "$re" --list | grep -c . || true)
+            if [ "$listed" != "$expected" ]; then
+              echo "::error::$f: the re-run selects $listed mutants, but there are $expected survivors"
+              exit 1
+            fi
+            status=0
+            cargo mutants --package gorse-model --file "$f" --re "$re" --output "$out/$(echo "$f" | tr / _)" -- --lib || status=$?
+            echo "$f: $expected survivors re-run against the full lib suite, cargo-mutants exit=$status"
+            case "$status" in 0|2|3) ;; *) exit "$status" ;; esac
+          done < <(cut -d: -f1 "$RUNNER_TEMP/part.txt" | sort -u)
+          caught=$(find "$out" -name caught.txt -exec cat {} + 2>/dev/null | grep -c . || true)
+          missed=$(find "$out" -name missed.txt -exec cat {} + 2>/dev/null | grep -c . || true)
+          timeouts=$(find "$out" -name timeout.txt -exec cat {} + 2>/dev/null | grep -c . || true)
+          echo "full-suite re-run of this part: caught=$caught missed=$missed timeout=$timeouts"
+          if [ "$missed" != 0 ] || [ "$timeouts" != 0 ]; then
+            find "$out" \( -name missed.txt -o -name timeout.txt \) -exec cat {} + 2>/dev/null
+            exit 1
+          fi
+
+      - name: Upload this part's outcomes
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: survivor-part-${{ matrix.part }}
+          path: ${{ runner.temp }}/rerun
+          if-no-files-found: warn
