@@ -191,3 +191,8 @@ Gorse.Spec.RequestOffset.checkedAdd_sound
 Gorse.Spec.RequestOffset.preSkip_neg_empty
 Gorse.Spec.RequestOffset.parseOffset_neg
 Gorse.Spec.RequestOffset.parseOffset_some
+Gorse.Spec.LoadPairs.preSplit_leaks
+Gorse.Spec.LoadPairs.loaded_no_leak_example
+Gorse.Spec.LoadPairs.loadAll_nodup
+Gorse.Spec.LoadPairs.split_test_not_in_train
+Gorse.Spec.LoadPairs.split_after_load

@@ -14,6 +14,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      head_only:
+        description: "Run only the head-mode jobs (D-325), not the pinned suites"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -21,6 +26,7 @@ permissions:
 jobs:
   parity:
     name: parity suites against the Go oracle
+    if: ${{ !inputs.head_only }}
     runs-on: ubuntu-24.04
     # A backstop for the whole job. The per-suite limits are the ones that apply.
     timeout-minutes: 360
@@ -211,6 +217,7 @@ jobs:
   # stay under its 360-minute cap. It takes the same backends and dumps as the parity job.
   pinterest:
     name: pinterest_20_bpr against the Go oracle
+    if: ${{ !inputs.head_only }}
     runs-on: ubuntu-24.04
     # A backstop for the job. The step limit below is the one that applies.
     timeout-minutes: 180
@@ -239,3 +246,96 @@ jobs:
       - name: "suite metrics pinterest_20_bpr"
         timeout-minutes: 120
         run: scripts/parity.sh run metrics:only=pinterest_20_bpr
+
+  # The head run (D-325): the metrics suites against this checkout's crates, with the
+  # Go oracle still built from 2e9c969. It is the same frozen suite, in an overlay of
+  # the pinned tree (scripts/parity.sh, PARITY_TREE=head). It runs on release and on
+  # dispatch with the parity job, and the result is recorded in PORTING.md.
+  metrics-head:
+    name: metrics suites against the head under test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      # D-368: the head overlay reads the derived references from this directory.
+      PARITY_DERIVED_DIR: ${{ github.workspace }}/target/parity/derived
+    steps:
+      - name: Check out the repository with history
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          # The oracle commit 2e9c969 is an ancestor of master, so the full history is needed.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Start the backends
+        run: docker compose -f storage/docker-compose.yml up -d
+
+      - name: Place the playground dumps the suites read
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          GORSE_DATASETS=iris GORSE_DUMPS="ml-100k.bin.gz github.bin.gz" scripts/setup-datasets.sh
+          sudo mkdir -p /mnt/project-files/datasets
+          sudo cp "$HOME/.gorse/dataset/ml-100k.bin.gz" "$HOME/.gorse/dataset/github.bin.gz" /mnt/project-files/datasets/
+
+      # D-368: the derived references. The pinned Go oracle fits three configurations with one
+      # job, with its Evaluate patched in the derive copy only (scripts/go-evaluate-dedupe.patch),
+      # on the original test and training files.
+      - name: "head derive overrides (D-368)"
+        timeout-minutes: 90
+        run: PARITY_TREE=head scripts/parity.sh derive-overrides "$PARITY_DERIVED_DIR"
+
+      # The first step compiles the metrics suite against the head, and the later steps
+      # reuse that build. It also builds the Go oracle from 2e9c969.
+      - name: "head compile metrics"
+        id: compile
+        timeout-minutes: 90
+        run: PARITY_TREE=head scripts/parity.sh dry-run
+
+      - name: "head suite metrics"
+        if: ${{ !cancelled() && steps.compile.outcome == 'success' }}
+        timeout-minutes: 45
+        run: PARITY_TREE=head scripts/parity.sh run metrics:except=pinterest_20_bpr
+
+  # pinterest_20_bpr against the head, in a job of its own, as in the pinned tree (D-320).
+  metrics-head-pinterest:
+    name: pinterest_20_bpr against the head under test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      # D-368: the head overlay reads the derived references from this directory.
+      PARITY_DERIVED_DIR: ${{ github.workspace }}/target/parity/derived
+    steps:
+      - name: Check out the repository with history
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Start the backends
+        run: docker compose -f storage/docker-compose.yml up -d
+
+      - name: Place the playground dumps the suites read
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          GORSE_DATASETS=iris GORSE_DUMPS="ml-100k.bin.gz github.bin.gz" scripts/setup-datasets.sh
+          sudo mkdir -p /mnt/project-files/datasets
+          sudo cp "$HOME/.gorse/dataset/ml-100k.bin.gz" "$HOME/.gorse/dataset/github.bin.gz" /mnt/project-files/datasets/
+
+      # D-368: the derived references, as in metrics-head above.
+      - name: "head derive overrides (D-368)"
+        timeout-minutes: 90
+        run: PARITY_TREE=head scripts/parity.sh derive-overrides "$PARITY_DERIVED_DIR"
+
+      - name: "head compile metrics"
+        id: compile
+        timeout-minutes: 90
+        run: PARITY_TREE=head scripts/parity.sh dry-run
+
+      # D-320: the head pinterest run took 116 min on the anchor (run 42499893186) and 120
+      # min was too close, so this step gets 180 minutes (coordinator ruling, 2026-11-08).
+      # The compile step above has its own limit.
+      - name: "head suite metrics pinterest_20_bpr"
+        if: ${{ !cancelled() && steps.compile.outcome == 'success' }}
+        timeout-minutes: 180
+        run: PARITY_TREE=head scripts/parity.sh run metrics:only=pinterest_20_bpr
