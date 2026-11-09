@@ -10,6 +10,7 @@
 # Usage:
 #   scripts/parity.sh build           extract the pinned tree and build the Go nodes
 #   scripts/parity.sh dry-run         build, compile the suites, list them; starts no backend
+#   scripts/parity.sh derive-overrides DIR  head mode: write the derived references (D-368)
 #   scripts/parity.sh run [NAME...]   build, then run the named suites (default: all), with
 #                                     ignored tests included; needs the backends of
 #                                     storage/docker-compose.yml. A NAME may carry one test
@@ -23,6 +24,9 @@
 #                 checkout's crates, with the Go oracle still built from 2e9c969 (D-325).
 #                 Head mode takes only metrics NAMEs (metrics, metrics:only=TEST,
 #                 metrics:except=TEST) and has no default run.
+#   PARITY_DERIVED_DIR  head mode: the directory of the derived references (D-368). When it
+#                 is set, the overlay's copy of the suite reads its four expected values
+#                 from there, at build and at run time. derive-overrides writes it.
 #
 # Hermeticity: the tree is exactly `git archive 2e9c969`; Go runs with
 # GOTOOLCHAIN=go1.27.0, the version go.mod names, through the module proxy, with
@@ -53,8 +57,8 @@ esac
 
 cmd="${1:-}"
 case "$cmd" in
-  build|dry-run|run) shift ;;
-  *) echo "usage: $0 build | dry-run | run [NAME...]" >&2; exit 2 ;;
+  build|dry-run|run|derive-overrides) shift ;;
+  *) echo "usage: $0 build | dry-run | run [NAME...] | derive-overrides DIR" >&2; exit 2 ;;
 esac
 
 if ! git cat-file -e "$PIN^{commit}" 2>/dev/null; then
@@ -126,6 +130,46 @@ fn head_metric<M: HeadMetric>(value: M, name: &str) -> f32 {
     value.value(name)
 }
 EOF
+  # The derived references (D-368). When PARITY_DERIVED_DIR is set, four expected values in
+  # the overlay's copy of the suite come from derive-overrides, and no band changes:
+  #   ml_1m_als: the literal 0.36 becomes the derived als-ml-1m NDCG, and its Go run is the
+  #              derived als-ml-1m metrics (one job).
+  #   pinterest_20_bpr: the commented literal 0.53 becomes the derived bpr-pinterest-20 NDCG.
+  #   check_one_job_cf (ml_1m_bpr_one_job, pinterest_20_bpr_one_job): the Go run is the
+  #              derived metrics of its configuration. A configuration with no derived file
+  #              (ml-100k) keeps its Go run. ml_1m_bpr's literal 0.36 is not changed.
+  if [ -n "${PARITY_DERIVED_DIR:-}" ]; then
+    sed -i -E \
+      -e '/^fn ml_1m_als\(\) \{/,/^}/ s/^        0\.36,$/        derived_ndcg("als-ml-1m"),/' \
+      -e '/^fn ml_1m_als\(\) \{/,/^}/ s/oracle\("als-ml-1m"\)/derived_or("als-ml-1m", || oracle("als-ml-1m"))/' \
+      -e '/^fn pinterest_20_bpr\(\) \{/,/^}/ s/^        0\.53,$/        derived_ndcg("bpr-pinterest-20"),/' \
+      -e '/^fn check_one_job_cf\(/,/^}/ s/oracle_with_jobs\(config, 1\)/derived_or(config, || oracle_with_jobs(config, 1))/' \
+      "$suite"
+    cat >> "$suite" <<'EOF'
+
+// Head-mode derived references (D-368, scripts/parity.sh derive-overrides). Not part of the
+// frozen suite. PARITY_DERIVED_DIR names the directory that derive-overrides wrote: one
+// <config>.json per configuration, the Go oracle's metrics on the dedup-derived test file.
+fn derived_path(config: &str) -> std::path::PathBuf {
+    let dir = std::env::var("PARITY_DERIVED_DIR").expect("PARITY_DERIVED_DIR names the derived references");
+    Path::new(&dir).join(format!("{config}.json"))
+}
+
+fn derived_or<T: DeserializeOwned>(config: &str, run: impl FnOnce() -> T) -> T {
+    if std::env::var_os("PARITY_DERIVED_DIR").is_some() && derived_path(config).exists() {
+        let text = fs::read_to_string(derived_path(config)).expect("the derived reference is readable");
+        serde_json::from_str(&text).expect("the derived reference is valid JSON")
+    } else {
+        run()
+    }
+}
+
+fn derived_ndcg(config: &str) -> f32 {
+    let go: GoCf = derived_or(config, || panic!("no derived reference for {config} (D-368)"));
+    go.ndcg
+}
+EOF
+  fi
   echo "parity: head overlay built at $HEAD (pinned conformance, this checkout's crates)"
 }
 
@@ -192,6 +236,72 @@ run_golden() {
   )
 }
 
+# The derived references (D-368). For the three head configurations, the pinned Go oracle
+# fits the configuration with one job, and its metrics are the expected values that the head
+# overlay reads through PARITY_DERIVED_DIR. The oracle's Evaluate is patched in the head tree
+# for the length of this step only: scripts/go-evaluate-dedupe.patch skips repeated candidates,
+# first seen first, as Rust's candidate_list does. The test and training files stay the
+# original ones. The patch is reversed before the function returns, and SHA256SUMS records
+# its digest with the input digests.
+GO_EVALUATE_PATCH="$ROOT/scripts/go-evaluate-dedupe.patch"
+
+derive_overrides() {
+  local dir="${1:-}" ds f cfg rc
+  if [ "$PARITY_TREE" != head ]; then
+    echo "parity: derive-overrides runs in head mode only (PARITY_TREE=head)" >&2
+    return 2
+  fi
+  case "$dir" in
+    /*) ;;
+    *) echo "parity: derive-overrides needs an absolute DIR, not '$dir'" >&2; return 2 ;;
+  esac
+  mkdir -p "$dir"
+  rm -f -- "$dir"/*.json "$dir"/SHA256SUMS
+  GORSE_DATASETS="ml-1m pinterest-20" "$ROOT/scripts/setup-datasets.sh"
+  for ds in ml-1m pinterest-20; do
+    for f in train.txt test.txt; do
+      if [ ! -f "$HOME/.gorse/dataset/$ds/$f" ]; then
+        echo "parity: $HOME/.gorse/dataset/$ds/$f is missing after setup-datasets" >&2
+        return 2
+      fi
+    done
+  done
+  # The patch is applied to the head tree for these three runs only. It is reversed on every
+  # path out of the loop, so the frozen suite's own oracle calls later run the unpatched Go.
+  # Information only: how many training rows repeat a (user, item) pair. The Go loader and
+  # the Rust test loader both keep every training row (add_feedback), so the count does not
+  # change the training set of either side.
+  for ds in ml-1m pinterest-20; do
+    train="$HOME/.gorse/dataset/$ds/train.txt"
+    total=$(wc -l < "$train")
+    distinct=$(cut -f1,2 "$train" | sort -u | wc -l)
+    echo "parity: $ds train.txt: $total rows, $((total - distinct)) rows repeat a (user,item) pair"
+  done
+  patch -d "$HEAD" -p1 < "$GO_EVALUATE_PATCH" || return 2
+  rc=0
+  for cfg in bpr-ml-1m als-ml-1m bpr-pinterest-20; do
+    echo "parity: derive $cfg, one job, with the candidate-dedupe Evaluate (D-368)"
+    # The flags and GODEBUG match oracle_with_jobs in the frozen suite.
+    (cd "$HEAD" && GODEBUG=randautoseed=0 go run ./conformance/oracle/metrics \
+      -config "$cfg" -jobs 1 -out "$dir/$cfg.json") || { rc=$?; break; }
+  done
+  patch -d "$HEAD" -p1 -R < "$GO_EVALUATE_PATCH" || return 2
+  [ "$rc" -eq 0 ] || return "$rc"
+  (
+    cd "$dir"
+    sha256sum -- *.json > SHA256SUMS
+    sha256sum "$GO_EVALUATE_PATCH" \
+      "$HOME/.gorse/dataset/ml-1m/train.txt" "$HOME/.gorse/dataset/ml-1m/test.txt" \
+      "$HOME/.gorse/dataset/pinterest-20/train.txt" "$HOME/.gorse/dataset/pinterest-20/test.txt" \
+      >> SHA256SUMS
+  )
+  cat "$dir/SHA256SUMS"
+  for cfg in bpr-ml-1m als-ml-1m bpr-pinterest-20; do
+    echo "parity: $cfg: $(cat "$dir/$cfg.json")"
+  done
+  echo "parity: derived references written to $dir; the Go patch is reversed"
+}
+
 extract_pinned_tree
 build_go_nodes
 if [ "$PARITY_TREE" = head ]; then
@@ -211,6 +321,9 @@ case "$cmd" in
       cargo_in_tree test -p gorse-conformance -- --list
       echo "parity: dry run done; no backend was started and no suite ran"
     fi
+    ;;
+  derive-overrides)
+    derive_overrides "${1:-}"
     ;;
   run)
     if [ "$PARITY_TREE" = head ] && [ "$#" -eq 0 ]; then

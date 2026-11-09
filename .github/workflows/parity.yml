@@ -255,6 +255,9 @@ jobs:
     name: metrics suites against the head under test
     runs-on: ubuntu-24.04
     timeout-minutes: 240
+    env:
+      # D-368: the head overlay reads the derived references from this directory.
+      PARITY_DERIVED_DIR: ${{ github.workspace }}/target/parity/derived
     steps:
       - name: Check out the repository with history
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -274,6 +277,13 @@ jobs:
           sudo mkdir -p /mnt/project-files/datasets
           sudo cp "$HOME/.gorse/dataset/ml-100k.bin.gz" "$HOME/.gorse/dataset/github.bin.gz" /mnt/project-files/datasets/
 
+      # D-368: the derived references. The pinned Go oracle fits three configurations with one
+      # job, with its Evaluate patched in the derive copy only (scripts/go-evaluate-dedupe.patch),
+      # on the original test and training files.
+      - name: "head derive overrides (D-368)"
+        timeout-minutes: 90
+        run: PARITY_TREE=head scripts/parity.sh derive-overrides "$PARITY_DERIVED_DIR"
+
       # The first step compiles the metrics suite against the head, and the later steps
       # reuse that build. It also builds the Go oracle from 2e9c969.
       - name: "head compile metrics"
@@ -290,7 +300,10 @@ jobs:
   metrics-head-pinterest:
     name: pinterest_20_bpr against the head under test
     runs-on: ubuntu-24.04
-    timeout-minutes: 300
+    timeout-minutes: 360
+    env:
+      # D-368: the head overlay reads the derived references from this directory.
+      PARITY_DERIVED_DIR: ${{ github.workspace }}/target/parity/derived
     steps:
       - name: Check out the repository with history
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -309,14 +322,20 @@ jobs:
           sudo mkdir -p /mnt/project-files/datasets
           sudo cp "$HOME/.gorse/dataset/ml-100k.bin.gz" "$HOME/.gorse/dataset/github.bin.gz" /mnt/project-files/datasets/
 
+      # D-368: the derived references, as in metrics-head above.
+      - name: "head derive overrides (D-368)"
+        timeout-minutes: 90
+        run: PARITY_TREE=head scripts/parity.sh derive-overrides "$PARITY_DERIVED_DIR"
+
       - name: "head compile metrics"
         id: compile
         timeout-minutes: 90
         run: PARITY_TREE=head scripts/parity.sh dry-run
 
-      # D-320: the pinned pinterest run took 85.1 min in debug, so this step gets the
-      # same 120-minute limit, with the compile step above outside it.
+      # D-320: the head pinterest run took 116 min on the anchor (run 42499893186) and 120
+      # min was too close, so this step gets 180 minutes (coordinator ruling, 2026-11-08).
+      # The compile step above has its own limit.
       - name: "head suite metrics pinterest_20_bpr"
         if: ${{ !cancelled() && steps.compile.outcome == 'success' }}
-        timeout-minutes: 120
+        timeout-minutes: 180
         run: PARITY_TREE=head scripts/parity.sh run metrics:only=pinterest_20_bpr
