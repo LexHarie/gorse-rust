@@ -22,6 +22,10 @@ on:
         description: "Survivor re-run only: first-pass artifact names (comma-separated, for example first-pass-cf-5,first-pass-ctr-3) to leave out of the re-run, because another dispatch measured those shards."
         type: string
         default: ""
+      resume_from:
+        description: "Survivor-parts only: run ids (comma-separated) of earlier survivor-parts dispatches. Survivors that they already measured (caught, missed or timeout) are not re-run."
+        type: string
+        default: ""
 
 permissions:
   actions: read
@@ -239,9 +243,11 @@ jobs:
             # --re matches the full list line (path, line, column and description), so this
             # anchored alternation selects exactly the survivors of this file.
             re=$(python3 -I -c 'import re,sys; esc=lambda s: re.sub(r"([\\.+*?()|\[\]{}^$#&~-])", r"\\\1", s); print("^(" + "|".join(esc(l.rstrip(chr(10))) for l in sys.stdin) + ")$")' < "$RUNNER_TEMP/s.txt")
-            listed=$(cargo mutants --package gorse-model --file "$f" --re "$re" --list | grep -c . || true)
-            if [ "$listed" != "$expected" ]; then
-              echo "::error::$f: the re-run selects $listed mutants, but there are $expected survivors"
+            cargo mutants --package gorse-model --file "$f" --re "$re" --list > "$RUNNER_TEMP/listed.txt"
+            # --re also lists the file's struct-field mutants, so the listed set can be larger. It must contain every survivor.
+            missing=$(grep -Fxv -f "$RUNNER_TEMP/listed.txt" "$RUNNER_TEMP/s.txt" || true)
+            if [ -n "$missing" ]; then
+              echo "::error::$f: the re-run does not select these survivors: $missing"
               exit 1
             fi
             status=0
@@ -309,6 +315,22 @@ jobs:
           split -n "l/$PART/$PARTS" "$RUNNER_TEMP/survivors.txt" > "$RUNNER_TEMP/part.txt"
           echo "survivors: $(grep -c . "$RUNNER_TEMP/survivors.txt" || true); part $PART of $PARTS: $(grep -c . "$RUNNER_TEMP/part.txt" || true)"
 
+      - name: Keep only the survivors that an earlier survivor-parts run did not decide
+        if: ${{ inputs.resume_from != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNS: ${{ inputs.resume_from }}
+        run: |
+          : > "$RUNNER_TEMP/decided.txt"
+          for r in ${RUNS//,/ }; do
+            gh run download "$r" --repo "$GITHUB_REPOSITORY" --pattern 'survivor-part-*' --dir "$RUNNER_TEMP/prev/$r" || echo "no survivor-part artifacts in run $r"
+            find "$RUNNER_TEMP/prev/$r" \( -name caught.txt -o -name missed.txt -o -name timeout.txt \) -exec cat {} + >> "$RUNNER_TEMP/decided.txt" 2>/dev/null || true
+          done
+          before=$(grep -c . "$RUNNER_TEMP/part.txt" || true)
+          grep -Fxv -f "$RUNNER_TEMP/decided.txt" "$RUNNER_TEMP/part.txt" > "$RUNNER_TEMP/part2.txt" || true
+          mv "$RUNNER_TEMP/part2.txt" "$RUNNER_TEMP/part.txt"
+          echo "decided by earlier runs: $(grep -c . "$RUNNER_TEMP/decided.txt" || true); this part had $before survivors and still has $(grep -c . "$RUNNER_TEMP/part.txt" || true) to run"
+
       - name: Re-run this part's survivors against the full lib suite
         run: |
           out="$RUNNER_TEMP/rerun"
@@ -323,9 +345,11 @@ jobs:
             expected=$(grep -c . "$RUNNER_TEMP/s.txt")
             # --re matches the full list line, so this anchored alternation selects exactly this part's survivors of the file.
             re=$(python3 -I -c 'import re,sys; esc=lambda s: re.sub(r"([\\.+*?()|\[\]{}^$#&~-])", r"\\\1", s); print("^(" + "|".join(esc(l.rstrip(chr(10))) for l in sys.stdin) + ")$")' < "$RUNNER_TEMP/s.txt")
-            listed=$(cargo mutants --package gorse-model --file "$f" --re "$re" --list | grep -c . || true)
-            if [ "$listed" != "$expected" ]; then
-              echo "::error::$f: the re-run selects $listed mutants, but there are $expected survivors"
+            cargo mutants --package gorse-model --file "$f" --re "$re" --list > "$RUNNER_TEMP/listed.txt"
+            # --re also lists the file's struct-field mutants, so the listed set can be larger. It must contain every survivor.
+            missing=$(grep -Fxv -f "$RUNNER_TEMP/listed.txt" "$RUNNER_TEMP/s.txt" || true)
+            if [ -n "$missing" ]; then
+              echo "::error::$f: the re-run does not select these survivors: $missing"
               exit 1
             fi
             status=0
