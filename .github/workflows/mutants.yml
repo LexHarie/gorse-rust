@@ -1,13 +1,19 @@
-# D-327, the crate-level cargo-mutants baseline of gorse-model (the President's ruling of
-# 2026-11-08, option (a)). Scratch-branch run, dispatched by hand only.
+# G10, cargo-mutants on the verified T1 metric code (scripts/check-mutants.sh, D-327).
 #
-# First pass: each mutant runs its module's tests (cf::, ctr::, tpe::), and the mutants of a
-# module are split with --shard k/n: cf 10 shards, ctr 10, tpe 2.
-# Second pass: every mutant the first pass missed or timed out is re-run against the full
-# lib suite with no test filter. The re-run must select exactly those mutants.
+# D-327, the crate-level cargo-mutants baseline of gorse-model. Its jobs (first-pass,
+# first-pass-split, survivors and survivor-parts) run only on a manual dispatch
+# (github.event_name == 'workflow_dispatch'), so a pull request runs the g10 job alone,
+# which includes the top-k step (D-336).
+#
+# First pass: each mutant runs against its module's tests (cf::, ctr::, tpe::). The mutants
+# of a module are split with --shard k/n: cf 10 shards, ctr 10, tpe 2.
+# Second pass: every first-pass survivor (missed or timed out) is re-run against the full
+# lib suite with no test filter. The --re selection may add struct-field deletions, so the
+# check is that the selection contains every survivor, not that it has an exact count.
 name: mutants
 
 on:
+  pull_request:
   workflow_dispatch:
     inputs:
       only:
@@ -28,11 +34,37 @@ on:
         default: ""
 
 permissions:
-  actions: read
   contents: read
 
+# A new push to a pull request cancels the runs still going for the previous push.
+# Runs for pushes to a branch, and manual runs, always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  g10:
+    name: cargo-mutants on the T1 metrics (G10)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install cargo-mutants
+        # Pinned, so a new release cannot change which mutants are generated.
+        run: cargo install cargo-mutants --locked --version 27.1.0
+
+      - name: Run the mutants on the T1 metrics
+        run: scripts/check-mutants.sh "$RUNNER_TEMP/mutants"
+
+      - name: Run the mutants on the top-k code of heap.rs (G10, D-336)
+        run: scripts/check-mutants-topk.sh "$RUNNER_TEMP/mutants-topk"
+
   first-pass:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     name: first pass ${{ matrix.module }} ${{ matrix.shard }}/${{ matrix.total }}
     runs-on: ubuntu-24.04
     timeout-minutes: 360
@@ -111,6 +143,7 @@ jobs:
   # `parts` pieces with split -n l/part/parts. A part's regex must select exactly the part's lines
   # before the part runs, so the four parts of a shard cover exactly that shard's mutants.
   first-pass-split:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     name: first pass ${{ matrix.module }} ${{ matrix.shard }}/10, part ${{ matrix.part }} of ${{ matrix.parts }}
     runs-on: ubuntu-24.04
     timeout-minutes: 360
@@ -183,7 +216,10 @@ jobs:
     name: re-run the survivors against the full lib suite
     needs: [first-pass, first-pass-split]
     # Only the full dispatch runs this one-job re-run. A survivor-only dispatch uses survivor-parts.
-    if: ${{ always() && inputs.only == '' && inputs.survivors_from == '' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && always() && inputs.only == '' && inputs.survivors_from == '' }}
+    permissions:
+      actions: read
+      contents: read
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     steps:
@@ -271,7 +307,10 @@ jobs:
   survivor-parts:
     name: re-run survivor part ${{ matrix.part }} of 24 against the full lib suite
     needs: [first-pass, first-pass-split]
-    if: ${{ always() && inputs.survivors_from != '' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && always() && inputs.survivors_from != '' }}
+    permissions:
+      actions: read
+      contents: read
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
