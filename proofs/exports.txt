@@ -1,6 +1,6 @@
 # The theorems the G1 axiom check (scripts/check-proofs.sh) covers. One fully qualified
-# name per line. lean4checker replays every module in G2. The nanoda leg reads
-# proofs/nanoda-exports.txt, which holds the scaffold names only (D-321).
+# name per line. lean4checker replays every module in G2, and the nanoda leg of G2 checks
+# the export of every name here, Mathlib-dependent ones included (D-321).
 Gorse.scaffold_true
 Gorse.scaffold_or_comm
 Gorse.Spec.Metrics.hits_le_card

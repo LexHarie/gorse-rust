@@ -3,11 +3,13 @@
 #
 #   1. lean4checker replays the declarations of every module under proofs/Gorse on
 #      top of the environment its imports provide.
-#   2. nanoda, a second kernel written in Rust, checks the export of the theorems
-#      listed in proofs/nanoda-exports.txt, the scaffold names only (D-321). The
-#      export comes from the lean4export copy in
-#      proofs/kernel/lean4export, built on the project's own toolchain (its
-#      provenance and changes are in NOTICE.md there).
+#   2. nanoda, a second kernel written in Rust, checks the export of every theorem
+#      listed in proofs/exports.txt, the Mathlib-dependent ones included (D-321). The
+#      export comes from the lean4export copy in proofs/kernel/lean4export, built on
+#      the project's own toolchain (its provenance and changes are in NOTICE.md there).
+#      Before the project's export, nanoda checks the export of Lean.Syntax from Init,
+#      a nested inductive. Without the constructor and recursor dump of NOTICE.md, that
+#      export fails, so this step is the regression test of the dump.
 #
 # Every external tool is fetched at the revision pinned in proofs/tools.env, and a
 # checkout that resolves to any other commit fails. proofs/ must be built first
@@ -54,28 +56,25 @@ for m in "${modules[@]}"; do
   (cd proofs && lake env "$checker" "$m")
 done
 
-echo "== G2 leg 2: the export of the exported theorems, checked by nanoda at $NANODA_REV"
+echo "== G2 leg 2: the exports of the exported theorems, checked by nanoda at $NANODA_REV"
 cp -R proofs/kernel/lean4export "$work/lean4export"
 (cd "$work/lean4export" && lake build lean4export)
 exporter="$work/lean4export/.lake/build/bin/lean4export"
 [ -x "$exporter" ] || { echo "G2: lean4export was not built" >&2; exit 1; }
-
-mapfile -t exported < <(grep -v -E '^(#|$)' proofs/nanoda-exports.txt)
-(cd proofs && lake env "$exporter" Gorse -- "${exported[@]}") > "$work/export.txt"
-echo "export: $(wc -l < "$work/export.txt") lines for ${#exported[@]} theorems"
-# The export is short, and printing it lets a failure in nanoda be read from the log.
-cat "$work/export.txt"
 
 fetch_rev "$NANODA_REPO" "$NANODA_REV" "$work/nanoda"
 (cd "$work/nanoda" && cargo build --release --locked --bin nanoda_bin)
 nanoda="$work/nanoda/target/release/nanoda_bin"
 [ -x "$nanoda" ] || { echo "G2: nanoda was not built" >&2; exit 1; }
 
-# Only the three semi-official axioms are permitted, and any other axiom in the
-# export is a hard error. Nat and String literals are checked by their extensions.
-cat > "$work/nanoda.json" <<EOF
+# nanoda_check EXPORT NAME: nanoda checks the export file EXPORT, and the run must report
+# no errors. Only the three semi-official axioms are permitted, and any other axiom in
+# the export is a hard error. Nat and String literals are checked by their extensions.
+nanoda_check() {
+  local file="$1" name="$2" out
+  cat > "$work/nanoda-$name.json" <<EOF
 {
-  "export_file_path": "$work/export.txt",
+  "export_file_path": "$file",
   "use_stdin": false,
   "permitted_axioms": ["propext", "Classical.choice", "Quot.sound"],
   "unpermitted_axiom_hard_error": true,
@@ -84,11 +83,21 @@ cat > "$work/nanoda.json" <<EOF
   "print_success_message": true
 }
 EOF
-out="$("$nanoda" "$work/nanoda.json")"
-echo "$out"
-case "$out" in
-  *"with no errors"*) ;;
-  *) echo "G2: nanoda did not report a clean check" >&2; exit 1 ;;
-esac
+  out="$("$nanoda" "$work/nanoda-$name.json")"
+  echo "$out"
+  case "$out" in
+    *"with no errors"*) ;;
+    *) echo "G2: nanoda did not report a clean check of $name" >&2; exit 1 ;;
+  esac
+}
 
-echo "G2: lean4checker and nanoda both accept every module and exported theorem"
+echo "-- self-test: the export of Lean.Syntax from Init, a nested inductive (D-321)"
+(cd proofs && lake env "$exporter" Init -- Lean.Syntax) > "$work/syntax.txt"
+nanoda_check "$work/syntax.txt" syntax
+
+mapfile -t exported < <(grep -v -E '^(#|$)' proofs/exports.txt)
+(cd proofs && lake env "$exporter" Gorse -- "${exported[@]}") > "$work/export.txt"
+echo "export: $(wc -l < "$work/export.txt") lines for ${#exported[@]} theorems"
+nanoda_check "$work/export.txt" exports
+
+echo "G2: lean4checker and nanoda both accept every module and every exported theorem"
