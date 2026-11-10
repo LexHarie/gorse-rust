@@ -1,0 +1,91 @@
+diff --git a/src/diag.rs b/src/diag.rs
+new file mode 100644
+index 0000000..c7eb8b4
+--- /dev/null
++++ b/src/diag.rs
+@@ -0,0 +1,42 @@
++//! Profiling aid for D-372 (not part of the pinned checker's logic). It reports, on stderr,
++//! the declarations that take at least a second, and a heartbeat every minute with the
++//! count of finished declarations and the one in flight. Names are printed as NamePtr
++//! indices, which are the export's name ids.
++use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
++use std::sync::Mutex;
++use std::time::{Duration, Instant};
++
++pub(crate) static INFLIGHT: Mutex<Option<(String, Instant)>> = Mutex::new(None);
++pub(crate) static DONE: AtomicUsize = AtomicUsize::new(0);
++pub(crate) static STOP: AtomicBool = AtomicBool::new(false);
++
++pub(crate) fn started(name: &str) {
++    *INFLIGHT.lock().unwrap() = Some((name.to_string(), Instant::now()));
++}
++
++pub(crate) fn finished(name: &str, start: Instant) {
++    let ms = start.elapsed().as_millis();
++    if ms >= 1000 {
++        eprintln!("DIAG slow name={} ms={}", name, ms);
++    }
++    DONE.fetch_add(1, Ordering::Relaxed);
++    *INFLIGHT.lock().unwrap() = None;
++}
++
++pub(crate) fn start_heartbeat(total: usize) {
++    let t0 = Instant::now();
++    std::thread::spawn(move || {
++        while !STOP.load(Ordering::Relaxed) {
++            std::thread::sleep(Duration::from_secs(60));
++            let done = DONE.load(Ordering::Relaxed);
++            let inflight = INFLIGHT.lock().unwrap().clone();
++            match inflight {
++                Some((n, s)) => eprintln!(
++                    "DIAG heartbeat t={}s done={}/{} inflight={} for={}s",
++                    t0.elapsed().as_secs(), done, total, n, s.elapsed().as_secs()
++                ),
++                None => eprintln!("DIAG heartbeat t={}s done={}/{} inflight=none", t0.elapsed().as_secs(), done, total),
++            }
++        }
++    });
++}
+diff --git a/src/lib.rs b/src/lib.rs
+index 3efce96..6559b8c 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -5,6 +5,7 @@
+ #![allow(clippy::too_many_arguments)]
+ 
+ pub mod debug_printer;
++pub mod diag;
+ pub mod env;
+ pub mod expr;
+ pub mod inductive;
+diff --git a/src/tc.rs b/src/tc.rs
+index 8d5ced5..e65eff2 100644
+--- a/src/tc.rs
++++ b/src/tc.rs
+@@ -71,6 +71,14 @@ pub struct TypeChecker<'x, 't, 'p> {
+ impl<'p> ExportFile<'p> {
+     /// The entry point for checking a declaration `d`.
+     pub fn check_declar(&self, d: &Declar<'p>) {
++        let name = format!("{:?}", d.info().name);
++        let start = std::time::Instant::now();
++        crate::diag::started(&name);
++        self.check_declar_body(d);
++        crate::diag::finished(&name, start);
++    }
++
++    fn check_declar_body(&self, d: &Declar<'p>) {
+         use Declar::*;
+         match d {
+             Axiom { .. } => self.with_tc_and_declar(*d.info(), |tc| tc.check_declar_info(d.info())),
+@@ -97,9 +105,11 @@ impl<'p> ExportFile<'p> {
+ 
+     /// Check all declarations in this export file using a single thread.
+     pub(crate) fn check_all_declars_serial(&self) {
++        crate::diag::start_heartbeat(self.declars.len());
+         for declar in self.declars.values() {
+             self.check_declar(declar);
+         }
++        crate::diag::STOP.store(true, std::sync::atomic::Ordering::Relaxed);
+     }
+ 
+     /// Check all declarations in this export file, spawning `num_threads` as
