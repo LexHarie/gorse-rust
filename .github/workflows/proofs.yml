@@ -7,6 +7,13 @@ name: proofs
 on:
   pull_request:
   workflow_dispatch:
+    inputs:
+      # D-372 diagnostics on this branch. The default is the full profile.
+      job:
+        description: "Which D-372 diagnostic runs: profile or isolate"
+        type: choice
+        options: [profile, isolate]
+        default: profile
 
 permissions:
   contents: read
@@ -296,7 +303,7 @@ jobs:
   profile:
     # D-372: a dispatch of this branch runs only this job. It profiles nanoda on the exports of
     # run 42746817355, with per-declaration timing.
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.job == 'profile'
     name: Profile nanoda on the G2 exports (D-372)
     runs-on: ubuntu-24.04
     timeout-minutes: 100
@@ -326,4 +333,55 @@ jobs:
         with:
           name: nanoda-profile
           path: ${{ runner.temp }}/g2/profile*
+          retention-days: 14
+
+  isolate:
+    # D-372, step 1 (the coordinator's ruling): one declaration, the matcher of log2Bits, is
+    # exported with its closure and checked by nanoda, with the timing patch, under a
+    # 20-minute cap. A stall here is the matcher or what it reaches. A clean check clears it.
+    if: github.event_name == 'workflow_dispatch' && inputs.job == 'isolate'
+    name: Isolated nanoda check of log2Bits.match_1 (D-372)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install elan, the Lean toolchain manager
+        run: |
+          curl -sSfL -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
+          echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c -
+          sh elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Fetch the prebuilt Mathlib modules
+        working-directory: proofs
+        run: lake exe cache get
+
+      - name: Build the Lean project
+        working-directory: proofs
+        run: lake build
+
+      - name: Export the matcher alone, with its closure
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/iso"
+          mkdir -p "$dir"
+          cp -R proofs/kernel/lean4export "$RUNNER_TEMP/lean4export"
+          (cd "$RUNNER_TEMP/lean4export" && lake build lean4export)
+          exporter="$RUNNER_TEMP/lean4export/.lake/build/bin/lean4export"
+          (cd proofs && lake env "$exporter" Gorse -- Gorse.Spec.NdcgRat.log2Bits.match_1) > "$dir/exports.txt"
+          echo "isolate: $(wc -l < "$dir/exports.txt") export lines for log2Bits.match_1"
+
+      - name: Check the matcher with nanoda, for 20 minutes
+        run: scripts/profile-nanoda.sh "$RUNNER_TEMP/iso" 20
+
+      - name: Keep the profile
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: nanoda-isolate
+          path: ${{ runner.temp }}/iso/
           retention-days: 14
