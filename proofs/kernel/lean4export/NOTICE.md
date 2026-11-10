@@ -15,7 +15,8 @@ files, so the copy is changed only where Lean `v4.15.0` requires it:
   `Lean.HashMap`, which `open Lean` brings into scope, so the bare name is ambiguous
   there (CI run 42035215698 failed on it).
 
-`Main.lean` is unchanged. The export format itself is unchanged.
+`Main.lean` is changed for D-321 (the second section below). The export format itself is
+unchanged.
 
 The format is the one nanoda `v0.2.0` reads, which is the version pinned in
 `proofs/tools.env`. Its `#IND` lines carry two flags, `isRec` and `isNested`. Nanoda
@@ -53,4 +54,28 @@ reaches. The change adds the missing constructors and recursors of an inductive 
 the export already contains, so nanoda checks more declarations and none are dropped.
 
 **Regression test.** `scripts/check-kernels.sh` exports `Lean.Syntax` from `Init` and
-checks it with nanoda (leg 2 of G2), so a copy without the change fails in CI.
+checks it with nanoda before the project's export, so a copy without the change fails in
+CI.
+
+## Change for D-321: the constants nanoda looks up are dumped first
+
+`Main.lean` dumps the requested constants and whatever they reach. nanoda `v0.2.0`
+looks up some constants by name whether or not a checked declaration reaches them
+(`src/util.rs`, `find_name`, and the `name_cache` unwraps). A check that reaches
+`Quot.mk` and `Quot.lift` but not `Quot.ind` panics at `src/quot.rs:141:61` (an
+`Option::unwrap` on the missing `Quot.ind`). Nothing in a Mathlib-free export is
+guaranteed to reach all of them, so the same panic can appear on any export that uses
+`funext`, `propext` or `Quot.sound`.
+
+`Main.lean` now dumps these constants before the requested ones: `Quot`, `Quot.mk`,
+`Quot.lift`, `Quot.ind`, `String`, `String.mk`, `Nat`, `Nat.zero`, `Nat.succ`, `Nat.add`,
+`Nat.sub`, `Nat.mul`, `Nat.pow`, `Nat.mod`, `Nat.div`, `Nat.beq`, `Nat.ble`, `Bool.true`,
+`Bool.false`, `Char`, `Char.ofNat`, `List`, `List.nil`, `List.cons`, `Eq` and `Eq.refl`.
+The 24 names of `find_name` in nanoda's `src/util.rs` are among them. These are
+declarations of Lean's core, and nanoda checks each one, so the change adds checks and
+removes none.
+
+**Evidence (sandbox, Lean `v4.15.0`, core only).** A test file of 120 theorems (60 `simp`
+proofs over `List`, 60 `omega` proofs over `Nat`) gave an export of 79,414 lines. Before the preamble, nanoda panicked at `src/quot.rs:141:61`. After it, the
+export is 80,188 lines, and nanoda checks 1,329 declarations with no errors in about one
+second.

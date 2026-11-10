@@ -87,9 +87,10 @@ jobs:
         # LOG2_TABLE in the Rust source, and --check fails when the committed file differs.
         run: python3 scripts/gen-log2-table/gen.py --check
 
-      - name: Run the independent kernels on the proofs (G2)
+      - name: Run the lean4checker leg of the independent kernels (G2, leg 1)
+        # The nanoda leg, which checks the Mathlib-dependent exports, is in the g2 job (D-369).
         timeout-minutes: 60
-        run: scripts/check-kernels.sh
+        run: scripts/check-kernels.sh lean4checker
 
       - name: Check the fusion of the dot kernels (D-344, D-345, D-346, D-347)
         # scripts/check-disasm.sh compiles the three dot kernels with clang and the build.rs
@@ -97,6 +98,51 @@ jobs:
         run: |
           command -v clang >/dev/null || sudo apt-get install -y clang
           scripts/check-disasm.sh
+
+  g2:
+    name: Nanoda leg of G2, on every export (D-369)
+    runs-on: ubuntu-24.04
+    # Nanoda checks the Mathlib closure of the 195 exported theorems in one file. Its run
+    # on the first attempt was still going after 47 minutes, so this job has its own budget.
+    timeout-minutes: 330
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install elan, the Lean toolchain manager
+        run: |
+          curl -sSfL -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
+          # The installer's digest, recorded from the first run (2026-11-05). A changed
+          # installer fails here, before it runs.
+          echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c -
+          sh elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Fetch the prebuilt Mathlib modules
+        working-directory: proofs
+        run: lake exe cache get
+
+      - name: Build the Lean project
+        working-directory: proofs
+        run: lake build
+
+      - name: Write the two exports of G2 (the Lean side)
+        run: scripts/check-kernels.sh export "$RUNNER_TEMP/g2"
+
+      - name: Keep the exports as an artifact
+        # Uploaded before nanoda runs, so an export whose check is still running when the job
+        # times out stays available for analysis.
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: g2-exports
+          path: ${{ runner.temp }}/g2/
+          retention-days: 14
+
+      - name: Check every exported theorem with nanoda (G2, leg 2)
+        timeout-minutes: 300
+        run: scripts/check-kernels.sh nanoda "$RUNNER_TEMP/g2"
 
   g9:
     name: Lean oracle for the T1 metrics (G9)
