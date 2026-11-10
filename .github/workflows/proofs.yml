@@ -19,6 +19,7 @@ concurrency:
 
 jobs:
   g1:
+    if: github.event_name == 'pull_request'
     name: Lean build and G1 checks
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -100,6 +101,7 @@ jobs:
           scripts/check-disasm.sh
 
   g2:
+    if: github.event_name == 'pull_request'
     name: Nanoda leg of G2, on every export (D-369)
     runs-on: ubuntu-24.04
     # Nanoda checks the Mathlib closure of the 195 exported theorems in one file. Its run
@@ -145,6 +147,7 @@ jobs:
         run: scripts/check-kernels.sh nanoda "$RUNNER_TEMP/g2"
 
   g9:
+    if: github.event_name == 'pull_request'
     name: Lean oracle for the T1 metrics (G9)
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -252,6 +255,7 @@ jobs:
         run: lake env lean ../scripts/log2-trust.lean
 
   g9-avx512:
+    if: github.event_name == 'pull_request'
     name: The AVX-512 dot kernel against the oracle (G9, D-351)
     # The AVX-512 steps of the g9 job, split out (the P4-10 ruling). A runner without AVX-512 costs a
     # re-run of this job alone. It compares the cases and the oracle output that the g9 job uploads,
@@ -288,3 +292,38 @@ jobs:
         # Gorse.Spec.DotLevels.dot_levels_close, on the pairs of the dot check above. The check fails
         # on a CPU without AVX-512, so it cannot pass silently.
         run: target/release/examples/g9_dot levels 4000
+
+  profile:
+    # D-372: a dispatch of this branch runs only this job. It profiles nanoda on the exports of
+    # run 42746817355, with per-declaration timing.
+    if: github.event_name == 'workflow_dispatch'
+    name: Profile nanoda on the G2 exports (D-372)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Download the exports of G2
+        uses: actions/download-artifact@v4
+        with:
+          name: g2-exports
+          path: ${{ runner.temp }}/g2
+          run-id: "42746817355"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run nanoda with per-declaration timing
+        run: scripts/profile-nanoda.sh "$RUNNER_TEMP/g2" 85
+
+      - name: Keep the profile
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: nanoda-profile
+          path: ${{ runner.temp }}/g2/profile*
+          retention-days: 14
