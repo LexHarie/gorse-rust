@@ -1,9 +1,37 @@
 # G10, cargo-mutants on the verified T1 metric code (scripts/check-mutants.sh, D-327).
+#
+# D-327, the crate-level cargo-mutants baseline of gorse-model. Its jobs (first-pass,
+# first-pass-split, survivors and survivor-parts) run only on a manual dispatch
+# (github.event_name == 'workflow_dispatch'), so a pull request runs the g10 job alone,
+# which includes the top-k step (D-336).
+#
+# First pass: each mutant runs against its module's tests (cf::, ctr::, tpe::). The mutants
+# of a module are split with --shard k/n: cf 10 shards, ctr 10, tpe 2.
+# Second pass: every first-pass survivor (missed or timed out) is re-run against the full
+# lib suite with no test filter. The --re selection may add struct-field deletions, so the
+# check is that the selection contains every survivor, not that it has an exact count.
 name: mutants
 
 on:
   pull_request:
   workflow_dispatch:
+    inputs:
+      only:
+        description: "First-pass shards to run, as module:shard,... (for example ctr:3,ctr:5). Empty runs them all, and the survivor re-run runs only then."
+        type: string
+        default: ""
+      survivors_from:
+        description: "Survivor re-run only: run ids (comma-separated) whose first-pass artifacts are re-run. Set only to none:0 with it, so no first-pass shard runs."
+        type: string
+        default: ""
+      skip_artifacts:
+        description: "Survivor re-run only: first-pass artifact names (comma-separated, for example first-pass-cf-5,first-pass-ctr-3) to leave out of the re-run, because another dispatch measured those shards."
+        type: string
+        default: ""
+      resume_from:
+        description: "Survivor-parts only: run ids (comma-separated) of earlier survivor-parts dispatches. Survivors that they already measured (caught, missed or timeout) are not re-run."
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -34,3 +62,353 @@ jobs:
 
       - name: Run the mutants on the top-k code of heap.rs (G10, D-336)
         run: scripts/check-mutants-topk.sh "$RUNNER_TEMP/mutants-topk"
+
+  first-pass:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    name: first pass ${{ matrix.module }} ${{ matrix.shard }}/${{ matrix.total }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        include:
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 0 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 1 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 2 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 3 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 4 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 5 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 6 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 7 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 8 }
+          - { module: cf, glob: "crates/gorse-model/src/cf/**", filter: "cf::", total: 10, shard: 9 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 0 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 1 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 2 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 3 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 4 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 5 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 6 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 7 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 8 }
+          - { module: ctr, glob: "crates/gorse-model/src/ctr/**", filter: "ctr::", total: 10, shard: 9 }
+          - { module: tpe, glob: "crates/gorse-model/src/tpe{.rs,/**}", filter: "tpe::", total: 2, shard: 0 }
+          - { module: tpe, glob: "crates/gorse-model/src/tpe{.rs,/**}", filter: "tpe::", total: 2, shard: 1 }
+    steps:
+      - name: Check out the repository
+        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Place the frappe dataset the ctr tests read (D-327)
+        # The ctr baseline loads frappe (ctr::data::tests::load_data_from_built_in_frappe). Without
+        # this step the shard's unmutated baseline fails, so no mutant in it is measured.
+        if: ${{ ( inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard))) && matrix.module == 'ctr' }}
+        timeout-minutes: 15
+        run: GORSE_DATASETS=frappe scripts/setup-datasets.sh
+
+      - name: Install cargo-mutants
+        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
+        # Pinned, as in the existing G10 job, so the mutants generated are the same.
+        run: cargo install cargo-mutants --locked --version 27.1.0
+
+      - name: Run this shard's mutants against the module's tests
+        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
+        env:
+          GLOB: ${{ matrix.glob }}
+          FILTER: ${{ matrix.filter }}
+          SHARD: ${{ matrix.shard }}/${{ matrix.total }}
+        run: |
+          out="$RUNNER_TEMP/out"
+          mkdir -p "$out"
+          status=0
+          cargo mutants --package gorse-model --file "$GLOB" --shard "$SHARD" --output "$out" -- --lib "$FILTER" || status=$?
+          echo "cargo-mutants exit=$status"
+          # 0: all caught. 2: some missed. 3: some timed out. These outcomes are the record, so
+          # the shard keeps them and the second pass re-runs them. Any other status is a failure.
+          case "$status" in 0|2|3) ;; *) exit "$status" ;; esac
+
+      - name: Upload this shard's outcomes
+        if: ${{ always() && (inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard))) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-pass-${{ matrix.module }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/out
+          if-no-files-found: warn
+
+  # Split first pass for cf shards 5 and 6 of 10, which reached the 360-minute job limit in the
+  # full run (D-327). Each shard is listed with the same --shard the first pass used, then cut into
+  # `parts` pieces with split -n l/part/parts. A part's regex must select exactly the part's lines
+  # before the part runs, so the four parts of a shard cover exactly that shard's mutants.
+  first-pass-split:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    name: first pass ${{ matrix.module }} ${{ matrix.shard }}/10, part ${{ matrix.part }} of ${{ matrix.parts }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        include:
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 5, part: 1, parts: 4 }
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 5, part: 2, parts: 4 }
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 5, part: 3, parts: 4 }
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 5, part: 4, parts: 4 }
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 6, part: 1, parts: 4 }
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 6, part: 2, parts: 4 }
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 6, part: 3, parts: 4 }
+          - { module: cf-split, glob: "crates/gorse-model/src/cf/**", filter: "cf::", shard: 6, part: 4, parts: 4 }
+    steps:
+      - name: Check out the repository
+        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install cargo-mutants
+        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
+        run: cargo install cargo-mutants --locked --version 27.1.0
+
+      - name: Select this part of the shard
+        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
+        env:
+          GLOB: ${{ matrix.glob }}
+          SHARD: ${{ matrix.shard }}/10
+          PART: ${{ matrix.part }}
+          PARTS: ${{ matrix.parts }}
+        run: |
+          cargo mutants --package gorse-model --file "$GLOB" --shard "$SHARD" --list > "$RUNNER_TEMP/shard.txt"
+          split -n "l/$PART/$PARTS" "$RUNNER_TEMP/shard.txt" > "$RUNNER_TEMP/part.txt"
+          echo "shard $SHARD has $(grep -c . "$RUNNER_TEMP/shard.txt") mutants; part $PART of $PARTS has $(grep -c . "$RUNNER_TEMP/part.txt")"
+          test "$(grep -c . "$RUNNER_TEMP/part.txt")" -gt 0
+
+      - name: Run this part's mutants against the module's tests
+        if: ${{ inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard)) }}
+        env:
+          GLOB: ${{ matrix.glob }}
+          FILTER: ${{ matrix.filter }}
+        run: |
+          out="$RUNNER_TEMP/out"
+          mkdir -p "$out"
+          re=$(python3 -I -c 'import re,sys; esc=lambda s: re.sub(r"([\\.+*?()|\[\]{}^$#&~-])", r"\\\1", s); print("^(" + "|".join(esc(l.rstrip(chr(10))) for l in sys.stdin) + ")$")' < "$RUNNER_TEMP/part.txt")
+          expected=$(grep -c . "$RUNNER_TEMP/part.txt")
+          listed=$(cargo mutants --package gorse-model --file "$GLOB" --re "$re" --list | grep -c . || true)
+          if [ "$listed" != "$expected" ]; then
+            echo "::error::the part's regex selects $listed mutants, but the part has $expected"
+            exit 1
+          fi
+          status=0
+          cargo mutants --package gorse-model --file "$GLOB" --re "$re" --output "$out" -- --lib "$FILTER" || status=$?
+          echo "cargo-mutants exit=$status"
+          case "$status" in 0|2|3) ;; *) exit "$status" ;; esac
+
+      - name: Upload this part's outcomes
+        if: ${{ always() && (inputs.only == '' || contains(format(',{0},', inputs.only), format(',{0}:{1},', matrix.module, matrix.shard))) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-pass-${{ matrix.module }}-${{ matrix.shard }}-part${{ matrix.part }}
+          path: ${{ runner.temp }}/out
+          if-no-files-found: warn
+
+  survivors:
+    name: re-run the survivors against the full lib suite
+    needs: [first-pass, first-pass-split]
+    # Only the full dispatch runs this one-job re-run. A survivor-only dispatch uses survivor-parts.
+    if: ${{ github.event_name == 'workflow_dispatch' && always() && inputs.only == '' && inputs.survivors_from == '' }}
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked --version 27.1.0
+
+      - name: Place the frappe dataset the full lib suite reads (D-327)
+        # The second pass runs the whole lib suite, which includes the frappe baseline test.
+        timeout-minutes: 15
+        run: GORSE_DATASETS=frappe scripts/setup-datasets.sh
+
+      - name: Download the first-pass outcomes
+        if: ${{ inputs.survivors_from == '' }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: first-pass-*
+          path: ${{ runner.temp }}/first
+
+      - name: Download the first-pass outcomes of the earlier runs
+        # A survivor-only dispatch reads the artifacts of the runs named in survivors_from, so a
+        # shard that ran in another dispatch (ctr 3/10 and ctr 5/10) is re-run here too.
+        if: ${{ inputs.survivors_from != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNS: ${{ inputs.survivors_from }}
+          SKIP: ${{ inputs.skip_artifacts }}
+        run: |
+          for r in ${RUNS//,/ }; do
+            gh run download "$r" --repo "$GITHUB_REPOSITORY" --pattern 'first-pass-*' --dir "$RUNNER_TEMP/first/$r"
+          done
+          # Artifacts named in skip_artifacts are removed, so their outcomes are not re-run here.
+          for a in ${SKIP//,/ }; do
+            find "$RUNNER_TEMP/first" -mindepth 2 -type d -name "$a" -prune -exec rm -rf {} +
+            echo "left out $a"
+          done
+
+      - name: Gather the first-pass outcomes and the survivors
+        run: |
+          count() { find "$RUNNER_TEMP/first" -name "$1" -exec cat {} + 2>/dev/null | grep -c . || true; }
+          echo "first pass: caught=$(count caught.txt) missed=$(count missed.txt) timeout=$(count timeout.txt) unviable=$(count unviable.txt)"
+          find "$RUNNER_TEMP/first" \( -name missed.txt -o -name timeout.txt \) -exec cat {} + 2>/dev/null | sort -u > "$RUNNER_TEMP/survivors.txt" || true
+          echo "survivors to re-run: $(grep -c . "$RUNNER_TEMP/survivors.txt" || true)"
+
+      - name: Re-run each survivor against the full lib suite
+        run: |
+          out="$RUNNER_TEMP/rerun"
+          mkdir -p "$out"
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            grep -F "$f:" "$RUNNER_TEMP/survivors.txt" > "$RUNNER_TEMP/s.txt"
+            expected=$(grep -c . "$RUNNER_TEMP/s.txt")
+            # --re matches the full list line (path, line, column and description), so this
+            # anchored alternation selects exactly the survivors of this file.
+            re=$(python3 -I -c 'import re,sys; esc=lambda s: re.sub(r"([\\.+*?()|\[\]{}^$#&~-])", r"\\\1", s); print("^(" + "|".join(esc(l.rstrip(chr(10))) for l in sys.stdin) + ")$")' < "$RUNNER_TEMP/s.txt")
+            cargo mutants --package gorse-model --file "$f" --re "$re" --list > "$RUNNER_TEMP/listed.txt"
+            # --re also lists the file's struct-field mutants, so the listed set can be larger. It must contain every survivor.
+            missing=$(grep -Fxv -f "$RUNNER_TEMP/listed.txt" "$RUNNER_TEMP/s.txt" || true)
+            if [ -n "$missing" ]; then
+              echo "::error::$f: the re-run does not select these survivors: $missing"
+              exit 1
+            fi
+            status=0
+            cargo mutants --package gorse-model --file "$f" --re "$re" --output "$out/$(echo "$f" | tr / _)" -- --lib || status=$?
+            echo "$f: $expected survivors re-run against the full lib suite, cargo-mutants exit=$status"
+            case "$status" in 0|2|3) ;; *) exit "$status" ;; esac
+          done < <(cut -d: -f1 "$RUNNER_TEMP/survivors.txt" | sort -u)
+          caught=$(find "$out" -name caught.txt -exec cat {} + 2>/dev/null | grep -c . || true)
+          missed=$(find "$out" -name missed.txt -exec cat {} + 2>/dev/null | grep -c . || true)
+          timeouts=$(find "$out" -name timeout.txt -exec cat {} + 2>/dev/null | grep -c . || true)
+          echo "full-suite re-run: caught=$caught missed=$missed timeout=$timeouts"
+          if [ "$missed" != 0 ] || [ "$timeouts" != 0 ]; then
+            find "$out" \( -name missed.txt -o -name timeout.txt \) -exec cat {} + 2>/dev/null
+            exit 1
+          fi
+
+  # Survivor re-run for a survivor-only dispatch, cut into 24 parts so that no job reaches the
+  # 360-minute limit. The one-job re-run above timed out after six hours with its outcomes unsaved.
+  # Each part is a slice of the sorted survivor list of survivors_from, so every survivor lands in
+  # exactly one part, and each part uploads its own outcomes.
+  survivor-parts:
+    name: re-run survivor part ${{ matrix.part }} of 24 against the full lib suite
+    needs: [first-pass, first-pass-split]
+    if: ${{ github.event_name == 'workflow_dispatch' && always() && inputs.survivors_from != '' }}
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
+    env:
+      PARTS: 24
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked --version 27.1.0
+
+      - name: Place the frappe dataset the full lib suite reads (D-327)
+        timeout-minutes: 15
+        run: GORSE_DATASETS=frappe scripts/setup-datasets.sh
+
+      - name: Download the first-pass outcomes of the earlier runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNS: ${{ inputs.survivors_from }}
+          SKIP: ${{ inputs.skip_artifacts }}
+        run: |
+          for r in ${RUNS//,/ }; do
+            gh run download "$r" --repo "$GITHUB_REPOSITORY" --pattern 'first-pass-*' --dir "$RUNNER_TEMP/first/$r"
+          done
+          for a in ${SKIP//,/ }; do
+            find "$RUNNER_TEMP/first" -mindepth 2 -type d -name "$a" -prune -exec rm -rf {} +
+            echo "left out $a"
+          done
+
+      - name: Cut the survivors into parts and take this part
+        env:
+          PART: ${{ matrix.part }}
+        run: |
+          find "$RUNNER_TEMP/first" \( -name missed.txt -o -name timeout.txt \) -exec cat {} + 2>/dev/null | sort -u > "$RUNNER_TEMP/survivors.txt" || true
+          split -n "l/$PART/$PARTS" "$RUNNER_TEMP/survivors.txt" > "$RUNNER_TEMP/part.txt"
+          echo "survivors: $(grep -c . "$RUNNER_TEMP/survivors.txt" || true); part $PART of $PARTS: $(grep -c . "$RUNNER_TEMP/part.txt" || true)"
+
+      - name: Keep only the survivors that an earlier survivor-parts run did not decide
+        if: ${{ inputs.resume_from != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNS: ${{ inputs.resume_from }}
+        run: |
+          : > "$RUNNER_TEMP/decided.txt"
+          for r in ${RUNS//,/ }; do
+            gh run download "$r" --repo "$GITHUB_REPOSITORY" --pattern 'survivor-part-*' --dir "$RUNNER_TEMP/prev/$r" || echo "no survivor-part artifacts in run $r"
+            find "$RUNNER_TEMP/prev/$r" \( -name caught.txt -o -name missed.txt -o -name timeout.txt \) -exec cat {} + >> "$RUNNER_TEMP/decided.txt" 2>/dev/null || true
+          done
+          before=$(grep -c . "$RUNNER_TEMP/part.txt" || true)
+          grep -Fxv -f "$RUNNER_TEMP/decided.txt" "$RUNNER_TEMP/part.txt" > "$RUNNER_TEMP/part2.txt" || true
+          mv "$RUNNER_TEMP/part2.txt" "$RUNNER_TEMP/part.txt"
+          echo "decided by earlier runs: $(grep -c . "$RUNNER_TEMP/decided.txt" || true); this part had $before survivors and still has $(grep -c . "$RUNNER_TEMP/part.txt" || true) to run"
+
+      - name: Re-run this part's survivors against the full lib suite
+        run: |
+          out="$RUNNER_TEMP/rerun"
+          mkdir -p "$out"
+          if [ ! -s "$RUNNER_TEMP/part.txt" ]; then
+            echo "this part has no survivors"
+            exit 0
+          fi
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            grep -F "$f:" "$RUNNER_TEMP/part.txt" > "$RUNNER_TEMP/s.txt"
+            expected=$(grep -c . "$RUNNER_TEMP/s.txt")
+            # --re matches the full list line, so this anchored alternation selects exactly this part's survivors of the file.
+            re=$(python3 -I -c 'import re,sys; esc=lambda s: re.sub(r"([\\.+*?()|\[\]{}^$#&~-])", r"\\\1", s); print("^(" + "|".join(esc(l.rstrip(chr(10))) for l in sys.stdin) + ")$")' < "$RUNNER_TEMP/s.txt")
+            cargo mutants --package gorse-model --file "$f" --re "$re" --list > "$RUNNER_TEMP/listed.txt"
+            # --re also lists the file's struct-field mutants, so the listed set can be larger. It must contain every survivor.
+            missing=$(grep -Fxv -f "$RUNNER_TEMP/listed.txt" "$RUNNER_TEMP/s.txt" || true)
+            if [ -n "$missing" ]; then
+              echo "::error::$f: the re-run does not select these survivors: $missing"
+              exit 1
+            fi
+            status=0
+            cargo mutants --package gorse-model --file "$f" --re "$re" --output "$out/$(echo "$f" | tr / _)" -- --lib || status=$?
+            echo "$f: $expected survivors re-run against the full lib suite, cargo-mutants exit=$status"
+            case "$status" in 0|2|3) ;; *) exit "$status" ;; esac
+          done < <(cut -d: -f1 "$RUNNER_TEMP/part.txt" | sort -u)
+          caught=$(find "$out" -name caught.txt -exec cat {} + 2>/dev/null | grep -c . || true)
+          missed=$(find "$out" -name missed.txt -exec cat {} + 2>/dev/null | grep -c . || true)
+          timeouts=$(find "$out" -name timeout.txt -exec cat {} + 2>/dev/null | grep -c . || true)
+          echo "full-suite re-run of this part: caught=$caught missed=$missed timeout=$timeouts"
+          if [ "$missed" != 0 ] || [ "$timeouts" != 0 ]; then
+            find "$out" \( -name missed.txt -o -name timeout.txt \) -exec cat {} + 2>/dev/null
+            exit 1
+          fi
+
+      - name: Upload this part's outcomes
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: survivor-part-${{ matrix.part }}
+          path: ${{ runner.temp }}/rerun
+          if-no-files-found: warn
