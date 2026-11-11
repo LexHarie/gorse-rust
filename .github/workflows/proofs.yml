@@ -255,12 +255,14 @@ jobs:
     name: The AVX-512 dot kernel against the oracle (G9, D-351)
     # The AVX-512 steps of the g9 job, split out (the P4-10 ruling). A runner without AVX-512 costs a
     # re-run of this job alone. It compares the cases and the oracle output that the g9 job uploads,
-    # so it needs no Lean toolchain and does not rebuild the oracle. The hard fail stays: a runner
-    # without AVX-512 fails the check, as D-351 requires. The emulated mode (Intel SDE) is pending a
-    # license decision and is not in this job.
+    # so it needs no Lean toolchain and does not rebuild the oracle. On a runner without AVX-512 the
+    # check still fails, as D-351 requires, but the job is non-blocking (Ritchie's ruling of
+    # 2026-11-10, continue-on-error), so a merge is not held by it. The emulated mode (Intel SDE) is
+    # pending a license decision and is not in this job.
     needs: g9
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    continue-on-error: true
     steps:
       - name: Check out the repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
