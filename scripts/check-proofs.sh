@@ -60,7 +60,7 @@ echo "== step 3: #print axioms of the exported theorems"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 # The theorems the G1 axiom check covers, from proofs/exports.txt. The nanoda leg of G2
-# reads proofs/nanoda-exports.txt instead (D-321).
+# reads the same list (D-321).
 mapfile -t exports < <(grep -v -E '^(#|$)' proofs/exports.txt)
 {
   echo "import Gorse"

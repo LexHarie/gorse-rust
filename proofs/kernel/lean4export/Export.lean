@@ -170,8 +170,13 @@ partial def dumpConstant (c : Name) : M Unit := do
     if val.isUnsafe then
       return
     dumpDeps val.type
+    -- Each constructor and the recursor are dumped with their inductive type (D-321). The
+    -- format2024 copy dumped only the constructor types, so a constructor that no other
+    -- declaration used was missing from the export, and nanoda panics on a nested inductive
+    -- whose constructors are missing. See NOTICE.md.
     for ctor in val.ctors do
-      dumpDeps ((← read).env.find? ctor |>.get!.type)
+      dumpConstant ctor
+    dumpConstant (Lean.Name.mkStr c "rec")
     let indNameIdxs ← val.all.mapM dumpName
     let ctorNameIdxs ← val.ctors.mapM (fun ctor => dumpName ctor)
     let isRec := if val.isRec then 1 else 0
